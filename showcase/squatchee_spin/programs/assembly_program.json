@@ -1,0 +1,971 @@
+{
+ "assembly": "SQUATCHEE-SPIN v3 worn-pose assembly \u2014 mount at origin (2.0 mm walls, bayonet post), prop v2.1 on the boss shoulder (mid-float +0.2), retainer v3 twisted LOCKED (34 deg) at T=40.7 (rest 40.5 with prop +0.2, lug-on-ledge at 40.95)",
+ "receipts": {
+  "c_prop_mount_mm": 0.200001,
+  "c_ret_mount_mm": 0.148744,
+  "c_ret_prop_mm": 0.200001,
+  "interfering_worn_pose": false,
+  "retention_negative_control": {
+   "pose": "lifted +0.15 past engagement, LOCKED",
+   "interfering": true,
+   "overlap_mm3": 0.0263,
+   "meaning": "lug bears on the pocket ledge - positive retention"
+  },
+  "release_control": {
+   "pose": "lifted +0.15 past engagement, UNTWISTED",
+   "interfering": false,
+   "distance_mm": 0.1488,
+   "meaning": "channel-aligned retainer lifts free - serviceable"
+  }
+ },
+ "ops": [
+  {
+   "id": "m_prof",
+   "op": "sketch",
+   "points": [
+    [
+     11.8,
+     0
+    ],
+    [
+     11.8,
+     24.9
+    ],
+    [
+     4.6,
+     31.7
+    ],
+    [
+     4.6,
+     33.1
+    ],
+    [
+     2.5,
+     33.1
+    ],
+    [
+     2.2,
+     33.4
+    ],
+    [
+     2.2,
+     38.2
+    ],
+    [
+     1.5,
+     38.9
+    ],
+    [
+     0,
+     38.9
+    ],
+    [
+     0,
+     32.5
+    ],
+    [
+     9.8,
+     22.0
+    ],
+    [
+     9.8,
+     3.6
+    ],
+    [
+     6.6,
+     1.2
+    ],
+    [
+     6.6,
+     0.85
+    ],
+    [
+     7.4,
+     0
+    ]
+   ],
+   "segments": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     5,
+     6
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     7,
+     8
+    ],
+    [
+     8,
+     9
+    ],
+    [
+     9,
+     10
+    ],
+    [
+     10,
+     11
+    ],
+    [
+     11,
+     12
+    ],
+    [
+     12,
+     13
+    ],
+    [
+     13,
+     14
+    ],
+    [
+     14,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "m_body",
+   "op": "sketch_revolve",
+   "sketch": "m_prof",
+   "segments": 132
+  },
+  {
+   "id": "m_lugprism",
+   "op": "extrude",
+   "profile": [
+    [
+     0.7,
+     0
+    ],
+    [
+     0,
+     0.63
+    ],
+    [
+     -0.3,
+     0.63
+    ],
+    [
+     -0.65,
+     0
+    ],
+    [
+     -0.3,
+     -0.63
+    ],
+    [
+     0,
+     -0.63
+    ]
+   ],
+   "height": 1.55
+  },
+  {
+   "id": "m_lugA",
+   "op": "pose",
+   "in": "m_lugprism",
+   "rotate": {
+    "axis": [
+     0,
+     1,
+     0
+    ],
+    "degrees": 90
+   },
+   "translate": [
+    1.6,
+    0,
+    35.6
+   ]
+  },
+  {
+   "id": "m_lugB",
+   "op": "pose",
+   "in": "m_lugA",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 180
+   }
+  },
+  {
+   "id": "m_u1",
+   "op": "union",
+   "a": "m_body",
+   "b": "m_lugA"
+  },
+  {
+   "id": "m_postlug",
+   "op": "union",
+   "a": "m_u1",
+   "b": "m_lugB"
+  },
+  {
+   "id": "m_slot0",
+   "op": "box",
+   "min": [
+    6,
+    -2.05,
+    -1
+   ],
+   "max": [
+    13,
+    2.05,
+    22.9
+   ]
+  },
+  {
+   "id": "m_slot1",
+   "op": "pose",
+   "in": "m_slot0",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 60
+   }
+  },
+  {
+   "id": "m_slot2",
+   "op": "pose",
+   "in": "m_slot0",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 120
+   }
+  },
+  {
+   "id": "m_slot3",
+   "op": "pose",
+   "in": "m_slot0",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 180
+   }
+  },
+  {
+   "id": "m_slot4",
+   "op": "pose",
+   "in": "m_slot0",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 240
+   }
+  },
+  {
+   "id": "m_slot5",
+   "op": "pose",
+   "in": "m_slot0",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 300
+   }
+  },
+  {
+   "id": "m_d1",
+   "op": "difference",
+   "a": "m_postlug",
+   "b": "m_slot0"
+  },
+  {
+   "id": "m_d2",
+   "op": "difference",
+   "a": "m_d1",
+   "b": "m_slot1"
+  },
+  {
+   "id": "m_d3",
+   "op": "difference",
+   "a": "m_d2",
+   "b": "m_slot2"
+  },
+  {
+   "id": "m_d4",
+   "op": "difference",
+   "a": "m_d3",
+   "b": "m_slot3"
+  },
+  {
+   "id": "m_d5",
+   "op": "difference",
+   "a": "m_d4",
+   "b": "m_slot4"
+  },
+  {
+   "id": "m_mount",
+   "op": "difference",
+   "a": "m_d5",
+   "b": "m_slot5"
+  },
+  {
+   "id": "p_hub",
+   "op": "cylinder",
+   "base": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "radius": 7,
+   "height": 6
+  },
+  {
+   "id": "p_boredrill",
+   "op": "cylinder",
+   "base": [
+    0,
+    0,
+    -1
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "radius": 3.6,
+   "height": 8
+  },
+  {
+   "id": "p_hubB",
+   "op": "difference",
+   "a": "p_hub",
+   "b": "p_boredrill"
+  },
+  {
+   "id": "p_blade",
+   "op": "extrude",
+   "profile": [
+    [
+     5,
+     -3.8
+    ],
+    [
+     8,
+     -3.718
+    ],
+    [
+     11,
+     -3.599
+    ],
+    [
+     14,
+     -3.63
+    ],
+    [
+     17,
+     -4.001
+    ],
+    [
+     19,
+     -4.529
+    ],
+    [
+     20.766,
+     -5.193
+    ],
+    [
+     22.424,
+     -5.723
+    ],
+    [
+     24.23,
+     -6.169
+    ],
+    [
+     26.158,
+     -6.524
+    ],
+    [
+     28.179,
+     -6.783
+    ],
+    [
+     30.263,
+     -6.943
+    ],
+    [
+     32.381,
+     -7.0
+    ],
+    [
+     34.5,
+     -6.954
+    ],
+    [
+     36.59,
+     -6.806
+    ],
+    [
+     38.62,
+     -6.558
+    ],
+    [
+     40.56,
+     -6.213
+    ],
+    [
+     42.381,
+     -5.777
+    ],
+    [
+     44.057,
+     -5.257
+    ],
+    [
+     45.562,
+     -4.658
+    ],
+    [
+     47.455,
+     -3.635
+    ],
+    [
+     48.853,
+     -2.493
+    ],
+    [
+     49.871,
+     -0.847
+    ],
+    [
+     50.0,
+     0.0
+    ],
+    [
+     49.871,
+     0.847
+    ],
+    [
+     48.853,
+     2.493
+    ],
+    [
+     47.455,
+     3.635
+    ],
+    [
+     45.562,
+     4.658
+    ],
+    [
+     44.057,
+     5.257
+    ],
+    [
+     42.381,
+     5.777
+    ],
+    [
+     40.56,
+     6.213
+    ],
+    [
+     38.62,
+     6.558
+    ],
+    [
+     36.59,
+     6.806
+    ],
+    [
+     34.5,
+     6.954
+    ],
+    [
+     32.381,
+     7.0
+    ],
+    [
+     30.263,
+     6.943
+    ],
+    [
+     28.179,
+     6.783
+    ],
+    [
+     26.158,
+     6.524
+    ],
+    [
+     24.23,
+     6.169
+    ],
+    [
+     22.424,
+     5.723
+    ],
+    [
+     20.766,
+     5.193
+    ],
+    [
+     19,
+     4.529
+    ],
+    [
+     17,
+     4.001
+    ],
+    [
+     14,
+     3.63
+    ],
+    [
+     11,
+     3.599
+    ],
+    [
+     8,
+     3.718
+    ],
+    [
+     5,
+     3.8
+    ]
+   ],
+   "height": 6
+  },
+  {
+   "id": "p_rampraw",
+   "op": "box",
+   "min": [
+    -60,
+    -30,
+    0
+   ],
+   "max": [
+    60,
+    30,
+    20
+   ]
+  },
+  {
+   "id": "p_ramp",
+   "op": "pose",
+   "in": "p_rampraw",
+   "rotate": {
+    "axis": [
+     1,
+     0,
+     0
+    ],
+    "degrees": 20
+   },
+   "translate": [
+    0,
+    0,
+    3.248
+   ]
+  },
+  {
+   "id": "p_b1",
+   "op": "difference",
+   "a": "p_blade",
+   "b": "p_ramp"
+  },
+  {
+   "id": "p_b2",
+   "op": "pose",
+   "in": "p_b1",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 180
+   }
+  },
+  {
+   "id": "p_ub",
+   "op": "union",
+   "a": "p_b1",
+   "b": "p_b2"
+  },
+  {
+   "id": "p_prop",
+   "op": "union",
+   "a": "p_ub",
+   "b": "p_hubB"
+  },
+  {
+   "id": "p_posed",
+   "op": "pose",
+   "in": "p_prop",
+   "translate": [
+    0,
+    0,
+    33.3
+   ]
+  },
+  {
+   "id": "r_prof",
+   "op": "sketch",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     4.15,
+     0
+    ],
+    [
+     4.75,
+     0.6
+    ],
+    [
+     4.75,
+     1.2
+    ],
+    [
+     3.3,
+     1.2
+    ],
+    [
+     3.3,
+     6.7
+    ],
+    [
+     3.1,
+     7.0
+    ],
+    [
+     2.5,
+     7.0
+    ],
+    [
+     2.5,
+     3.15
+    ],
+    [
+     2.35,
+     3.0
+    ],
+    [
+     2.35,
+     1.2
+    ],
+    [
+     0,
+     1.2
+    ]
+   ],
+   "segments": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     5,
+     6
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     7,
+     8
+    ],
+    [
+     8,
+     9
+    ],
+    [
+     9,
+     10
+    ],
+    [
+     10,
+     11
+    ],
+    [
+     11,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "r_ret0",
+   "op": "sketch_revolve",
+   "sketch": "r_prof",
+   "segments": 96
+  },
+  {
+   "id": "r_chanbase",
+   "op": "box",
+   "min": [
+    2.0,
+    -1.0,
+    3.9
+   ],
+   "max": [
+    3.5,
+    1.0,
+    7.1
+   ]
+  },
+  {
+   "id": "r_chanB",
+   "op": "pose",
+   "in": "r_chanbase",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 180
+   }
+  },
+  {
+   "id": "r_pockbase",
+   "op": "box",
+   "min": [
+    2.0,
+    -1.0,
+    3.9
+   ],
+   "max": [
+    3.5,
+    1.0,
+    6.05
+   ]
+  },
+  {
+   "id": "r_pockA",
+   "op": "pose",
+   "in": "r_pockbase",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 34
+   }
+  },
+  {
+   "id": "r_pockB",
+   "op": "pose",
+   "in": "r_pockbase",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 214
+   }
+  },
+  {
+   "id": "r_c1",
+   "op": "difference",
+   "a": "r_ret0",
+   "b": "r_chanbase"
+  },
+  {
+   "id": "r_c2",
+   "op": "difference",
+   "a": "r_c1",
+   "b": "r_chanB"
+  },
+  {
+   "id": "r_c3",
+   "op": "difference",
+   "a": "r_c2",
+   "b": "r_pockA"
+  },
+  {
+   "id": "r_ret",
+   "op": "difference",
+   "a": "r_c3",
+   "b": "r_pockB"
+  },
+  {
+   "id": "r_twist",
+   "op": "pose",
+   "in": "r_ret",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": -34
+   }
+  },
+  {
+   "id": "r_posed",
+   "op": "pose",
+   "in": "r_twist",
+   "rotate": {
+    "axis": [
+     1,
+     0,
+     0
+    ],
+    "degrees": 180
+   },
+   "translate": [
+    0,
+    0,
+    40.7
+   ]
+  },
+  {
+   "id": "r_ret_hi",
+   "op": "pose",
+   "in": "r_twist",
+   "rotate": {
+    "axis": [
+     1,
+     0,
+     0
+    ],
+    "degrees": 180
+   },
+   "translate": [
+    0,
+    0,
+    41.1
+   ]
+  },
+  {
+   "id": "r_open_hi",
+   "op": "pose",
+   "in": "r_ret",
+   "rotate": {
+    "axis": [
+     1,
+     0,
+     0
+    ],
+    "degrees": 180
+   },
+   "translate": [
+    0,
+    0,
+    41.1
+   ]
+  },
+  {
+   "id": "c_prop_mount",
+   "op": "clearance",
+   "a": "p_posed",
+   "b": "m_mount"
+  },
+  {
+   "id": "c_ret_mount",
+   "op": "clearance",
+   "a": "r_posed",
+   "b": "m_mount"
+  },
+  {
+   "id": "c_ret_prop",
+   "op": "clearance",
+   "a": "r_posed",
+   "b": "p_posed"
+  },
+  {
+   "id": "c_retention_neg",
+   "op": "clearance",
+   "a": "r_ret_hi",
+   "b": "m_mount"
+  },
+  {
+   "id": "c_release",
+   "op": "clearance",
+   "a": "r_open_hi",
+   "b": "m_mount"
+  },
+  {
+   "id": "o1",
+   "op": "export_stl",
+   "in": "m_mount",
+   "file": "capspin/asm_mount.stl",
+   "tol": 0.01
+  },
+  {
+   "id": "o2",
+   "op": "export_stl",
+   "in": "p_posed",
+   "file": "capspin/asm_prop.stl",
+   "tol": 0.01
+  },
+  {
+   "id": "o3",
+   "op": "export_stl",
+   "in": "r_posed",
+   "file": "capspin/asm_retainer.stl",
+   "tol": 0.01
+  }
+ ]
+}

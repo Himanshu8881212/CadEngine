@@ -1,0 +1,188 @@
+{
+ "format": "lmc-asm",
+ "version": 1,
+ "units": "mm",
+ "name": "shaft_input_stack",
+ "instances": [
+  {
+   "name": "shaft_in",
+   "source": {
+    "path": "../parts/shaft_input.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     0.0,
+     -25.0,
+     0.0
+    ],
+    "rotation": [
+     -0.7071067811865476,
+     0.0,
+     0.0,
+     0.7071067811865476
+    ]
+   }
+  },
+  {
+   "name": "g1p",
+   "source": {
+    "path": "../parts/gear_s1_pinion.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     0.0,
+     6.0,
+     0.0
+    ],
+    "rotation": [
+     -0.7071067811865476,
+     0.0,
+     0.0,
+     0.7071067811865476
+    ]
+   }
+  },
+  {
+   "name": "608_in_A",
+   "source": {
+    "path": "../parts/bearing_608.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     0.0,
+     -10.0,
+     0.0
+    ],
+    "rotation": [
+     -0.7071067811865476,
+     0.0,
+     0.0,
+     0.7071067811865476
+    ]
+   }
+  },
+  {
+   "name": "608_in_B",
+   "source": {
+    "path": "../parts/bearing_608.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     0.0,
+     41.0,
+     0.0
+    ],
+    "rotation": [
+     -0.7071067811865476,
+     0.0,
+     0.0,
+     0.7071067811865476
+    ]
+   }
+  },
+  {
+   "name": "spacer9_0",
+   "source": {
+    "path": "../parts/spacer_9.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     0.0,
+     -3.0,
+     0.0
+    ],
+    "rotation": [
+     -0.7071067811865476,
+     0.0,
+     0.0,
+     0.7071067811865476
+    ]
+   }
+  },
+  {
+   "name": "spacer23_0",
+   "source": {
+    "path": "../parts/spacer_23.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     0.0,
+     18.0,
+     0.0
+    ],
+    "rotation": [
+     -0.7071067811865476,
+     0.0,
+     0.0,
+     0.7071067811865476
+    ]
+   }
+  },
+  {
+   "name": "key8_0",
+   "source": {
+    "path": "../parts/key_2x2_8.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     2.8,
+     -20.0,
+     0.0
+    ],
+    "rotation": [
+     0.5,
+     0.5,
+     0.5,
+     0.5
+    ]
+   }
+  },
+  {
+   "name": "key10_0",
+   "source": {
+    "path": "../parts/key_2x2_10.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     2.8,
+     7.0,
+     0.0
+    ],
+    "rotation": [
+     0.5,
+     0.5,
+     0.5,
+     0.5
+    ]
+   }
+  }
+ ],
+ "mates": [
+  {
+   "Concentric": {
+    "a": 0,
+    "a_axis_point": [
+     0.0,
+     0.0,
+     10.0
+    ],
+    "a_axis_dir": [
+     0.0,
+     0.0,
+     1.0
+    ],
+    "b": 1,
+    "b_axis_point": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "b_axis_dir": [
+     0.0,
+     0.0,
+     1.0
+    ]
+   }
+  }
+ ]
+}

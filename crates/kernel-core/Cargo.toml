@@ -1,0 +1,15 @@
+[package]
+name = "kernel-core"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Foundation math, the Sdf trait, mesh + exporters, and a Surface Nets mesher for the hybrid geometry kernel."
+
+[dependencies]
+glam = { workspace = true }
+rayon = { workspace = true }
+zip = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }

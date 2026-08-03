@@ -1,0 +1,174 @@
+{
+ "ok": true,
+ "parts": [
+  {
+   "name": "mount",
+   "kind": "made",
+   "qty": 1,
+   "material": "petg",
+   "stl": "studio_out/mcp/capspin/squatchee_spin_mount.stl",
+   "volume_mm3": 4106.5,
+   "surface_mm2": 4132.7,
+   "density_kg_m3": 1270.0,
+   "density_source": "tools/material_db.json",
+   "solid_g_per_unit": 5.215,
+   "printed_g_per_unit": 5.215,
+   "printed_mass_band": "+/-30%",
+   "t_shell_mm": 1.75,
+   "shell_vol_mm3": 4106.5,
+   "print_params": {
+    "perimeters": 3.0,
+    "line_width": 0.45,
+    "layer_h": 0.2,
+    "top_bottom_layers": 4.0,
+    "infill": 0.25
+   },
+   "grams_per_unit": 5.215,
+   "grams_total": 5.215,
+   "thick_section_warning": null,
+   "print_time_h_per_unit": 0.435,
+   "print_time_h": 0.435,
+   "unit_cost": 0.1304,
+   "line_cost": 0.1304,
+   "footprint_mm": [
+    23.6,
+    23.6
+   ],
+   "height_mm": 38.9,
+   "wear": false
+  },
+  {
+   "name": "propeller",
+   "kind": "made",
+   "qty": 1,
+   "material": "pla",
+   "stl": "studio_out/mcp/capspin/squatchee_spin_prop.stl",
+   "volume_mm3": 3622.63,
+   "surface_mm2": 3057.35,
+   "density_kg_m3": 1240.0,
+   "density_source": "tools/material_db.json",
+   "solid_g_per_unit": 4.492,
+   "printed_g_per_unit": 4.492,
+   "printed_mass_band": "+/-30%",
+   "t_shell_mm": 1.75,
+   "shell_vol_mm3": 3622.63,
+   "print_params": {
+    "perimeters": 3.0,
+    "line_width": 0.45,
+    "layer_h": 0.2,
+    "top_bottom_layers": 4.0,
+    "infill": 0.25
+   },
+   "grams_per_unit": 4.492,
+   "grams_total": 4.492,
+   "thick_section_warning": null,
+   "print_time_h_per_unit": 0.374,
+   "print_time_h": 0.374,
+   "unit_cost": 0.1123,
+   "line_cost": 0.1123,
+   "footprint_mm": [
+    100.0,
+    14.0
+   ],
+   "height_mm": 6.0,
+   "wear": false
+  },
+  {
+   "name": "retainer",
+   "kind": "made",
+   "qty": 1,
+   "material": "pla",
+   "stl": "studio_out/mcp/capspin/squatchee_spin_retainer.stl",
+   "volume_mm3": 153.03,
+   "surface_mm2": 349.37,
+   "density_kg_m3": 1240.0,
+   "density_source": "tools/material_db.json",
+   "solid_g_per_unit": 0.19,
+   "printed_g_per_unit": 0.19,
+   "printed_mass_band": "+/-30%",
+   "t_shell_mm": 1.75,
+   "shell_vol_mm3": 153.03,
+   "print_params": {
+    "perimeters": 3.0,
+    "line_width": 0.45,
+    "layer_h": 0.2,
+    "top_bottom_layers": 4.0,
+    "infill": 0.25
+   },
+   "grams_per_unit": 0.19,
+   "grams_total": 0.19,
+   "thick_section_warning": null,
+   "print_time_h_per_unit": 0.016,
+   "print_time_h": 0.016,
+   "unit_cost": 0.0047,
+   "line_cost": 0.0047,
+   "footprint_mm": [
+    9.5,
+    9.5
+   ],
+   "height_mm": 7.0,
+   "wear": false
+  }
+ ],
+ "totals": {
+  "total_made_cost": 0.25,
+  "total_buy_cost": 0,
+  "buy_lines_tbd": [],
+  "total_cost": 0.25,
+  "total_cost_note": "complete",
+  "total_print_time_h": 1.07,
+  "time_band": "+/-50%",
+  "n_plates": 1,
+  "total_printed_grams": 9.9,
+  "printed_grams_band": "+/-30%",
+  "total_solid_grams": 9.9,
+  "total_grams": 9.9
+ },
+ "plates": [
+  {
+   "plate": 1,
+   "parts": [
+    {
+     "name": "propeller",
+     "instance": 1,
+     "x_mm": 5.0,
+     "y_mm": 5.0,
+     "w_mm": 100.0,
+     "d_mm": 14.0,
+     "rotated": false
+    },
+    {
+     "name": "mount",
+     "instance": 1,
+     "x_mm": 5.0,
+     "y_mm": 24.0,
+     "w_mm": 23.6,
+     "d_mm": 23.6,
+     "rotated": false
+    },
+    {
+     "name": "retainer",
+     "instance": 1,
+     "x_mm": 110.0,
+     "y_mm": 5.0,
+     "w_mm": 9.5,
+     "d_mm": 9.5,
+     "rotated": false
+    }
+   ],
+   "footprint_utilization": 0.0423
+  }
+ ],
+ "warnings": [],
+ "bed": {
+  "x": 220.0,
+  "y": 220.0,
+  "z": 250.0
+ },
+ "spacing_mm": 5.0,
+ "filament_price_per_kg": 25.0,
+ "material_db_used": true,
+ "mass_model": "printed_g = rho x [V_shell + infill x max(0, V_solid - V_shell)], V_shell = min(V_solid, A_surface x t_shell), t_shell = perimeters x line_width + top_bottom_layers x layer_h / 2 (defaults {'perimeters': 3, 'line_width': 0.45, 'layer_h': 0.2, 'top_bottom_layers': 4, 'infill': 0.2} -> t_shell 1.75 mm); band +/-30%; A_surface = STL triangle-area sum; printed grams drive cost + time; solid_g = rho x V_solid is reported alongside; thick-section warning when solid_g > 2 x printed_g",
+ "time_model": "t_h = printed_g/12 x speed_factor(1) per part (0.2 mm layers class) + 0.25 h setup per plate; band +/-50%",
+ "volume_method": "signed-tetrahedron sum over the STL triangle soup; mesh assumed watertight + consistently wound (|sum| taken)"
+}

@@ -1,0 +1,27 @@
+{
+ "_why": "v3 captive float: retainer rests flange-on-hub, escapes upward until the lug (fixed on the post) meets the pocket ledge. 3-term chain, all +-0.15.",
+ "chain": [
+  {
+   "name": "mount_shoulder_to_lug_bottom",
+   "nominal": 1.8,
+   "tol": 0.15,
+   "dir": 1
+  },
+  {
+   "name": "retainer_pocket_ledge_to_flange",
+   "nominal": 4.85,
+   "tol": 0.15,
+   "dir": 1
+  },
+  {
+   "name": "prop_hub_height",
+   "nominal": 6.0,
+   "tol": 0.15,
+   "dir": -1
+  }
+ ],
+ "closes": {
+  "min_required": 0.05,
+  "max_allowed": 1.2
+ }
+}

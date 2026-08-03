@@ -1,0 +1,61 @@
+{
+ "parts": [
+  {
+   "name": "MOUNT (PETG)",
+   "stl": "asm_mount.stl",
+   "color": "#5b7d9e"
+  },
+  {
+   "name": "PROPELLER (PLA)",
+   "stl": "asm_prop.stl",
+   "color": "#c08552"
+  },
+  {
+   "name": "RETAINER (PLA)",
+   "stl": "asm_retainer.stl",
+   "color": "#6d9b6d"
+  }
+ ],
+ "explode": {
+  "axis": [
+   0,
+   0,
+   1
+  ],
+  "offsets": {
+   "MOUNT (PETG)": [
+    0,
+    0,
+    0
+   ],
+   "PROPELLER (PLA)": [
+    0,
+    0,
+    26
+   ],
+   "RETAINER (PLA)": [
+    0,
+    0,
+    48
+   ]
+  }
+ },
+ "steps": [
+  {
+   "order": 1,
+   "text": "Snap the MOUNT over the cap's top button: center the six fingers on the button, press straight down until every finger clicks under the button rim. Fingers flex up to 2.9 mm (radius 1.5 mm each side) on a 19 mm button - PETG stays under 2% strain."
+  },
+  {
+   "order": 2,
+   "text": "Drop the PROPELLER onto the mast, flat (bed) side down. It rests on the D9.2 boss shoulder; the D7.2 bore is roomy over the solid post BY DESIGN - the retainer sleeve, not the post, is its bearing."
+  },
+  {
+   "order": 3,
+   "text": "Drop the RETAINER into the propeller bore with its two side windows over the post's lug nubs (rotate it until it slides fully home), then TWIST ~35 degrees until it stops - the lugs lock behind the window ledges. Confirm free spin: 0.3 mm radial play on the sleeve and 0.65 mm vertical float are by design. To remove for prop swaps: press down lightly, twist back, lift."
+  }
+ ],
+ "bom_csv": "dossier/bom_dossier.csv",
+ "out_prefix": "squatchee_spin",
+ "title": "SQUATCHEE-SPIN v2 - clip-on cap propeller",
+ "date": "2026-07-15"
+}

@@ -1,0 +1,24 @@
+# Copyright (c) LMCAD. Licensed under the MIT License.
+
+[package]
+name = "studio-tui"
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+authors = ["LMCAD"]
+description = "lmcad-tui — the terminal front-end for the LMCAD Studio server: chat (SSE, streamed), work-order runs with honest receipts, and headless one-shot modes for scripting/CI. (Binary renamed from `cadcode` 2026-07-10; `cadcode` now names the standalone opencode-based product.)"
+
+[lib]
+name = "studio_tui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lmcad-tui"
+path = "src/main.rs"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+ratatui = "0.30"
+crossterm = "0.29"
+ureq = { version = "3.3", features = ["json"] }

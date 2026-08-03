@@ -1,0 +1,16 @@
+{
+  "name": "conservative_default",
+  "xy_clearance_tight": 0.05,
+  "xy_clearance_free": 0.25,
+  "z_clearance": 0.3,
+  "hole_diameter_comp": 0.0,
+  "bore_comp": 0.0,
+  "first_layer_comp": 0.0,
+  "seam_allowance": 0.0,
+  "max_bridge": 6.0,
+  "max_unsupported_angle": 45.0,
+  "min_wall": 1.2,
+  "bed_x": 250.0,
+  "bed_y": 250.0,
+  "bed_z": 220.0
+}

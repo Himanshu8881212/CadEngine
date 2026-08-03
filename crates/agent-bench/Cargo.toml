@@ -1,0 +1,16 @@
+[package]
+name = "agent-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "agent-bench"
+path = "src/main.rs"
+
+[dependencies]
+kernel-api = { path = "../kernel-api" }
+serde_json = "1"

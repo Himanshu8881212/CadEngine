@@ -1,0 +1,239 @@
+{
+ "part": "SQUATCHEE-SPIN retainer v3 (PLA or PETG) \u2014 rigid mini-squatchee twist-lock cap with journal sleeve",
+ "notes": "v3: the retainer is RIGID again ('all materials work' is back - no flexing feature anywhere) and locks with a push-and-twist BAYONET instead of a snap. The sleeve (OD 6.6, wall 0.8 - the journal the prop spins on, unchanged D7.2/D6.6 pivot contract) carries two L-windows: a vertical entry channel (2.0 wide, through the rim, model z3.9-7.1) and a 34-deg circumferential pocket (z3.9-6.05), leaving a 0.95-tall solid ledge ring segment at the rim end. Use: drop the retainer into the prop bore with the two windows over the post's lug nubs (rotate until it slides fully home), twist ~34 deg to the stop - the lugs sit behind the ledges; to remove, press down lightly, twist back, lift. Retention proven by receipts (locked pose clear 0.149; lifted-while-locked INTERFERES lug-vs-ledge; lifted-untwisted free). Captive float 0.65 (rest = flange on hub; lug-on-ledge at +0.65). Locating: ID4.7 band (model z1.2-3.0) wraps the D4.4 post with 0.15 radial clearance near the head; main ID5.0 clears post and lug root. Interior ID5.0 face keeps a 0.75-tall connected band under the windows (two windows only - imprints cleanly, geometric_ok gated). Window ceilings are ~0.8 mm micro-bridges; steep_area == 0. Pure revolve + 4 axis-aligned box cuts. Printed flat-top-down (head on bed) as modeled. Deliberately styled as a tiny replica cap button. NOT interchangeable with v1/v2 parts - v3 is a matched set.",
+ "ops": [
+  {
+   "id": "prof",
+   "op": "sketch",
+   "points": [
+    [
+     0,
+     0
+    ],
+    [
+     4.15,
+     0
+    ],
+    [
+     4.75,
+     0.6
+    ],
+    [
+     4.75,
+     1.2
+    ],
+    [
+     3.3,
+     1.2
+    ],
+    [
+     3.3,
+     6.7
+    ],
+    [
+     3.1,
+     7.0
+    ],
+    [
+     2.5,
+     7.0
+    ],
+    [
+     2.5,
+     3.15
+    ],
+    [
+     2.35,
+     3.0
+    ],
+    [
+     2.35,
+     1.2
+    ],
+    [
+     0,
+     1.2
+    ]
+   ],
+   "segments": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     5,
+     6
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     7,
+     8
+    ],
+    [
+     8,
+     9
+    ],
+    [
+     9,
+     10
+    ],
+    [
+     10,
+     11
+    ],
+    [
+     11,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "ret0",
+   "op": "sketch_revolve",
+   "sketch": "prof",
+   "segments": 96
+  },
+  {
+   "id": "chanbase",
+   "op": "box",
+   "min": [
+    2.0,
+    -1.0,
+    3.9
+   ],
+   "max": [
+    3.5,
+    1.0,
+    7.1
+   ]
+  },
+  {
+   "id": "chanB",
+   "op": "pose",
+   "in": "chanbase",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 180
+   }
+  },
+  {
+   "id": "pockbase",
+   "op": "box",
+   "min": [
+    2.0,
+    -1.0,
+    3.9
+   ],
+   "max": [
+    3.5,
+    1.0,
+    6.05
+   ]
+  },
+  {
+   "id": "pockA",
+   "op": "pose",
+   "in": "pockbase",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 34
+   }
+  },
+  {
+   "id": "pockB",
+   "op": "pose",
+   "in": "pockbase",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 214
+   }
+  },
+  {
+   "id": "c1",
+   "op": "difference",
+   "a": "ret0",
+   "b": "chanbase"
+  },
+  {
+   "id": "c2",
+   "op": "difference",
+   "a": "c1",
+   "b": "chanB"
+  },
+  {
+   "id": "c3",
+   "op": "difference",
+   "a": "c2",
+   "b": "pockA"
+  },
+  {
+   "id": "ret",
+   "op": "difference",
+   "a": "c3",
+   "b": "pockB"
+  },
+  {
+   "id": "val",
+   "op": "validate",
+   "in": "ret"
+  },
+  {
+   "id": "mp",
+   "op": "mass_properties",
+   "in": "ret"
+  },
+  {
+   "id": "bb",
+   "op": "bounding_box",
+   "in": "ret"
+  },
+  {
+   "id": "sup",
+   "op": "support_report",
+   "in": "ret",
+   "build_dir": [
+    0,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "out",
+   "op": "export_stl",
+   "in": "ret",
+   "file": "capspin/squatchee_spin_retainer.stl",
+   "tol": 0.01
+  }
+ ]
+}

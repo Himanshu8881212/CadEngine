@@ -1,0 +1,51 @@
+{
+ "format": "lmc-part",
+ "version": 1,
+ "units": "mm",
+ "name": "key_2x2_8",
+ "created_with": "gearbox/generate.py (w5 dogfood)",
+ "meta": {
+  "part_number": "DIN6885B-2x2x8",
+  "material": {
+   "name": "brass",
+   "density_g_cm3": 8.4
+  },
+  "make_or_buy": "buy"
+ },
+ "document": {
+  "params": {
+   "len": 8.0
+  },
+  "features": [
+   {
+    "Box": {
+     "center": [
+      {
+       "Literal": 4.0
+      },
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 1.0
+      }
+     ],
+     "size": [
+      {
+       "Param": "len"
+      },
+      {
+       "Literal": 2.0
+      },
+      {
+       "Literal": 2.0
+      }
+     ]
+    },
+    "label": "DIN 6885 B key"
+   }
+  ],
+  "root": 0,
+  "suppressed": []
+ }
+}

@@ -1,0 +1,43 @@
+target/
+parts_out/
+catalog_out/
+demo_out/
+hybrid_out/
+rocket_out/
+*.stl
+*.step
+*.3mf
+.DS_Store
+!crates/kernel-brep/tests/fixtures/*.step
+
+# the showcase deliverable (showcase/README.md) is committed on purpose —
+# print-ready STLs are the artifact of record for the front-page example
+!showcase/**/*.stl
+
+# w5 dogfood outputs (large exports/reports)
+gearbox/out/
+
+# LMCAD Studio: per-session run outputs + front-end build artifacts
+studio_out/
+studio/web/node_modules/
+studio/web/dist/
+studio/web/*.tsbuildinfo
+__pycache__/
+
+# ---- 2026-07-28 cleanup wave additions ----------------------------------------
+# FEA field dumps + voxel grids are regenerable (jobs + FEA.md are tracked)
+*.npy
+sweeper_out/
+
+.pytest_cache/
+
+# ---- campaign outputs ---------------------------------------------------------
+# `cargo run --example <campaign>` writes its deliverable tree to <family>_system/.
+# Those trees are REGENERABLE by the campaign itself (which re-proves every gate on
+# every run), so they are not tracked — the one exception is showcase/, above.
+*_system/
+archive/
+
+# ---- runtime capture (regenerated on every run; not part of the published repo) ----
+docs/friction_inbox.jsonl
+telemetry/

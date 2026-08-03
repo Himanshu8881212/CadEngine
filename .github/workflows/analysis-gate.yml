@@ -1,0 +1,93 @@
+# LMCAD analysis-graduation gate.
+#
+# Enforces the graduation pipeline's honesty invariant: no analyzer may be
+# reported as tier=Validated without BOTH a manifest (governing equations +
+# assumptions) AND a present validation pin. See docs/ANALYSIS_TIERS.md and
+# docs/MANIFEST_SCHEMA.md.
+#
+# Two jobs, split by what a GitHub-hosted runner can honestly execute:
+#
+#   registry-gate (HOSTED)  — a pure static check over tools/analyzer_registry.py
+#                             + tools/manifests/*.json + tools/provenance.py.
+#                             No ACE, no engine binary, no numpy: just stdlib
+#                             Python reading files. This CAN and DOES run here.
+#
+#   physics-pins (SELF-HOSTED, disabled) — actually executing the *_validation.py
+#                             pins needs the ACE repo installed into a local
+#                             miniconda (ACE_PYTHON); neither exists on a hosted
+#                             runner, exactly as documented in engine.yml. Kept
+#                             here as a self-hosted-only, if:false job so the gap
+#                             is visible rather than faked green.
+
+name: analysis-gate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  registry-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Static, hosted-safe: the registry gate + the provenance contract's own
+      # self-tests. Fails the build if any analyzer over-claims Validated, if a
+      # committed manifest is malformed, or if a registered analyzer file is
+      # missing on disk. Stdlib only — no pip install.
+      - name: analyzer registry gate (no Validated without manifest+pin)
+        run: python3 tools/analyzer_registry.py --check
+
+      - name: print the graduation ledger (health metric)
+        run: python3 tools/analyzer_registry.py
+
+      # The provenance envelope + geometry-hash contract, exercised read-only on
+      # one real analyzer (tolerance_stack, pure stdlib) and structurally checked.
+      - name: analysis-result contract demo (stamp + envelope check)
+        run: python3 tools/analyzer_registry.py --demo
+
+      # Every committed manifest must parse and validate against the schema; the
+      # --check step already enforces this for Validated rows, this makes it
+      # explicit and independent of the tier table.
+      - name: manifests validate against the schema
+        run: |
+          python3 - <<'PY'
+          import json, sys
+          from pathlib import Path
+          sys.path.insert(0, "tools")
+          import analyzer_registry as R
+          bad = []
+          for m in sorted(Path("tools/manifests").rglob("*.json")):
+              ok, problems = R._manifest_valid(m)
+              print(("OK  " if ok else "FAIL") + f" {m}")
+              if not ok:
+                  bad += problems
+          if bad:
+              print("MANIFEST SCHEMA VIOLATIONS:")
+              for b in bad:
+                  print("  -", b)
+              sys.exit(1)
+          PY
+
+  # HONEST LIMIT — the ACE physics pins do NOT run on a hosted runner.
+  #
+  # tools/ace_fea_validation.py / ace_modal_validation.py / ace_buckling_validation.py
+  # (and the pending ace_fea_kt_validation.py) verify the hex8 solvers against
+  # closed-form pins, but they need the ACE package installed into ACE_PYTHON
+  # (miniconda) with the ACE repo present — neither exists on GitHub-hosted
+  # runners, so this job targets a SELF-HOSTED runner (where ACE lives). It is
+  # NO LONGER gated off with `if: false` — the pins actually run and the registry
+  # enforces the known-issue gate: a pin failure BLOCKS unless it is a declared
+  # KNOWN_ISSUES entry, and the Kt characterization pin's ±20-30% fillet
+  # limitation is surfaced as a named KNOWN LIMITATION rather than hidden.
+  physics-pins:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - name: FEA / modal / buckling / Kt pins (registry-enforced known-issue gate)
+        run: |
+          python3 tools/analyzer_registry.py --run-pins

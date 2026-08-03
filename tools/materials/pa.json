@@ -1,0 +1,82 @@
+{
+	"meta": {
+		"name": "PA",
+		"version": "1.1.0",
+		"aliases": [
+			"NYLON",
+			"PA6",
+			"PA12"
+		],
+		"class": "fdm_thermoplastic",
+		"description": "PA — migrated verbatim from tools/material_db.json (typical desktop-FDM datasheet-class values) plus the heat-set pull-out table from joint_check.py. Poisson is a typical thermoplastic value (absent from material_db). Thermal-transport fields are null: not present in the migrated source, not invented.",
+		"schema_version": 1,
+		"hash": "b32e88ba813da41ba6a45956611045a43edbc5d1058b5e1b2477966c61547d60"
+	},
+	"physical": {
+		"density_kg_m3": 1120.0
+	},
+	"mechanical": {
+		"youngs_modulus_pa": 1700000000.0,
+		"poisson": 0.39,
+		"yield_mpa": 48.0,
+		"ultimate_mpa": 52.0,
+		"sn_curve": {
+			"kind": "knockdown",
+			"cycles": 1000000,
+			"fraction_of_ultimate": 0.35,
+			"note": "engineering rule of thumb (~1e6-cycle allowable = ultimate x knockdown), NOT a measured S-N curve"
+		},
+		"compression_modulus_pa": null,
+		"resilience_coeff": null,
+		"elongation_at_break_pct": null
+	},
+	"thermal": {
+		"conductivity_w_mk": 0.25,
+		"specific_heat_j_kgk": 1700.0,
+		"cte_per_k": null,
+		"tg_or_melt_c": null,
+		"service_temp_c": 100.0,
+		"creep_sustained_fraction": 0.25,
+		"softening_c": 37.0
+	},
+	"process": {
+		"anisotropy": {
+			"z_vs_xy_strength_ratio": 0.6,
+			"out_of_plane_threshold_deg": 30.0,
+			"model": "scalar-tier direction heuristic (production_check.py): across-layer (Z) tensile strength / in-plane (XY) strength; applied when the primary load is > threshold deg out of the layer plane"
+		},
+		"layer_adhesion_mpa": null,
+		"fatigue_knockdown": 0.35,
+		"heatset_pullout_n": {
+			"M3": 350,
+			"M4": 550,
+			"M5": 800,
+			"note": "brass knurled heat-set at standard insert length; conservative low ends (joint_check.py)"
+		},
+		"design_derate": null
+	},
+	"fluid": {
+		"surface_roughness_um": null
+	},
+	"sources": {
+		"physical.density_kg_m3": "material_db.json PA.density_kg_m3",
+		"mechanical.youngs_modulus_pa": "material_db.json PA.youngs_pa",
+		"mechanical.poisson": "typical thermoplastic (material_db.json has no poisson); provided for FEA",
+		"mechanical.yield_mpa": "material_db.json PA.yield_mpa",
+		"mechanical.ultimate_mpa": "material_db.json PA.ultimate_mpa",
+		"mechanical.sn_curve": "material_db.json PA.fatigue_knockdown",
+		"thermal.service_temp_c": "material_db.json PA.service_temp_c",
+		"thermal.creep_sustained_fraction": "material_db.json PA.creep_sustained_fraction",
+		"process.anisotropy.z_vs_xy_strength_ratio": "material_db.json PA.layer_adhesion_factor",
+		"process.fatigue_knockdown": "material_db.json PA.fatigue_knockdown",
+		"process.heatset_pullout_n": "joint_check.py HEATSET_PULLOUT_N[size][pa]",
+		"_db_source_note": "typical printed-nylon (PA6/PA12 blends, e.g. Polymaker PA6-CF matrix / Taulman) DRY-as-printed values; moisture conditioning can HALVE yield and modulus — treat these as dry-part numbers and verify conditioned.",
+		"thermal.conductivity_w_mk": "0.25 W/mK, conservative-low of the desktop-nylon band 0.24-0.30 (dry as molded): Professional Plastics chart PA6 0.24-0.28 / PA66 0.25 @23 C https://www.professionalplastics.com/professionalplastics/ThermalPropertiesofPlasticMaterials.pdf ; neat PA12 measured 0.28 @30 C https://pmc.ncbi.nlm.nih.gov/articles/PMC8840078/ ; Ensinger TECAMID 12 0.30 https://www.ensingerplastics.com/en/shapes/products/pa12-tecamid-12-natural",
+		"thermal.specific_heat_j_kgk": "1700 J/kgK @RT (dry): Professional Plastics PA6 1700 / PA66 1670 https://www.professionalplastics.com/professionalplastics/ThermalPropertiesofPlasticMaterials.pdf ; PA12 1.7 J/g-C https://pmc.ncbi.nlm.nih.gov/articles/PMC8840078/ ; Ensinger PA12 1.8 J/gK. Moisture-conditioned nylon runs higher — TDS values are dry-as-molded",
+		"thermal.tg_or_melt_c": "left null DELIBERATELY: this is a generic desktop-nylon record and Tg is subtype-dependent — PA12 37 C (Ensinger https://www.ensingerplastics.com/en/shapes/products/pa12-tecamid-12-natural), PA6 ~60 C, Polymaker CoPA 67 C DSC (https://wiki.polymaker.com/polymaker-products/more-about-our-products/documents/technical-data-sheets/nylon/polymide-tm-copa). One number would misstate somebody's spool; see softening_c for the conservative design floor",
+		"thermal.softening_c": "softening_c = conservative softening allowable for sustained-load design: the LOW end of min(Tg, HDT-B 0.45 MPa) across cited brand TDS values for this material class (degC). PA: 37 C = LOWEST plausible subtype Tg (PA12; CoPA/PA6 sit at 60-67 C — never average across variants, design to the reported extreme). Nylon MUST be gated on Tg, not HDT: semicrystalline HDT-B (~130-200 C molded, Professional Plastics chart) stays high while stiffness collapses above Tg; neat printed desktop-nylon HDT-B is effectively unpublished (CoPA TDS omits it)",
+		"thermal._printed_anisotropy_note": "printed parts conduct WORSE than bulk, direction-dependent: inter-layer thermal contact resistance dominates through-thickness conduction (Prajapati et al., Additive Manufacturing 2018, https://www.sciencedirect.com/science/article/abs/pii/S2214860417305456); voids/porosity measurably reduce heat transmission even at 100% infill (Entropy 24:654 2022, https://pmc.ncbi.nlm.nih.gov/articles/PMC9141791/); through-plane k reported ~20-40% below in-plane in FDM literature (secondary synthesis, primaries paywalled — treat percentage as indicative). Records store the conservative-LOW isotropic value.",
+		"thermal._cp_temperature_note": "cp is strongly temperature-dependent (amorphous polymers jump +30-50% crossing Tg; Covestro shows TPU cp +~15% from 20C to 80C) — record values are ROOM-TEMPERATURE-class unless noted"
+	},
+	"conflicts": []
+}

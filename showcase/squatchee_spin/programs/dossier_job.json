@@ -1,0 +1,35 @@
+{
+ "out_dir": "dossier",
+ "parts": [
+  {
+   "name": "mount",
+   "stl": "squatchee_spin_mount.stl",
+   "material": "petg",
+   "qty": 1
+  },
+  {
+   "name": "propeller",
+   "stl": "squatchee_spin_prop.stl",
+   "material": "pla",
+   "qty": 1
+  },
+  {
+   "name": "retainer",
+   "stl": "squatchee_spin_retainer.stl",
+   "material": "pla",
+   "qty": 1
+  }
+ ],
+ "bed": {
+  "x": 220,
+  "y": 220,
+  "z": 250
+ },
+ "print_params": {
+  "perimeters": 3,
+  "line_width": 0.45,
+  "layer_h": 0.2,
+  "top_bottom_layers": 4,
+  "infill": 0.25
+ }
+}

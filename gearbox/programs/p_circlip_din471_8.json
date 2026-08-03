@@ -1,0 +1,25 @@
+{
+ "ops": [
+  {
+   "id": "clip",
+   "op": "circlip_external",
+   "shaft_d": 8
+  },
+  {
+   "id": "topo",
+   "op": "validate",
+   "in": "clip"
+  },
+  {
+   "id": "vol",
+   "op": "volume",
+   "in": "clip"
+  },
+  {
+   "id": "stl",
+   "op": "export_stl",
+   "in": "clip",
+   "file": "circlip_din471_8.stl"
+  }
+ ]
+}

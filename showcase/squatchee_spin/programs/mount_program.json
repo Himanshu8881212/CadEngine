@@ -1,0 +1,361 @@
+{
+ "part": "SQUATCHEE-SPIN mount v3 (PETG) \u2014 6-finger button gripper + SOLID bayonet post (the split snap-post is gone), 2.0 mm walls",
+ "notes": "v3 retention mechanism, after a field slicer-preview showed the v1/v2 split snap-post printing as two ~1 mm-thin, 6 mm-tall half-round towers with overhanging barb tips (tiny per-layer islands - unprintable garbage on real machines). Physics verdict: a snap prong needs LENGTH to flex within strain budget, printability needs SHORT+THICK - irreconcilable on this post. So the snap is GONE: the post is now a SOLID D4.4 column (13-15 mm^2 continuous layers fused to the D9.2 boss - perfect FDM) with a 45-deg tip chamfer and TWO kite-prism lug nubs (1.26 wide x 1.35 tall, protruding to r3.15, 48-deg self-supporting undersides, 29-deg up-facing tops) at z35.6, right above the root chamfer. The RETAINER (rigid again - PLA-safe) locks onto the lugs with a push-and-twist bayonet: drop in with its two L-windows aligned over the lugs, push to the stop, twist 34 deg - the lugs sit behind 0.95-tall solid ledges. Retention is GEOMETRIC (clearance fits, +-0.15-tolerance-proof - unlike any printed snap whose interference can vanish at loose extremes), proven by receipts: locked pose clear (0.149), pull-up locked INTERFERES (lug vs ledge, the negative control), pull-up untwisted lifts free (serviceable). Captive float 0.65 mm: rest = flange on prop hub (T=40.3), lug meets ledge at T=40.95; dual down-stop honesty: at adverse tolerances the lug can meet the window's far edge up to 0.3 before the flange lands (float grows to <=0.95, still <1.2 - benign, both stops are solid). Post tip (38.9) hides under the prop hub top (39.1) and clears the retainer ceiling by 0.2 at rest - at extremes the tip may touch first: a third solid axial stop, also benign. Walls: v2.3's 2.0 mm skirt/finger walls, D23.6 shell, ~3 mm dome, collar hoop, D9.2 boss - all unchanged (fingers L=18.4, snap-over strain <=1.72 percent wall-bound / 1.03 lip-model, snap-on force ~1.6-1.75x v1, stated honestly). Button cavity unchanged (lip D13.2, capture D14-D19, 47-deg roof cone apex 32.5 - now with a fully solid core under the boss, no mast-slot window). segments=132 (multiple of 6, facet-congruent slot cuts; also the grid that imprints the slot-roof cone notches cleanly - see v2.2/v2.3 arrangement notes in git history). Flat slot roofs z22.9 = micro-bridges (max true span 2.84 mm); steep_area == 0 is the support-free gate and the lug undersides are 48-deg BY CONSTRUCTION (45-deg diamonds flagged the gate; a horizontal round rod's belly flagged worse - the kite profile is the printable shape). Print orientation = modeled (fingers down, post up). NOT interchangeable with v1/v2 parts - v3 is a matched set.",
+ "ops": [
+  {
+   "id": "prof",
+   "op": "sketch",
+   "points": [
+    [
+     11.8,
+     0
+    ],
+    [
+     11.8,
+     24.9
+    ],
+    [
+     4.6,
+     31.7
+    ],
+    [
+     4.6,
+     33.1
+    ],
+    [
+     2.5,
+     33.1
+    ],
+    [
+     2.2,
+     33.4
+    ],
+    [
+     2.2,
+     38.2
+    ],
+    [
+     1.5,
+     38.9
+    ],
+    [
+     0,
+     38.9
+    ],
+    [
+     0,
+     32.5
+    ],
+    [
+     9.8,
+     22.0
+    ],
+    [
+     9.8,
+     3.6
+    ],
+    [
+     6.6,
+     1.2
+    ],
+    [
+     6.6,
+     0.85
+    ],
+    [
+     7.4,
+     0
+    ]
+   ],
+   "segments": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     5,
+     6
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     7,
+     8
+    ],
+    [
+     8,
+     9
+    ],
+    [
+     9,
+     10
+    ],
+    [
+     10,
+     11
+    ],
+    [
+     11,
+     12
+    ],
+    [
+     12,
+     13
+    ],
+    [
+     13,
+     14
+    ],
+    [
+     14,
+     0
+    ]
+   ]
+  },
+  {
+   "id": "body",
+   "op": "sketch_revolve",
+   "sketch": "prof",
+   "segments": 132
+  },
+  {
+   "id": "lugprism",
+   "op": "extrude",
+   "profile": [
+    [
+     0.7,
+     0
+    ],
+    [
+     0,
+     0.63
+    ],
+    [
+     -0.3,
+     0.63
+    ],
+    [
+     -0.65,
+     0
+    ],
+    [
+     -0.3,
+     -0.63
+    ],
+    [
+     0,
+     -0.63
+    ]
+   ],
+   "height": 1.55
+  },
+  {
+   "id": "lugA",
+   "op": "pose",
+   "in": "lugprism",
+   "rotate": {
+    "axis": [
+     0,
+     1,
+     0
+    ],
+    "degrees": 90
+   },
+   "translate": [
+    1.6,
+    0,
+    35.6
+   ]
+  },
+  {
+   "id": "lugB",
+   "op": "pose",
+   "in": "lugA",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 180
+   }
+  },
+  {
+   "id": "u1",
+   "op": "union",
+   "a": "body",
+   "b": "lugA"
+  },
+  {
+   "id": "postlug",
+   "op": "union",
+   "a": "u1",
+   "b": "lugB"
+  },
+  {
+   "id": "slot0",
+   "op": "box",
+   "min": [
+    6,
+    -2.05,
+    -1
+   ],
+   "max": [
+    13,
+    2.05,
+    22.9
+   ]
+  },
+  {
+   "id": "slot1",
+   "op": "pose",
+   "in": "slot0",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 60
+   }
+  },
+  {
+   "id": "slot2",
+   "op": "pose",
+   "in": "slot0",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 120
+   }
+  },
+  {
+   "id": "slot3",
+   "op": "pose",
+   "in": "slot0",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 180
+   }
+  },
+  {
+   "id": "slot4",
+   "op": "pose",
+   "in": "slot0",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 240
+   }
+  },
+  {
+   "id": "slot5",
+   "op": "pose",
+   "in": "slot0",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 300
+   }
+  },
+  {
+   "id": "d1",
+   "op": "difference",
+   "a": "postlug",
+   "b": "slot0"
+  },
+  {
+   "id": "d2",
+   "op": "difference",
+   "a": "d1",
+   "b": "slot1"
+  },
+  {
+   "id": "d3",
+   "op": "difference",
+   "a": "d2",
+   "b": "slot2"
+  },
+  {
+   "id": "d4",
+   "op": "difference",
+   "a": "d3",
+   "b": "slot3"
+  },
+  {
+   "id": "d5",
+   "op": "difference",
+   "a": "d4",
+   "b": "slot4"
+  },
+  {
+   "id": "mount",
+   "op": "difference",
+   "a": "d5",
+   "b": "slot5"
+  },
+  {
+   "id": "val",
+   "op": "validate",
+   "in": "mount"
+  },
+  {
+   "id": "mp",
+   "op": "mass_properties",
+   "in": "mount"
+  },
+  {
+   "id": "bb",
+   "op": "bounding_box",
+   "in": "mount"
+  },
+  {
+   "id": "sup",
+   "op": "support_report",
+   "in": "mount",
+   "build_dir": [
+    0,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "out",
+   "op": "export_stl",
+   "in": "mount",
+   "file": "capspin/squatchee_spin_mount.stl",
+   "tol": 0.01
+  }
+ ]
+}

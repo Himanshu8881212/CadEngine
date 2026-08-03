@@ -1,0 +1,19 @@
+{
+ "stls": [
+  "asm_mount.stl",
+  "asm_prop.stl",
+  "asm_retainer.stl"
+ ],
+ "out": "sheet_assembly.png",
+ "build_dir": [
+  0,
+  0,
+  1
+ ],
+ "sections": {
+  "x": 0.0,
+  "y": 0.0,
+  "z": 36.4
+ },
+ "date": "2026-07-15"
+}

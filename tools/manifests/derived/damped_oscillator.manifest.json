@@ -1,0 +1,87 @@
+{
+  "schema": "lmcad.manifest.v1",
+  "analyzer": "damped_oscillator",
+  "analyzer_version": "1.0.0",
+  "title": "2nd-order underdamped step response (scaffold's worked exemplar)",
+  "model_file": "derived_model.py",
+  "derived_model": true,
+  "governing_equations": [
+    {
+      "name": "normalized 2nd-order ODE",
+      "expr": "x'' + 2 zeta omega_n x' + omega_n^2 x = omega_n^2 u(t)",
+      "description": "Mass-spring-damper / RLC / servo prototype with damping ratio zeta and natural frequency omega_n; unit step command."
+    },
+    {
+      "name": "peak overshoot (gate ground truth)",
+      "expr": "Mp = exp(-pi zeta / sqrt(1 - zeta^2))",
+      "description": "Closed-form fractional overshoot of the underdamped step response."
+    },
+    {
+      "name": "peak time (gate ground truth)",
+      "expr": "tp = pi / (omega_n sqrt(1 - zeta^2))",
+      "description": "Time of the first response maximum."
+    }
+  ],
+  "assumptions": [
+    "Linear, time-invariant, single degree of freedom; constant coefficients.",
+    "Underdamped regime 0 <= zeta < 1 (enforced \u2014 evaluate refuses otherwise).",
+    "Zero initial conditions; ideal unit step input."
+  ],
+  "sources": [
+    {
+      "title": "K. Ogata, Modern Control Engineering, 5th ed., sec. 5-3 (transient response of 2nd-order systems)",
+      "ref": "ISBN 978-0136156734",
+      "used_for": "overshoot Mp and peak-time tp closed forms (gates 1-2)"
+    },
+    {
+      "title": "S. S. Rao, Mechanical Vibrations, 6th ed., ch. 2 (free vibration of SDOF systems)",
+      "ref": "ISBN 978-0134361307",
+      "used_for": "undamped natural period 2*pi/omega_n (gate 3) and the damped frequency relation"
+    }
+  ],
+  "boundary_conditions": {
+    "fixtures": "not applicable (lumped/1-D model)",
+    "loads": "not applicable",
+    "selector_count_unit": "not applicable"
+  },
+  "units": {
+    "inputs": {
+      "zeta": "dimensionless (0 <= zeta < 1)",
+      "omega_n_rad_s": "rad/s",
+      "t_end_s": "s (optional, default 10 periods)",
+      "dt_s": "s (optional)"
+    },
+    "outputs": {
+      "overshoot_pct": "% of final value",
+      "peak_time_s": "s",
+      "settling_time_2pct_s": "s",
+      "damped_freq_hz": "Hz"
+    }
+  },
+  "discretization": {
+    "method": "explicit time integration",
+    "element": "RK4, fixed step",
+    "notes": "default dt = T_d/400; convergence receipt compares dt vs dt/2."
+  },
+  "validation": {
+    "pin_file": "",
+    "additional_pins": [],
+    "ground_truth": "overshoot_vs_closed_form: Mp = exp(-pi*zeta/sqrt(1-zeta^2)) at zeta=0.2 (Ogata 5-3); peak_time_vs_closed_form: tp = pi/(omega_n*sqrt(1-zeta^2)) at zeta=0.2 (Ogata 5-3); undamped_period: T = 2*pi/omega_n between consecutive undamped peaks (Rao ch. 2)",
+    "error_band": {
+      "overshoot_vs_closed_form": "<= 0.5% rel",
+      "peak_time_vs_closed_form": "<= 0.5% rel",
+      "undamped_period": "<= 0.1% rel"
+    },
+    "direction": "inline self-check gates re-run on EVERY invocation (refuse-before-run); no committed pin unless pin_file is set",
+    "last_measured": "2026-07-17"
+  },
+  "caveats": [
+    "settling_time_2pct_s is the LAST 2%-band exit found on the sampled trajectory (dt-quantized).",
+    "Derived model: validation_status is synthesized_inloop, never 'validated' \u2014 graduation needs a committed pin per docs/MANIFEST_SCHEMA.md."
+  ],
+  "limits_of_validity": {
+    "regime": "underdamped 0 <= zeta < 1 ONLY \u2014 the gates' closed forms do not exist at zeta >= 1 and the model refuses",
+    "slenderness": "not applicable",
+    "resolution": "outputs quoted from a trajectory sampled at dt; peak/settling times are dt-quantized (receipt carries dt)"
+  }
+}

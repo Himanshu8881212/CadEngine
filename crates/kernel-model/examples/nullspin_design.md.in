@@ -1,0 +1,215 @@
+# NULLSPIN — design contract (authored; frozen BEFORE the geometry was trusted)
+
+This is the research side of the campaign: where every constant that describes
+the outside world came from, what is still UNKNOWN, and — per DESIGN_GUIDE
+§25.7 — WHICH analyses this artifact class requires. `ANALYSIS.md` answers
+every row of the plan with the numbers the gate suite measured on the live
+build; this file says what was allowed to be believed in the first place.
+
+## 1. What the artifact is
+
+A grounded-carrier ("star") simple epicyclic fidget spinner. The held frame IS
+the planet carrier, so the six planet axes are FIXED and never orbit. The user
+flicks the outer ring; the inner sun puck counter-rotates.
+
+Three consequences follow from grounding the carrier, and all three are why it
+was chosen:
+
+1. **No surveyed spinner grounds the carrier.** Every planetary fidget spinner
+   found in the prior-art sweep drives the sun or the ring with an orbiting
+   carrier.
+2. **Fixed axes carry ZERO centrifugal pin load.** In an orbiting-planet geared
+   spinner the planet pin is loaded by centrifugal force, not weight — 0.272 N
+   against 0.0196 N in the research's worked example, 14:1 — and that single
+   term is the largest added loss in the whole class (0.276 of 0.749 N·mm). A
+   star arrangement deletes it by construction.
+3. It puts two large concentric counter-rotating rims in ONE plane, which is
+   the most gear-legible image available and the thing the contest actually
+   scores.
+
+The price is stated rather than hidden: the planets run at k = 5.5× the ring,
+which is 3.7× the research's own anti-drag guidance of max(k) ≤ 1.5. That
+violation is gated (G1e) and published with its measured cost.
+
+## 2. Frozen dimensions and where each came from
+
+| constant | value | provenance | class |
+|---|---|---|---|
+| module m | 1.000 mm | π·m/2 = 1.571 mm = 3.5 × a 0.45 mm extrusion width. m0.6 is the two-perimeter cliff (0.942 mm vs a 0.90 mm two-wall minimum); below m0.5 needs a 0.25 mm nozzle | derived from measured extrusion width |
+| pressure angle α | 25.0° | undercut floor z = 2/sin²α = {floor:.3} T, so the 12T planet is legal at ZERO profile shift. This engine does not model undercut (its shift coefficient edits radii and pitch-line thickness — it is not a hob simulation), so "20° + shift" would be fiction | standard + engine capability |
+| S / P / R · n | 42 / 12 / 66 · 6 | R = S + 2P; (S+R)%n = 0; R%n = 0; S%n = 0; S+R even. All five verified as integer identities at compile time | exact |
+| centre distance | 27.000 mm, identical at both meshes | m(S+P)/2 = 33.0 − 6.0 | exact |
+| backlash, per flank | 0.09 mm thinning on all three members → jt = 0.18 mm/mesh | CMM-measured FDM involute profile deviation is 0.067 mm per flank and two flanks meet, so anything under ~0.134 mm binds. The gear handbook's worked example is 0.10 mm/gear → 0.20 mm; a widely-used OpenSCAD generator's default lands at 0.157 mm at m1.0 | measured (profile deviation) + standard practice |
+| root fillet | 0.30·m, EXTERNAL members only | the single highest-value tooth-strength feature for a printed gear. The engine fillets external teeth only — the ring cavity stays sharp-rooted, and that limitation goes on the model page | engine capability, declared |
+| running radial fit | 0.25 mm | `profiles/conservative_default.json` `xy_clearance_free`, print-proven in RESPOOL and DRYBOX. It is the only value inside every measured cross-printer band: 0.15 fuses on a CR-10 class machine, 0.20 is the exact edge of "moved with relative ease" on a CORE One, and Prusa officially says "at least 0.3" | measured in-repo |
+| press/locating fit | 0.05 mm radial | same profile, `xy_clearance_tight`; DRYBOX print-proved Ø7.9 stub in a 608's Ø8.0 bore | measured in-repo |
+| **non-printed parts** | **NONE** | the shipped bought list is EMPTY: no bearing, balls, magnets, screws, nuts, weights or inserts. This is a design CONSTRAINT of v3, taken with full knowledge that it costs spin time, and the cost is measured every run against v1 and v2 rebuilt on the same rotor | frozen constraint |
+| ring thrust pads | 6 pads, r 34.60 mm, 0.50 × 6.0 mm each | the ring's CONTINUOUS flat underside starts at its root circle 34.25 (inboard of that the band is crenellated by the tooth cavity) and the planets' tips reach r 34.00 with only the ISO 53 tip clearance between, so 34.60 is the floor of the ONLY term Coulomb friction lets geometry move. Count and area are irrelevant to the torque and G17e proves it | derived from the built ring |
+| sun thrust land | annulus from the post OD to r 3.95 mm, arm 3.70 mm | the sun's own bed relief removes its underside out to bore_r + C_BED = 3.45, so nothing inboard of that can touch (G17a). An on-axis point pivot would beat it and is refused on a geometric conflict with the static thumb pad, with its cost published | derived from the built sun |
+| layer height | 0.20 mm | a PHYSICS constant in v3, not only a slicer setting: it bounds the form error of any printed rolling element, which is what refuses printed balls (G21b2) | measured practice |
+| axial gap | 0.30 mm | same profile, `z_clearance` | measured in-repo |
+| bed relief | 0.45 mm radial run at 1.40 rise:run, on every clearance surface | PrusaSlicer removes 0.20 mm/side on layer 1, Bambu removes 0.075 — a 2.7× vendor disagreement. The relief makes layer 1 physically absent from the gap so neither number can weld it; the 1.40 slope keeps it off the 45° support threshold (see §6) | measured (two vendor defaults) |
+| post Ø | 5.50 mm | v1/v2 used 7.90 because the post had to be a 608's Ø8.00 bore (LMCAD DRYBOX print-proved STUB_R 3.95). With no bearing the diameter is FREE, and every millimetre of it costs spin time because the sun's thrust arm can never be closer to the axis than the post's own radius. 5.50 is this campaign's own printed-pin floor, shared with PIN_D, so one coupon pin gauges both | derived + in-repo pin rule |
+| sun bore Ø | 6.00 mm | v1/v2 seated a 608 OD here (Ø22.10, community band 22.0–22.2). v3's sun RUNS on the post, so this is the profile's running fit — POST_D + 2 × `xy_clearance_free`, identical to the planet bore | measured in-repo |
+| pin Ø | 5.50 mm | sub-Ø5 vertical printed pins are flagged failure-prone by a manufacturing-guidance source; 5.50 keeps the bore-to-root ligament at 1.75 mm | researched guidance |
+| ring rim wall | 2.25 mm | exactly 5 × 0.45 mm extrusion lines. 2.00 mm is 4.4 lines — a partial wall on the one part most likely to warp out of round | derived from extrusion width |
+| envelope | Ø{od:.1} × ≤12.0 mm | ergonomic band for a hand spinner; height gated | researched band |
+| 608 rotating inertia (LEDGER ONLY) | 610 g·mm² | NOT in the shipped eta. Retained so this run can rebuild the v1/v2 rows of the three-way spin-time ledger on the shipped rotor instead of quoting them | researched |
+| radial lash equivalent jr | {jr:.3} mm | jt/(2·tan α) — the concentricity budget the doubly-located sun must live inside | derived |
+
+## 3. Engine-refusal probe (run first, every run)
+
+The internal ring generator refuses when its root land pinches:
+`π/2z + (tan α − α) ≤ t_root − atan(t_root)`. At m1.0 / 66T / 25° the margin is
+**{probe:+.2}%** — it passes, but only just. This is gated as G0 with a negative
+control (36T at 30°, which must be REFUSED). If it had refused, the frozen
+fallback was 20° PA with x_planet = +0.30, x_sun = −0.30, x_ring = +0.30 —
+equal-and-opposite preserves the external centre distance and equal ring/planet
+preserves the internal one, so both meshes stay at 27.000 — at the cost of
+making profile shift load-bearing in an engine whose shift is a dimensional
+edit rather than a hob simulation. The fallback was not needed.
+
+## 4. What is UNKNOWN, and how the design lives with it
+
+Every one of these is designed around conservatively rather than guessed at.
+
+- **μ(PLA-on-PLA) at a printed thrust face or journal.** All published PLA
+  tribology is PLA-on-STEEL at 20 N (COF 0.52–0.67) — wrong pairing, wrong
+  load. **In v3 this is THE unknown**, and it now scales ~90 % of the budget
+  rather than a minority of it: every load-carrying contact in the shipped model
+  is printed PLA sliding on printed PLA. Carried as a 0.20–0.50 band, which is
+  the whole width of the published spin-time band. v1 minimised the term by
+  putting the ring's land at the smallest radius the architecture allowed; v2
+  removed it from the ring entirely with a steel race; **v3 has no escape from
+  it and does not pretend to** — it minimises every arm to its geometric floor
+  and publishes the band.
+- **Break-in of a printed thrust face.** The research is explicit that printed
+  plain bearings need one, and the contest's own hero fully-printed model tells
+  its users to ream the gear bores with a drill. A run-in face plausibly falls
+  below the μ 0.20 that floors the band above. There is no data for it here, so
+  it is NOT modelled — which makes the published number pessimistic. That is
+  the only direction an unmodelled effect is allowed to point.
+- **Rolling behaviour of an out-of-round PRINTED rolling element.** The obvious
+  fully-printed answer to the ring's thrust term is a printed ball in a printed
+  race, and the Hertz contact for PLA-on-PLA is computable and fine (G21a). What
+  is not computable is how a sphere 167× further from round than a G25 bearing
+  ball actually rolls: the governing losses are micro-impact and climb-over, and
+  no model or data for them exists in this repository. Printed balls are
+  therefore REFUSED, with the gain they would have bought published next to the
+  refusal rather than omitted.
+- **Measured 608 drag at spinner conditions** (0.3–0.6 N pure radial, no axial
+  preload, de-greased or thin oil, 500–3000 rpm). Nobody publishes it. This
+  unknown no longer touches the shipped design at all — it survives only in the
+  v1/v2 rows of the three-way ledger. Every 608 number there is SKF-model
+  -derived, and the SKF model was measured 77–88 % LOW on miniature lightly
+  -loaded bearings, so the nominal carries a 4.3× correction and the band runs
+  to 8.3×. Note the direction: that bound flatters the HARDWARE rows, not v3's.
+- **Drag coefficient of a printed spinner profile**, and the von Kármán free-disc
+  moment coefficient normalisation. The latter could not be opened at a primary
+  source and is flagged in ANALYSIS.md. Mitigated architecturally: the ring is a
+  CLOSED annulus with no bluff radial ends, so edge form drag — which is the
+  dominant air term for a lobed spinner and goes as (r_o⁴ − r_i⁴) — does not
+  apply at all. Only skin friction remains.
+- **Printer positional repeatability** over a 27 mm span. No source publishes
+  it. The larger available proxy (0.15 mm, the worst practitioner-reported XY
+  oversize) is used as a conservative stand-in in the concentricity gate.
+- **Any back-to-back measured geared-vs-plain spin time.** Zero sources. The
+  campaign therefore refuses to make a comparative duration claim at all.
+- **Measured elephant foot with compensation disabled** on a named
+  printer/material. Only vendor compensation defaults are available and they
+  disagree 2.7×. Handled by the chamfer, which removes the term rather than
+  budgeting for it.
+- **EN 71-1:2026.** The rod-rule text used here is the 2014 edition; the 2026
+  edition has been published and could not be read. Any compliance statement
+  must be re-verified against it.
+
+## 5. The analysis plan (frozen here; answered in ANALYSIS.md)
+
+From the governing physics (a hand-launched free-coasting rotor with an exposed
+gear train, printed in PLA, handled and dropped) and this artifact class's known
+failure modes (seized meshes from clearance loss, a fused print-in-place train,
+a rotor that binds when its ring warps out of round, a preloaded mesh killing
+the spin, exposed teeth near fingers, caps backing out), this artifact requires:
+
+| required analysis | how it is answered | where |
+|---|---|---|
+| **Kinematic exactness of the ratio** — it IS the claim | integer identities + the engine's own assembly oracle, with a negative control | ANALYSIS.md, G1a–G1e |
+| **Mesh geometry**: contact ratio, tip/root clearance, undercut, neighbour gap | closed-form, written in this campaign because the engine has no contact-ratio API, with its own negative control | G2–G4c |
+| **Interference over the full motion cycle** | exact `overlap_volume` sweeps over one complete mesh cycle and two whole revolutions, plus an off-ratio negative control that must JAM | G5, G6 |
+| **Backlash under printed tolerance** | bisection to flank contact on the built solids | G7 |
+| **Inertia + angular-momentum balance (eta)** | exact B-rep `mass_properties`, published as a band with a sensitivity table | G9 |
+| **Static and dynamic balance** | CG offset and products of inertia per rotor, with a negative control | G10 |
+| **Spin-down dynamics** | a NEW solver, benchmarked against two closed forms with a meta-negative-control before it is used | ANALYSIS.md, B1–B3 |
+| **Tooth-root bending** | Lewis with the form factor measured off the generator's own outline | G15 |
+| **Clearance stack-up** | designed gap vs elephant foot vs XY oversize vs profile deviation, published credited AND uncredited | G12 |
+| **Concentricity of the sun** | the radial-lash budget, gated. In v1/v2 the sun was located TWICE (608 + six meshes) and the two had to be proved not to fight; v3 deletes one of the two locators and the residual collapses to zero | G8 |
+| **The three printed sliding interfaces** — v3 has no rolling element anywhere, so they are ~90 % of the budget | each arm asserted to be the minimum its geometry allows, bearing pressure gated at every contact, and an anti-gaming gate proving the one free integer (the ring PAD COUNT) cannot move the answer | G17a–e |
+| **Whether deleting the hardware was worth it** — the whole subject of v3 | all three architectures (v1 sliding + 608, v2 ball race + 608, v3 fully printed) recomputed by ONE solver on ONE rotor in ONE run, each carrying its own I_eff; plus a negative control that puts the hardware back and must come out strictly better | G17f, ANALYSIS.md ledger |
+| **The central web to the axis** — RE-OPENED for v3, because eta is no longer the headline claim and no longer holds a veto | re-decided on its merits and refused again on two grounds eta has nothing to do with: the dead rim shell it forces leaves no printable ring face at ANY sun thickness in the study range, and its spokes cannot be bridged in either print orientation | G20a, G20b |
+| **Printed rolling elements** — the obvious fully-printed answer to the ring's thrust term | Hertz recomputed for PLA-on-PLA rather than scaled from the steel result; the support oracle run on an actual sphere; the single-ball stress limit taken. Refused on FORM ERROR, which is the one thing here with no model | G21a–b3 |
+| **Orientation dependence (flat vs edge-on)** — the listing has carried usage advice about it since v1, and it has now changed twice | the edge-on load path costed end to end (mesh, planet journal AND the sun's post journal), with BOTH the direction and the magnitude ceiling gated so the claim cannot drift | G19a–c |
+| **Pinch/entrapment safety** | EN 71-1 §4.10 rod rule as a geometric gate, with a negative control | G14 |
+| **Printability + connectivity** | support-free audit and `is_one_body` per part, with a wrong-orientation negative control | per-part emit, G13 |
+| **Top-spider retention** — a cover that falls off drops six planets | v4: the ENGAGEMENT of a geometric bayonet, gated over the full G12 tolerance stack and measured on the built solids, with two negative controls (delete the lip; pose it untwisted) that must read exactly zero; capacity from section properties; the snap-fit class refused on record with its arithmetic and the frozen spec's own barb as its NC | G16 |
+| **Presentation deliverables** — the contest scores photo quality explicitly | `assembly_doc.py` and `render_views.py` are RUN and GATED by the campaign, not assumed | assembly/, renders/ |
+| Creep / sustained load | **NOT REQUIRED** — a spinner is flicked and released, never held under load. The static tier is correct and the reasoning is written down | ANALYSIS.md |
+| Fatigue | **NOT REQUIRED** — the teeth carry load only during the flick; this is not a cycled drivetrain | ANALYSIS.md |
+| Thermal · modal · buckling | **NOT REQUIRED** — no heat source, no slender compression strut; and the repo's modal card explicitly excludes a SPINNING part | ANALYSIS.md |
+| **Hertzian flank contact / pitting / wear** | **REQUIRED FOR A DRIVETRAIN, NOT FOR THIS — and NOT PERFORMED regardless.** No solver in the registry covers elastic-on-elastic contact, and no PLA-on-PLA flank data exists | ANALYSIS.md |
+| **Impact / drop** | **REQUIRED, NOT PERFORMED.** A fidget spinner is dropped and PLA's notched toughness is low. No printed-PLA impact model exists in this repo's registry; every card in it is static, quasi-static or eigenvalue-based, and the fatigue solver explicitly refuses to stand in for one | ANALYSIS.md |
+| **μ(PLA-on-PLA)** | **REQUIRED, NOT PERFORMED** — carried as a band | ANALYSIS.md |
+| **Measured eta · measured spin time · acoustic loudness** | **REQUIRED, NOT PERFORMED** — no instrument, nothing printed in this run, no dB rig | ANALYSIS.md |
+
+## 6. Deliberate design decisions, stated as physics
+
+- **No herringbone.** The engine has zero helical geometry, but the decision is
+  defensible on its own: herringbone's axial self-centring IS a preloaded
+  sliding contact, and preload is the one Coulomb loss class that costs 66–90%
+  of spin time. Spur is correct here, not merely available.
+- **Not print-in-place.** Fused gears are the #1 documented failure of every
+  large print-in-place planetary, and glue is a disqualifying friction under
+  the contest's assembly criterion. The brief explicitly rewards being "divided
+  into multiple parts so it can be printed more easily (without supports)".
+- **Involute, not cycloidal.** Involute is the only profile that degrades to
+  pure backlash under a centre-distance error, and printed centre distance is
+  uncertain at the ±0.1 mm level.
+- **A BAYONET, not snap barbs and not a press — and the arithmetic that forced
+  it (v4).** The frozen spec asked for a Ø6.40 barb over a Ø5.60 hole: 0.40 mm
+  of radial hoop expansion on a 2.80 mm hole radius = **14 % strain**, eight
+  times PLA's 1.67 % yield. Refused on record. A compliant cantilever snap was
+  evaluated and also refused: the free pin length above the spider is ~3 mm and
+  a cantilever that stubby reaches yield at ~0.045 mm of tip deflection. v1–v3
+  shipped a 0.025 mm click ring instead — and v3's own G16e had to disclose that
+  0.025 mm/side of printer error erases it entirely, against a campaign worst
+  case of 0.15 mm/side. v4 refuses the whole SNAP CLASS on the same arithmetic
+  (a hoop's bore strain is δ/a exactly, so this hole's largest elastic snap is
+  0.047 mm against a 0.30 mm stack) and retains GEOMETRICALLY: a Ø2.70 neck, a
+  radial fin, a slotted arm, a 7° twist, and 1.15 mm of material in the way.
+  Nothing is strained at rest, which is RESPOOL's zero-preload law, and the
+  assembly stays serviceable — the shipped A/B requires it.
+- **Every relief cut OFF the 45° support threshold, not on it.** A 45° cone sits
+  exactly at the limit and a facet cannot land there — mesh positions are f32,
+  so the f64 normal carries its own representation noise. The ring's bed
+  chamfer measured 1.037e-6 mm² of steep area at 45°, and the campaign's
+  `steep_area < 1e-6` gate fired on it. Every relief is now cut at 1.40
+  rise:run. The fix was geometric; the gate was not loosened.
+- **The ring stands proud of both held rims.** A static rim flush with the
+  rotor is a Coulomb rub — the worst loss class — and a flicking finger would
+  bridge it.
+- **ZERO non-printed parts, and the arm is the only lever left.** v3's bought
+  list is empty by construction. Two bodies rotating about the same axis slide
+  at every contact that is not ON that axis, so a fully-printed spinner of this
+  architecture is a Coulomb machine and its spin time is set by μ·W·r. μ is
+  unmeasured and W is pinned by the eta balance (halve the ring and eta halves
+  the sun with it, so I_eff and the drag fall together — the gain is a theorem
+  away from zero). That leaves **r**, and every r in the model is pushed to a
+  geometric floor that is asserted rather than chosen: the ring's pads to the
+  start of its own continuous flat underside, the sun's land to its own bed
+  relief, and the post itself from Ø7.90 to Ø5.50 the moment it stopped having
+  to be a bearing bore.
+- **A static thumb pad beats 44 % of spin time, deliberately.** An on-axis point
+  pivot for the sun would nearly delete the sun's thrust term. It needs a blind
+  on-axis socket; a static thumb pad needs a column on the axis; the two are
+  geometrically exclusive. Every alternative pad support was worked and none is
+  printable. The pad wins because a spinner you cannot hold is not a product —
+  and the price is published as a gate (G21c) rather than left implicit.

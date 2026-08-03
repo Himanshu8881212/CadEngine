@@ -1,0 +1,114 @@
+{
+	"meta": {
+		"name": "PETG",
+		"version": "1.1.0",
+		"aliases": [
+			"PET-G"
+		],
+		"class": "fdm_thermoplastic",
+		"description": "PETG — the LMCAD drive/ball default filament. Mechanical block is the exact elastic input the CYCLO-26 drive FEA was validated against (E 2.0 GPa, nu 0.37, rho 1270), with the drive's 0.6 design derate reproducing the 28.2 MPa von Mises gate basis. Non-drive fields (ultimate, creep, fatigue, layer adhesion, service temp, heat-set pull-out) migrated from material_db.json and joint_check.py.",
+		"schema_version": 1,
+		"hash": "77b9695f492020f070a09db833ee985a3c9f3762626f961ce50f3d0e90d51df4"
+	},
+	"physical": {
+		"density_kg_m3": 1270
+	},
+	"mechanical": {
+		"youngs_modulus_pa": 2000000000.0,
+		"poisson": 0.37,
+		"yield_mpa": 47.0,
+		"ultimate_mpa": 53.0,
+		"sn_curve": {
+			"kind": "knockdown",
+			"cycles": 1000000,
+			"fraction_of_ultimate": 0.3,
+			"note": "engineering rule of thumb (~1e6-cycle allowable = ultimate x 0.3), NOT a measured S-N curve"
+		},
+		"compression_modulus_pa": null,
+		"resilience_coeff": null,
+		"elongation_at_break_pct": null
+	},
+	"thermal": {
+		"conductivity_w_mk": 0.2,
+		"specific_heat_j_kgk": 1200.0,
+		"cte_per_k": 6.8e-05,
+		"tg_or_melt_c": 80.0,
+		"service_temp_c": 75.0,
+		"creep_sustained_fraction": 0.25,
+		"softening_c": 68.0
+	},
+	"process": {
+		"anisotropy": {
+			"z_vs_xy_strength_ratio": 0.7,
+			"out_of_plane_threshold_deg": 30.0,
+			"model": "scalar-tier direction heuristic (production_check.py): across-layer (Z) tensile strength / in-plane (XY) strength; applied when the primary load is > threshold deg out of the layer plane"
+		},
+		"layer_adhesion_mpa": null,
+		"fatigue_knockdown": 0.3,
+		"heatset_pullout_n": {
+			"M3": 350,
+			"M4": 550,
+			"M5": 800,
+			"note": "brass knurled heat-set at standard insert length (M3 5.7, M4 8.1, M5 9.5 mm); conservative low ends"
+		},
+		"design_derate": {
+			"gate_factor": 0.6,
+			"note": "drive von Mises gate basis: allowable = yield 47 x 0.6 = 28.2 MPa (cyclo26/v2/analytics.py ALLOW_PETG). A FLAT design derate, distinct from the 0.70 anisotropy ratio."
+		}
+	},
+	"fluid": {
+		"surface_roughness_um": 12.0
+	},
+	"sources": {
+		"physical.density_kg_m3": "cyclo26/v2/make_fea_jobs.py MAT + cyclo26/v2/fea_output_hub6/fea_job.json (drive FEA input) == material_db.json PETG.density_kg_m3 (all three agree at 1270)",
+		"mechanical.youngs_modulus_pa": "cyclo26/v2/make_fea_jobs.py MAT = 2.0e9 (drive FEA elastic input; conservative low end of the PETG 1.5-2.1 GPa datasheet band)",
+		"mechanical.poisson": "cyclo26/v2/make_fea_jobs.py MAT = 0.37 (drive FEA input)",
+		"mechanical.yield_mpa": "cyclo26/v2/analytics.py ALLOW_PETG basis 28.2 MPa = 47 x 0.6 -> yield 47 MPa (conservative low end of Prusament/Ultimaker PETG tensile 47-50 MPa)",
+		"mechanical.ultimate_mpa": "material_db.json PETG.ultimate_mpa",
+		"mechanical.sn_curve": "material_db.json PETG.fatigue_knockdown 0.3 (engineering rule of thumb, not a measured curve)",
+		"thermal.service_temp_c": "material_db.json PETG.service_temp_c (HDT-B class 70-78 C)",
+		"thermal.creep_sustained_fraction": "material_db.json PETG.creep_sustained_fraction",
+		"thermal.tg_or_melt_c": "typical PETG glass transition ~80 C (literature); no current analyzer consumes it",
+		"thermal.conductivity_w_mk": "typical PETG ~0.2 W/mK (literature); no current analyzer consumes it",
+		"thermal.specific_heat_j_kgk": "typical PETG ~1200 J/kgK (literature); no current analyzer consumes it",
+		"thermal.cte_per_k": "typical PETG linear CTE ~68e-6 /K (literature); no current analyzer consumes it",
+		"process.anisotropy.z_vs_xy_strength_ratio": "material_db.json PETG.layer_adhesion_factor = 0.70",
+		"process.fatigue_knockdown": "material_db.json PETG.fatigue_knockdown",
+		"process.heatset_pullout_n": "joint_check.py HEATSET_PULLOUT_N[size][petg] (CNC Kitchen pull-out tests, conservative low ends)",
+		"process.design_derate.gate_factor": "cyclo26/v2/analytics.py ALLOW_PETG = 28.2e6 = yield 47 x 0.6 (drive gate basis)",
+		"fluid.surface_roughness_um": "typical FDM as-printed Ra at 0.2 mm layers (~12 um); layer-height dominated, not a polymer constant",
+		"thermal.softening_c": "softening_c = conservative softening allowable for sustained-load design: the LOW end of min(Tg, HDT-B 0.45 MPa) across cited brand TDS values for this material class (degC). PETG: 68 C = Prusament PETG TDS HDT 0.45 MPa ISO 75 https://www.prusa3d.com/file/2765253/prusament-petg-technical-data-sheet.pdf ; Bambu PETG Basic 69 C; Polymaker PolyLite PETG 78 C ISO 75 https://wiki.polymaker.com/polymaker-products/more-about-our-products/documents/technical-data-sheets/petg-pet/polylite-tm-petg",
+		"thermal.conductivity_w_mk (2026-07-30 verification)": "record 0.2 kept — it is the safe FLOOR of the published band: MakeItFrom PETG 0.29 https://www.makeitfrom.com/material-properties/Glycol-Modified-Polyethylene-Terephthalate-PETG-PET-G (divbyz repeats it — one lineage); generic PET 0.15-0.4 @23 C (Professional Plastics chart), 0.25-0.30 (Kruse). No direct printed-neat-PETG measurement found (primary paywalled: https://4spepublications.onlinelibrary.wiley.com/doi/10.1002/pen.26409)",
+		"thermal.tg_or_melt_c (2026-07-30 verification)": "record 80 confirmed: Polymaker PolyLite PETG TDS Tg 81 C DSC (URL above); measured 81.7 C, Bedi et al. (Wiley, PETG-graphene, search snippet); guides quote 75-85"
+	},
+	"conflicts": [
+		{
+			"field": "mechanical.youngs_modulus_pa",
+			"canonical": 2000000000.0,
+			"other_value": 2100000000.0,
+			"other_source": "tools/material_db.json PETG.youngs_pa (read by production_check.py)",
+			"note": "drive FEA uses 2.0e9; material_db uses 2.1e9. ~5% drift, both inside the 1.5-2.1 GPa datasheet band. Canonical = the value the shipped CYCLO-26 design was actually FEA-validated against."
+		},
+		{
+			"field": "mechanical.yield_mpa",
+			"canonical": 47.0,
+			"other_value": 50.0,
+			"other_source": "tools/material_db.json PETG.yield_mpa (read by production_check.py; its pinned selftest asserts creep allowable 50*0.25=12.5 MPa)",
+			"note": "drive gate uses 47 (-> 28.2 derated); production_check uses 50. Reconciling would change production_check's pinned PETG selftest allowables (creep 12.5->11.75, anisotropy 35->32.9) — a human physics decision, DEFERRED and not changed here."
+		},
+		{
+			"field": "process.design_derate.gate_factor",
+			"canonical": 0.6,
+			"other_value": 0.7,
+			"other_source": "material_db.json PETG.layer_adhesion_factor (production_check.py anisotropy rule)",
+			"note": "the drive applies a FLAT 0.6 design derate always (yield 47 -> 28.2 MPa); production_check applies the 0.70 layer-adhesion ratio ONLY for loads > 30 deg out of the layer plane. Two different derate policies, both retained; surfaced so they are not conflated as one number."
+		},
+		{
+			"field": "thermal.service_temp_c",
+			"canonical": 75.0,
+			"other_value": 68.0,
+			"other_source": "Prusament PETG TDS HDT 0.45 MPa = 68 C https://www.prusa3d.com/file/2765253/prusament-petg-technical-data-sheet.pdf",
+			"note": "material_db's service 75 C sits ABOVE Prusament's measured HDT-B (68 C). New thermal.softening_c carries the conservative 68; reconciling service_temp_c downward is a human allowable change — surfaced, not silently done."
+		}
+	]
+}

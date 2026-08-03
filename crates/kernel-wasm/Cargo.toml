@@ -1,0 +1,16 @@
+# Copyright (c) LMCAD. Licensed under the MIT License.
+
+[package]
+name = "kernel-wasm"
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+authors = ["LMCAD"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+kernel-core = { path = "../kernel-core" }
+kernel-implicit = { path = "../kernel-implicit" }
+wasm-bindgen = "0.2"

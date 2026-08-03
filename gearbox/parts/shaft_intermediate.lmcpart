@@ -1,0 +1,105 @@
+{
+ "format": "lmc-part",
+ "version": 1,
+ "units": "mm",
+ "name": "shaft_intermediate",
+ "created_with": "gearbox/generate.py (w5 dogfood)",
+ "meta": {
+  "part_number": "GBX-SH-MID",
+  "material": {
+   "name": "steel",
+   "density_g_cm3": 7.85
+  },
+  "make_or_buy": "make"
+ },
+ "document": {
+  "params": {},
+  "features": [
+   {
+    "CatalogPart": {
+     "part": {
+      "Shaft": {
+       "d": {
+        "Literal": 8.0
+       },
+       "length": {
+        "Literal": 55.0
+       }
+      }
+     }
+    },
+    "label": "shaft blank"
+   },
+   {
+    "Box": {
+     "center": [
+      {
+       "Literal": 3.6999999999999997
+      },
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 20.0
+      }
+     ],
+     "size": [
+      {
+       "Literal": 1.7999999999999998
+      },
+      {
+       "Literal": 2.0
+      },
+      {
+       "Literal": 8.0
+      }
+     ]
+    }
+   },
+   {
+    "Boolean": {
+     "op": "Difference",
+     "a": 0,
+     "b": 1
+    },
+    "label": "wheel-1 keyway 2x2x8"
+   },
+   {
+    "Box": {
+     "center": [
+      {
+       "Literal": 3.6999999999999997
+      },
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 32.0
+      }
+     ],
+     "size": [
+      {
+       "Literal": 1.7999999999999998
+      },
+      {
+       "Literal": 2.0
+      },
+      {
+       "Literal": 12.0
+      }
+     ]
+    }
+   },
+   {
+    "Boolean": {
+     "op": "Difference",
+     "a": 2,
+     "b": 3
+    },
+    "label": "pinion-2 keyway 2x2x12"
+   }
+  ],
+  "root": 4,
+  "suppressed": []
+ }
+}

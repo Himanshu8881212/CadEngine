@@ -1,0 +1,73 @@
+{
+ "format": "lmc-part",
+ "version": 1,
+ "units": "mm",
+ "name": "bearing_608",
+ "created_with": "gearbox/generate.py (w5 dogfood)",
+ "meta": {
+  "part_number": "608ZZ",
+  "material": {
+   "name": "steel",
+   "density_g_cm3": 7.85
+  },
+  "make_or_buy": "buy"
+ },
+ "document": {
+  "params": {},
+  "features": [
+   {
+    "Cylinder": {
+     "center": [
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 3.5
+      }
+     ],
+     "radius": {
+      "Literal": 11.0
+     },
+     "height": {
+      "Literal": 7.0
+     }
+    },
+    "label": "608 envelope"
+   },
+   {
+    "Cylinder": {
+     "center": [
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 3.5
+      }
+     ],
+     "radius": {
+      "Literal": 4.0
+     },
+     "height": {
+      "Literal": 9.0
+     }
+    }
+   },
+   {
+    "Boolean": {
+     "op": "Difference",
+     "a": 0,
+     "b": 1
+    },
+    "label": "bored"
+   }
+  ],
+  "root": 2,
+  "suppressed": []
+ }
+}

@@ -1,0 +1,17 @@
+[package]
+name = "kernel-gpu"
+description = "GPU (wgpu) field evaluator and Surface Nets extraction for the implicit half"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+kernel-core = { path = "../kernel-core" }
+kernel-implicit = { path = "../kernel-implicit" }
+wgpu = { workspace = true }
+bytemuck = { workspace = true }
+pollster = { workspace = true }
+
+[dev-dependencies]
+rayon = { workspace = true }

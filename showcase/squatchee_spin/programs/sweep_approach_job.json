@@ -1,0 +1,563 @@
+{
+ "template": {
+  "ops": [
+   {
+    "id": "m_prof",
+    "op": "sketch",
+    "points": [
+     [
+      11.8,
+      0
+     ],
+     [
+      11.8,
+      24.9
+     ],
+     [
+      4.6,
+      31.7
+     ],
+     [
+      4.6,
+      33.1
+     ],
+     [
+      2.5,
+      33.1
+     ],
+     [
+      2.2,
+      33.4
+     ],
+     [
+      2.2,
+      38.2
+     ],
+     [
+      1.5,
+      38.9
+     ],
+     [
+      0,
+      38.9
+     ],
+     [
+      0,
+      32.5
+     ],
+     [
+      9.8,
+      22.0
+     ],
+     [
+      9.8,
+      3.6
+     ],
+     [
+      6.6,
+      1.2
+     ],
+     [
+      6.6,
+      0.85
+     ],
+     [
+      7.4,
+      0
+     ]
+    ],
+    "segments": [
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      5,
+      6
+     ],
+     [
+      6,
+      7
+     ],
+     [
+      7,
+      8
+     ],
+     [
+      8,
+      9
+     ],
+     [
+      9,
+      10
+     ],
+     [
+      10,
+      11
+     ],
+     [
+      11,
+      12
+     ],
+     [
+      12,
+      13
+     ],
+     [
+      13,
+      14
+     ],
+     [
+      14,
+      0
+     ]
+    ]
+   },
+   {
+    "id": "m_body",
+    "op": "sketch_revolve",
+    "sketch": "m_prof",
+    "segments": 132
+   },
+   {
+    "id": "m_lugprism",
+    "op": "extrude",
+    "profile": [
+     [
+      0.7,
+      0
+     ],
+     [
+      0,
+      0.63
+     ],
+     [
+      -0.3,
+      0.63
+     ],
+     [
+      -0.65,
+      0
+     ],
+     [
+      -0.3,
+      -0.63
+     ],
+     [
+      0,
+      -0.63
+     ]
+    ],
+    "height": 1.55
+   },
+   {
+    "id": "m_lugA",
+    "op": "pose",
+    "in": "m_lugprism",
+    "rotate": {
+     "axis": [
+      0,
+      1,
+      0
+     ],
+     "degrees": 90
+    },
+    "translate": [
+     1.6,
+     0,
+     35.6
+    ]
+   },
+   {
+    "id": "m_lugB",
+    "op": "pose",
+    "in": "m_lugA",
+    "rotate": {
+     "axis": [
+      0,
+      0,
+      1
+     ],
+     "degrees": 180
+    }
+   },
+   {
+    "id": "m_u1",
+    "op": "union",
+    "a": "m_body",
+    "b": "m_lugA"
+   },
+   {
+    "id": "m_postlug",
+    "op": "union",
+    "a": "m_u1",
+    "b": "m_lugB"
+   },
+   {
+    "id": "m_slot0",
+    "op": "box",
+    "min": [
+     6,
+     -2.05,
+     -1
+    ],
+    "max": [
+     13,
+     2.05,
+     22.9
+    ]
+   },
+   {
+    "id": "m_slot1",
+    "op": "pose",
+    "in": "m_slot0",
+    "rotate": {
+     "axis": [
+      0,
+      0,
+      1
+     ],
+     "degrees": 60
+    }
+   },
+   {
+    "id": "m_slot2",
+    "op": "pose",
+    "in": "m_slot0",
+    "rotate": {
+     "axis": [
+      0,
+      0,
+      1
+     ],
+     "degrees": 120
+    }
+   },
+   {
+    "id": "m_slot3",
+    "op": "pose",
+    "in": "m_slot0",
+    "rotate": {
+     "axis": [
+      0,
+      0,
+      1
+     ],
+     "degrees": 180
+    }
+   },
+   {
+    "id": "m_slot4",
+    "op": "pose",
+    "in": "m_slot0",
+    "rotate": {
+     "axis": [
+      0,
+      0,
+      1
+     ],
+     "degrees": 240
+    }
+   },
+   {
+    "id": "m_slot5",
+    "op": "pose",
+    "in": "m_slot0",
+    "rotate": {
+     "axis": [
+      0,
+      0,
+      1
+     ],
+     "degrees": 300
+    }
+   },
+   {
+    "id": "m_d1",
+    "op": "difference",
+    "a": "m_postlug",
+    "b": "m_slot0"
+   },
+   {
+    "id": "m_d2",
+    "op": "difference",
+    "a": "m_d1",
+    "b": "m_slot1"
+   },
+   {
+    "id": "m_d3",
+    "op": "difference",
+    "a": "m_d2",
+    "b": "m_slot2"
+   },
+   {
+    "id": "m_d4",
+    "op": "difference",
+    "a": "m_d3",
+    "b": "m_slot3"
+   },
+   {
+    "id": "m_d5",
+    "op": "difference",
+    "a": "m_d4",
+    "b": "m_slot4"
+   },
+   {
+    "id": "m_mount",
+    "op": "difference",
+    "a": "m_d5",
+    "b": "m_slot5"
+   },
+   {
+    "id": "r_prof",
+    "op": "sketch",
+    "points": [
+     [
+      0,
+      0
+     ],
+     [
+      4.15,
+      0
+     ],
+     [
+      4.75,
+      0.6
+     ],
+     [
+      4.75,
+      1.2
+     ],
+     [
+      3.3,
+      1.2
+     ],
+     [
+      3.3,
+      6.7
+     ],
+     [
+      3.1,
+      7.0
+     ],
+     [
+      2.5,
+      7.0
+     ],
+     [
+      2.5,
+      3.15
+     ],
+     [
+      2.35,
+      3.0
+     ],
+     [
+      2.35,
+      1.2
+     ],
+     [
+      0,
+      1.2
+     ]
+    ],
+    "segments": [
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      5,
+      6
+     ],
+     [
+      6,
+      7
+     ],
+     [
+      7,
+      8
+     ],
+     [
+      8,
+      9
+     ],
+     [
+      9,
+      10
+     ],
+     [
+      10,
+      11
+     ],
+     [
+      11,
+      0
+     ]
+    ]
+   },
+   {
+    "id": "r_ret0",
+    "op": "sketch_revolve",
+    "sketch": "r_prof",
+    "segments": 96
+   },
+   {
+    "id": "r_chanbase",
+    "op": "box",
+    "min": [
+     2.0,
+     -1.0,
+     3.9
+    ],
+    "max": [
+     3.5,
+     1.0,
+     7.1
+    ]
+   },
+   {
+    "id": "r_chanB",
+    "op": "pose",
+    "in": "r_chanbase",
+    "rotate": {
+     "axis": [
+      0,
+      0,
+      1
+     ],
+     "degrees": 180
+    }
+   },
+   {
+    "id": "r_pockbase",
+    "op": "box",
+    "min": [
+     2.0,
+     -1.0,
+     3.9
+    ],
+    "max": [
+     3.5,
+     1.0,
+     6.05
+    ]
+   },
+   {
+    "id": "r_pockA",
+    "op": "pose",
+    "in": "r_pockbase",
+    "rotate": {
+     "axis": [
+      0,
+      0,
+      1
+     ],
+     "degrees": 34
+    }
+   },
+   {
+    "id": "r_pockB",
+    "op": "pose",
+    "in": "r_pockbase",
+    "rotate": {
+     "axis": [
+      0,
+      0,
+      1
+     ],
+     "degrees": 214
+    }
+   },
+   {
+    "id": "r_c1",
+    "op": "difference",
+    "a": "r_ret0",
+    "b": "r_chanbase"
+   },
+   {
+    "id": "r_c2",
+    "op": "difference",
+    "a": "r_c1",
+    "b": "r_chanB"
+   },
+   {
+    "id": "r_c3",
+    "op": "difference",
+    "a": "r_c2",
+    "b": "r_pockA"
+   },
+   {
+    "id": "r_ret",
+    "op": "difference",
+    "a": "r_c3",
+    "b": "r_pockB"
+   },
+   {
+    "id": "r_posed",
+    "op": "pose",
+    "in": "r_ret",
+    "rotate": {
+     "axis": [
+      1,
+      0,
+      0
+     ],
+     "degrees": 180
+    },
+    "translate": [
+     0,
+     0,
+     "$t"
+    ]
+   },
+   {
+    "id": "fit",
+    "op": "clearance",
+    "a": "r_posed",
+    "b": "m_mount"
+   }
+  ]
+ },
+ "t": {
+  "from": 51.4,
+  "to": 40.4,
+  "steps": 18
+ },
+ "watch": [
+  "fit"
+ ],
+ "out_dir": "sweep_out"
+}

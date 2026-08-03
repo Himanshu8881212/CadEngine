@@ -1,0 +1,37 @@
+{
+ "format": "lmc-part",
+ "version": 1,
+ "units": "mm",
+ "name": "gear_s1_wheel",
+ "created_with": "gearbox/generate.py (w5 dogfood)",
+ "document": {
+  "params": {},
+  "features": [
+   {
+    "CatalogPart": {
+     "part": {
+      "SpurGear": {
+       "module": {
+        "Literal": 1.25
+       },
+       "teeth": 60,
+       "face_width": {
+        "Literal": 10.0
+       },
+       "bore_d": {
+        "Literal": 8.0
+       },
+       "pressure_angle_deg": {
+        "Literal": 20.0
+       },
+       "keyway": true
+      }
+     }
+    },
+    "label": "ISO 53 m1.25 z60"
+   }
+  ],
+  "root": 0,
+  "suppressed": []
+ }
+}

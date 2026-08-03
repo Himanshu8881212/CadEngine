@@ -1,0 +1,252 @@
+{
+	"meta": {
+		"name": "printed-polymer fatigue (S-N) registry",
+		"schema_kind": "fatigue_table",
+		"schema_kind_note": "NOT a tools/materials.py material record — a sidecar table. materials.py load_all() skips any file whose meta.schema_kind is not 'material_record'.",
+		"schema_version": 1,
+		"researched": "2026-07-30",
+		"consumer": "tools/ace_fatigue_runner.py",
+		"why_separate_file": "tools/materials/<key>.json are the unified material records (owned elsewhere); this file adds ONLY the fatigue-curve layer and its provenance. It never overrides a record — the runner reads E/UTS from tools/materials.py and the S-N curve from here.",
+		"scope": "FDM/FFF-PRINTED specimens only. Bulk/injection-moulded polymer S-N data is NOT admitted: printed parts fail by layer debonding and inter-bead void growth, mechanisms absent from bulk specimens (the same review that reports FDM ABS at 6.0e4 cycles reports injection-moulded ABS at 6.0e6 cycles for the SAME 10 MPa — a 100x gap).",
+		"blunt_validity_statement": "This is a COMPARATIVE / SCREENING tool, not a certification basis. Printed-part fatigue is dominated by layer adhesion, raster geometry and process defects; published scatter for printed PLA spans a factor of 3.7x to 90x in LIFE between the 10% and 90% survival curves (the runner recomputes that band from source_table every run: T_life = T_sigma^k). Use it to rank design variants and to reject obviously-overstressed features, never to certify a cycle count."
+	},
+	"policy": {
+		"status_values": {
+			"measured": "at least two independent printed-specimen datasets with usable S-N parameters that agree within the published scatter; the runner will return a life number",
+			"insufficient": "printed data exists but is not enough to fit a defensible curve (too few decades, no published coefficients, or a single lineage); the runner REFUSES and says so",
+			"unknown": "no printed-specimen fatigue data found; the runner REFUSES and says so"
+		},
+		"refusal_rule": "A material whose status is not 'measured' gets NO life number. Substituting bulk-polymer data would be a fabricated answer, so the runner names the material, the status and the reason instead.",
+		"orientation_rule": "Every curve here is for IN-PLANE (flat on the build plate, load in the layer plane) specimens. ACROSS-LAYER (Z, load normal to the layers) fatigue of printed polymers is UNKNOWN — no S-N dataset was found for any material in this registry (2026-07-30). The runner refuses `load_orientation: across_layer` rather than applying the static z_vs_xy_strength_ratio knockdown, because a static strength ratio is not a fatigue-slope ratio and nothing measured supports the substitution."
+	},
+	"materials": {
+		"PLA": {
+			"status": "measured",
+			"confidence": "Medium",
+			"confidence_basis": "Two independent peer-reviewed printed-PLA axial-fatigue datasets (different printers, filament suppliers, raster angles, load ratios and years) agree to 0.4% on the Basquin coefficient A and to within 21% on the R=-1-equivalent endurance amplitude at 2e6 cycles — good agreement for polymer fatigue, whose own within-study 90/10 scatter is larger than that. Downgraded from High because: no dataset exceeds 2e6 cycles, no across-layer data exists, and infill/wall counts differ from typical print settings.",
+			"sigma_uts_mpa_printed": 40.9,
+			"sigma_uts_source": "LOWEST measured printed UTS of the three raster angles in Ezeh & Susmel 2019 (42.6 / 40.9 / 42.5 MPa at theta_p = 0/30/45 deg). Deliberately NOT tools/materials/pla.json mechanical.ultimate_mpa = 55.0, which is datasheet-class and would make both the design curve (0.1 x UTS) and any Goodman correction UNCONSERVATIVE — see conflicts[0].",
+			"curves": {
+				"design": {
+					"model": "basquin",
+					"stress_measure": "max",
+					"mean_stress_handling": "intrinsic",
+					"k": 5.5,
+					"n_ref": 2000000,
+					"sigma_at_n_ref_mpa": 4.09,
+					"a_mpa": 57.195929924926574,
+					"b": -0.18181818181818182,
+					"probability_of_survival": ">= 0.90",
+					"n_valid": [500, 2000000],
+					"derivation": "Ezeh & Susmel 2019 eq. (5)-(6), the paper's OWN recommended unifying design curve for AM PLA at 100% infill: negative inverse slope k = 5.5 and endurance limit sigma_MAX = 0.10 x sigma_UTS at N_ref = 2e6 cycles, expressed in MAXIMUM stress in the cycle. sigma_at_n_ref_mpa = 0.10 x 40.9 = 4.09 MPa. Basquin form sigma_max = a * N^b with b = -1/k = -0.181818..., a = 4.09 * (2e6)^(1/5.5) = 57.195929924926574 MPa (stored to full binary64 precision so a consumer can re-derive it exactly).",
+					"note": "DEFAULT curve. Expressed in MAX stress on purpose: Ezeh & Susmel found that for AM PLA the maximum stress in the cycle already absorbs the mean-stress effect (their Fig. 8a: the 2e6-cycle endurance limit in sigma_MAX is 9.5 MPa +-2SD across R = -1, -0.5, 0 and +0.3). Applying Goodman/Gerber ON TOP of this curve double-counts the mean stress; the runner refuses that combination."
+				},
+				"median": {
+					"model": "basquin",
+					"stress_measure": "amplitude",
+					"mean_stress_handling": "correction_required",
+					"k": 7.7,
+					"n_ref": 2000000,
+					"sigma_at_n_ref_mpa": 10.4,
+					"a_mpa": 68.44613399542558,
+					"b": -0.12987012987012986,
+					"probability_of_survival": "0.50",
+					"r_ratio_basis": -1.0,
+					"n_valid": [500, 2000000],
+					"scatter_ratio_t_sigma": 1.185,
+					"derivation": "Ezeh & Susmel 2019 Table 1, theta_p = 0 deg, R = -1 (15 specimens): k = 7.7, sigma_A,50% = 10.4 MPa at N_ref = 2e6, T_sigma = 1.185. Basquin sigma_a = a * N^b with b = -1/k = -0.129870..., a = 10.4 * (2e6)^(1/7.7) = 68.44613399542558 MPa (stored to full binary64 precision).",
+					"note": "MEDIAN curve — by construction 50% of specimens fail BEFORE this life. Never a default. Fully-reversed (R = -1) basis, so a mean-stress correction (goodman|gerber) is REQUIRED for any spectrum with sigma_m != 0.",
+					"corroboration": "Independent fit from source[1] (different lab/printer/year, smooth ASTM D638-I specimens, R = 0.05, 5 Hz): sigma_a = 68.159 * N^-0.161, R^2 = 0.991. Coefficient A agrees to 0.42% (68.159 vs 68.446 MPa); exponent b differs 24% (-0.161 vs -0.12987), which is inside the source-0 slope spread (k = 4.3 .. 8.9 across its 12 configurations, i.e. b = -0.1124 .. -0.2326). At 2e6 cycles source[1] gives sigma_a = 6.593 MPa at R = 0.05; Goodman-corrected to R = -1 (its own measured UTS 37.23 MPa) that is 8.197 MPa vs this curve's 10.4 MPa — 21% apart, well inside the 90/10 scatter band (3.7x in life for this configuration)."
+				}
+			},
+			"life_scatter": {
+				"note": "T_sigma is the 90%/10%-survival ratio of the endurance STRESS; the corresponding LIFE band is T_sigma^k, computed per configuration. The runner recomputes min/max over source_table every run and quotes it in the receipt (measured 2026-07-30: 3.70x best, 90.39x worst)."
+			},
+			"source_table": {
+				"description": "Ezeh & Susmel 2019 Table 1 verbatim: median (PS=50%) S-N curves. Columns [theta_p_deg, sigma_uts_mpa, n_specimens, r_ratio, k, sigma_a_50_mpa_at_2e6, t_sigma].",
+				"n_ref": 2000000,
+				"rows": [
+					[0, 42.6, 15, -1.0, 7.7, 10.4, 1.185],
+					[0, 42.6, 15, -0.5, 8.9, 10.1, 1.266],
+					[0, 42.6, 12, 0.0, 7.4, 6.1, 1.592],
+					[0, 42.6, 14, 0.3, 7.0, 5.1, 1.216],
+					[30, 40.9, 16, -1.0, 4.3, 4.5, 1.911],
+					[30, 40.9, 11, -0.5, 7.2, 5.5, 1.498],
+					[30, 40.9, 9, 0.0, 6.9, 4.7, 1.699],
+					[30, 40.9, 9, 0.3, 5.8, 3.3, 2.174],
+					[45, 42.5, 11, -1.0, 6.5, 6.3, 1.355],
+					[45, 42.5, 10, -0.5, 7.6, 6.0, 1.399],
+					[45, 42.5, 11, 0.0, 7.5, 4.7, 1.302],
+					[45, 42.5, 10, 0.3, 6.7, 3.1, 1.882]
+				]
+			},
+			"test_conditions": {
+				"specimen": "FFF-printed dog-bone, flat on the build plate, 100% infill",
+				"orientation": "in-plane (load in the layer plane); raster angles 0 / 30 / 45 deg",
+				"load_ratios_tested": [-1.0, -0.5, 0.0, 0.3, 0.05],
+				"frequency_hz": [5.0, 10.0],
+				"temperature": "room temperature, dry",
+				"runout_cycles": 2000000,
+				"n_specimens": "143 (source[0], >= 8 per configuration per JSME practice) + 22 (source[1] smooth+notched)",
+				"finite_life_range_cycles": [500, 2000000]
+			},
+			"sources": [
+				{
+					"id": 0,
+					"role": "canonical (both curves)",
+					"citation": "O.H. Ezeh, L. Susmel, 'Fatigue strength of additively manufactured polylactide (PLA): effect of raster angle and non-zero mean stresses', International Journal of Fatigue 126 (2019) 319-326",
+					"url": "https://eprints.whiterose.ac.uk/id/eprint/146276/1/3D-printed%20PLA_plain%20Fatigue_IJFatigue.pdf",
+					"publisher_url": "https://www.sciencedirect.com/science/article/abs/pii/S0142112319301859",
+					"read": "full text (open accepted manuscript, Table 1 + eqs. 5-6 transcribed)",
+					"key_numbers": "Table 1 (PS=50%): theta_p=0, UTS 42.6 MPa -> (R,k,sigma_A50,T_sigma) = (-1, 7.7, 10.4, 1.185) (-0.5, 8.9, 10.1, 1.266) (0, 7.4, 6.1, 1.592) (0.3, 7.0, 5.1, 1.216); theta_p=30, UTS 40.9 -> (-1, 4.3, 4.5, 1.911) (-0.5, 7.2, 5.5, 1.498) (0, 6.9, 4.7, 1.699) (0.3, 5.8, 3.3, 2.174); theta_p=45, UTS 42.5 -> (-1, 6.5, 6.3, 1.355) (-0.5, 7.6, 6.0, 1.399) (0, 7.5, 4.7, 1.302) (0.3, 6.7, 3.1, 1.882). Design curve k=5.5, sigma_MAX = 0.1 sigma_UTS at 2e6."
+				},
+				{
+					"id": 1,
+					"role": "independent corroboration of the median curve",
+					"citation": "'Fatigue Life Assessment of Notched PLA Manufactured Using FDM 3D-Printing Technique', Polymers 18(1):1 (2026)",
+					"url": "https://www.mdpi.com/2073-4360/18/1/1",
+					"mirror_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12787623/",
+					"read": "full text via PMC mirror",
+					"key_numbers": "sigma_a = A N^B: smooth A=68.159 B=-0.161 (R^2 0.991); edge-notched A=57.147 B=-0.155 (R^2 0.994); central-holed A=48.436 B=-0.141 (R^2 0.736). R=0.05, 5 Hz, YZ on-edge, concentric infill, measured UTS 37.23 MPa. Smooth data points: 10.61 MPa -> 99940/106880 cycles; 12.38 -> 38691/43596; 13.26 -> 24080/24400; 14.15 -> 17700/18771."
+				},
+				{
+					"id": 2,
+					"role": "conflicting datum, kept as data (see conflicts[1])",
+					"citation": "'Modeling of Effect of Infill Density Percentage on Rotating Bending Fatigue Behavior of Additive-Manufactured PLA Polymers', Polymers (2024)",
+					"url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10820292/",
+					"read": "full text via PMC",
+					"key_numbers": "Rotating bending, R=-1, 100 Hz. N = 10^CB1 * sigma^-CB2 (sigma in MPa); 100% infill CB1=9.974 CB2=3.3825 (R^2 0.999) -> equivalent Basquin a = 889 MPa, b = -0.2956. Mean life at sigma_a=14 MPa: 25% infill 30275; 50% 236585; 75% 878184; 100% 1262213 cycles. No measured UTS reported."
+				},
+				{
+					"id": 3,
+					"role": "raw data, no published fit",
+					"citation": "'Experimental fatigue dataset for additive-manufactured 3D-printed PLA biomaterials under fully-reversed rotating-bending loadings', Data in Brief",
+					"url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8800022/",
+					"read": "full text via PMC (article only; the numeric tables live in the Mendeley deposit)",
+					"key_numbers": "2.5-17.5 MPa amplitude, R=-1, 100 Hz, horizontal print, 60% rectangular infill, ~400 to 1.5e6 cycles (runout). Authors explicitly leave the Basquin fit as future work. Raw data: Mendeley DOI 10.17632/gyxsn7wg6c.1."
+				}
+			],
+			"conflicts": [
+				{
+					"field": "sigma_uts_mpa used for the design curve and for Goodman/Gerber",
+					"canonical": 40.9,
+					"other_value": 55.0,
+					"other_source": "tools/materials/pla.json mechanical.ultimate_mpa (datasheet-class, from material_db.json)",
+					"note": "The three fatigue studies measured 37.23 / 40.9 / 42.5 / 42.6 MPa on their OWN printed specimens. Using 55 MPa would raise the design endurance from 4.09 to 5.5 MPa (+34%) and soften every Goodman correction — unconservative in both places. This file keeps the measured printed value and does NOT edit the material record."
+				},
+				{
+					"field": "S-N slope and level, axial vs rotating-bending",
+					"canonical": "axial (sources 0 and 1)",
+					"other_value": "rotating bending, source 2: N = 10^9.974 sigma^-3.3825 at 100% infill",
+					"note": "At sigma_a = 14 MPa source 2 reports 1.25e6 cycles; the canonical median curve gives 2.03e5 — a 6.2x life gap, and the slopes differ sharply (b -0.2956 vs -0.1299), so the gap widens at lower stress. NOT averaged. Axial is canonical because (a) a bending gradient stresses only the surface fibres, systematically over-reporting fatigue strength relative to the uniform axial stress that an FEA von Mises field represents; (b) source 2 reports no measured UTS, so its data cannot be mean-stress-normalised; (c) 100 Hz on a polymer risks hysteretic self-heating, which sources 0 and 1 avoid at 5-10 Hz. The conflict is recorded, not resolved by averaging."
+				}
+			],
+			"gaps_unknowns": [
+				"ACROSS-LAYER (Z) fatigue: NO printed-PLA S-N data found (2026-07-30). The runner refuses across-layer requests instead of knocking down the in-plane curve by the static z_vs_xy ratio.",
+				"NOTHING beyond 2e6 cycles: both canonical sources stop at their runout. Any block whose predicted life exceeds 2e6 is EXTRAPOLATION and is flagged as such in the receipt; there is no evidence of a true endurance limit (fatigue limit) for printed PLA.",
+				"INFILL: the canonical curves are 100%-infill. Source 2 shows life falling ~40x from 100% to 25% infill at the same nominal stress — sparse-infill parts are NOT covered by this curve.",
+				"TEMPERATURE: all data is room-temperature. PLA's Tg is ~60 C and softening_c is 55 C (tools/materials/pla.json); no elevated-temperature printed-PLA S-N data was found.",
+				"FREQUENCY / self-heating: sources 0-1 used 5-10 Hz. Nothing here covers the loading rate of, say, a vibrating bracket at 100+ Hz.",
+				"VARIABLE-AMPLITUDE validation: Miner's linear rule is APPLIED here but has NOT been validated against a variable-amplitude printed-polymer test in any source found. Sequence effects are unmodelled.",
+				"ENVIRONMENT: dry, unaged specimens only. PLA hydrolyses; no wet or aged printed-PLA fatigue data found."
+			]
+		},
+		"PETG": {
+			"status": "insufficient",
+			"confidence": "None",
+			"refusal_reason": "Only ONE printed-PETG fatigue study was located, its numeric S-N parameters are behind a paywall, and the reported lives top out around 2e4 cycles (60-90% of UTS) — under two decades of life, no published Basquin coefficients, single lineage. Fitting a curve from that would be an invention, so no life number is returned for PETG.",
+			"what_exists": [
+				"Tensile-tensile fatigue at R = 0.1 on FFF PETG at 90/80/70/60% of UTS, three raster orientations; the longest life reported is ~2e4 cycles at 60% UTS (diagonal orientation). Ranking by orientation is reported; coefficients are not.",
+				"A 2023 review states that for PETG 45-deg rasters perform best at low stress amplitude while 0-deg rasters win at high amplitude — a qualitative ordering, not a curve."
+			],
+			"sources": [
+				{
+					"citation": "'Tensile and Fatigue Analysis of 3D-Printed Polyethylene Terephthalate Glycol', Journal of Failure Analysis and Prevention (2019)",
+					"url": "https://link.springer.com/article/10.1007/s11668-019-00631-z",
+					"read": "abstract/snippet only — full text paywalled (2026-07-30)"
+				},
+				{
+					"citation": "'Effect of 3D Printing Parameters on the Fatigue Properties of Parts Manufactured by Fused Filament Fabrication: A Review', Applied Sciences 13(2):904 (2023)",
+					"url": "https://www.mdpi.com/2076-3417/13/2/904",
+					"read": "search snippet only — the publisher returned HTTP 403 to direct fetch (2026-07-30)"
+				}
+			],
+			"what_would_change_this": "A printed-PETG dataset covering >= 3 decades of life with published S-N coefficients and a measured specimen UTS, from a second independent lab."
+		},
+		"ABS": {
+			"status": "insufficient",
+			"confidence": "None",
+			"refusal_reason": "The only printed-ABS fatigue numbers located come from one review lineage and amount to a single (stress, life) pair plus a raster-orientation ranking — not enough points to fit a slope, and no independent corroboration. No life number is returned for ABS.",
+			"what_exists": [
+				"FDM ABS: ~6.0e4 cycles at 10 MPa, versus ~6.0e6 cycles for injection-moulded ABS at the same stress (a 100x printed-vs-bulk penalty — the single most useful number here, and the reason this registry refuses bulk substitutes).",
+				"Ziemian et al.: longitudinal (0 deg) and default (+45/-45 deg) rasters outlast diagonal (45 deg) and transverse (90 deg) for ABS."
+			],
+			"sources": [
+				{
+					"citation": "'Fatigue behaviour of FDM-3D printed polymers, polymeric composites and architected cellular materials', International Journal of Fatigue 145 (2021) 106106",
+					"url": "https://www.sciencedirect.com/science/article/pii/S0142112320305399",
+					"read": "search snippet only — full text paywalled (2026-07-30)"
+				}
+			],
+			"what_would_change_this": "A printed-ABS S-N dataset with >= 4 stress levels, replicates, a measured UTS and published coefficients, corroborated by a second lab."
+		},
+		"ASA": {
+			"status": "unknown",
+			"confidence": "None",
+			"refusal_reason": "No printed-ASA fatigue (S-N) dataset located (2026-07-30). One 2026 FFF characterisation paper covering ASA / Nylon 12 / PC / PC-ABS was found by title but its full text could not be retrieved (PMC returned a CAPTCHA challenge), so nothing from it is recorded here.",
+			"sources": [
+				{
+					"citation": "'Mechanical, Fatigue, and Thermal Characterization of ASA, Nylon 12, PC, and PC-ABS Manufactured by Fused Filament Fabrication (FFF)', Polymers 18(2):302 (2026)",
+					"url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12845617/",
+					"read": "NOT READ — fetch blocked by CAPTCHA (2026-07-30). Listed as a lead, not as a source."
+				}
+			]
+		},
+		"PA": {
+			"status": "unknown",
+			"confidence": "None",
+			"refusal_reason": "No usable printed-nylon (PA) S-N dataset located (2026-07-30); the one candidate paper's full text could not be retrieved.",
+			"sources": [
+				{
+					"citation": "'Optimization of Fatigue Performance of FDM ABS and Nylon Printed Parts', Polymers 15(4):880 (2023)",
+					"url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9960376/",
+					"read": "NOT READ — fetch blocked by CAPTCHA (2026-07-30). Listed as a lead, not as a source."
+				}
+			]
+		},
+		"PC": {
+			"status": "unknown",
+			"confidence": "None",
+			"refusal_reason": "No printed-polycarbonate S-N dataset located (2026-07-30)."
+		},
+		"TPU95A": {
+			"status": "unknown",
+			"confidence": "None",
+			"refusal_reason": "No printed-TPU S-N dataset located (2026-07-30). Elastomer fatigue is additionally dominated by hysteretic self-heating and Mullins softening, which a linear-elastic stress-life model does not represent at all — even good data would not make this runner applicable without a hyperelastic stress input."
+		}
+	},
+	"mean_stress_models": {
+		"goodman": {
+			"formula": "sigma_ar = sigma_a / (1 - sigma_m / sigma_uts)  for sigma_m > 0; sigma_ar = sigma_a for sigma_m <= 0",
+			"citation": "Modified Goodman line, standard stress-life practice (Shigley's Mechanical Engineering Design, ch. 6; ASTM E1823 terminology). The compressive-mean branch is deliberately NON-beneficial: taking credit for compressive mean stress is unconservative and unvalidated for printed polymers.",
+			"validated_for_printed_polymers": false
+		},
+		"gerber": {
+			"formula": "sigma_ar = sigma_a / (1 - (sigma_m / sigma_uts)^2)  for sigma_m > 0; sigma_ar = sigma_a for sigma_m <= 0",
+			"citation": "Gerber parabola, standard stress-life practice (Shigley's Mechanical Engineering Design, ch. 6). Less conservative than Goodman.",
+			"validated_for_printed_polymers": false
+		},
+		"intrinsic": {
+			"formula": "sigma_eff = sigma_max = sigma_m + sigma_a, used directly against a max-stress S-N curve",
+			"citation": "Ezeh & Susmel 2019 section 4.2 / Fig. 8a: for AM PLA the endurance limit expressed in MAXIMUM cycle stress is invariant (9.5 MPa +- 2SD) across R = -1 .. +0.3, i.e. the maximum stress already carries the mean-stress effect. This is the ONLY mean-stress treatment in this file that was validated on printed specimens.",
+			"validated_for_printed_polymers": true
+		}
+	},
+	"damage_rule": {
+		"name": "Palmgren-Miner linear damage accumulation",
+		"formula": "D = sum_i (n_i / N_i); failure predicted at D = 1",
+		"citation": "M.A. Miner, 'Cumulative damage in fatigue', J. Appl. Mech. 12 (1945) A159-A164; A. Palmgren (1924).",
+		"validated_for_printed_polymers": false,
+		"note": "No variable-amplitude printed-polymer validation was found. Miner ignores load-sequence effects; measured D at failure for polymers commonly lands between 0.3 and 2. Treat D = 1 as a nominal threshold, not a proven one."
+	}
+}

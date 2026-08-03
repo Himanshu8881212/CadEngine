@@ -1,0 +1,72 @@
+{
+  "schema": "lmcad.manifest.v1",
+  "analyzer": "ace_buckling",
+  "analyzer_version": "1.0.0",
+  "title": "hex8 linear (eigenvalue) buckling analysis (engine.verify.reference_buckling)",
+  "governing_equations": [
+    {
+      "name": "pre-stress static solve",
+      "expr": "K u = F",
+      "description": "Reference load case solved first to recover the Gauss-point stress state."
+    },
+    {
+      "name": "geometric stiffness",
+      "expr": "K_g = K_g(sigma(u))",
+      "description": "Geometric (initial-stress) stiffness assembled from the recovered stresses."
+    },
+    {
+      "name": "buckling eigenproblem",
+      "expr": "K phi = -lambda K_g phi",
+      "description": "Smallest positive eigenvalue lambda is the critical load factor; critical_load = lambda x applied reference load."
+    }
+  ],
+  "assumptions": [
+    "Linear eigenvalue (bifurcation) buckling — no imperfections, no plasticity, no large-displacement path following.",
+    "Result is an UPPER bound on the true elastic critical load.",
+    "Isotropic homogeneous material; trilinear hex8 on a regular voxel grid.",
+    "Moment loads are not applied — C0 hex8 has no rotational DOF; the solver notes and skips them.",
+    "density_kg_m3 only needed for body loads."
+  ],
+  "boundary_conditions": {
+    "fixtures": "clamped/pinned/slider as in ace_fea; define the restrained support that the column/plate buckles against.",
+    "loads": "the reference load case whose eigenvalue multiplier gives the critical load; a load selector catching > 30% of active elements is flagged 'suspiciously broad'.",
+    "selector_count_unit": "nodes"
+  },
+  "units": {
+    "inputs": {
+      "geometry": "mm",
+      "voxel_mm": "mm",
+      "youngs_modulus_pa": "Pa",
+      "poisson": "dimensionless",
+      "load.magnitude": "N (point) / N/m^3 (body) / Pa (pressure)"
+    },
+    "outputs": {
+      "buckling_load_factor": "dimensionless (lambda)",
+      "critical_load_N": "N",
+      "applied_reference_load_N": "N"
+    }
+  },
+  "discretization": {
+    "method": "finite element linear buckling eigenanalysis",
+    "element": "trilinear hexahedron (hex8) with initial-stress geometric stiffness",
+    "notes": "Square sections give a degenerate eigen-PAIR (two identical bending planes); the pin uses the smallest factor."
+  },
+  "validation": {
+    "pin_file": "tools/ace_buckling_validation.py",
+    "additional_pins": [],
+    "ground_truth": "Euler clamped-free (fixed-free) column Pcr = pi^2 E I / (4 L^2) = 162.85 N for L=60, b=h=6 mm, E=2.2 GPa; effective slenderness Le/r ~ 69.",
+    "error_band": {"coarse_voxel_1.0": "0..+15%", "fine_voxel_0.5": "0..+8%"},
+    "direction": "over-predicts the critical factor (linear buckling on a stiff hex8 mesh is an upper bound); converges downward under refinement.",
+    "last_measured": "2026-07-09"
+  },
+  "caveats": [
+    "Linear eigenvalue buckling — no imperfections, no plasticity, no large-displacement path following; an UPPER bound on the elastic critical load.",
+    "Coarse hex8 meshes typically over-predict the factor by 10-30% (ACE's own docstring); this geometry measured better than that.",
+    "Refuses honestly when there is no compressive stress anywhere or no positive eigenvalue."
+  ],
+  "limits_of_validity": {
+    "regime": "slender elastic members; linear pre-buckling response",
+    "slenderness": "pin measured at Le/r ~ 69; stockier columns where plasticity precedes buckling are out of scope",
+    "resolution": "pin measured at voxel 1.0 and 0.5 on a 60x6x6 mm strut"
+  }
+}

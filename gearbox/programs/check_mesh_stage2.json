@@ -1,0 +1,103 @@
+{
+ "ops": [
+  {
+   "id": "pinion0",
+   "op": "spur_gear",
+   "module": 1.5,
+   "teeth": 15,
+   "face_width": 14.0,
+   "bore": 8.0,
+   "keyway": true
+  },
+  {
+   "id": "pinion",
+   "op": "rotate_z",
+   "in": "pinion0",
+   "degrees": 3.0
+  },
+  {
+   "id": "wheel0",
+   "op": "spur_gear",
+   "module": 1.5,
+   "teeth": 45,
+   "face_width": 12.0,
+   "bore": 8.0,
+   "keyway": true
+  },
+  {
+   "id": "wheel1",
+   "op": "rotate_z",
+   "in": "wheel0",
+   "degrees": -1.0
+  },
+  {
+   "id": "wheel",
+   "op": "translate",
+   "in": "wheel1",
+   "offset": [
+    45.15,
+    0,
+    1.0
+   ]
+  },
+  {
+   "id": "pair",
+   "op": "union",
+   "a": "pinion",
+   "b": "wheel"
+  },
+  {
+   "id": "no_contact_is_2_shells",
+   "op": "validate",
+   "in": "pair"
+  },
+  {
+   "id": "pinion_r",
+   "op": "rotate_z",
+   "in": "pinion",
+   "degrees": 12.0
+  },
+  {
+   "id": "wheel_r0",
+   "op": "spur_gear",
+   "module": 1.5,
+   "teeth": 45,
+   "face_width": 12.0,
+   "bore": 8.0,
+   "keyway": true
+  },
+  {
+   "id": "wheel_r1",
+   "op": "rotate_z",
+   "in": "wheel_r0",
+   "degrees": -5.0
+  },
+  {
+   "id": "wheel_r",
+   "op": "translate",
+   "in": "wheel_r1",
+   "offset": [
+    45.15,
+    0,
+    1.0
+   ]
+  },
+  {
+   "id": "pair_r",
+   "op": "union",
+   "a": "pinion_r",
+   "b": "wheel_r"
+  },
+  {
+   "id": "rolled_still_2_shells",
+   "op": "validate",
+   "in": "pair_r"
+  },
+  {
+   "id": "stl",
+   "op": "export_stl",
+   "in": "pair",
+   "file": "check_mesh_stage2.stl"
+  }
+ ]
+}

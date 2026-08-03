@@ -1,0 +1,75 @@
+{
+  "schema": "lmcad.manifest.v1",
+  "analyzer": "ace_fea_tet",
+  "analyzer_version": "1.0.0",
+  "title": "body-fitted tet10 linear-elastic reference FEA (engine.verify.reference_fea_tet)",
+  "governing_equations": [
+    {
+      "name": "linear static equilibrium",
+      "expr": "K u = F",
+      "description": "Assembled quadratic tetrahedral (tet10) stiffness K times nodal displacement u equals nodal load F; solved by SuperLU direct (below the DOF cap) or Jacobi-preconditioned CG above it."
+    },
+    {
+      "name": "isotropic linear elasticity",
+      "expr": "sigma = D(E, nu) : epsilon,  epsilon = sym(grad u)",
+      "description": "Small-strain constitutive law; von Mises reduces the stress tensor to the reported scalar."
+    },
+    {
+      "name": "nodal stress recovery",
+      "expr": "sigma_node = mean over incident elements of ( D B(x_node) u_e )",
+      "description": "Stress is evaluated at each element's 10 nodes (not the element average) and averaged across elements meeting each node, so a surface peak is not smeared into the interior. This recovered surface peak converges to the true concentration under refinement."
+    }
+  ],
+  "assumptions": [
+    "Linear elastic, small displacement, small strain — no plasticity, contact, or geometric nonlinearity.",
+    "Isotropic homogeneous material per region.",
+    "Quadratic C0 tetrahedral (tet10) elements on a gmsh body-fitted conforming mesh; curved boundaries are meshed as true surfaces, NOT occupancy-sampled — this is the qualitative difference from the hex8/voxel path (ace_fea).",
+    "Geometry must be a gmsh-meshable watertight solid (an OCC primitive/fillet, or a watertight surface STL from the kernel tessellator).",
+    "Static loading; inertia/damping ignored.",
+    "A point load's resultant is spread equally over the selected surface nodes (same convention as the hex8 path)."
+  ],
+  "boundary_conditions": {
+    "fixtures": "clamped = all 3 translational DOF fixed on selected nodes; pinned constrains the named dof_constrained subset. Selectors resolve to mesh nodes via a geometric plane/box test on mm coordinates.",
+    "loads": "point = resultant N distributed equally over the selected surface nodes along the given direction. Body/pressure loads are not yet supported by the tet path.",
+    "selector_count_unit": "nodes (mesh nodes satisfying the geometric selector)"
+  },
+  "units": {
+    "inputs": {
+      "geometry": "mm",
+      "elem_size_mm": "mm",
+      "youngs_modulus_pa": "Pa",
+      "poisson": "dimensionless",
+      "density_kg_m3": "kg/m^3",
+      "load.magnitude": "N (point)"
+    },
+    "outputs": {
+      "max_von_mises_pa": "Pa",
+      "max_disp_m": "m",
+      "vm_nodal": "Pa (per node)",
+      "sig_nodal": "Pa (per node, 6-vector)"
+    }
+  },
+  "discretization": {
+    "method": "finite element",
+    "element": "quadratic tetrahedron (tet10), 10-node C0",
+    "notes": "gmsh OCC/STL body-fitted conforming mesh at elem_size_mm; ElementOrder=2 with HighOrderOptimize to untangle curved elements. Fillet element size drives convergence of the recovered surface peak."
+  },
+  "validation": {
+    "pin_file": "tools/ace_fea_kt_tet_validation.py",
+    "ground_truth": "Peterson/Pilkey stepped-bar shoulder-fillet-in-tension Kt = 1.667 for d=16, D=24, r=2.4 mm (D/d=1.5, r/d=0.15, h/r=1.667); sigma_nom = P/(pi d^2/4). Source: Pilkey, Peterson's Stress Concentration Factors, chart 3.4.",
+    "error_band": {"elem_2.0": "Kt ~1.545 (-7.3%)", "elem_1.5": "Kt ~1.610 (-3.4%)", "elem_1.0": "Kt ~1.652 (-0.9%)", "far_field_nominal": "within 2% of P/A at every size"},
+    "direction": "under-predicts the fillet Kt and CONVERGES from below (monotone up 1.545 -> 1.610 -> 1.652) toward 1.667 with no overshoot — the qualitatively-correct convergence the voxel hex8 path (ace_fea) never achieves (it scatters -6%..+44%, non-convergent).",
+    "last_measured": "2026-07-18"
+  },
+  "caveats": [
+    "Surface stress is nodal-averaged recovery, NOT full superconvergent patch recovery (SPR) — good enough to converge from below, but the finest-mesh peak is still a few percent shy of the analytic Kt.",
+    "Robustness is bounded by gmsh: the geometry must be a watertight, gmsh-meshable solid; a non-watertight STL fails loudly at the surface-loop-to-volume step rather than producing garbage.",
+    "The Kt pin ladder stops at elem_size ~ r/2.4 (1.0 mm) for runtime (~1.5 min total); finer meshes would tighten the residual but are not pinned here.",
+    "Point/clamped BCs only; body and pressure loads are not yet implemented in the tet path."
+  ],
+  "limits_of_validity": {
+    "regime": "linear elastic, deflection << member size, gmsh-meshable watertight geometry",
+    "resolution": "fillet peak trustworthy to a few percent at elem_size <= r/2.4; coarser meshes under-read the peak (converging from below)",
+    "recovery": "nodal-averaged surface stress; not SPR — treat the last-digit of a reported peak as approximate"
+  }
+}

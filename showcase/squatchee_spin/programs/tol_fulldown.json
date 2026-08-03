@@ -1,0 +1,27 @@
+{
+ "_why": "Dual down-stop honesty: margin from lug TOP to the window's far (head-side) edge when the flange rests on the hub. Negative margin means the lug meets the window edge BEFORE the flange lands - a solid alternative stop that just grows the float by |margin| (float stays under tol_axial's 1.2 ceiling for margin >= -0.55, so the floor here is -0.4). The twist stays available at either stop since the lug remains inside the pocket band by construction (contact = containment).",
+ "chain": [
+  {
+   "name": "prop_hub_height",
+   "nominal": 6.0,
+   "tol": 0.15,
+   "dir": 1
+  },
+  {
+   "name": "retainer_flange_to_window_top",
+   "nominal": 2.7,
+   "tol": 0.15,
+   "dir": -1
+  },
+  {
+   "name": "mount_shoulder_to_lug_top",
+   "nominal": 3.15,
+   "tol": 0.15,
+   "dir": -1
+  }
+ ],
+ "closes": {
+  "min_required": -0.4,
+  "max_allowed": 0.6
+ }
+}

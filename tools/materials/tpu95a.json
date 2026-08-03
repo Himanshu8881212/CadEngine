@@ -1,0 +1,106 @@
+{
+	"meta": {
+		"name": "TPU95A",
+		"version": "1.1.0",
+		"aliases": [
+			"TPU",
+			"TPU95"
+		],
+		"class": "fdm_elastomer",
+		"description": "TPU 95A (Shore-A 95) flexible filament. Density and compression regime pulled from the basketball work (rho 1210 kg/m3, compression modulus ~38 MPa, resilience 0.43, elongation > 560%); tensile/strength/creep/fatigue/service block migrated from material_db.json (Ultimaker TPU 95A datasheet). Tensile and compression moduli differ by loading mode — both are carried, not conflated. Density disagrees between the two sources (1210 vs 1220) — see conflicts.",
+		"schema_version": 1,
+		"hash": "98e19e6fc146ecd988cacb790e90be0b9d10fa642352497961fcc0fdc468d817"
+	},
+	"physical": {
+		"density_kg_m3": 1210
+	},
+	"mechanical": {
+		"youngs_modulus_pa": 26000000.0,
+		"poisson": 0.48,
+		"yield_mpa": 8.6,
+		"ultimate_mpa": 39.0,
+		"sn_curve": {
+			"kind": "knockdown",
+			"cycles": 1000000,
+			"fraction_of_ultimate": 0.4,
+			"note": "engineering rule of thumb (~1e6-cycle allowable = ultimate x 0.4); elastomers tolerate cyclic strain well. NOT a measured S-N curve"
+		},
+		"compression_modulus_pa": 38000000.0,
+		"resilience_coeff": 0.43,
+		"elongation_at_break_pct": 580.0
+	},
+	"thermal": {
+		"conductivity_w_mk": 0.2,
+		"specific_heat_j_kgk": 1800.0,
+		"cte_per_k": 0.00015,
+		"tg_or_melt_c": 60.0,
+		"service_temp_c": 60.0,
+		"creep_sustained_fraction": 0.2,
+		"softening_c": 45.0
+	},
+	"process": {
+		"anisotropy": {
+			"z_vs_xy_strength_ratio": 0.75,
+			"out_of_plane_threshold_deg": 30.0,
+			"model": "scalar-tier direction heuristic (production_check.py): across-layer (Z) tensile strength / in-plane (XY) strength; elastomers bond layers well so the ratio is high (0.75)"
+		},
+		"layer_adhesion_mpa": null,
+		"fatigue_knockdown": 0.4,
+		"heatset_pullout_n": null,
+		"design_derate": null
+	},
+	"fluid": {
+		"surface_roughness_um": null
+	},
+	"sources": {
+		"physical.density_kg_m3": "basketball work: rho 1.21e-3 g/mm3 = 1210 kg/m3 (compression-regime design value)",
+		"mechanical.youngs_modulus_pa": "material_db.json TPU95A.youngs_pa = 2.6e7 (Ultimaker TPU 95A TENSILE modulus 26 MPa; 95A moduli vary 26-90 MPa between brands)",
+		"mechanical.poisson": "typical near-incompressible elastomer ~0.48 (material_db.json has no poisson); provided for FEA",
+		"mechanical.yield_mpa": "material_db.json TPU95A.yield_mpa (Ultimaker datasheet 8.6 MPa)",
+		"mechanical.ultimate_mpa": "material_db.json TPU95A.ultimate_mpa (Ultimaker break 39 MPa)",
+		"mechanical.sn_curve": "material_db.json TPU95A.fatigue_knockdown 0.4 (rule of thumb, not a measured curve)",
+		"mechanical.compression_modulus_pa": "basketball work: compression modulus ~38 MPa (loading mode differs from the 26 MPa tensile modulus)",
+		"mechanical.resilience_coeff": "basketball work: rebound resilience 0.43",
+		"mechanical.elongation_at_break_pct": "material_db.json TPU95A source (Ultimaker ~580% elongation); consistent with the basketball '> 560%'",
+		"thermal.service_temp_c": "material_db.json TPU95A.service_temp_c",
+		"thermal.creep_sustained_fraction": "material_db.json TPU95A.creep_sustained_fraction",
+		"thermal.tg_or_melt_c": "TPU softens near its service limit; ~60 C (literature/typical)",
+		"thermal.conductivity_w_mk": "typical TPU ~0.2 W/mK (literature); no current analyzer consumes it",
+		"thermal.specific_heat_j_kgk": "typical TPU ~1800 J/kgK (literature); no current analyzer consumes it",
+		"thermal.cte_per_k": "typical elastomer linear CTE ~150e-6 /K (literature); no current analyzer consumes it",
+		"process.anisotropy.z_vs_xy_strength_ratio": "material_db.json TPU95A.layer_adhesion_factor = 0.75",
+		"process.fatigue_knockdown": "material_db.json TPU95A.fatigue_knockdown",
+		"thermal.softening_c": "softening_c = conservative softening allowable for sustained-load design: the LOW end of min(Tg, HDT-B 0.45 MPa) across cited brand TDS values for this material class (degC). TPU95A: 45 C = HDT-B class of printed flexibles: NinjaFlex 85A TDS HDT 0.45 MPa = 44 C https://ninjatek.com/wp-content/uploads/NinjaFlex-TDS.pdf ; NinjaTek Cheetah 95A TDS HDT 0.45 = 49 C (printed specimens) https://ninjatek.com/wp-content/uploads/Cheetah-TDS.pdf ; Covestro: TPU has no sharp softening point and creeps under load from ~45-50 C. Bambu TPU 95A HF TDS lists Tg/Vicat/HDT as N/A https://store.bblcdn.eu/s8/default/16df21baf482453999b3dbb61cc110e7/Bambu_TPU_95A_HF_Technical_Data_Sheet.pdf",
+		"thermal.conductivity_w_mk (2026-07-30 verification)": "record 0.2 confirmed at the conservative end: Covestro Desmopan 0.20-0.25 W/mK @20 C (falling to 0.17-0.20 @80 C) https://solutions.covestro.com/en/highlights/articles/theme/product-technology/thermal-properties-tpu ; Kruse TPU 0.18-0.25"
+	},
+	"conflicts": [
+		{
+			"field": "physical.density_kg_m3",
+			"canonical": 1210,
+			"other_value": 1220,
+			"other_source": "tools/material_db.json TPU95A.density_kg_m3 (read by production_check.py / production_dossier.py)",
+			"note": "basketball work uses 1210; material_db uses 1220. ~0.8% drift. Canonical = the basketball-validated design value; material_db 1220 retained here for visibility. No in-repo consumer currently reads TPU density from a record, so this changes no shipped result."
+		},
+		{
+			"field": "mechanical.youngs_modulus_pa",
+			"canonical": 26000000.0,
+			"other_value": 38000000.0,
+			"other_source": "basketball work: compression modulus ~38 MPa (stored as mechanical.compression_modulus_pa)",
+			"note": "NOT a bug: youngs_modulus_pa is the TENSILE modulus (26 MPa, datasheet convention shared with the other records); the 38 MPa figure is the COMPRESSION modulus and lives in mechanical.compression_modulus_pa. A 95A TPU legitimately has different tensile vs compression moduli. Surfaced so a consumer picks the modulus for its loading mode."
+		},
+		{
+			"field": "thermal.specific_heat_j_kgk",
+			"canonical": 1800.0,
+			"other_value": 1500.0,
+			"other_source": "Covestro Desmopan cp 1.45-1.70 J/gK @20 C https://solutions.covestro.com/en/highlights/articles/theme/product-technology/thermal-properties-tpu ; Ho et al. 2010 neat TPU 1500 J/kgK https://www.hindawi.com/journals/jnm/2010/583234/ ; Kruse 1500-2000",
+			"note": "record's 1800 sits above the sourced 20 C band (1450-1700; Covestro reaches 1700-1900 only at 80 C). 1500 would be the conservative (faster-heating) RT value; changing a canonical is a human physics decision — surfaced, not silently overwritten."
+		},
+		{
+			"field": "thermal.tg_or_melt_c",
+			"canonical": 60.0,
+			"other_value": -24.0,
+			"other_source": "NinjaTek Cheetah 95A TDS Tg = -24 C (DSC) https://ninjatek.com/wp-content/uploads/Cheetah-TDS.pdf (NinjaFlex 85A: -35 C)",
+			"note": "the record's 60 is a softening/service-class number, not a DSC Tg: TPU's actual glass transition is far below room temperature. Use thermal.softening_c (45) for heat gates; 60 matches the 'max recommended service' class (NinjaFlex TDS says 66)."
+		}
+	]
+}

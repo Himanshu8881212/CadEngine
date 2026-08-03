@@ -1,0 +1,67 @@
+{
+ "format": "lmc-part",
+ "version": 1,
+ "units": "mm",
+ "name": "spacer_8x12_23",
+ "created_with": "gearbox/generate.py (w5 dogfood)",
+ "document": {
+  "params": {
+   "len": 23.0
+  },
+  "features": [
+   {
+    "Cylinder": {
+     "center": [
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 11.5
+      }
+     ],
+     "radius": {
+      "Literal": 6.0
+     },
+     "height": {
+      "Param": "len"
+     }
+    },
+    "label": "tube"
+   },
+   {
+    "Cylinder": {
+     "center": [
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 11.5
+      }
+     ],
+     "radius": {
+      "Literal": 4.2
+     },
+     "height": {
+      "Literal": 25.0
+     }
+    }
+   },
+   {
+    "Boolean": {
+     "op": "Difference",
+     "a": 0,
+     "b": 1
+    },
+    "label": "bored"
+   }
+  ],
+  "root": 2,
+  "suppressed": []
+ }
+}

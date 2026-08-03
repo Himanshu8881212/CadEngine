@@ -1,0 +1,15 @@
+{
+ "stl": "squatchee_spin_retainer.stl",
+ "out": "sheet_retainer.png",
+ "build_dir": [
+  0,
+  0,
+  1
+ ],
+ "sections": {
+  "x": 0.0,
+  "y": 0.0,
+  "z": 4.2
+ },
+ "date": "2026-07-15"
+}

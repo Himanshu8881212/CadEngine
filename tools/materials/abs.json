@@ -1,0 +1,78 @@
+{
+	"meta": {
+		"name": "ABS",
+		"version": "1.1.0",
+		"aliases": [],
+		"class": "fdm_thermoplastic",
+		"description": "ABS — migrated verbatim from tools/material_db.json (typical desktop-FDM datasheet-class values) plus the heat-set pull-out table from joint_check.py. Poisson is a typical thermoplastic value (absent from material_db). Thermal-transport fields are null: not present in the migrated source, not invented.",
+		"schema_version": 1,
+		"hash": "ab81eedf110b81089b4a153b1ffe88d1a0614414eea70b7f5982826800dba1cb"
+	},
+	"physical": {
+		"density_kg_m3": 1040.0
+	},
+	"mechanical": {
+		"youngs_modulus_pa": 2100000000.0,
+		"poisson": 0.35,
+		"yield_mpa": 40.0,
+		"ultimate_mpa": 44.0,
+		"sn_curve": {
+			"kind": "knockdown",
+			"cycles": 1000000,
+			"fraction_of_ultimate": 0.3,
+			"note": "engineering rule of thumb (~1e6-cycle allowable = ultimate x knockdown), NOT a measured S-N curve"
+		},
+		"compression_modulus_pa": null,
+		"resilience_coeff": null,
+		"elongation_at_break_pct": null
+	},
+	"thermal": {
+		"conductivity_w_mk": 0.17,
+		"specific_heat_j_kgk": 1300.0,
+		"cte_per_k": null,
+		"tg_or_melt_c": 101.0,
+		"service_temp_c": 95.0,
+		"creep_sustained_fraction": 0.3,
+		"softening_c": 87.0
+	},
+	"process": {
+		"anisotropy": {
+			"z_vs_xy_strength_ratio": 0.5,
+			"out_of_plane_threshold_deg": 30.0,
+			"model": "scalar-tier direction heuristic (production_check.py): across-layer (Z) tensile strength / in-plane (XY) strength; applied when the primary load is > threshold deg out of the layer plane"
+		},
+		"layer_adhesion_mpa": null,
+		"fatigue_knockdown": 0.3,
+		"heatset_pullout_n": {
+			"M3": 300,
+			"M4": 480,
+			"M5": 650,
+			"note": "brass knurled heat-set at standard insert length; conservative low ends (joint_check.py)"
+		},
+		"design_derate": null
+	},
+	"fluid": {
+		"surface_roughness_um": null
+	},
+	"sources": {
+		"physical.density_kg_m3": "material_db.json ABS.density_kg_m3",
+		"mechanical.youngs_modulus_pa": "material_db.json ABS.youngs_pa",
+		"mechanical.poisson": "typical thermoplastic (material_db.json has no poisson); provided for FEA",
+		"mechanical.yield_mpa": "material_db.json ABS.yield_mpa",
+		"mechanical.ultimate_mpa": "material_db.json ABS.ultimate_mpa",
+		"mechanical.sn_curve": "material_db.json ABS.fatigue_knockdown",
+		"thermal.service_temp_c": "material_db.json ABS.service_temp_c",
+		"thermal.creep_sustained_fraction": "material_db.json ABS.creep_sustained_fraction",
+		"process.anisotropy.z_vs_xy_strength_ratio": "material_db.json ABS.layer_adhesion_factor",
+		"process.fatigue_knockdown": "material_db.json ABS.fatigue_knockdown",
+		"process.heatset_pullout_n": "joint_check.py HEATSET_PULLOUT_N[size][abs]",
+		"_db_source_note": "typical printed-ABS datasheets (tensile 30-44 MPa, E 1.8-2.4 GPa, HDT-B 95-100 C); layer adhesion suffers without an enclosure — 0.5 assumes a decent chamber.",
+		"thermal.conductivity_w_mk": "0.17 W/mK at 23 C: Thermtest ABS 0.14-0.21 @RT https://thermtest.com/thermal-conductivity-of-acrylonitrile-butadiene-styrene-abs ; Professional Plastics thermal-properties chart 0.17 @23 C https://www.professionalplastics.com/professionalplastics/ThermalPropertiesofPlasticMaterials.pdf ; Kruse molding table 0.18-0.25 https://krusetraining.com/wp-content/uploads/2017/12/List-Of-Materials-Specific-Heat-Capacity-Ranges.pdf",
+		"thermal.specific_heat_j_kgk": "1300 J/kgK PROVISIONAL (Medium-Low confidence — no clean RT TDS value found): Kruse table RT end ~1250-1400 https://krusetraining.com/wp-content/uploads/2017/12/List-Of-Materials-Specific-Heat-Capacity-Ranges.pdf ; DSC of PC/ABS blend 1181-1206 J/kgK @25 C (blend, partially independent) https://www.researchgate.net/publication/318354603",
+		"thermal.tg_or_melt_c": "Tg 101 C (DSC), Polymaker PolyLite ABS TDS https://wiki.polymaker.com/polymaker-products/more-about-our-products/documents/technical-data-sheets/abs-asa/polylite-tm-abs ; generic ABS Tg ~105 https://en.wikipedia.org/wiki/Acrylonitrile_butadiene_styrene",
+		"thermal.softening_c": "softening_c = conservative softening allowable for sustained-load design: the LOW end of min(Tg, HDT-B 0.45 MPa) across cited brand TDS values for this material class (degC). ABS: 87 C = Bambu ABS TDS V3 HDT 0.45 MPa https://store.bblcdn.com/s7/default/23b4cf2b83d5470bb96d19970b5f3ae8/Bambu_ABS_Technical_Data_Sheet_V3.pdf (the shop prints Bambu stock); formulation spread is real: Polymaker 100 C ISO 75, Professional Plastics 98 C — gate on the brand in use",
+		"thermal._printed_anisotropy_note": "printed parts conduct WORSE than bulk, direction-dependent: inter-layer thermal contact resistance dominates through-thickness conduction (Prajapati et al., Additive Manufacturing 2018, https://www.sciencedirect.com/science/article/abs/pii/S2214860417305456); voids/porosity measurably reduce heat transmission even at 100% infill (Entropy 24:654 2022, https://pmc.ncbi.nlm.nih.gov/articles/PMC9141791/); through-plane k reported ~20-40% below in-plane in FDM literature (secondary synthesis, primaries paywalled — treat percentage as indicative). Records store the conservative-LOW isotropic value.",
+		"thermal._cp_temperature_note": "cp is strongly temperature-dependent (amorphous polymers jump +30-50% crossing Tg; Covestro shows TPU cp +~15% from 20C to 80C) — record values are ROOM-TEMPERATURE-class unless noted"
+	},
+	"conflicts": []
+}

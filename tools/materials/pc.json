@@ -1,0 +1,78 @@
+{
+	"meta": {
+		"name": "PC",
+		"version": "1.1.0",
+		"aliases": [],
+		"class": "fdm_thermoplastic",
+		"description": "PC — migrated verbatim from tools/material_db.json (typical desktop-FDM datasheet-class values) plus the heat-set pull-out table from joint_check.py. Poisson is a typical thermoplastic value (absent from material_db). Thermal-transport fields are null: not present in the migrated source, not invented.",
+		"schema_version": 1,
+		"hash": "a0ae649be87f32276514bc1bad2e79e4c338202b1d706dc607c6387906c5ecca"
+	},
+	"physical": {
+		"density_kg_m3": 1200.0
+	},
+	"mechanical": {
+		"youngs_modulus_pa": 2300000000.0,
+		"poisson": 0.37,
+		"yield_mpa": 60.0,
+		"ultimate_mpa": 63.0,
+		"sn_curve": {
+			"kind": "knockdown",
+			"cycles": 1000000,
+			"fraction_of_ultimate": 0.3,
+			"note": "engineering rule of thumb (~1e6-cycle allowable = ultimate x knockdown), NOT a measured S-N curve"
+		},
+		"compression_modulus_pa": null,
+		"resilience_coeff": null,
+		"elongation_at_break_pct": null
+	},
+	"thermal": {
+		"conductivity_w_mk": 0.2,
+		"specific_heat_j_kgk": 1200.0,
+		"cte_per_k": null,
+		"tg_or_melt_c": 113.0,
+		"service_temp_c": 110.0,
+		"creep_sustained_fraction": 0.3,
+		"softening_c": 111.0
+	},
+	"process": {
+		"anisotropy": {
+			"z_vs_xy_strength_ratio": 0.45,
+			"out_of_plane_threshold_deg": 30.0,
+			"model": "scalar-tier direction heuristic (production_check.py): across-layer (Z) tensile strength / in-plane (XY) strength; applied when the primary load is > threshold deg out of the layer plane"
+		},
+		"layer_adhesion_mpa": null,
+		"fatigue_knockdown": 0.3,
+		"heatset_pullout_n": {
+			"M3": 450,
+			"M4": 700,
+			"M5": 950,
+			"note": "brass knurled heat-set at standard insert length; conservative low ends (joint_check.py)"
+		},
+		"design_derate": null
+	},
+	"fluid": {
+		"surface_roughness_um": null
+	},
+	"sources": {
+		"physical.density_kg_m3": "material_db.json PC.density_kg_m3",
+		"mechanical.youngs_modulus_pa": "material_db.json PC.youngs_pa",
+		"mechanical.poisson": "typical thermoplastic (material_db.json has no poisson); provided for FEA",
+		"mechanical.yield_mpa": "material_db.json PC.yield_mpa",
+		"mechanical.ultimate_mpa": "material_db.json PC.ultimate_mpa",
+		"mechanical.sn_curve": "material_db.json PC.fatigue_knockdown",
+		"thermal.service_temp_c": "material_db.json PC.service_temp_c",
+		"thermal.creep_sustained_fraction": "material_db.json PC.creep_sustained_fraction",
+		"process.anisotropy.z_vs_xy_strength_ratio": "material_db.json PC.layer_adhesion_factor",
+		"process.fatigue_knockdown": "material_db.json PC.fatigue_knockdown",
+		"process.heatset_pullout_n": "joint_check.py HEATSET_PULLOUT_N[size][pc]",
+		"_db_source_note": "typical printed-PC datasheets (Prusament PC Blend tensile ~63 MPa, HDT-B ~113 C); strong but notoriously poor layer adhesion without a hot chamber — 0.45.",
+		"thermal.conductivity_w_mk": "0.20 W/mK @23 C: generic PC 0.19-0.22 https://en.wikipedia.org/wiki/Polycarbonate and Professional Plastics chart https://www.professionalplastics.com/professionalplastics/ThermalPropertiesofPlasticMaterials.pdf (possibly shared handbook ancestry); independent lineage Kruse 0.19-0.25 https://krusetraining.com/wp-content/uploads/2017/12/List-Of-Materials-Specific-Heat-Capacity-Ranges.pdf ; material-properties.org 0.2 https://material-properties.org/polycarbonate-density-strength-melting-point-thermal-conductivity/",
+		"thermal.specific_heat_j_kgk": "1200 J/kgK @RT: generic PC 1.2-1.3 kJ/kgK https://en.wikipedia.org/wiki/Polycarbonate ; DSC of PC/ABS 1181-1206 J/kgK @25 C https://www.researchgate.net/publication/318354603",
+		"thermal.tg_or_melt_c": "Tg 113 C = LOW end of the FDM-PC brand spread (never average): Polymaker PolyLite PC (a PC BLEND, like most desktop PC) Tg 113 C DSC https://wiki.polymaker.com/polymaker-products/more-about-our-products/documents/technical-data-sheets/polycarbonate/polylite-tm-pc ; Bambu PC Tg 145 C https://wiki.bambulab.com/filament-acc/abs-asa-pc/a52afdccddfd448583d119587122c8c5.pdf ; pure molded PC 147 C https://en.wikipedia.org/wiki/Polycarbonate — desktop 'PC' is usually NOT pure PC",
+		"thermal.softening_c": "softening_c = conservative softening allowable for sustained-load design: the LOW end of min(Tg, HDT-B 0.45 MPa) across cited brand TDS values for this material class (degC). PC: 111 C = Polymaker PolyLite PC HDT 0.45 MPa ISO 75 (URL above); Bambu PC HDT 0.45 = 112 C — the two FDM blends agree; molded pure PC (140 C) does NOT describe printed stock",
+		"thermal._printed_anisotropy_note": "printed parts conduct WORSE than bulk, direction-dependent: inter-layer thermal contact resistance dominates through-thickness conduction (Prajapati et al., Additive Manufacturing 2018, https://www.sciencedirect.com/science/article/abs/pii/S2214860417305456); voids/porosity measurably reduce heat transmission even at 100% infill (Entropy 24:654 2022, https://pmc.ncbi.nlm.nih.gov/articles/PMC9141791/); through-plane k reported ~20-40% below in-plane in FDM literature (secondary synthesis, primaries paywalled — treat percentage as indicative). Records store the conservative-LOW isotropic value.",
+		"thermal._cp_temperature_note": "cp is strongly temperature-dependent (amorphous polymers jump +30-50% crossing Tg; Covestro shows TPU cp +~15% from 20C to 80C) — record values are ROOM-TEMPERATURE-class unless noted"
+	},
+	"conflicts": []
+}

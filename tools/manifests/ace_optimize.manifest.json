@@ -1,0 +1,78 @@
+{
+  "schema": "lmcad.manifest.v1",
+  "analyzer": "ace_optimize",
+  "analyzer_version": "1.0.0",
+  "title": "SIMP topology optimization (optimality criteria) over the validated hex8 reference FEA",
+  "governing_equations": [
+    {
+      "name": "minimum compliance problem",
+      "expr": "min_rho  c(rho) = F^T u(rho)   s.t.  K(rho) u = F,  mean(rho|design) = volfrac,  0 <= rho <= 1",
+      "description": "Classic density-based topology optimization: minimize compliance at a fixed material budget over the design-region voxels; frozen voxels are re-pinned to 1 and void to 0 every iteration."
+    },
+    {
+      "name": "SIMP interpolation",
+      "expr": "E_e = floor + rho_e^p (E0 - floor),  p = 3 by default",
+      "description": "Penalized element modulus drives intermediate densities toward 0/1; the FEA underneath is the pinned engine.verify.reference_fea (see ace_fea manifest)."
+    },
+    {
+      "name": "optimality-criteria update + cone filter",
+      "expr": "rho_new = clip(rho (dc/drho / lambda)^0.5, move);  rho_phys = H rho / H 1",
+      "description": "top88-style OC update with bisection on the volume multiplier lambda, and a cone density filter of radius filter_radius_vox (masked to the design region) against checkerboarding."
+    }
+  ],
+  "assumptions": [
+    "Everything the underlying ace_fea manifest assumes (linear elastic, small strain, hex8 voxel grid).",
+    "Single load case, compliance objective only — no stress, frequency, or multi-load objectives.",
+    "Design region = voxels solid in the INITIAL geometry AND kind 'design'; loads/fixtures must sit on frozen regions or they can be optimized away (documented runner contract).",
+    "The thresholded (iso 0.5) as-built part is re-analyzed with BINARY occupancy — reported as_built numbers are for the printable geometry, not the gray-density design.",
+    "Local optimizer: OC converges to a local optimum of a non-convex problem; no global-optimality claim."
+  ],
+  "boundary_conditions": {
+    "fixtures": "identical selector engine and semantics as ace_fea (clamped/pinned/slider on grid nodes).",
+    "loads": "identical to ace_fea; loads apply only on ACTIVE elements — hence the frozen-region requirement around load application.",
+    "selector_count_unit": "nodes (active grid nodes touching the selected active elements)"
+  },
+  "units": {
+    "inputs": {
+      "geometry": "mm (ops+solid via kernel sampling, or a density .npy)",
+      "voxel_mm": "mm",
+      "volfrac": "dimensionless (0,1)",
+      "material/loads": "same as ace_fea (Pa, N, kg/m^3)"
+    },
+    "outputs": {
+      "compliance_first/compliance_last": "J (F^T u of the gray SIMP design)",
+      "volume_fraction_achieved": "dimensionless mean physical density over the design region",
+      "as_built.max_von_mises_pa": "Pa",
+      "as_built.max_displacement_m": "m",
+      "stl.volume_mm3": "mm^3"
+    }
+  },
+  "discretization": {
+    "method": "density-based topology optimization (SIMP) on the hex8 voxel grid",
+    "element": "one design variable per voxel; OC update, move limit 0.2 default, density floor 0.02",
+    "notes": "Stops at max_iters, change < tolerance, or 0.8x time_budget_s; stop_reason is in the receipt."
+  },
+  "validation": {
+    "pin_file": "tools/ace_optimize_validation.py",
+    "additional_pins": [],
+    "ground_truth": "No closed-form optimal topology exists; the pins are exact falsifiable properties on a cantilever whose FEA is itself pinned: (A) OC descent — compliance_last <= 0.9 x compliance_first; (B) material-removal monotonicity — the thresholded as-built part (subset of the solid domain, same grid/load) deflects >= the full solid; (C) volume honesty — achieved fraction within 0.02 of volfrac; (D) the delivered STL is watertight.",
+    "error_band": {
+      "descent": "<= 0.9x required (measured 0.151x — a 6.61x compliance improvement)",
+      "as_built_vs_solid_deflection": ">= 1.0 required (measured 1.58)",
+      "volume_fraction": "+/-0.02 required (measured 0.400 vs asked 0.400)"
+    },
+    "direction": "not applicable (inequality pins); the FEA underneath under-predicts deflection per the ace_fea pin.",
+    "last_measured": "2026-07-17"
+  },
+  "caveats": [
+    "Compliance-optimal is NOT strength-optimal: check as_built.max_von_mises_pa and re-run ace_fea on the STL for the load cases you actually have.",
+    "compliance_first is the UNIFORM-volfrac gray start, not the solid part — descent is measured against that start.",
+    "Thin members near the voxel size are resolution-limited (see ace_fea limits); the STL gate escalates mesh resolution until watertight or says why not.",
+    "The STL is a mesh only — no density-to-B-rep reconstruction exists; treat it as print/simulation geometry, not a parametric solid."
+  ],
+  "limits_of_validity": {
+    "regime": "linear-elastic stiffness design, single static load case, volfrac strictly inside (0,1)",
+    "slenderness": "pinned at L/h = 5 cantilever; extreme aspect grids inherit the FEA's discretization limits",
+    "resolution": "features below ~4 voxels across are unreliable; refine voxel_mm rather than trusting sub-voxel struts"
+  }
+}

@@ -1,0 +1,25 @@
+# Copyright (c) LMCAD. Licensed under the MIT License.
+
+[package]
+name = "kernel-api"
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+authors = ["LMCAD"]
+description = "JSON program binding for the LMCAD hybrid kernel: a non-Rust (AI) caller drives ~30 core capabilities through `kernel-api run program.json`."
+
+[lib]
+name = "kernel_api"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kernel-api"
+path = "src/main.rs"
+
+[dependencies]
+kernel-core = { path = "../kernel-core" }
+kernel-brep = { path = "../kernel-brep" }
+kernel-implicit = { path = "../kernel-implicit" }
+kernel-model = { path = "../kernel-model" }
+serde = { workspace = true }
+serde_json = { workspace = true }

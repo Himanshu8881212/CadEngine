@@ -1,0 +1,219 @@
+{
+	"meta": {
+		"name": "PLA",
+		"version": "1.1.0",
+		"aliases": [],
+		"class": "fdm_thermoplastic",
+		"description": "PLA — migrated verbatim from tools/material_db.json (typical desktop-FDM datasheet-class values) plus the heat-set pull-out table from joint_check.py. Poisson is a typical thermoplastic value (absent from material_db). Thermal-transport fields are null: not present in the migrated source, not invented.",
+		"schema_version": 1,
+		"hash": "dbdd2b78bfa1e93ca36c9574739df44d01b4c716587fdb2052285602c9d1be78"
+	},
+	"physical": {
+		"density_kg_m3": 1240.0
+	},
+	"mechanical": {
+		"youngs_modulus_pa": 3300000000.0,
+		"poisson": 0.36,
+		"yield_mpa": 55.0,
+		"ultimate_mpa": 60.0,
+		"sn_curve": {
+			"kind": "knockdown",
+			"cycles": 1000000,
+			"fraction_of_ultimate": 0.3,
+			"note": "engineering rule of thumb (~1e6-cycle allowable = ultimate x knockdown), NOT a measured S-N curve"
+		},
+		"compression_modulus_pa": null,
+		"resilience_coeff": null,
+		"elongation_at_break_pct": null
+	},
+	"thermal": {
+		"conductivity_w_mk": 0.13,
+		"specific_heat_j_kgk": 1200.0,
+		"cte_per_k": null,
+		"tg_or_melt_c": 60.0,
+		"service_temp_c": 55.0,
+		"creep_sustained_fraction": 0.2,
+		"softening_c": 55.0
+	},
+	"process": {
+		"anisotropy": {
+			"z_vs_xy_strength_ratio": 0.55,
+			"out_of_plane_threshold_deg": 30.0,
+			"model": "scalar-tier direction heuristic (production_check.py): across-layer (Z) tensile strength / in-plane (XY) strength; applied when the primary load is > threshold deg out of the layer plane"
+		},
+		"layer_adhesion_mpa": null,
+		"fatigue_knockdown": 0.3,
+		"heatset_pullout_n": {
+			"M3": 400,
+			"M4": 650,
+			"M5": 900,
+			"note": "brass knurled heat-set at standard insert length; conservative low ends (joint_check.py)"
+		},
+		"design_derate": null
+	},
+	"fluid": {
+		"surface_roughness_um": null
+	},
+	"sources": {
+		"physical.density_kg_m3": "material_db.json PLA.density_kg_m3",
+		"mechanical.youngs_modulus_pa": "material_db.json PLA.youngs_pa",
+		"mechanical.poisson": "typical thermoplastic (material_db.json has no poisson); provided for FEA",
+		"mechanical.yield_mpa": "material_db.json PLA.yield_mpa",
+		"mechanical.ultimate_mpa": "material_db.json PLA.ultimate_mpa",
+		"mechanical.sn_curve": "material_db.json PLA.fatigue_knockdown",
+		"thermal.service_temp_c": "material_db.json PLA.service_temp_c",
+		"thermal.creep_sustained_fraction": "material_db.json PLA.creep_sustained_fraction",
+		"process.anisotropy.z_vs_xy_strength_ratio": "material_db.json PLA.layer_adhesion_factor",
+		"process.fatigue_knockdown": "material_db.json PLA.fatigue_knockdown",
+		"process.heatset_pullout_n": "joint_check.py HEATSET_PULLOUT_N[size][pla]",
+		"_db_source_note": "typical of Prusament/Ultimaker PLA datasheets (tensile 50-60 MPa, E 2.9-3.6 GPa, HDT-B 55-60 C). Creep fraction set LOW (0.2): PLA cold-flows measurably at room temperature under sustained load.",
+		"thermal.conductivity_w_mk": "0.13 W/mK, conservative-low of the printed+handbook band 0.12-0.25: measured PRINTED PLA 0.12 (transparent) / 0.15-0.25 (pigmented), AIP Conf. Proc. 2305:020022 https://pubs.aip.org/aip/acp/article/2305/1/020022/740039 ; handbook lineage 0.13 https://www.makeitfrom.com/material-properties/Polylactic-Acid-PLA-Polylactide (Xometry/SEAS3D TDS repeat this lineage verbatim — counted once); printed-PLA study uses lit. 0.16 https://pmc.ncbi.nlm.nih.gov/articles/PMC9141791/",
+		"thermal.specific_heat_j_kgk": "1200 J/kgK at room temperature (conservative for heating-rate gates): measured printed PLA cp 1200 (transparent) / 900-1100 (pigmented) at RT, AIP Conf. Proc. 2305:020022 https://pubs.aip.org/aip/acp/article/2305/1/020022/740039 and https://ui.adsabs.harvard.edu/abs/2023AIPC.2894b0010M/abstract ; the widely-quoted 1800 (MakeItFrom/Xometry lineage https://www.makeitfrom.com/material-properties/Polylactic-Acid-PLA-Polylactide) is likely a nearer-melt value — see conflicts",
+		"thermal.tg_or_melt_c": "Tg 60 C (DSC): Polymaker PolyLite PLA TDS Tg 61 https://wiki.polymaker.com/polymaker-products/more-about-our-products/documents/technical-data-sheets/pla/polylite-tm-pla ; Bambu PLA Basic TDS Tg 60 https://wiki.bambulab.com/filament-acc/abs-asa-pc/bambu_pla_basic_technical_data_sheet.pdf",
+		"thermal.softening_c": "softening_c = conservative softening allowable for sustained-load design: the LOW end of min(Tg, HDT-B 0.45 MPa) across cited brand TDS values for this material class (degC). PLA: 55 C = low end of HDT-B 55-60: Prusament PLA TDS HDT 0.45 MPa = 55 C (ISO 75) https://prusament.com/wp-content/uploads/2022/10/PLA_Prusament_TDS_2021_10_EN.pdf ; Bambu PLA Basic 57 C; Polymaker PolyLite 60 C (URLs above)",
+		"thermal._printed_anisotropy_note": "printed parts conduct WORSE than bulk, direction-dependent: inter-layer thermal contact resistance dominates through-thickness conduction (Prajapati et al., Additive Manufacturing 2018, https://www.sciencedirect.com/science/article/abs/pii/S2214860417305456); voids/porosity measurably reduce heat transmission even at 100% infill (Entropy 24:654 2022, https://pmc.ncbi.nlm.nih.gov/articles/PMC9141791/); through-plane k reported ~20-40% below in-plane in FDM literature (secondary synthesis, primaries paywalled — treat percentage as indicative). Records store the conservative-LOW isotropic value.",
+		"thermal._cp_temperature_note": "cp is strongly temperature-dependent (amorphous polymers jump +30-50% crossing Tg; Covestro shows TPU cp +~15% from 20C to 80C) — record values are ROOM-TEMPERATURE-class unless noted",
+		"creep": "entire block derived 2026-07-30 from the cited data_anchors/model_constants URLs inside the block itself; construction chain in creep.derivation; printed-specimen data preferred, bulk analogs flagged inline"
+	},
+	"conflicts": [
+		{
+			"field": "thermal.specific_heat_j_kgk",
+			"canonical": 1200.0,
+			"other_value": 1800.0,
+			"other_source": "MakeItFrom/Xometry/SEAS3D handbook lineage (single lineage), https://www.makeitfrom.com/material-properties/Polylactic-Acid-PLA-Polylactide",
+			"note": "RT DSC measurements of printed PLA cluster 900-1200 J/kgK; 1800 is plausible approaching melt (cp rises steeply with T). Canonical keeps the RT-measured, conservative (faster-heating) value."
+		},
+		{
+			"field": "thermal.creep_sustained_fraction",
+			"canonical": 0.2,
+			"other_value": "creep.sig_allow_mpa['23C']['1y'] = 2.5 MPa ~= 0.042 x ultimate",
+			"other_source": "2026-07-30 creep research (this record's creep block)",
+			"note": "the legacy blanket 'sustained = 20% of ultimate' (12 MPa) is NOT supported at year scale by any published printed-PLA data; the creep table gives 2.5 MPa at 1 y / 23 C. Migrating production_check-class consumers from the scalar fraction to the table changes allowables — a human physics decision, surfaced here instead of silently made."
+		}
+	],
+	"creep": {
+		"basis": "time-derated SUSTAINED-stress allowables for PRINTED (FDM) PLA, in-plane loading, unannealed, dry, constant load. Conservative CONSTRUCTION from published creep/rupture data (chain in 'derivation'), NOT a measured design curve: safety factor 2.0 on the worst measured printed rupture, iso-deformation time-derating from the only quantified printed creep-compliance history, all values rounded DOWN to 0.5 MPa steps. Across-layer (Z) loads: multiply by process.anisotropy.z_vs_xy_strength_ratio (0.55) on top.",
+		"sig_allow_mpa": {
+			"23C": {
+				"1h": 7.5,
+				"24h": 5.0,
+				"30d": 3.5,
+				"1y": 2.5
+			},
+			"55C": {
+				"1h": 3.0,
+				"24h": 1.5,
+				"30d": 0.5,
+				"1y": 0.5
+			}
+		},
+		"confidence": {
+			"23C": {
+				"1h": "Medium — bracketed by measured printed rupture (15 MPa fails ~2 h) and no-rupture (20 MPa holds 3 h) data",
+				"24h": "Medium-Low — one-decade extrapolation between measured anchors",
+				"30d": "Low — extrapolation; no printed-PLA dataset longer than ~170 h found (2026-07-30)",
+				"1y": "Low — extrapolation; physical aging (which SLOWS creep) ignored, so bias is conservative"
+			},
+			"55C": {
+				"1h": "Low-Medium — WLF-shifted from measured 60 C rupture; PLA is mid-glass-transition here",
+				"24h": "Low — only analog is a CRYSTALLIZED BULK grade surviving 7.5 d at 3 MPa/60 C with ~3.5x deformation growth",
+				"30d": "BOUND, not a measurement — no experimental support for ANY allowable above ~0.5 MPa at 55 C beyond days",
+				"1y": "BOUND, not a measurement — treat as 'do not design sustained load into unannealed PLA at 55 C'"
+			}
+		},
+		"derivation": [
+			"ANCHOR RT rupture: printed PLA tensile creep-rupture at 15 MPa / 25 C fails in 1.18-2.25 h across all 39 print configs (Waseem 2020, only printed RT rupture dataset). Conflicts with Dogan 2022 (20 MPa / 25 C holds 3 h, no rupture) — conflict kept as data, WORST case governs.",
+			"RT 1 h allowable = 15 MPa worst measured rupture / SF 2.0 = 7.5 MPa. Cross-checks: 10 MPa / 25 C holds 3 h with secondary creep only (Dogan); 10 MPa long-term on porous printed scaffolds without shape change (Niaza 2017).",
+			"time-derating per decade: the only quantified printed-PLA creep history — flexural creep modulus falls to 56% of static over 170 h at ~4.8 MPa (Fischbach 2023) = compliance x1.79 over ~2.3 decades = x1.29/decade. Iso-deformation allowable divides by that factor per decade of load duration.",
+			"RT column: 1h 7.5 -> 24h 7.5/1.29^1.4 = 5.2 -> 5.0 · 30d 7.5/1.29^2.9 = 3.6 -> 3.5 · 1y 7.5/1.29^3.9 = 2.8 -> 2.5 MPa (rounded DOWN). Physical aging slows creep (shift-rate mu ~ 0.72, Fischbach), so ignoring it is conservative.",
+			"ANCHOR hot rupture: printed PLA at 60 C ruptures at 10 MPa in < 3 h and at 20 MPa in minutes (Dogan 2022). WLF for PLA (C1 19.4, C2 148.3 K at Tref 60 C; Kontou 2024) gives aT(55->60) ~ 4.8: damage at 55 C runs ~5x slower than 60 C.",
+			"55 C 1 h = 10 MPa (60 C rupture stress) / SF ~3.3 = 3.0 MPa (extra margin because 55 C sits INSIDE the glass transition: DSC Tg 55-60 C, compression yield already halves 80->40 MPa by 50 C, Slavkovic 2024).",
+			"55 C 24 h = 1.5 MPa: half of the 3 MPa that survived 7.5 d at 60 C — but that analog is a CRYSTALLIZING BULK grade with ~3.5x deformation growth (Morreale 2017); unannealed printed PLA is strictly worse.",
+			"55 C 30 d / 1 y = 0.5 MPa as a stated BOUND: storage modulus above Tg collapses to ~1-6 MPa (Issabayeva 2023, Slavkovic 2024) and HDT at 0.45 MPa IS 55 C (NatureWorks 4043D TDS) — i.e. the standard itself deflects at 0.45 MPa there. No experiment supports more; UNKNOWN is the first-class answer above this line."
+		],
+		"data_anchors": [
+			{
+				"stress_mpa": 15.0,
+				"t_c": 25,
+				"time": "1.18-2.25 h",
+				"outcome": "RUPTURE (all 39 print configs)",
+				"specimen": "printed",
+				"url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7764475/"
+			},
+			{
+				"stress_mpa": 20.0,
+				"t_c": 25,
+				"time": "3 h",
+				"outcome": "no rupture, most creep of tested polymers",
+				"specimen": "printed",
+				"url": "https://www.sv-jme.eu/article/short-term-creep-behaviour-of-different-polymers-used-in-additive-manufacturing-under-different-thermal-and-loading-conditions/"
+			},
+			{
+				"stress_mpa": 4.8,
+				"t_c": 20,
+				"time": "170 h",
+				"outcome": "creep modulus -> 56% of static, still creeping; aging shift-rate mu ~ 0.72",
+				"specimen": "printed (flexural, stress derived from ISO 178 geometry)",
+				"url": "https://arxiv.org/pdf/2302.11240"
+			},
+			{
+				"stress_mpa": 10.0,
+				"t_c": 60,
+				"time": "< 3 h",
+				"outcome": "RUPTURE (tertiary creep)",
+				"specimen": "printed",
+				"url": "https://www.sv-jme.eu/article/short-term-creep-behaviour-of-different-polymers-used-in-additive-manufacturing-under-different-thermal-and-loading-conditions/"
+			},
+			{
+				"stress_mpa": 20.0,
+				"t_c": 60,
+				"time": "minutes",
+				"outcome": "RUPTURE",
+				"specimen": "printed",
+				"url": "https://www.sv-jme.eu/article/short-term-creep-behaviour-of-different-polymers-used-in-additive-manufacturing-under-different-thermal-and-loading-conditions/"
+			},
+			{
+				"stress_mpa": 3.0,
+				"t_c": 60,
+				"time": "7.5 d",
+				"outcome": "survived, deformation ~3.5x the 40 C level",
+				"specimen": "BULK crystallizing grade (not printed) — analog only",
+				"url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5506976/"
+			},
+			{
+				"stress_mpa": null,
+				"t_c": 55,
+				"time": "HDT test",
+				"outcome": "HDT 0.45 MPa (unannealed bulk Ingeo 4043D) = 55 C",
+				"specimen": "bulk TDS",
+				"url": "https://4595257.fs1.hubspotusercontent-na1.net/hubfs/4595257/Support%20Platform/downloadable%20PDF/pla/Ingeo-4043D.pdf"
+			}
+		],
+		"model_constants": {
+			"wlf": {
+				"c1": 19.4,
+				"c2_k": 148.3,
+				"tref_c": 60.0,
+				"source": "measured on bulk Ingeo 2003D, Kontou 2024 https://pmc.ncbi.nlm.nih.gov/articles/PMC11243430/"
+			},
+			"arrhenius_sub_tg": {
+				"ea_kj_mol": 97.7,
+				"note": "steady-state creep, bulk PLA; ~3.6x rate per +10 C near RT (transient 59.4)",
+				"source": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9738534/"
+			},
+			"findley_decade_factor": {
+				"value": 1.29,
+				"note": "compliance growth per decade of time, from the 170 h printed flexural test — the derating engine of this table",
+				"source": "https://arxiv.org/pdf/2302.11240"
+			}
+		},
+		"gaps_unknowns": [
+			"NO creep-rupture data for printed PLA at 50-60 C beyond hours; nothing at 30 d or 1 y at any stress — the 55 C long-duration cells are bounds, not measurements",
+			"NO printed-PLA RT dataset longer than 170 h found (a >1000 h program exists but its numbers are paywalled: https://link.springer.com/article/10.1007/s11029-026-10331-z)",
+			"RT rupture conflict unresolved: Waseem 15 MPa/~2 h rupture vs Dogan 20 MPa/3 h no-rupture — worst case kept as governing",
+			"humidity/hydrolysis coupling at 55 C flagged significant but quantified nowhere for printed PLA",
+			"annealing (90 C/2 h) improves creep resistance ~1.85x at 47 C and crystallized grades push HDT to ~144 C — but NO long-duration creep data for annealed printed PLA either; note the trap: sub-Tg 50 C/8 h 'annealing' without crystallization CUT strength 25-29% (Bertocco 2022)",
+			"build-orientation creep effect measured qualitatively (Y-90 lower creep strength) but not tabulated — hence the flat z-ratio multiplier"
+		]
+	}
+}

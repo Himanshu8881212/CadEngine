@@ -1,0 +1,82 @@
+{
+	"disclaimer": "typical desktop-FDM values — verify per filament brand. Yield/ultimate/modulus are as-printed XY (flat-on-bed) datasheet-class numbers; layer_adhesion_factor scales them for across-layer (Z) loading; creep_sustained_fraction and fatigue_knockdown are engineering rules of thumb (sustained-load allowable fraction of yield; ~1e6-cycle allowable fraction of ultimate), not measured filament data.",
+	"materials": {
+		"PLA": {
+			"yield_mpa": 55.0,
+			"ultimate_mpa": 60.0,
+			"youngs_pa": 3.3e9,
+			"density_kg_m3": 1240.0,
+			"service_temp_c": 55.0,
+			"layer_adhesion_factor": 0.55,
+			"creep_sustained_fraction": 0.2,
+			"fatigue_knockdown": 0.3,
+			"source": "typical of Prusament/Ultimaker PLA datasheets (tensile 50-60 MPa, E 2.9-3.6 GPa, HDT-B 55-60 C). Creep fraction set LOW (0.2): PLA cold-flows measurably at room temperature under sustained load."
+		},
+		"PETG": {
+			"yield_mpa": 50.0,
+			"ultimate_mpa": 53.0,
+			"youngs_pa": 2.1e9,
+			"density_kg_m3": 1270.0,
+			"service_temp_c": 75.0,
+			"layer_adhesion_factor": 0.7,
+			"creep_sustained_fraction": 0.25,
+			"fatigue_knockdown": 0.3,
+			"source": "typical of Prusament/Ultimaker PETG datasheets (tensile 47-50 MPa, E 1.5-2.1 GPa, HDT-B 70-78 C); PETG has among the best layer adhesion of the commodity filaments."
+		},
+		"ABS": {
+			"yield_mpa": 40.0,
+			"ultimate_mpa": 44.0,
+			"youngs_pa": 2.1e9,
+			"density_kg_m3": 1040.0,
+			"service_temp_c": 95.0,
+			"layer_adhesion_factor": 0.5,
+			"creep_sustained_fraction": 0.3,
+			"fatigue_knockdown": 0.3,
+			"source": "typical printed-ABS datasheets (tensile 30-44 MPa, E 1.8-2.4 GPa, HDT-B 95-100 C); layer adhesion suffers without an enclosure — 0.5 assumes a decent chamber."
+		},
+		"ASA": {
+			"yield_mpa": 43.0,
+			"ultimate_mpa": 47.0,
+			"youngs_pa": 2.0e9,
+			"density_kg_m3": 1070.0,
+			"service_temp_c": 93.0,
+			"layer_adhesion_factor": 0.55,
+			"creep_sustained_fraction": 0.3,
+			"fatigue_knockdown": 0.3,
+			"source": "typical ASA datasheets (Prusament ASA tensile ~45 MPa, HDT-B ~93 C); ABS-like with better UV stability and slightly better layer bonding."
+		},
+		"TPU95A": {
+			"yield_mpa": 8.6,
+			"ultimate_mpa": 39.0,
+			"youngs_pa": 2.6e7,
+			"density_kg_m3": 1220.0,
+			"service_temp_c": 60.0,
+			"layer_adhesion_factor": 0.75,
+			"creep_sustained_fraction": 0.2,
+			"fatigue_knockdown": 0.4,
+			"source": "Ultimaker TPU 95A datasheet (E 26 MPa, yield 8.6 MPa, break 39 MPa at ~580% elongation) — moduli of 95A TPUs vary WIDELY (26-90 MPa) between brands; elastomers bond layers well (0.75) and tolerate cyclic strain (0.4) but cold-flow under sustained load (0.2)."
+		},
+		"PC": {
+			"yield_mpa": 60.0,
+			"ultimate_mpa": 63.0,
+			"youngs_pa": 2.3e9,
+			"density_kg_m3": 1200.0,
+			"service_temp_c": 110.0,
+			"layer_adhesion_factor": 0.45,
+			"creep_sustained_fraction": 0.3,
+			"fatigue_knockdown": 0.3,
+			"source": "typical printed-PC datasheets (Prusament PC Blend tensile ~63 MPa, HDT-B ~113 C); strong but notoriously poor layer adhesion without a hot chamber — 0.45."
+		},
+		"PA": {
+			"yield_mpa": 48.0,
+			"ultimate_mpa": 52.0,
+			"youngs_pa": 1.7e9,
+			"density_kg_m3": 1120.0,
+			"service_temp_c": 100.0,
+			"layer_adhesion_factor": 0.6,
+			"creep_sustained_fraction": 0.25,
+			"fatigue_knockdown": 0.35,
+			"source": "typical printed-nylon (PA6/PA12 blends, e.g. Polymaker PA6-CF matrix / Taulman) DRY-as-printed values; moisture conditioning can HALVE yield and modulus — treat these as dry-part numbers and verify conditioned."
+		}
+	}
+}

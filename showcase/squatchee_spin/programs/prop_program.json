@@ -1,0 +1,334 @@
+{
+ "part": "SQUATCHEE-SPIN propeller v2.1 (PLA) - 2-blade D100 vintage paddle planform, 20-deg wedge pitch, prints flat, D7.2 bore for the retainer sleeve",
+ "notes": "v2.1 pivot rework (field fix): bore D5.0 -> D7.2 so the retainer v2 sleeve (OD 6.6) drops INSIDE the bore and the prop spins on the sleeve's smooth continuous cylinder instead of the slotted mast spindle - same 0.30-0.90 mm worst-case diametral clearance contract as v1 (7.2/6.6 vs 5.0/4.4 at +-0.15), binding impossible; retention moves from the sleeve rim to the D9.5 retainer head flange (1.15 mm overlap per side). Bore change is axisymmetric -> balance untouched. Hub D14 keeps a 3.4 mm wall; blade roots start at x=5 > bore r3.6. NOT interchangeable with v1 mount/retainer - v2 parts are a matched set. Paddle outline (47-pt CCW polygon, min segment 1.5 mm - denser sub-mm tip chords left sliver facets -> geometric_ok false): Hermite neck (half-width 3.8 at x=5, waist 3.59 at x~12, slope-matched at x=20) into ellipse (center x=32.5, a=17.5, b=7 -> widest 14 mm chord at 65% span, elliptical tip). Wedge pitch: top shaved by plane z = y*tan20 + 3.248 (0.70 mm trailing edge at widest point, 5.80 mm max leading edge < hub 6). Bed side dead flat. Exact y-mirror + 180-deg blade symmetry -> CG on axis. BOOLEAN ORDER IS LOAD-BEARING: bore cut on the VIRGIN hub cylinder first, blades fused b1+b2, hub merged LAST as union(a=blades, b=hubB) - other orders leave sliver facets on the fused coplanar bottom face (geometric_ok false).",
+ "ops": [
+  {
+   "id": "hub",
+   "op": "cylinder",
+   "base": [
+    0,
+    0,
+    0
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "radius": 7,
+   "height": 6
+  },
+  {
+   "id": "boredrill",
+   "op": "cylinder",
+   "base": [
+    0,
+    0,
+    -1
+   ],
+   "axis": [
+    0,
+    0,
+    1
+   ],
+   "radius": 3.6,
+   "height": 8
+  },
+  {
+   "id": "hubB",
+   "op": "difference",
+   "a": "hub",
+   "b": "boredrill"
+  },
+  {
+   "id": "blade",
+   "op": "extrude",
+   "profile": [
+    [
+     5,
+     -3.8
+    ],
+    [
+     8,
+     -3.718
+    ],
+    [
+     11,
+     -3.599
+    ],
+    [
+     14,
+     -3.63
+    ],
+    [
+     17,
+     -4.001
+    ],
+    [
+     19,
+     -4.529
+    ],
+    [
+     20.766,
+     -5.193
+    ],
+    [
+     22.424,
+     -5.723
+    ],
+    [
+     24.23,
+     -6.169
+    ],
+    [
+     26.158,
+     -6.524
+    ],
+    [
+     28.179,
+     -6.783
+    ],
+    [
+     30.263,
+     -6.943
+    ],
+    [
+     32.381,
+     -7.0
+    ],
+    [
+     34.5,
+     -6.954
+    ],
+    [
+     36.59,
+     -6.806
+    ],
+    [
+     38.62,
+     -6.558
+    ],
+    [
+     40.56,
+     -6.213
+    ],
+    [
+     42.381,
+     -5.777
+    ],
+    [
+     44.057,
+     -5.257
+    ],
+    [
+     45.562,
+     -4.658
+    ],
+    [
+     47.455,
+     -3.635
+    ],
+    [
+     48.853,
+     -2.493
+    ],
+    [
+     49.871,
+     -0.847
+    ],
+    [
+     50.0,
+     0.0
+    ],
+    [
+     49.871,
+     0.847
+    ],
+    [
+     48.853,
+     2.493
+    ],
+    [
+     47.455,
+     3.635
+    ],
+    [
+     45.562,
+     4.658
+    ],
+    [
+     44.057,
+     5.257
+    ],
+    [
+     42.381,
+     5.777
+    ],
+    [
+     40.56,
+     6.213
+    ],
+    [
+     38.62,
+     6.558
+    ],
+    [
+     36.59,
+     6.806
+    ],
+    [
+     34.5,
+     6.954
+    ],
+    [
+     32.381,
+     7.0
+    ],
+    [
+     30.263,
+     6.943
+    ],
+    [
+     28.179,
+     6.783
+    ],
+    [
+     26.158,
+     6.524
+    ],
+    [
+     24.23,
+     6.169
+    ],
+    [
+     22.424,
+     5.723
+    ],
+    [
+     20.766,
+     5.193
+    ],
+    [
+     19,
+     4.529
+    ],
+    [
+     17,
+     4.001
+    ],
+    [
+     14,
+     3.63
+    ],
+    [
+     11,
+     3.599
+    ],
+    [
+     8,
+     3.718
+    ],
+    [
+     5,
+     3.8
+    ]
+   ],
+   "height": 6
+  },
+  {
+   "id": "rampraw",
+   "op": "box",
+   "min": [
+    -60,
+    -30,
+    0
+   ],
+   "max": [
+    60,
+    30,
+    20
+   ]
+  },
+  {
+   "id": "ramp",
+   "op": "pose",
+   "in": "rampraw",
+   "rotate": {
+    "axis": [
+     1,
+     0,
+     0
+    ],
+    "degrees": 20
+   },
+   "translate": [
+    0,
+    0,
+    3.248
+   ]
+  },
+  {
+   "id": "b1",
+   "op": "difference",
+   "a": "blade",
+   "b": "ramp"
+  },
+  {
+   "id": "b2",
+   "op": "pose",
+   "in": "b1",
+   "rotate": {
+    "axis": [
+     0,
+     0,
+     1
+    ],
+    "degrees": 180
+   }
+  },
+  {
+   "id": "ub",
+   "op": "union",
+   "a": "b1",
+   "b": "b2"
+  },
+  {
+   "id": "prop",
+   "op": "union",
+   "a": "ub",
+   "b": "hubB"
+  },
+  {
+   "id": "val",
+   "op": "validate",
+   "in": "prop"
+  },
+  {
+   "id": "mp",
+   "op": "mass_properties",
+   "in": "prop"
+  },
+  {
+   "id": "bb",
+   "op": "bounding_box",
+   "in": "prop"
+  },
+  {
+   "id": "sup",
+   "op": "support_report",
+   "in": "prop",
+   "build_dir": [
+    0,
+    0,
+    1
+   ]
+  },
+  {
+   "id": "out",
+   "op": "export_stl",
+   "in": "prop",
+   "file": "capspin/squatchee_spin_prop.stl",
+   "tol": 0.01
+  }
+ ]
+}

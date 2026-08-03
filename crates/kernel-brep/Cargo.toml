@@ -1,0 +1,15 @@
+[package]
+name = "kernel-brep"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "The exact half: analytic surfaces/curves in an index-arena half-edge topology, with constructors, exact tessellation, and validity checks. No native booleans (those route through the implicit domain)."
+
+[dependencies]
+kernel-core = { path = "../kernel-core" }
+glam = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }
+proptest = { workspace = true }

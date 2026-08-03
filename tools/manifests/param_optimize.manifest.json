@@ -1,0 +1,76 @@
+{
+  "schema": "lmcad.manifest.v1",
+  "analyzer": "param_optimize",
+  "analyzer_version": "2.0.0",
+  "title": "derivative-free parametric optimizer over any receipted analyzer (Nelder-Mead + deterministic multi-start)",
+  "governing_equations": [
+    {
+      "name": "scalarized cost",
+      "expr": "min_x  sum_i s_i w_i f_i(x) + sum_t w_t ((g_t(x) - v_t)/tol_t)^2 + 10 (1+|obj|) sum_c viol_c(x)",
+      "description": "Objectives (sign s_i = -1 when maximized), quadratic convergence targets, and objective-relative constraint penalties, minimized by Nelder-Mead simplex over the box-bounded parameters. A weighted sum is NOT a Pareto front — each term is reported separately in the receipt."
+    },
+    {
+      "name": "relative constraint penalty",
+      "expr": "viol = v/max - 1 (above a max) | min/v - 1 (below a min)",
+      "description": "Dimensionless relative violation, scaled by 10*(1+|objective|) so a 10% violation dominates any objective magnitude. Selection is FEASIBILITY-FIRST: the reported best is the best candidate with zero violations whenever one was seen (ulp-scale violations cannot win by float rounding)."
+    },
+    {
+      "name": "robust (worst-case) aggregation",
+      "expr": "score(x) = max over tolerance corners c of score(x + c)",
+      "description": "With robust.tols set, every candidate is also evaluated at the tolerance extremes (full 2^k corners for k<=3, else 2k axis extremes — the scheme is stated in the receipt) and scored on the worst case; constraints must hold at every corner."
+    }
+  ],
+  "assumptions": [
+    "Continuous parameters in finite [min, max] boxes; candidates are clamped, never rejected, at the bounds.",
+    "The evaluator is a pure function of the parameters (same inputs => same receipt); nondeterministic analyzers break the determinism guarantee and can mislead the simplex.",
+    "Single scalarization per run — trade-off exploration needs multiple runs with different weights (reported per-term so the trade-off stays visible).",
+    "Derivative-free local search: multi-start (deterministic bit-reversed lattice) mitigates but does not eliminate local minima; no global-optimality claim is made.",
+    "Engine-evaluator objectives read the kernel's validated measures; command-evaluator objectives are only as trustworthy as the analyzer behind them (see its own manifest/tier)."
+  ],
+  "boundary_conditions": {
+    "fixtures": "not applicable — parameter-space search; the physics boundary conditions live in the evaluated program/analyzer job.",
+    "loads": "not applicable.",
+    "selector_count_unit": "evaluations (each eval is one full analyzer run)"
+  },
+  "units": {
+    "inputs": {
+      "params": "user-defined (mm, Hz, ... — whatever the template consumes)",
+      "targets.value/tol": "same unit as the target expression",
+      "constraints.min/max": "same unit as the constraint expression"
+    },
+    "outputs": {
+      "best_params": "same units as params",
+      "best_objective": "unit of the legacy objective expression",
+      "best_score": "dimensionless (scalarized cost)",
+      "targets[].achieved/miss_abs": "unit of each target expression"
+    }
+  },
+  "discretization": {
+    "method": "direct search",
+    "element": "Nelder-Mead simplex (scipy), xatol 1e-3, fatol 1e-9; coordinate-sweep fallback without scipy",
+    "notes": "Deterministic: no RNG, no clocks; multi-start points come from a bit-reversed lattice, so receipts are byte-identical across runs (R5)."
+  },
+  "validation": {
+    "pin_file": "tools/param_optimize_validation.py",
+    "additional_pins": [],
+    "ground_truth": "Analytic known-optimum problems via a hermetic command evaluator: argmin of (x-3)^2+(y+1)^2 = (3,-1); the real root of x^3+13x = 40 (x* = 2.0912942); maximize x s.t. x <= 7 has optimum exactly at the cap.",
+    "error_band": {
+      "known_optimum": "best_score <= 1e-4, params within +/-0.02 of analytic (measured 6.44e-08, +/-0.00025)",
+      "target_convergence": "within declared tol 0.05 (measured miss 1.14e-07)",
+      "active_constraint": "lands in [6.9, 7.0] feasible (measured 6.999878)"
+    },
+    "direction": "no systematic bias — direct search on the analyzer's own receipts; the pin also asserts byte-identical receipts across reruns (determinism).",
+    "last_measured": "2026-07-17"
+  },
+  "caveats": [
+    "Legacy contract: a bare 'objective' MAXIMIZES by default; pass maximize:false to minimize (pinned so it cannot silently flip).",
+    "Local optimizer: a multi-modal objective can converge to a local optimum; raise multi_start and inspect per-start bests in the receipt.",
+    "constraint_ok:false means the search never found a feasible candidate — the reported best is then the least-bad infeasible point, said loudly in the receipt.",
+    "Witness-edge drift across the sweep makes objectives non-comparable; drifted candidates are rejected and the run is stamped selection_unstable (see receipt selection_evidence)."
+  ],
+  "limits_of_validity": {
+    "regime": "smooth-ish objectives over <= ~8 continuous parameters; discrete/categorical choices are out of scope",
+    "slenderness": "not applicable",
+    "resolution": "budget-bounded: max_evals caps total analyzer runs (split across starts); robust mode multiplies each eval by the corner count"
+  }
+}

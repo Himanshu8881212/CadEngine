@@ -1,0 +1,37 @@
+{
+ "format": "lmc-part",
+ "version": 1,
+ "units": "mm",
+ "name": "gear_s2_pinion",
+ "created_with": "gearbox/generate.py (w5 dogfood)",
+ "document": {
+  "params": {},
+  "features": [
+   {
+    "CatalogPart": {
+     "part": {
+      "SpurGear": {
+       "module": {
+        "Literal": 1.5
+       },
+       "teeth": 15,
+       "face_width": {
+        "Literal": 14.0
+       },
+       "bore_d": {
+        "Literal": 8.0
+       },
+       "pressure_angle_deg": {
+        "Literal": 20.0
+       },
+       "keyway": true
+      }
+     }
+    },
+    "label": "ISO 53 m1.5 z15"
+   }
+  ],
+  "root": 0,
+  "suppressed": []
+ }
+}

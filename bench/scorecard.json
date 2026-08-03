@@ -1,0 +1,264 @@
+{
+  "agent_surface": 9.722222222222221,
+  "composite": 9.469444444444443,
+  "criteria": [
+    {
+      "desc": "absolute export path refused (InvalidParam)",
+      "dim": "safety",
+      "id": "path_confine_absolute",
+      "passed": true
+    },
+    {
+      "desc": "'..' traversal export path refused",
+      "dim": "safety",
+      "id": "path_confine_dotdot",
+      "passed": true
+    },
+    {
+      "desc": "excessive cylinder segments refused before alloc",
+      "dim": "safety",
+      "id": "alloc_cap_segments",
+      "passed": true
+    },
+    {
+      "desc": "coincident_fit tool flags the boolean-hang hazard class",
+      "dim": "safety",
+      "id": "coincident_fit_precheck",
+      "passed": true
+    },
+    {
+      "desc": "validate exposes a geometric_ok flag",
+      "dim": "trust",
+      "id": "geometric_ok_exposed",
+      "passed": true
+    },
+    {
+      "desc": "a measurement carries exact|analytic|faceted provenance",
+      "dim": "trust",
+      "id": "provenance_exposed",
+      "passed": true
+    },
+    {
+      "desc": "a describe op enumerates the API from one source",
+      "dim": "discovery",
+      "id": "describe_op",
+      "passed": true
+    },
+    {
+      "desc": "list_faces returns selectable entity references",
+      "dim": "loop",
+      "id": "list_faces",
+      "passed": true
+    },
+    {
+      "desc": "support/overhang report is callable",
+      "dim": "measure",
+      "id": "support_report",
+      "passed": true
+    },
+    {
+      "desc": "non-asserting clearance/distance is callable",
+      "dim": "measure",
+      "id": "clearance_op",
+      "passed": true
+    },
+    {
+      "desc": "same program twice → identical report bytes",
+      "dim": "contract",
+      "id": "determinism_same_bytes",
+      "passed": true
+    },
+    {
+      "desc": "the response envelope carries an api_version",
+      "dim": "contract",
+      "id": "api_version",
+      "passed": true
+    },
+    {
+      "desc": "'..' in an input-file path refused",
+      "dim": "safety",
+      "id": "path_confine_input",
+      "passed": true
+    },
+    {
+      "desc": "excessive revolve segments refused before alloc",
+      "dim": "safety",
+      "id": "alloc_cap_revolve",
+      "passed": true
+    },
+    {
+      "desc": "an inverted/empty box is refused, not silently bound",
+      "dim": "safety",
+      "id": "degenerate_solid_refused",
+      "passed": true
+    },
+    {
+      "desc": "a clean solid reads geometric_ok:true (no false-flag)",
+      "dim": "trust",
+      "id": "geometric_ok_true_clean",
+      "passed": true
+    },
+    {
+      "desc": "volume is stamped provenance:faceted",
+      "dim": "trust",
+      "id": "provenance_faceted",
+      "passed": true
+    },
+    {
+      "desc": "exact_volume is stamped provenance:analytic",
+      "dim": "trust",
+      "id": "provenance_analytic",
+      "passed": true
+    },
+    {
+      "desc": "mass_properties carries provenance too (RED gap)",
+      "dim": "trust",
+      "id": "provenance_on_mass_props",
+      "passed": true
+    },
+    {
+      "desc": "describe returns the full op list + count",
+      "dim": "discovery",
+      "id": "describe_enumerates",
+      "passed": true
+    },
+    {
+      "desc": "describe {name} returns the op's param specs (box: required min/max) + no-arg advertises params_available",
+      "dim": "discovery",
+      "id": "describe_params",
+      "passed": true
+    },
+    {
+      "desc": "describe reports exists for real vs bogus op (did-you-mean)",
+      "dim": "discovery",
+      "id": "describe_exists_filter",
+      "passed": true
+    },
+    {
+      "desc": "stateful session (server-layer; kernel-api stays pure — coverage gap, not a run_program op)",
+      "dim": "loop",
+      "id": "session_stateful",
+      "passed": false
+    },
+    {
+      "desc": "edge/entity refs op exists (RED: M4)",
+      "dim": "loop",
+      "id": "entity_refs",
+      "passed": true
+    },
+    {
+      "desc": "a sphere underside reads steep_area>0",
+      "dim": "measure",
+      "id": "support_flags_overhang",
+      "passed": true
+    },
+    {
+      "desc": "overlap -> interfering + overlap_volume>0",
+      "dim": "measure",
+      "id": "clearance_detects_overlap",
+      "passed": true
+    },
+    {
+      "desc": "mass_properties returns com + inertia",
+      "dim": "measure",
+      "id": "mass_properties_full",
+      "passed": true
+    },
+    {
+      "desc": "bounding_box returns size/min/max",
+      "dim": "measure",
+      "id": "bounding_box_dims",
+      "passed": true
+    },
+    {
+      "desc": "a 1000-op program completes in a few seconds",
+      "dim": "performance",
+      "id": "perf_1000_ops",
+      "passed": true
+    },
+    {
+      "desc": "an over-cap count-bomb refused in <100ms (pre-alloc)",
+      "dim": "performance",
+      "id": "perf_countbomb_fast_fail",
+      "passed": true
+    },
+    {
+      "desc": "a 2000-seg cylinder build completes <5s",
+      "dim": "performance",
+      "id": "perf_large_legal_build",
+      "passed": true
+    },
+    {
+      "desc": "a re-run is deterministic and fast (<500ms)",
+      "dim": "performance",
+      "id": "perf_repeat_stable",
+      "passed": true
+    },
+    {
+      "desc": "a bare ops program parses and runs",
+      "dim": "contract",
+      "id": "bare_ops_parses",
+      "passed": true
+    },
+    {
+      "desc": "an unknown op yields ErrorKind::UnknownOp",
+      "dim": "contract",
+      "id": "unknown_op_matchable",
+      "passed": true
+    },
+    {
+      "desc": "a program halts at the first failing op",
+      "dim": "contract",
+      "id": "stops_on_first_failure",
+      "passed": true
+    },
+    {
+      "desc": "each op's id is echoed in its report",
+      "dim": "contract",
+      "id": "stable_ids_echoed",
+      "passed": true
+    }
+  ],
+  "kernel": 9.0,
+  "note": "GROWN ruler (36 criteria, cycle 10 — toward the ~40 target). Every dimension has depth. Red-first. Honest, not calibrated to flatter — the number DROPPED (8.57->~8.4) when coverage grew, because a thin ruler over-reads. describe_params flipped GREEN 2026-07-09 when per-op ParamSpec discovery landed (criterion updated from the pre-design no-arg placeholder to test the real per-op form). Remaining red: session_stateful only — a server-layer concern by design (kernel-api stays a pure run_program), kept as an honest coverage marker, not a bug.",
+  "passed": 35,
+  "per_dim": [
+    {
+      "dim": "safety",
+      "passed": 7,
+      "total": 7
+    },
+    {
+      "dim": "trust",
+      "passed": 6,
+      "total": 6
+    },
+    {
+      "dim": "discovery",
+      "passed": 4,
+      "total": 4
+    },
+    {
+      "dim": "loop",
+      "passed": 2,
+      "total": 3
+    },
+    {
+      "dim": "measure",
+      "passed": 6,
+      "total": 6
+    },
+    {
+      "dim": "performance",
+      "passed": 4,
+      "total": 4
+    },
+    {
+      "dim": "contract",
+      "passed": 6,
+      "total": 6
+    }
+  ],
+  "schema": "cadcode.agent-bench.v0",
+  "total": 36
+}

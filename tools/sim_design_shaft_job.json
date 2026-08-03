@@ -1,0 +1,22 @@
+{
+  "_doc": "Simulation-driven design: stepped shaft. HUMAN CONDITIONS = axial load 2400 N on the small end, large end clamped, PETG (E=2.0 GPa), allowable fillet stress 20 MPa. OBJECTIVE = minimize mass. DESIGN VARS = small diameter d, shoulder fillet r. Physics evaluator = body-fitted tet10 FEA.",
+  "params": {
+    "d": {"min": 13.0, "max": 20.0, "init": 18.0},
+    "r": {"min": 1.5, "max": 4.0, "init": 2.0}
+  },
+  "objective": "mass_g",
+  "maximize": false,
+  "constraints": [{"expr": "fillet_peak_design_pa", "max": 20000000.0}],
+  "max_evals": 30,
+  "evaluator": {
+    "kind": "command",
+    "argv": ["python3", "tools/sim_design_evaluator.py", "$JOB"],
+    "job_template": {
+      "d": "$d", "r": "$r", "D": 24.0, "l_small": 20.0, "l_large": 20.0, "load_n": 2400.0,
+      "stress_margin": 0.10,
+      "material": {"youngs_modulus_pa": 2.0e9, "poisson": 0.37, "density_g_cm3": 1.27}
+    },
+    "timeout": 120,
+    "cwd": "."
+  }
+}

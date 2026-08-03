@@ -1,0 +1,78 @@
+{
+	"meta": {
+		"name": "ASA",
+		"version": "1.1.0",
+		"aliases": [],
+		"class": "fdm_thermoplastic",
+		"description": "ASA — migrated verbatim from tools/material_db.json (typical desktop-FDM datasheet-class values) plus the heat-set pull-out table from joint_check.py. Poisson is a typical thermoplastic value (absent from material_db). Thermal-transport fields are null: not present in the migrated source, not invented.",
+		"schema_version": 1,
+		"hash": "e957f89bc428b872456378f72991cef8d3b1afc93370c5351d03b949b022006a"
+	},
+	"physical": {
+		"density_kg_m3": 1070.0
+	},
+	"mechanical": {
+		"youngs_modulus_pa": 2000000000.0,
+		"poisson": 0.35,
+		"yield_mpa": 43.0,
+		"ultimate_mpa": 47.0,
+		"sn_curve": {
+			"kind": "knockdown",
+			"cycles": 1000000,
+			"fraction_of_ultimate": 0.3,
+			"note": "engineering rule of thumb (~1e6-cycle allowable = ultimate x knockdown), NOT a measured S-N curve"
+		},
+		"compression_modulus_pa": null,
+		"resilience_coeff": null,
+		"elongation_at_break_pct": null
+	},
+	"thermal": {
+		"conductivity_w_mk": 0.17,
+		"specific_heat_j_kgk": 1300.0,
+		"cte_per_k": null,
+		"tg_or_melt_c": 98.0,
+		"service_temp_c": 93.0,
+		"creep_sustained_fraction": 0.3,
+		"softening_c": 96.0
+	},
+	"process": {
+		"anisotropy": {
+			"z_vs_xy_strength_ratio": 0.55,
+			"out_of_plane_threshold_deg": 30.0,
+			"model": "scalar-tier direction heuristic (production_check.py): across-layer (Z) tensile strength / in-plane (XY) strength; applied when the primary load is > threshold deg out of the layer plane"
+		},
+		"layer_adhesion_mpa": null,
+		"fatigue_knockdown": 0.3,
+		"heatset_pullout_n": {
+			"M3": 300,
+			"M4": 480,
+			"M5": 650,
+			"note": "brass knurled heat-set at standard insert length; conservative low ends (joint_check.py)"
+		},
+		"design_derate": null
+	},
+	"fluid": {
+		"surface_roughness_um": null
+	},
+	"sources": {
+		"physical.density_kg_m3": "material_db.json ASA.density_kg_m3",
+		"mechanical.youngs_modulus_pa": "material_db.json ASA.youngs_pa",
+		"mechanical.poisson": "typical thermoplastic (material_db.json has no poisson); provided for FEA",
+		"mechanical.yield_mpa": "material_db.json ASA.yield_mpa",
+		"mechanical.ultimate_mpa": "material_db.json ASA.ultimate_mpa",
+		"mechanical.sn_curve": "material_db.json ASA.fatigue_knockdown",
+		"thermal.service_temp_c": "material_db.json ASA.service_temp_c",
+		"thermal.creep_sustained_fraction": "material_db.json ASA.creep_sustained_fraction",
+		"process.anisotropy.z_vs_xy_strength_ratio": "material_db.json ASA.layer_adhesion_factor",
+		"process.fatigue_knockdown": "material_db.json ASA.fatigue_knockdown",
+		"process.heatset_pullout_n": "joint_check.py HEATSET_PULLOUT_N[size][asa]",
+		"_db_source_note": "typical ASA datasheets (Prusament ASA tensile ~45 MPa, HDT-B ~93 C); ABS-like with better UV stability and slightly better layer bonding.",
+		"thermal.conductivity_w_mk": "0.17 W/mK (Medium confidence): NETZSCH polymer database ASA 0.17-0.19 https://polymers.netzsch.com/Materials/Details/3 (page blocks fetch; via search snippet), consistent with the ABS-family chart values (Professional Plastics https://www.professionalplastics.com/professionalplastics/ThermalPropertiesofPlasticMaterials.pdf)",
+		"thermal.specific_heat_j_kgk": "1300 J/kgK — SINGLE SOURCE, Low confidence, flagged per research doctrine: NETZSCH ASA cp 1.3-1.4 J/gK https://polymers.netzsch.com/Materials/Details/3 ; no independent second ASA cp found 2026-07-30 (ABS-family analogy is consistent but not independent)",
+		"thermal.tg_or_melt_c": "Tg 98 C (DSC), Polymaker ASA TDS https://wiki.polymaker.com/polymaker-products/more-about-our-products/documents/technical-data-sheets/abs-asa/polymaker-tm-asa ; generic ASA ~100 https://en.wikipedia.org/wiki/Acrylonitrile_styrene_acrylate",
+		"thermal.softening_c": "softening_c = conservative softening allowable for sustained-load design: the LOW end of min(Tg, HDT-B 0.45 MPa) across cited brand TDS values for this material class (degC). ASA: 96 C = Stratasys FDM ASA, PRINTED specimens, HDT 0.45 MPa ASTM D648 https://www.stratasys.com/siteassets/materials/materials-catalog/fdm-materials/asa/mds_fdm_asa_0921a.pdf ; Bambu ASA V2 100 C https://www.additive-x.com/shop/media/mageplaza/product_attachments/attachment_file/b/a/bambu_asa_technical_data_sheet_1.pdf ; Polymaker 103 C ISO 75",
+		"thermal._printed_anisotropy_note": "printed parts conduct WORSE than bulk, direction-dependent: inter-layer thermal contact resistance dominates through-thickness conduction (Prajapati et al., Additive Manufacturing 2018, https://www.sciencedirect.com/science/article/abs/pii/S2214860417305456); voids/porosity measurably reduce heat transmission even at 100% infill (Entropy 24:654 2022, https://pmc.ncbi.nlm.nih.gov/articles/PMC9141791/); through-plane k reported ~20-40% below in-plane in FDM literature (secondary synthesis, primaries paywalled — treat percentage as indicative). Records store the conservative-LOW isotropic value.",
+		"thermal._cp_temperature_note": "cp is strongly temperature-dependent (amorphous polymers jump +30-50% crossing Tg; Covestro shows TPU cp +~15% from 20C to 80C) — record values are ROOM-TEMPERATURE-class unless noted"
+	},
+	"conflicts": []
+}

@@ -1,0 +1,136 @@
+{
+ "format": "lmc-part",
+ "version": 1,
+ "units": "mm",
+ "name": "shaft_input",
+ "created_with": "gearbox/generate.py (w5 dogfood)",
+ "meta": {
+  "part_number": "GBX-SH-IN",
+  "material": {
+   "name": "steel",
+   "density_g_cm3": 7.85
+  },
+  "make_or_buy": "make"
+ },
+ "document": {
+  "params": {},
+  "features": [
+   {
+    "CatalogPart": {
+     "part": {
+      "Shaft": {
+       "d": {
+        "Literal": 8.0
+       },
+       "length": {
+        "Literal": 73.0
+       }
+      }
+     }
+    },
+    "label": "shaft blank"
+   },
+   {
+    "Box": {
+     "center": [
+      {
+       "Literal": 3.6999999999999997
+      },
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 9.0
+      }
+     ],
+     "size": [
+      {
+       "Literal": 1.7999999999999998
+      },
+      {
+       "Literal": 2.0
+      },
+      {
+       "Literal": 8.0
+      }
+     ]
+    }
+   },
+   {
+    "Boolean": {
+     "op": "Difference",
+     "a": 0,
+     "b": 1
+    },
+    "label": "coupling keyway 2x2x8"
+   },
+   {
+    "Box": {
+     "center": [
+      {
+       "Literal": 3.6999999999999997
+      },
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 37.0
+      }
+     ],
+     "size": [
+      {
+       "Literal": 1.7999999999999998
+      },
+      {
+       "Literal": 2.0
+      },
+      {
+       "Literal": 10.0
+      }
+     ]
+    }
+   },
+   {
+    "Boolean": {
+     "op": "Difference",
+     "a": 2,
+     "b": 3
+    },
+    "label": "pinion-1 keyway 2x2x10"
+   },
+   {
+    "CirclipGroove": {
+     "input": 4,
+     "at": [
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 14.1
+      }
+     ],
+     "axis": [
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 0.0
+      },
+      {
+       "Literal": 1.0
+      }
+     ],
+     "d": {
+      "Literal": 8.0
+     }
+    },
+    "label": "DIN 471 groove (front)"
+   }
+  ],
+  "root": 5,
+  "suppressed": []
+ }
+}

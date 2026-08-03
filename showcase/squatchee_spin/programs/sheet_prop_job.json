@@ -1,0 +1,15 @@
+{
+ "stl": "squatchee_spin_prop.stl",
+ "out": "sheet_prop.png",
+ "build_dir": [
+  0,
+  0,
+  1
+ ],
+ "sections": {
+  "x": 0.0,
+  "y": 0.0,
+  "z": 3.0
+ },
+ "date": "2026-07-15"
+}

@@ -1,0 +1,175 @@
+{
+ "ops": [
+  {
+   "id": "housing",
+   "op": "load_part",
+   "file": "../parts/housing_base.lmcpart"
+  },
+  {
+   "id": "env_g1p",
+   "op": "cylinder",
+   "base": [
+    0.0,
+    6.0,
+    48.0
+   ],
+   "axis": [
+    0,
+    1,
+    0
+   ],
+   "radius": 8.75,
+   "height": 12.0,
+   "segments": 48
+  },
+  {
+   "id": "u0",
+   "op": "union",
+   "a": "housing",
+   "b": "env_g1p"
+  },
+  {
+   "id": "env_g1w",
+   "op": "cylinder",
+   "base": [
+    45.15,
+    7.0,
+    48.0
+   ],
+   "axis": [
+    0,
+    1,
+    0
+   ],
+   "radius": 38.75,
+   "height": 10.0,
+   "segments": 48
+  },
+  {
+   "id": "u1",
+   "op": "union",
+   "a": "u0",
+   "b": "env_g1w"
+  },
+  {
+   "id": "env_g2p",
+   "op": "cylinder",
+   "base": [
+    45.15,
+    17.0,
+    48.0
+   ],
+   "axis": [
+    0,
+    1,
+    0
+   ],
+   "radius": 12.75,
+   "height": 14.0,
+   "segments": 48
+  },
+  {
+   "id": "u2",
+   "op": "union",
+   "a": "u1",
+   "b": "env_g2p"
+  },
+  {
+   "id": "env_g2w",
+   "op": "cylinder",
+   "base": [
+    90.3,
+    18.0,
+    48.0
+   ],
+   "axis": [
+    0,
+    1,
+    0
+   ],
+   "radius": 35.25,
+   "height": 12.0,
+   "segments": 48
+  },
+  {
+   "id": "u3",
+   "op": "union",
+   "a": "u2",
+   "b": "env_g2w"
+  },
+  {
+   "id": "env_shaft_in",
+   "op": "cylinder",
+   "base": [
+    0.0,
+    -25.0,
+    48.0
+   ],
+   "axis": [
+    0,
+    1,
+    0
+   ],
+   "radius": 4.0,
+   "height": 73.0,
+   "segments": 48
+  },
+  {
+   "id": "u4",
+   "op": "union",
+   "a": "u3",
+   "b": "env_shaft_in"
+  },
+  {
+   "id": "env_shaft_mid",
+   "op": "cylinder",
+   "base": [
+    45.15,
+    -8.0,
+    48.0
+   ],
+   "axis": [
+    0,
+    1,
+    0
+   ],
+   "radius": 4.0,
+   "height": 55.0,
+   "segments": 48
+  },
+  {
+   "id": "u5",
+   "op": "union",
+   "a": "u4",
+   "b": "env_shaft_mid"
+  },
+  {
+   "id": "env_shaft_out",
+   "op": "cylinder",
+   "base": [
+    90.3,
+    -9.0,
+    48.0
+   ],
+   "axis": [
+    0,
+    1,
+    0
+   ],
+   "radius": 4.0,
+   "height": 82.0,
+   "segments": 48
+  },
+  {
+   "id": "u6",
+   "op": "union",
+   "a": "u5",
+   "b": "env_shaft_out"
+  },
+  {
+   "id": "housing_clear_of_swept_parts_2_shells",
+   "op": "validate",
+   "in": "u6"
+  }
+ ]
+}

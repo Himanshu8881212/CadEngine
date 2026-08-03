@@ -1,0 +1,34 @@
+# Copyright (c) LMCAD. Licensed under the MIT License.
+
+[package]
+name = "studio-server"
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+authors = ["LMCAD"]
+description = "LMCAD Studio backend: embeds the hybrid kernel in-process behind an HTTP API (work-order runs, mesh serving, .lmcpart load/save/set_dim, parts catalog, Claude chat loop) and serves the Studio front-end."
+
+[lib]
+name = "studio_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "studio-server"
+path = "src/main.rs"
+
+[dependencies]
+kernel-api = { path = "../../crates/kernel-api" }
+kernel-model = { path = "../../crates/kernel-model" }
+kernel-brep = { path = "../../crates/kernel-brep" }
+kernel-core = { path = "../../crates/kernel-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "fs", "sync", "time"] }
+tokio-stream = "0.1"
+tower-http = { version = "0.6", features = ["fs", "timeout"] }
+tower = { version = "0.5", features = ["util", "limit"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+futures-util = "0.3"
+
+[dev-dependencies]

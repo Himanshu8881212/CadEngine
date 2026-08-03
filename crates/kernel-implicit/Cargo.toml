@@ -1,0 +1,17 @@
+[package]
+name = "kernel-implicit"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "The implicit half: analytic SDF primitives and a robust CSG tree (booleans are min/max on distances)."
+
+[dependencies]
+kernel-core = { path = "../kernel-core" }
+glam = { workspace = true }
+rayon = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }
+proptest = { workspace = true }
+kernel-brep = { path = "../kernel-brep" }

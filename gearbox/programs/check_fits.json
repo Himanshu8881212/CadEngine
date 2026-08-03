@@ -1,0 +1,34 @@
+{
+ "ops": [
+  {
+   "id": "shaft_in_608_bore",
+   "op": "iso286_fit",
+   "d": 8,
+   "fit": "H7/k6"
+  },
+  {
+   "id": "608_od_in_housing",
+   "op": "iso286_fit",
+   "d": 22,
+   "fit": "H7/h6"
+  },
+  {
+   "id": "gear_bore_on_shaft",
+   "op": "iso286_fit",
+   "d": 8,
+   "fit": "H7/h6"
+  },
+  {
+   "id": "dowel_press_in_base",
+   "op": "iso286_fit",
+   "d": 4,
+   "fit": "H7/n6"
+  },
+  {
+   "id": "dowel_slip_in_lid",
+   "op": "iso286_fit",
+   "d": 4,
+   "fit": "H7/g6"
+  }
+ ]
+}

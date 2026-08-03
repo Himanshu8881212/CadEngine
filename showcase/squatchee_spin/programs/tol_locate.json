@@ -1,0 +1,21 @@
+{
+ "_why": "Radial location of the rigid retainer on the solid post: the ID4.7 band over the D4.4 post near the head (plus rim ID5.0 over the post root). Plain running fit - the bayonet does the retention, this only centers the journal sleeve. At worst case the band just touches (0.0 clearance, floor set to -0.02 for float-arithmetic honesty): still assembles - straight cylinders, no wedge, and the fit only centers the sleeve.",
+ "chain": [
+  {
+   "name": "retainer_band_id",
+   "nominal": 4.7,
+   "tol": 0.15,
+   "dir": 1
+  },
+  {
+   "name": "mount_post_dia",
+   "nominal": 4.4,
+   "tol": 0.15,
+   "dir": -1
+  }
+ ],
+ "closes": {
+  "min_required": -0.02,
+  "max_allowed": 0.65
+ }
+}

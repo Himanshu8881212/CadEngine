@@ -1,0 +1,410 @@
+{
+ "format": "lmc-asm",
+ "version": 1,
+ "units": "mm",
+ "name": "gearbox_2stage_15to1_nested",
+ "instances": [
+  {
+   "name": "base",
+   "source": {
+    "path": "parts/housing_base.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "name": "lid",
+   "source": {
+    "path": "parts/housing_lid.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "name": "stack_in",
+   "source": {
+    "asm_path": "asm/shaft_input.lmcasm"
+   },
+   "pose": {
+    "translation": [
+     0.0,
+     0.0,
+     48.0
+    ]
+   }
+  },
+  {
+   "name": "stack_mid",
+   "source": {
+    "asm_path": "asm/shaft_intermediate.lmcasm"
+   },
+   "pose": {
+    "translation": [
+     45.15,
+     0.0,
+     48.0
+    ]
+   }
+  },
+  {
+   "name": "stack_out",
+   "source": {
+    "asm_path": "asm/shaft_output.lmcasm"
+   },
+   "pose": {
+    "translation": [
+     90.3,
+     0.0,
+     48.0
+    ]
+   }
+  },
+  {
+   "name": "bolt_0",
+   "source": {
+    "path": "parts/screw_m4x12.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     -30.0,
+     -16.0,
+     82.2
+    ]
+   }
+  },
+  {
+   "name": "bolt_1",
+   "source": {
+    "path": "parts/screw_m4x12.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     146.0,
+     -16.0,
+     82.2
+    ]
+   }
+  },
+  {
+   "name": "bolt_2",
+   "source": {
+    "path": "parts/screw_m4x12.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     146.0,
+     54.0,
+     82.2
+    ]
+   }
+  },
+  {
+   "name": "bolt_3",
+   "source": {
+    "path": "parts/screw_m4x12.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     -30.0,
+     54.0,
+     82.2
+    ]
+   }
+  },
+  {
+   "name": "bolt_4",
+   "source": {
+    "path": "parts/screw_m4x12.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     58.0,
+     -16.0,
+     82.2
+    ]
+   }
+  },
+  {
+   "name": "bolt_5",
+   "source": {
+    "path": "parts/screw_m4x12.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     58.0,
+     54.0,
+     82.2
+    ]
+   }
+  },
+  {
+   "name": "bolt_6",
+   "source": {
+    "path": "parts/screw_m4x12.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     -30.0,
+     19.0,
+     82.2
+    ]
+   }
+  },
+  {
+   "name": "bolt_7",
+   "source": {
+    "path": "parts/screw_m4x12.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     146.0,
+     19.0,
+     82.2
+    ]
+   }
+  },
+  {
+   "name": "dowel_0",
+   "source": {
+    "path": "parts/dowel_4x12.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     14.0,
+     -16.0,
+     84.5
+    ]
+   }
+  },
+  {
+   "name": "dowel_1",
+   "source": {
+    "path": "parts/dowel_4x12.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     132.0,
+     54.0,
+     84.5
+    ]
+   }
+  }
+ ],
+ "mates": [
+  {
+   "Concentric": {
+    "a": 0,
+    "a_axis_point": [
+     0.0,
+     0.0,
+     48.0
+    ],
+    "a_axis_dir": [
+     0.0,
+     1.0,
+     0.0
+    ],
+    "b": 2,
+    "b_axis_point": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "b_axis_dir": [
+     0.0,
+     1.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "Concentric": {
+    "a": 0,
+    "a_axis_point": [
+     45.15,
+     0.0,
+     48.0
+    ],
+    "a_axis_dir": [
+     0.0,
+     1.0,
+     0.0
+    ],
+    "b": 3,
+    "b_axis_point": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "b_axis_dir": [
+     0.0,
+     1.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "Concentric": {
+    "a": 0,
+    "a_axis_point": [
+     90.3,
+     0.0,
+     48.0
+    ],
+    "a_axis_dir": [
+     0.0,
+     1.0,
+     0.0
+    ],
+    "b": 4,
+    "b_axis_point": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "b_axis_dir": [
+     0.0,
+     1.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "Coincident": {
+    "a": 1,
+    "a_point": [
+     -36.0,
+     -22.0,
+     91.0
+    ],
+    "b": 0,
+    "b_point": [
+     -36.0,
+     -22.0,
+     91.0
+    ]
+   }
+  }
+ ],
+ "states": {
+  "exploded": {
+   "poses": [
+    {
+     "translation": [
+      0.0,
+      0.0,
+      0.0
+     ]
+    },
+    {
+     "translation": [
+      0.0,
+      0.0,
+      60.0
+     ]
+    },
+    {
+     "translation": [
+      0.0,
+      0.0,
+      118.0
+     ]
+    },
+    {
+     "translation": [
+      45.15,
+      0.0,
+      143.0
+     ]
+    },
+    {
+     "translation": [
+      90.3,
+      0.0,
+      118.0
+     ]
+    },
+    {
+     "translation": [
+      -30.0,
+      -16.0,
+      167.2
+     ]
+    },
+    {
+     "translation": [
+      146.0,
+      -16.0,
+      167.2
+     ]
+    },
+    {
+     "translation": [
+      146.0,
+      54.0,
+      167.2
+     ]
+    },
+    {
+     "translation": [
+      -30.0,
+      54.0,
+      167.2
+     ]
+    },
+    {
+     "translation": [
+      58.0,
+      -16.0,
+      167.2
+     ]
+    },
+    {
+     "translation": [
+      58.0,
+      54.0,
+      167.2
+     ]
+    },
+    {
+     "translation": [
+      -30.0,
+      19.0,
+      167.2
+     ]
+    },
+    {
+     "translation": [
+      146.0,
+      19.0,
+      167.2
+     ]
+    },
+    {
+     "translation": [
+      14.0,
+      -16.0,
+      119.5
+     ]
+    },
+    {
+     "translation": [
+      132.0,
+      54.0,
+      119.5
+     ]
+    }
+   ]
+  }
+ }
+}

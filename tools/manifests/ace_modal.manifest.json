@@ -1,0 +1,66 @@
+{
+  "schema": "lmcad.manifest.v1",
+  "analyzer": "ace_modal",
+  "analyzer_version": "1.0.0",
+  "title": "hex8 free-vibration modal analysis (engine.verify.reference_modal)",
+  "governing_equations": [
+    {
+      "name": "generalised eigenproblem",
+      "expr": "K phi = omega^2 M phi",
+      "description": "Undamped free vibration: stiffness K and mass M give mode shapes phi and natural frequencies f = omega/(2 pi). Solved dense for tiny systems, else shift-invert Lanczos."
+    },
+    {
+      "name": "consistent/lumped hex8 mass",
+      "expr": "M = integral rho N^T N dV",
+      "description": "Element mass from density rho and shape functions N; requires density_kg_m3 > 0."
+    }
+  ],
+  "assumptions": [
+    "Undamped, linear — no damping, no preload / stress stiffening, no plasticity.",
+    "Isotropic homogeneous material per region; density strictly > 0.",
+    "Trilinear hex8 elements on a regular voxel grid; occupancy-sampled geometry.",
+    "At least one DOF constrained by a fixture, else the solver refuses (rigid-body modes).",
+    "Binary occupancy; a SIMP penalty in the job is ignored by design (noted in the receipt)."
+  ],
+  "boundary_conditions": {
+    "fixtures": "clamped/pinned/slider constrain the selected node DOF exactly as in ace_fea; frequencies are of the constrained structure.",
+    "loads": "none — modal analysis takes no loads; any preload/stress-stiffening effect is out of scope (see ace_buckling for load-dependent stiffness).",
+    "selector_count_unit": "nodes"
+  },
+  "units": {
+    "inputs": {
+      "geometry": "mm",
+      "voxel_mm": "mm",
+      "youngs_modulus_pa": "Pa",
+      "poisson": "dimensionless",
+      "density_kg_m3": "kg/m^3 (must be > 0)"
+    },
+    "outputs": {
+      "frequencies_hz": "Hz",
+      "first_mode_hz": "Hz"
+    }
+  },
+  "discretization": {
+    "method": "finite element eigenanalysis",
+    "element": "trilinear hexahedron (hex8), lumped/consistent mass",
+    "notes": "One-voxel clamp layer adds a little artificial stiffness; frequencies come out slightly high and refine downward."
+  },
+  "validation": {
+    "pin_file": "tools/ace_modal_validation.py",
+    "additional_pins": [],
+    "ground_truth": "Euler-Bernoulli clamped-free first bending frequency f1 = (1.875104^2 / 2 pi) sqrt(E I / (rho A)) / L^2 = 1063.06 Hz for L=40, b=h=8 mm, E=2.2 GPa, rho=1270 kg/m^3.",
+    "error_band": {"coarse_voxel_1.0": "0..+10%", "fine_voxel_0.5": "0..+5%"},
+    "direction": "over-predicts frequency (stiff hex8 + clamp layer); converges downward from above toward the analytic value.",
+    "last_measured": "2026-07-09"
+  },
+  "caveats": [
+    "Linear modal analysis — no damping, no preload / stress stiffening, no plasticity.",
+    "Lumped-mass hex8 is slightly stiff, over-predicting frequencies.",
+    "The pin is pure Euler-Bernoulli; at L/h = 5 real Timoshenko shear would lower the exact answer a few percent, so the true discretisation stiffness is a little larger than the raw deltas."
+  ],
+  "limits_of_validity": {
+    "regime": "small-amplitude linear vibration about an unloaded state",
+    "resolution": "pin measured at voxel h/8 and h/16; coarser grids drift stiffer",
+    "modes": "lowest positive modes only; rigid-body modes require at least one constrained DOF"
+  }
+}

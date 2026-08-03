@@ -1,0 +1,9 @@
+{
+	"mcpServers": {
+		"lmcad": {
+			"command": "target/release/lmcad-mcp",
+			"args": [],
+			"env": {}
+		}
+	}
+}

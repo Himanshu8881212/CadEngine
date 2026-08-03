@@ -1,0 +1,4 @@
+name,kind,qty,material,part_number,source,volume_mm3,solid_g_per_unit,printed_g_per_unit,grams_per_unit,print_time_h,unit_cost,line_cost,plates,wear,warning
+mount,made,1,petg,,,4106.5,5.215,5.215,5.215,0.435,0.1304,0.1304,1,,
+propeller,made,1,pla,,,3622.63,4.492,4.492,4.492,0.374,0.1123,0.1123,1,,
+retainer,made,1,pla,,,153.03,0.19,0.19,0.19,0.016,0.0047,0.0047,1,,

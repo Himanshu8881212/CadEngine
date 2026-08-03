@@ -1,0 +1,12 @@
+{
+ "fit": {
+  "bore": {
+   "nominal": 7.2,
+   "tol": 0.15
+  },
+  "shaft": {
+   "nominal": 6.6,
+   "tol": 0.15
+  }
+ }
+}

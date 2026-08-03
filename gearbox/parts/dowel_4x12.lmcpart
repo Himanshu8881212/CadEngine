@@ -1,0 +1,29 @@
+{
+ "format": "lmc-part",
+ "version": 1,
+ "units": "mm",
+ "name": "dowel_4x12",
+ "created_with": "gearbox/generate.py (w5 dogfood)",
+ "document": {
+  "params": {},
+  "features": [
+   {
+    "CatalogPart": {
+     "part": {
+      "DowelPin": {
+       "d": {
+        "Literal": 4.0
+       },
+       "length": {
+        "Literal": 12.0
+       }
+      }
+     }
+    },
+    "label": "ISO 2338 4x12"
+   }
+  ],
+  "root": 0,
+  "suppressed": []
+ }
+}

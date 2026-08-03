@@ -1,0 +1,74 @@
+{
+  "schema": "lmcad.manifest.v1",
+  "analyzer": "ace_fea",
+  "analyzer_version": "1.0.0",
+  "title": "hex8 linear-elastic reference FEA (engine.verify.reference_fea)",
+  "governing_equations": [
+    {
+      "name": "linear static equilibrium",
+      "expr": "K u = F",
+      "description": "Assembled trilinear hex8 stiffness K times nodal displacement u equals nodal load F; solved by Jacobi-preconditioned CG (or direct SuperLU below the DOF cap)."
+    },
+    {
+      "name": "isotropic linear elasticity",
+      "expr": "sigma = D(E, nu) : epsilon,  epsilon = sym(grad u)",
+      "description": "Small-strain constitutive law; von Mises reduces the stress tensor to the reported scalar."
+    },
+    {
+      "name": "SIMP homogenisation (optional)",
+      "expr": "E_eff = rho_eff^p * E0",
+      "description": "When simp_penalty p is set, element modulus is penalised by density; reported stress is the homogenised rho_eff^p * D B u, NOT a solid-material stress."
+    }
+  ],
+  "assumptions": [
+    "Linear elastic, small displacement, small strain — no plasticity, contact, or geometric nonlinearity.",
+    "Isotropic homogeneous material per region.",
+    "Trilinear C0 hex8 elements on a regular voxel grid; geometry is occupancy-sampled at voxel_mm.",
+    "Static loading; inertia/damping ignored (see ace_modal for dynamics).",
+    "Binary as-built occupancy (rho >= 0.5) unless SIMP mode is explicitly requested."
+  ],
+  "boundary_conditions": {
+    "fixtures": "clamped = all 3 translational DOF fixed on selected nodes; pinned/slider constrain the named dof_constrained subset. Selectors resolve to grid nodes touching active elements.",
+    "loads": "point = resultant distributed over selected nodes; body = per-volume force x element volume; pressure = traction over the selected face. A load selector catching > 30% of active elements is flagged 'suspiciously broad'.",
+    "selector_count_unit": "nodes (active grid nodes touching the selected active elements)"
+  },
+  "units": {
+    "inputs": {
+      "geometry": "mm",
+      "voxel_mm": "mm",
+      "youngs_modulus_pa": "Pa",
+      "poisson": "dimensionless",
+      "density_kg_m3": "kg/m^3",
+      "load.magnitude": "N (point) / N/m^3 (body) / Pa (pressure)"
+    },
+    "outputs": {
+      "max_von_mises_pa": "Pa",
+      "max_displacement_m": "m",
+      "tip_displacement_m": "m",
+      "compliance": "J"
+    }
+  },
+  "discretization": {
+    "method": "finite element",
+    "element": "trilinear hexahedron (hex8), 8-node C0",
+    "notes": "Regular voxel grid at voxel_mm; supersample=2 antialiases the occupancy sample."
+  },
+  "validation": {
+    "pin_file": "tools/ace_fea_validation.py",
+    "additional_pins": ["tools/ace_fea_kt_validation.py (pending — parallel-owned stress-concentration Kt pin)"],
+    "ground_truth": "Euler-Bernoulli + shear cantilever: delta = PL^3/(3EI) + 1.2 PL/(GA) = 0.2934 mm for L=40, b=h=8 mm, P=10 N, E=2.2 GPa, nu=0.37.",
+    "error_band": {"coarse_voxel_1.0": "-20%..0", "fine_voxel_0.5": "-10%..0"},
+    "direction": "under-predicts peak/tip response; hex8 is stiff; error converges from below toward the analytic value under refinement.",
+    "last_measured": "2026-07-08"
+  },
+  "caveats": [
+    "Coarse hex8 grids under-predict peak bending stress by roughly 20% vs a converged mesh.",
+    "In SIMP mode the reported stress is homogenised (rho_eff^p * D B u), not a solid-material stress.",
+    "Stair-stepped voxel boundaries introduce spurious surface stress concentrations at coarse resolution."
+  ],
+  "limits_of_validity": {
+    "regime": "linear elastic, deflection << member length",
+    "slenderness": "pin measured at L/h = 5; very slender or very stubby members not separately pinned here",
+    "resolution": "quote strut/feature stresses as approximate below ~4 voxels across the feature"
+  }
+}
