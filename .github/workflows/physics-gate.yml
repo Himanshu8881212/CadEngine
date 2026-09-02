@@ -1,0 +1,54 @@
+# Trusted physics validation. This workflow has no pull_request or
+# pull_request_target trigger. The self-hosted runner executes only a protected
+# main SHA (or protected main on an explicit manual dispatch).
+name: physics-gate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: physics-gate-main
+  cancel-in-progress: false
+
+jobs:
+  physics-pins:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: self-hosted
+    timeout-minutes: 120
+    env:
+      LMCAD_REQUIRE_REPRODUCIBLE_ANALYSIS: '1'
+      PYTHONPATH: ''
+      PYTHONNOUSERSITE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'refs/heads/main' }}
+          persist-credentials: false
+          clean: true
+
+      - name: Verify the immutable ACE pin before executing analysis
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(tr -d '[:space:]' < tools/ACE_REVISION)"
+          actual="$(git -C "${ACE_ROOT:-$HOME/Work/ACE}" rev-parse HEAD)"
+          test "$actual" = "$expected"
+          test -z "$(git -C "${ACE_ROOT:-$HOME/Work/ACE}" status --porcelain)"
+
+      - name: Install/verify hash-locked Python dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv venv --python 3.11 .analysis-venv
+          uv pip install --python .analysis-venv/bin/python --require-hashes -r tools/requirements-analysis.lock
+          echo "ANALYSIS_PYTHON=$PWD/.analysis-venv/bin/python" >> "$GITHUB_ENV"
+
+      - name: FEA, modal, buckling, optimization, and Kt pins
+        run: '"$ANALYSIS_PYTHON" tools/analyzer_registry.py --run-pins'

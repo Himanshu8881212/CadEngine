@@ -72,6 +72,7 @@ mod implicit;
 mod interp;
 mod program;
 mod report;
+mod require;
 
 pub use asm::{run_assembly, AsmOptions};
 pub use discover::{op_params, op_tag, ParamSpec, OP_COUNT, OP_NAMES, OP_PARAMS};

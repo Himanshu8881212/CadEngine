@@ -74,8 +74,8 @@ ascending), first_mode_hz, rigid_body_modes_hz, boundary, participation
 (per mode: effective_mass_kg/fraction + kinetic_fraction per x/y/z),
 total_active_mass_kg, mode_shapes, eigensolve, n_modes, n_active_elements,
 n_dof, n_free_dof, method, fixtures receipts, notes, timings_s, provenance
-envelope}; any failure => {ok:false, error} and STILL exit 0 — the JSON line
-is the contract, not the exit code.
+envelope}; any failure => {ok:false, error} and a NONZERO exit (see THE WIRE
++ EXIT CONTRACT below).
 
 Mode-shape artifact layout (GridField-compatible): one ``mode_shape_NN.npy``
 per elastic mode in out_dir — (nx, ny, nz) float32, C-order, per-VOXEL modal
@@ -93,6 +93,30 @@ first element layer): see tools/test_ace_modal_buckling.py for the live
 bands; frequencies over-predict by a few percent and converge downward.
 Higher modes carry Timoshenko shear the EB closed form lacks (~2.7% at mode
 3, L/h = 20), so mode-3 error can legitimately cross zero.
+
+THE WIRE + EXIT CONTRACT (shared; see tools/_receipt.py for the full rules):
+    python3 <runner>.py <job.json> [--out PATH]
+  The LAST non-empty stdout line is ONE JSON receipt; all logging goes to
+  stderr. The exit code AGREES with the receipt, always:
+    exit 0  ok:true   analysis ran, receipt usable
+    exit 1  ok:false   the tool could not run the request (usage, unreadable
+                       job, internal error) — NO analysis was performed
+    exit 2  ok:false   the tool RAN and REFUSED, or the analysis failed
+  `error_kind` is a machine-matchable slug (`refusal.*`, `timeout`, `killed.*`,
+  `internal`, `usage`, `receipt_path_conflict`). CHANGED 2026-08-08: this runner
+  used to exit 0 on ok:false by design. Parsing `ok` still works and is still
+  correct; `$?` now works too. `LMCAD_RUNNER_EXIT=legacy` or a job
+  `"legacy_exit_zero": true` restores exit-0-always and records the opt-out in
+  `exit_contract.mode`.
+  `--out PATH` writes the receipt atomically (temp+rename) so an interrupted run
+  can never leave a zero-byte file where a good receipt was; a job-level
+  `receipt` key that disagrees with `--out` is REFUSED, not silently preferred.
+  `LMCAD_RECEIPT_DRY_RUN=1` suppresses every on-disk write (safe what-if runs).
+  `"wall_budget_s"` (or `LMCAD_WALL_BUDGET_S`), SIGTERM and SIGINT all produce
+  an honest ok:false receipt instead of a vanished run.
+  `determinism` names the receipt's wall-clock fields and carries `core_digest`,
+  a sha256 over the rest at 12 significant figures — compare THAT between runs,
+  never the receipt bytes.
 """
 from __future__ import annotations
 
@@ -107,12 +131,24 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _ace import (  # noqa: E402  — importing runs the boot side effects (ACE on path, kernel-api env)
 	ACE_INSTALL_HINT,
+	Refusal,
+	apply_warnings,
 	build_region_kind,
+	determinism_block,
 	emit,
+	finish,
 	load_geometry,
+	load_job,
 	log,
+	mesh_resolution_receipt,
+	mesh_resolution_warning,
 	provenance_fields,
+	refuse_empty_selectors,
 	resolve_material,
+	run_cli,
+	selector_catch_audit,
+	validated_range_check,
+	validated_range_warning,
 )
 
 ANALYZER_VERSION = "lmcad_modal/hex8-lumped-eigsh/v2 (K,M via ACE engine.verify.fea)"
@@ -239,6 +275,14 @@ def run_modal_job(job: dict) -> dict:
 
 	rho, origin, voxel, sample_s = load_geometry(job, out_dir)
 	kind = build_region_kind(job, rho.shape, voxel, origin)
+
+	# --- ADMISSIBILITY, BEFORE the eigensolve (T13) -------------------------
+	from engine.verify.fea import _occupancy
+	occ = _occupancy(rho, kind, simp_floor=None)
+	catch = selector_catch_audit(job, occ, voxel, origin)
+	refuse_empty_selectors(catch)
+	mesh_res = mesh_resolution_receipt(occ, voxel)
+	vrange = validated_range_check(job, "tools/manifests/ace_modal.manifest.json")
 	h = float(voxel) * 1e-3
 	notes: list[str] = []
 	if job.get("simp_penalty") is not None:
@@ -309,11 +353,21 @@ def run_modal_job(job: dict) -> dict:
 	rigid_mask = lam <= rigid_tol
 	rigid_hz = [float(math.sqrt(max(v, 0.0)) / (2 * math.pi)) for v in lam[rigid_mask]]
 	if free_free and len(rigid_hz) != 6:
-		notes.append(f"free-free rigid-body mode count is {len(rigid_hz)}, expected 6 — "
-					 f"inspect for disconnected components or near-mechanisms.")
+		raise Refusal(
+			"invalid_rigid_mode_count",
+			f"free-free solve found {len(rigid_hz)} rigid-body modes, expected exactly 6. "
+			"The mesh may contain disconnected components or a mechanism; elastic "
+			"frequencies would be ambiguously indexed, so they are not published.",
+			rigid_body_modes_hz=rigid_hz,
+			expected=6)
 	if not free_free and rigid_hz:
-		notes.append(f"discarded {len(rigid_hz)} near-zero eigenvalue(s) on a FIXED model — "
-					 f"likely under-constrained; check the fixtures.")
+		raise Refusal(
+			"under_constrained_model",
+			f"fixed-boundary solve still has {len(rigid_hz)} near-zero mode(s). "
+			"The fixtures leave rigid motion or a mechanism; silently discarding those "
+			"modes would make the reported first mode incorrect. Add sufficient independent "
+			"constraints or explicitly request a valid free_free model.",
+			rigid_body_modes_hz=rigid_hz)
 	elastic = np.where(~rigid_mask)[0][:n_modes]
 	if elastic.size == 0:
 		raise ValueError("no positive elastic eigenvalues extracted — under-constrained "
@@ -382,14 +436,29 @@ def run_modal_job(job: dict) -> dict:
 		"method": METHOD,
 		"fixtures": fixtures_receipt,
 		"selector_count_unit": "nodes",
+		"selector_catch_audit": catch,
+		"mesh_resolution": mesh_res,
+		"validated_range": vrange,
 		"notes": notes,
 		"timings_s": {"sample_s": round(sample_s, 3), "modal_s": round(eig_s, 3)},
 	}
+	apply_warnings(payload, job, [
+		mesh_resolution_warning(mesh_res),
+		validated_range_warning(vrange),
+	])
 	payload.update(provenance_fields(
 		job, res, analyzer_name="ace_modal", analyzer_version=ANALYZER_VERSION,
 		values={"frequencies_hz": payload["frequencies_hz"],
 				"first_mode_hz": payload["first_mode_hz"]},
-		manifest_ref="tools/manifests/ace_modal.manifest.json"))
+		manifest_ref="tools/manifests/ace_modal.manifest.json",
+		validation_applicability=vrange))
+	payload["determinism"] = determinism_block(
+		payload, nondeterministic_paths=["timings_s"],
+		solver_note=("ARPACK/Lanczos shift-invert eigensolve: eigenvalues reproduce to "
+					 "~1e-12..1e-13 relative between identical runs, NOT to the bit "
+					 "(the Krylov reduction order is not pinned). 12 significant "
+					 "figures agree; compare core_digest, never receipt bytes, and "
+					 "never write a cmp-based gate on a modal receipt."))
 	return payload
 
 
@@ -414,16 +483,9 @@ def fixture_receipts(job: dict, rho, kind, voxel: float, origin, notes: list) ->
 
 
 def main() -> None:
-	job = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-	emit(run_modal_job(job))
+	job, out = load_job()
+	finish(run_modal_job(job), job=job, tool="ace_modal", out=out)
 
 
 if __name__ == "__main__":
-	try:
-		main()
-	except Exception as exc:  # noqa: BLE001 — the JSON line IS the contract
-		error = f"{type(exc).__name__}: {exc}"
-		if isinstance(exc, (ImportError, ModuleNotFoundError)) and "engine" in str(exc):
-			error += f" | hint: {ACE_INSTALL_HINT}"
-		emit({"ok": False, "error": error})
-		sys.exit(0)
+	run_cli("ace_modal", main, install_hint=ACE_INSTALL_HINT)

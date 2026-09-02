@@ -549,14 +549,21 @@ pub(crate) fn has_proper_self_intersection(mesh: &Mesh) -> bool {
 
 /// Does segment `o`→`e` cross the *interior* of triangle `abc`? Epsilon margins
 /// exclude edge/vertex grazes so only proper crossings count (Möller–Trumbore).
+///
+/// Evaluated in f64, mirroring `mesh::measure::segment_pierces_triangle` (the
+/// two are pinned to agree by `kernel-api/tests/self_intersection_witness.rs`):
+/// at f32, a rotated mesh's last-ulp noise manufactured crossings that vanish
+/// at double precision (friction folding_book_stand F4, 2026-08-27).
 fn seg_hits_tri(o: Vec3, e: Vec3, a: Vec3, b: Vec3, c: Vec3) -> bool {
-	let eps = 1e-6_f32;
+	let (o, e, a, b, c) = (o.as_dvec3(), e.as_dvec3(), a.as_dvec3(), b.as_dvec3(), c.as_dvec3());
+	let eps = 1e-9_f64;
 	let dir = e - o;
 	let ab = b - a;
 	let ac = c - a;
 	let pv = dir.cross(ac);
 	let det = ab.dot(pv);
-	if det.abs() < eps {
+	// Scale-aware parallel guard: det = ±(n·dir) with n = ab×ac.
+	if det.abs() < 1e-12 * ab.cross(ac).length() * dir.length() {
 		return false; // segment parallel to the triangle plane
 	}
 	let inv = 1.0 / det;

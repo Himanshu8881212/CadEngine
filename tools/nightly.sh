@@ -1,8 +1,10 @@
 #!/bin/sh
-# LMCAD nightly self-exercise — full test suite, clippy, and the two campaign
-# gate suites (respool, drybox_roller), re-proving every machine-verified
-# claim. Writes telemetry/nightly/YYYY-MM-DD.md (table + FAIL lines + tails of
-# failing logs) and appends one summary line to telemetry/nightly/history.jsonl.
+# LMCAD nightly self-exercise — full test suite, clippy, the two campaign gate
+# suites (respool, drybox_roller), every Python contract gate under tools/ and
+# docs/, and the generated-table-in-step check. Re-proves every machine-verified
+# claim in the repo, on both sides of the language line.
+# Writes telemetry/nightly/YYYY-MM-DD.md (table + FAIL lines + tails of failing
+# logs) and appends one summary line to telemetry/nightly/history.jsonl.
 #
 # Tolerant of individual failures: every step runs, results are collected, and
 # the script exits non-zero if ANY step failed (so cron mail/logs show red).
@@ -75,6 +77,76 @@ else
 	FAILURES=$((FAILURES + 1))
 fi
 
+# ---- 5. Python contract gates ----------------------------------------------
+# The tools/ half of the repo carries hundreds of executable contracts —
+# checker pins, aux-tool pins, doc contracts, the cross-language creep vectors,
+# the runner exit/receipt contract, the doc-drift audit. Until 2026-08-08 the
+# nightly ran none of them: `cargo test` cannot see a single one, so every
+# Python-side guarantee was unwatched and a regression there would surface only
+# when a campaign tripped over it. That is the same silence this repo forbids
+# in its tools, one level up.
+#
+# DISCOVERED, not enumerated: every `tools/test_*.py` and `docs/test_*.py` is a
+# suite by naming convention, so a suite added tomorrow is watched tomorrow
+# without editing this file. The gates that need arguments are listed after.
+# Each must exit 0; anything else is a failure with its own row.
+PY_GATES=""
+for f in tools/test_*.py docs/test_*.py; do
+	[ -f "$f" ] && PY_GATES="$PY_GATES $f"
+done
+PY_GATES="$PY_GATES tools/audit_docs.py"
+PY_GATES="$PY_GATES tools/materials_crosslang_test.py"
+PY_GATES="$PY_GATES tools/analyzer_registry.py::--check"
+PY_GATES="$PY_GATES tools/analyzer_registry.py::--check-contract"
+PY_GATES="$PY_GATES tools/materials.py::--selftest"
+PY_GATES="$PY_GATES tools/production_check.py::--selftest"
+
+PY_TOTAL=0
+PY_OK=0
+PY_FAIL_ROWS=""
+for gate in $PY_GATES; do
+	script=${gate%%::*}
+	arg=""
+	case "$gate" in *::*) arg=${gate##*::} ;; esac
+	label=$(basename "$script")${arg:+ $arg}
+	log="$LOGS/py_$(printf '%s' "$label" | tr -c 'A-Za-z0-9' '_').log"
+	if [ -n "$arg" ]; then
+		python3 "$script" "$arg" >"$log" 2>&1
+	else
+		python3 "$script" >"$log" 2>&1
+	fi
+	rc=$?
+	PY_TOTAL=$((PY_TOTAL + 1))
+	if [ "$rc" -eq 0 ]; then
+		PY_OK=$((PY_OK + 1))
+	else
+		PY_FAIL_ROWS="$PY_FAIL_ROWS
+$label: exit $rc — $(tail -n 3 "$log" | tr '\n' ' ')"
+	fi
+done
+if [ "$PY_OK" -eq "$PY_TOTAL" ]; then
+	PY_STATUS=PASS
+else
+	PY_STATUS=FAIL
+	FAILURES=$((FAILURES + 1))
+fi
+
+# ---- 6. generated tables are in step with their source ---------------------
+# `crates/kernel-api/src/discover.rs` is GENERATED from program.rs. Hand-editing
+# one without the other is invisible to every other gate here, so regenerate and
+# require that nothing moved.
+cp crates/kernel-api/src/discover.rs "$LOGS/discover.before" 2>/dev/null
+python3 tools/gen_discover.py >"$LOGS/gen_discover.log" 2>&1
+GEN_EXIT=$?
+if [ "$GEN_EXIT" -eq 0 ] && cmp -s crates/kernel-api/src/discover.rs "$LOGS/discover.before"; then
+	GEN_STATUS=PASS
+	GEN_DETAIL="regeneration changed nothing"
+else
+	GEN_STATUS=FAIL
+	GEN_DETAIL="gen_discover exit $GEN_EXIT; discover.rs is NOT what program.rs generates"
+	FAILURES=$((FAILURES + 1))
+fi
+
 # ---- report ----------------------------------------------------------------
 if [ "$FAILURES" -eq 0 ]; then OVERALL=pass; else OVERALL=fail; fi
 
@@ -91,7 +163,14 @@ if [ "$FAILURES" -eq 0 ]; then OVERALL=pass; else OVERALL=fail; fi
 		"$RESPOOL_STATUS" "$RESPOOL_EXIT" "$RESPOOL_VERDICT"
 	printf '| example drybox_roller | %s | exit %s, %s |\n' \
 		"$DRYBOX_STATUS" "$DRYBOX_EXIT" "$DRYBOX_VERDICT"
+	printf '| python contract gates | %s | %s/%s gates exit 0 |\n' \
+		"$PY_STATUS" "$PY_OK" "$PY_TOTAL"
+	printf '| discover.rs in step with program.rs | %s | %s |\n' \
+		"$GEN_STATUS" "$GEN_DETAIL"
 	printf '\noverall: **%s** (%s failing step(s))\n' "$OVERALL" "$FAILURES"
+	if [ -n "$PY_FAIL_ROWS" ]; then
+		printf '\n## failing python gates\n\n```%s\n```\n' "$PY_FAIL_ROWS"
+	fi
 } >"$REPORT"
 
 # Any FAIL lines from the gate tables / test harness, verbatim.
@@ -120,9 +199,10 @@ if [ "$RESPOOL_STATUS" = FAIL ]; then append_tail "example respool" "$LOGS/respo
 if [ "$DRYBOX_STATUS" = FAIL ]; then append_tail "example drybox_roller" "$LOGS/drybox.log"; fi
 
 # ---- history JSONL (one line per run) --------------------------------------
-printf '{"date":"%s","test_exit":%s,"suites_ok":%s,"suites_total":%s,"clippy_exit":%s,"clippy_warnings":%s,"respool_exit":%s,"drybox_exit":%s,"failures":%s,"overall":"%s"}\n' \
+printf '{"date":"%s","test_exit":%s,"suites_ok":%s,"suites_total":%s,"clippy_exit":%s,"clippy_warnings":%s,"respool_exit":%s,"drybox_exit":%s,"py_gates_ok":%s,"py_gates_total":%s,"discover_in_step":%s,"failures":%s,"overall":"%s"}\n' \
 	"$DATE" "$TEST_EXIT" "$SUITES_OK" "$SUITES_TOTAL" "$CLIPPY_EXIT" "$CLIPPY_WARNINGS" \
-	"$RESPOOL_EXIT" "$DRYBOX_EXIT" "$FAILURES" "$OVERALL" >>"$HISTORY"
+	"$RESPOOL_EXIT" "$DRYBOX_EXIT" "$PY_OK" "$PY_TOTAL" \
+	"$([ "$GEN_STATUS" = PASS ] && echo true || echo false)" "$FAILURES" "$OVERALL" >>"$HISTORY"
 
 rm -rf "$LOGS"
 printf 'nightly: %s — report %s\n' "$OVERALL" "$REPORT"

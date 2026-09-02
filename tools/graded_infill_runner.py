@@ -53,13 +53,37 @@ analytically at each finer grid, not interpolated).
 
 Output contract: the LAST non-empty stdout line is ONE JSON object; all
 logging goes to stderr. Success => {ok:true, volume_mm3, ...}; any failure =>
-{ok:false, error} and STILL exit 0 — the JSON line is the contract.
+{ok:false, error} and a NONZERO exit (see THE WIRE + EXIT CONTRACT below).
 
 Honest caveats (echoed by the MCP tool description): the wall thickness is
 VOLUME-calibrated (see GyroidCalibration) — local thickness varies ~+/-10%
 (p10-p90) over the surface and the band thins where sheets merge; walls under
 ~2 voxels only resolve on the upsampled rungs; the result is a MESH ONLY, no
 B-rep reconstruction exists.
+
+THE WIRE + EXIT CONTRACT (shared; see tools/_receipt.py for the full rules):
+    python3 <runner>.py <job.json> [--out PATH]
+  The LAST non-empty stdout line is ONE JSON receipt; all logging goes to
+  stderr. The exit code AGREES with the receipt, always:
+    exit 0  ok:true   analysis ran, receipt usable
+    exit 1  ok:false   the tool could not run the request (usage, unreadable
+                       job, internal error) — NO analysis was performed
+    exit 2  ok:false   the tool RAN and REFUSED, or the analysis failed
+  `error_kind` is a machine-matchable slug (`refusal.*`, `timeout`, `killed.*`,
+  `internal`, `usage`, `receipt_path_conflict`). CHANGED 2026-08-08: this runner
+  used to exit 0 on ok:false by design. Parsing `ok` still works and is still
+  correct; `$?` now works too. `LMCAD_RUNNER_EXIT=legacy` or a job
+  `"legacy_exit_zero": true` restores exit-0-always and records the opt-out in
+  `exit_contract.mode`.
+  `--out PATH` writes the receipt atomically (temp+rename) so an interrupted run
+  can never leave a zero-byte file where a good receipt was; a job-level
+  `receipt` key that disagrees with `--out` is REFUSED, not silently preferred.
+  `LMCAD_RECEIPT_DRY_RUN=1` suppresses every on-disk write (safe what-if runs).
+  `"wall_budget_s"` (or `LMCAD_WALL_BUDGET_S`), SIGTERM and SIGINT all produce
+  an honest ok:false receipt instead of a vanished run.
+  `determinism` names the receipt's wall-clock fields and carries `core_digest`,
+  a sha256 over the rest at 12 significant figures — compare THAT between runs,
+  never the receipt bytes.
 """
 from __future__ import annotations
 
@@ -81,8 +105,14 @@ def log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
 
 
-def emit(payload: dict) -> None:
-    print(json.dumps(payload), flush=True)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _receipt import (  # noqa: E402  — the shared receipt + exit-code contract
+    determinism_block,
+    emit,
+    finish,
+    load_job,
+    run_cli,
+)
 
 
 class GyroidCalibration:
@@ -279,7 +309,7 @@ def mesh_through_engine(graded, origin, voxel: float, out_dir: Path, file: str, 
 
 
 def main() -> None:
-    job = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    job, receipt_out = load_job()
     out_dir = Path(job["out_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -376,7 +406,7 @@ def main() -> None:
     if not mesh["ok"]:
         raise RuntimeError(f"the kernel refused to mesh the graded field watertight at every rung — last refusal: {mesh['error']}")
 
-    emit({
+    payload = {
         "ok": True,
         "file": mesh["file"],
         "volume_mm3": mesh["volume_mm3"],
@@ -399,15 +429,23 @@ def main() -> None:
             "grade_s": round(grade_s, 3),
             "mesh_s": round(mesh_s, 3),
         },
-    })
+    }
+    payload["determinism"] = determinism_block(
+        payload, nondeterministic_paths=["timings_s"],
+        solver_note=("pure numpy field synthesis + the kernel's own meshing: every "
+                     "reported field is a deterministic function of the inputs, so "
+                     "core_digest is expected to be stable across runs AND machines."))
+    finish(payload, job=job, tool="graded_infill", out=receipt_out)
+
+
+def _selftest() -> None:
+    payload = GyroidCalibration().roundtrip_check()
+    payload.setdefault("ok", True)
+    finish(payload, tool="graded_infill")
 
 
 if __name__ == "__main__":
-    try:
-        if len(sys.argv) > 1 and sys.argv[1] == "--selftest":
-            emit(GyroidCalibration().roundtrip_check())
-        else:
-            main()
-    except Exception as exc:  # noqa: BLE001 — the JSON line IS the contract
-        emit({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
-        sys.exit(0)
+    if len(sys.argv) > 1 and sys.argv[1] == "--selftest":
+        run_cli("graded_infill", _selftest)
+    else:
+        run_cli("graded_infill", main)

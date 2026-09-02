@@ -6,10 +6,15 @@ The campaign render_assembly.png / render_half.png images come from here
 from the repo alone; the richer bordered SHEETS stay with assembly_doc.py).
 
 Usage:  python3 tools/render_views.py in.stl out.png [iso|joint z0 z1]
+        python3 tools/render_views.py --help
   iso    — top / iso / front / bottom four-view (default)
   joint  — top / oblique / side of the z-clipped band [z0, z1]
+
+The LAST stdout line is a JSON receipt ({ok, out, views, triangles, clipped,
+bytes} or {ok:false, error}); bad arguments are refused with that receipt and
+exit 1, never with a bare traceback.
 """
-import sys, struct
+import json, os, sys, struct
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -54,14 +59,37 @@ def render(path, out, views, clip=None):
 	plt.savefig(out, dpi=90, bbox_inches="tight")
 	plt.close()
 	print(f"{out}: {len(tri)} tris")
+	return {"ok": True, "out": os.path.abspath(out), "views": len(views),
+	        "triangles": int(len(tri)), "clipped": clip is not None,
+	        "bytes": os.path.getsize(out)}
+
+
+def main(argv):
+	# digest F9: `--help` used to be read as the input STL path and stack-trace.
+	if len(argv) < 2 or argv[1] in ("-h", "--help"):
+		print(__doc__)
+		return 0
+	try:
+		if len(argv) < 3:
+			raise ValueError("usage: render_views.py in.stl out.png [iso | joint z0 z1]")
+		path, out = argv[1], argv[2]
+		mode = argv[3] if len(argv) > 3 else "iso"
+		if mode == "joint":
+			if len(argv) < 6:
+				raise ValueError("mode 'joint' needs z0 and z1: render_views.py in.stl out.png joint z0 z1")
+			# top-down + oblique of the joint band only (z clip)
+			rec = render(path, out, [(90, -90, "top"), (30, 30, "oblique"), (5, 0, "side")],
+			             clip=(2, float(argv[4]), float(argv[5])))
+		elif mode == "iso":
+			rec = render(path, out, [(90, -90, "top"), (30, 30, "iso"), (0, 0, "front"), (-90, 90, "bottom")])
+		else:
+			raise ValueError(f"unknown mode {mode!r} — use 'iso' (default) or 'joint z0 z1'")
+	except Exception as e:  # noqa: BLE001 — the LAST stdout line is the receipt
+		print(json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"}))
+		return 1
+	print(json.dumps(rec))
+	return 0
 
 
 if __name__ == "__main__":
-	path, out = sys.argv[1], sys.argv[2]
-	mode = sys.argv[3] if len(sys.argv) > 3 else "iso"
-	if mode == "joint":
-		# top-down + oblique of the joint band only (z clip)
-		render(path, out, [(90, -90, "top"), (30, 30, "oblique"), (5, 0, "side")],
-		       clip=(2, float(sys.argv[4]), float(sys.argv[5])))
-	else:
-		render(path, out, [(90, -90, "top"), (30, 30, "iso"), (0, 0, "front"), (-90, 90, "bottom")])
+	sys.exit(main(sys.argv))

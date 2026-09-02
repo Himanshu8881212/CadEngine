@@ -45,7 +45,7 @@ the penetration you accept IS p_n/kappa, reported every step, never hidden.
 Newton-Raphson with load/motion incrementation (lambda 0 -> 1 in `steps.n`), a
 Crisfield backtracking line search on the ENERGY merit |du . R| (the residual
 norm is NOT a usable merit here — see newton_step), and a LOUD failure: a step
-that does not converge raises -> {ok:false, error} + exit 1. There is no silent
+that does not converge raises -> {ok:false, error} + exit 2. There is no silent
 last-iterate.
 
 Job JSON (lengths mm, forces N, moments N*mm, stresses reported in Pa AND MPa):
@@ -89,7 +89,8 @@ Job JSON (lengths mm, forces N, moments N*mm, stresses reported in Pa AND MPa):
 Output contract: mirrors ace_thermal_runner — the LAST non-empty stdout line is
 ONE JSON receipt; all logging goes to stderr. `curve.npy` (float64,
 (n_steps+1, n_cols) C-order, column names in receipt `curve_columns`) lands in
-out_dir. Failure = {ok:false, error} + **exit 1**.
+out_dir. Failure = {ok:false, error} + a nonzero exit: **2** for a refusal
+(JobError / ConvergenceError), **1** for a broken request. See below.
 
 Honest limits (also in tools/solvers/contact.md): planar only; Euler-Bernoulli
 (no transverse shear — beams under L/t ~ 10 read a few % stiff); contact is
@@ -97,6 +98,30 @@ NODE-based, so contact-patch resolution equals the node spacing; friction is a
 regularized (elastic-slip) Coulomb model with an approximate slipping tangent;
 quasi-static (no dynamics, so the snap-back "click" energy release is not
 resolved); isotropic material, printed-layer anisotropy is NOT in the solve.
+
+THE WIRE + EXIT CONTRACT (shared; see tools/_receipt.py for the full rules):
+    python3 <runner>.py <job.json> [--out PATH]
+  The LAST non-empty stdout line is ONE JSON receipt; all logging goes to
+  stderr. The exit code AGREES with the receipt, always:
+    exit 0  ok:true   analysis ran, receipt usable
+    exit 1  ok:false   the tool could not run the request (usage, unreadable
+                       job, internal error) — NO analysis was performed
+    exit 2  ok:false   the tool RAN and REFUSED, or the analysis failed
+  `error_kind` is a machine-matchable slug (`refusal.*`, `timeout`, `killed.*`,
+  `internal`, `usage`, `receipt_path_conflict`). CHANGED 2026-08-08: this runner
+  used to exit 0 on ok:false by design. Parsing `ok` still works and is still
+  correct; `$?` now works too. `LMCAD_RUNNER_EXIT=legacy` or a job
+  `"legacy_exit_zero": true` restores exit-0-always and records the opt-out in
+  `exit_contract.mode`.
+  `--out PATH` writes the receipt atomically (temp+rename) so an interrupted run
+  can never leave a zero-byte file where a good receipt was; a job-level
+  `receipt` key that disagrees with `--out` is REFUSED, not silently preferred.
+  `LMCAD_RECEIPT_DRY_RUN=1` suppresses every on-disk write (safe what-if runs).
+  `"wall_budget_s"` (or `LMCAD_WALL_BUDGET_S`), SIGTERM and SIGINT all produce
+  an honest ok:false receipt instead of a vanished run.
+  `determinism` names the receipt's wall-clock fields and carries `core_digest`,
+  a sha256 over the rest at 12 significant figures — compare THAT between runs,
+  never the receipt bytes.
 """
 from __future__ import annotations
 
@@ -130,8 +155,13 @@ def log(msg: str) -> None:
 	print(msg, file=sys.stderr, flush=True)
 
 
-def emit(payload: dict) -> None:
-	print(json.dumps(payload), flush=True)
+from _receipt import (  # noqa: E402  — the shared receipt + exit-code contract
+	determinism_block,
+	emit,
+	finish,
+	load_job,
+	run_cli,
+)
 
 
 class JobError(ValueError):
@@ -902,7 +932,19 @@ def run(job: dict) -> dict:
 	# PATH maxima, not just the final state: a latch that springs back to zero
 	# ends the run unstressed, and the number a designer needs is the WORST
 	# stress/strain anywhere on the insertion path.
-	sig_col = curve[:, CURVE_COLUMNS.index("max_abs_stress_mpa")]
+	# ROW 0 IS NOT A SOLVED STEP (wrist F7). It is the initial configuration
+	# snapshotted before any Newton iteration: if the start state already
+	# penetrates the obstacle — the physically correct SEATED state of a
+	# preloaded detent — the penalty writes kappa * initial_penetration into
+	# the curve as if it were an actuator force. Observed: row 0
+	# insertion_force_n -674.8568 N against row 1's converged 1.5857 N, i.e.
+	# max(|insertion_force_n|) over the curve was wrong by 425x. Every derived
+	# statistic below therefore reads rows 1.. only, row 0 is reported
+	# separately as `initial_state`, and `curve_rows` says so in the receipt so
+	# a campaign reading curve.npy directly cannot repeat the mistake.
+	solved = curve[1:] if curve.shape[0] > 1 else curve
+	row0 = {name: float(curve[0, i]) for i, name in enumerate(CURVE_COLUMNS)}
+	sig_col = solved[:, CURVE_COLUMNS.index("max_abs_stress_mpa")]
 	i_worst = int(np.argmax(sig_col))
 	payload = {
 		"ok": True,
@@ -928,9 +970,10 @@ def run(job: dict) -> dict:
 			"abs_stress_mpa": float(sig_col[i_worst]),
 			"abs_stress_pa": float(sig_col[i_worst]) * 1e6,
 			"strain": float(sig_col[i_worst] / mat["youngs_modulus_mpa"]),
-			"at_lambda": float(curve[i_worst, 0]),
-			"at_obstacle_travel_mm": float(curve[i_worst, 1]),
-			"max_disp_mm": float(curve[:, CURVE_COLUMNS.index("max_disp_mm")].max()),
+			"at_lambda": float(solved[i_worst, 0]),
+			"at_obstacle_travel_mm": float(solved[i_worst, 1]),
+			"max_disp_mm": float(solved[:, CURVE_COLUMNS.index("max_disp_mm")].max()),
+			"rows_used": "1..n — row 0 (the un-equilibrated initial state) is EXCLUDED",
 			"note": "worst value over the WHOLE load path (the final state may be unloaded)",
 		},
 		"convergence": {
@@ -953,21 +996,53 @@ def run(job: dict) -> dict:
 		"curve_npy": str(curve_path),
 		"curve_columns": CURVE_COLUMNS,
 		"curve_shape": [int(curve.shape[0]), int(curve.shape[1])],
+		"curve_rows": {
+			"row_0": ("UN-EQUILIBRATED INITIAL STATE — the configuration BEFORE any "
+			          "Newton iteration, snapshotted for reference. It is NOT a solved "
+			          "step: if the start configuration penetrates an obstacle, the "
+			          "penalty force kappa * initial_penetration appears here as if it "
+			          "were an actuator force. Do NOT include it in any max/min over "
+			          "the curve."),
+			"first_solved_row": 1 if curve.shape[0] > 1 else None,
+			"n_solved_rows": int(curve.shape[0] - 1),
+			"initial_state": row0,
+		},
 		"obstacles_final": steps_rec[-1]["obstacles"] if steps_rec else [],
 		"timings_s": {"setup_s": round(setup_s, 4), "solve_s": round(solve_s, 4)},
 	}
 	if obstacles:
-		ins = curve[:, CURVE_COLUMNS.index("insertion_force_n")]
+		ins = solved[:, CURVE_COLUMNS.index("insertion_force_n")]
 		payload["insertion"] = {
 			"peak_force_n": float(np.max(ins)),
-			"peak_at_travel_mm": float(curve[int(np.argmax(ins)), 1]),
+			"peak_at_travel_mm": float(solved[int(np.argmax(ins)), 1]),
 			"min_force_n": float(np.min(ins)),
 			"final_force_n": float(ins[-1]),
-			"max_penetration_mm": float(np.max(curve[:, CURVE_COLUMNS.index("max_penetration_mm")])),
+			"max_penetration_mm": float(np.max(solved[:, CURVE_COLUMNS.index("max_penetration_mm")])),
+			"rows_used": "1..n — row 0 (the un-equilibrated initial state) is EXCLUDED",
 			"note": ("insertion_force_n is the ACTUATOR force along obstacle[0]'s "
 			         "motion direction (positive = resisting insertion). Penetration "
 			         "is the penalty compliance p_n/kappa — it is reported, not hidden."),
 		}
+		# The initial state is only DANGEROUS when it is non-trivial; say so
+		# with a machine-matchable kind rather than leaving it to be noticed.
+		if abs(row0["insertion_force_n"]) > 1e-9 or row0["max_penetration_mm"] > 1e-9 \
+				or row0["total_normal_force_n"] > 1e-9:
+			payload.setdefault("warnings", []).append({
+				"kind": "contact.initial_state_not_equilibrated",
+				"message": (
+					f"curve row 0 is the UN-EQUILIBRATED initial configuration and it is "
+					f"NOT trivial here: insertion_force_n {row0['insertion_force_n']:.4f} N, "
+					f"total_normal_force_n {row0['total_normal_force_n']:.4f} N, "
+					f"max_penetration_mm {row0['max_penetration_mm']:.4f}. The start "
+					f"configuration already touches/penetrates an obstacle (e.g. the "
+					f"seated state of a preloaded detent), so that row is kappa * "
+					f"initial_penetration, not a solved force. All receipt statistics "
+					f"exclude it; anything you compute from curve.npy must too. To "
+					f"MEASURE the seated state, run it as its own job with "
+					f"motion.travel_mm = 0.0."),
+				"initial_state": row0,
+			})
+			payload["warning_kinds"] = [w["kind"] for w in payload["warnings"]]
 	if job.get("linear_reference", True):
 		u_lin, loc_lin = linear_reference(X0, props, con,
 		                                  np.where(con_ramped, con_base, con_base), f_ext_full)
@@ -987,18 +1062,15 @@ def run(job: dict) -> dict:
 
 
 def main() -> None:
-	if len(sys.argv) != 2:
-		emit({"ok": False, "error": "usage: ace_contact_runner.py <job.json>"})
-		sys.exit(1)
-	job = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-	emit(run(job))
+	job, out = load_job()
+	payload = run(job)
+	payload["determinism"] = determinism_block(
+		payload, nondeterministic_paths=["timings_s"],
+		solver_note=("co-rotational beam + penalty contact, Newton-Raphson to a pinned "
+	             "residual; dense/direct linear algebra, measured bit-identical across "
+	             "re-runs. Compare core_digest, not receipt bytes."))
+	finish(payload, job=job, tool="ace_contact", out=out)
 
 
 if __name__ == "__main__":
-	try:
-		main()
-	except Exception as exc:  # noqa: BLE001 — the JSON line is the contract...
-		# ...and, like ace_thermal_runner, this one ALSO exits 1: a solver that
-		# quietly reports a non-converged iterate is worse than no solver.
-		emit({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
-		sys.exit(1)
+	run_cli("ace_contact", main, refusal_types=(JobError, ConvergenceError))

@@ -60,14 +60,18 @@ an L-bracket).
 ```
 
 - Ops run **in order**. Each op has a unique `id` and an `op` kind.
-- Geometry-producing ops **bind** their result (a solid or a sketch) to their
-  `id`; later ops reference it via `in`, `a`, `b`, or `sketch`. Measure and
-  export ops bind nothing — referencing their id is a `missing_ref` error.
+- Geometry-producing ops **bind** their result to their `id`; later ops
+  reference it via `in`, `a`, `b`, or `sketch`. There are three value kinds:
+  **solid** (an exact B-rep), **sketch** (a solved 2D sketch), and **mesh**
+  (triangles — see *Mesh values* below). Pure measure ops bind nothing —
+  referencing their id is a `missing_ref` error.
 - Execution **stops at the first failing op**: the report covers every attempted
   op and names exactly one root-cause failure (no error cascades).
 - **No silent invalidity**: every solid-producing op is gated through the
   kernel's `validate()`. A result that is not a closed manifold (or is empty)
   fails the op with the topology details instead of being bound.
+- Every op that reports measures accepts the universal **`require`** gate — see
+  *Gating a program with `require`* below.
 
 ### Conventions
 - Units are **millimetres**; angles in the JSON surface are **degrees**,
@@ -78,9 +82,108 @@ an L-bracket).
   profile builds inside-out and fails the validity gate loudly).
   `extrude_with_holes`, `extrude_tapered`, `revolve`, and the sketch sweeps
   re-wind input automatically.
-- Unknown JSON fields are ignored. A missing/malformed **required** param is a
-  loud `invalid_param`; misspelling an **optional** param silently leaves its
-  default in effect — check the report's measures when in doubt.
+- Unknown JSON fields are ignored, but the op reports a `warnings` entry naming
+  the key it did not accept. A missing/malformed **required** param is a loud
+  `invalid_param`; misspelling an **optional** param leaves its default in
+  effect — read the warnings, and `describe {"name": "<op>"}` for the accepted
+  set.
+
+## Gating a program with `require`
+
+`require` is accepted on **every op** and is checked against **that op's own
+measures**. An unmet expectation fails the op with `assert_failed`, so a
+mandatory gate lives in the program instead of in an external grep over the
+report:
+
+```json
+{"id": "stl", "op": "export_stl", "in": "part", "file": "part.stl",
+ "require": {"route": "exact", "watertight": true}}
+```
+
+Why here and not on `assert`: `assert` takes a bound solid, so it can only gate
+what a solid answers with no further parameters. The other mandatory gates are
+measured by ops that own their own parameters — the build direction and overhang
+angle (`support_report`), the thin-wall threshold (`wall_thickness`), the build
+envelope (`bounding_box`), the export path and route (`export_*`), the weld
+scale (`mesh_components`). Hanging the expectation off the op that already owns
+those parameters keeps **one** way to express a gate and needs no vocabulary of
+its own. `assert` stays the topology gate.
+
+**Keys** name a measure of that op, and may be dotted paths into a nested
+measure (`bbox.size`, `stress.max`); an integer segment indexes an array
+(`size.2`).
+
+**Expectations**:
+
+| form | meaning |
+|---|---|
+| a scalar (`true`, `1`, `"exact"`, `null`) | must be EQUAL |
+| an array | element-wise against an array measure; `null` skips an element |
+| `{"min": x}` / `{"max": x}` | INCLUSIVE bound |
+| `{"equals": v}` | equality (the object form, for combining with a bound) |
+| `{"within": {"target": t, "abs": a}}` | \|measured − t\| ≤ a |
+| `{"within": {"target": t, "percent": p}}` | half-width is `\|t\|·p/100` |
+| `{"not_null": true}` | the measure must have been computed |
+
+Several clauses may be combined in one object; **all** must hold.
+
+On success the op's measures gain a `required` echo of the expectation, so the
+receipt records the gate that was applied and not merely that the op passed.
+
+**Refusals** (`invalid_param`, never a silent pass):
+
+- `require` present but empty — a gate that checks nothing must not report success.
+- a key that names no measure — the refusal lists the keys that exist, so a typo
+  can never become a gate that quietly checks nothing.
+- `min`/`max`/`within` against a non-numeric or `null` measure.
+- `require` on an op that reports no measures.
+
+The four `DELIVERABLE_SPEC` §2 gates that had no in-program expression before:
+
+```json
+{"id": "stl", "op": "export_stl", "in": "p", "file": "p.stl",
+ "require": {"route": "exact", "watertight": true}},
+{"id": "sup", "op": "support_report", "in": "p", "build_dir": [0, 0, 1],
+ "require": {"steep_area": {"max": 0.0}}},
+{"id": "wall", "op": "wall_thickness", "in": "p", "flag_below": 1.2,
+ "require": {"thin_area": {"max": 0.0}, "p05_thickness": {"min": 1.2}}},
+{"id": "bed", "op": "bounding_box", "in": "p", "envelope": [256, 256, 256],
+ "require": {"fits_within": true}}
+```
+
+## Mesh values
+
+The voxel / implicit route produces **meshes**, not B-reps, and so do the
+exports. Those meshes are the files that get printed, so they bind to their op's
+`id` and are measurable:
+
+| op | binds |
+|---|---|
+| `export_stl` / `export_3mf` | the mesh actually written (on the healed route this is **not** the solid's tessellation) |
+| `import_mesh` | the mesh read from the file |
+| `implicit` / `tpms` / `gyroid_block` / `shell` / `mesh_carve` / `hybrid_boolean` / `export_threaded` | the extracted mesh |
+
+Ops that accept a bound mesh wherever they accept a solid: `validate`,
+`volume`, `bounding_box`, `mesh_components`, `support_report`, `clearance`,
+`assert_disjoint`, and `assert` (its mesh-meaningful checks). Their measures
+carry `"source": "solid"` or `"source": "mesh"` so the two are never confused.
+
+This does **not** add a mesh→B-rep conversion. A mesh value stays a mesh; the
+only field→exact route remains the explicit `solid_from_implicit` reverse
+bridge, which says `route: "voxel"` on its own receipt. Handing a mesh to an op
+that needs exact geometry is a loud `wrong_type`.
+
+A complete gate on a print file:
+
+```json
+{"id": "stl", "op": "export_stl", "in": "part", "file": "part.stl",
+ "require": {"watertight": true}},
+{"id": "one", "op": "mesh_components", "in": "stl", "require": {"components": 1}},
+{"id": "bed", "op": "bounding_box", "in": "stl", "envelope": [256, 256, 256],
+ "require": {"fits_within": true}},
+{"id": "sup", "op": "support_report", "in": "stl",
+ "require": {"steep_area": {"max": 0.0}}}
+```
 
 ## The report
 
@@ -103,6 +206,7 @@ Per-op entry fields:
 | `id` | always | the op's id (`$program` for whole-file failures, `#<index>` if an op had no id) |
 | `ok` | always | whether this op succeeded |
 | `measures` | per op | op-specific numbers/flags (documented per op below) |
+| `warnings` | when non-empty | hazards the interpreter noticed while running the op. Unknown params **fail closed** (2026-08-10): a param the op does not accept fails the op with `invalid_param` — a misspelled manufacturing dimension must never silently select a default and still return an apparently valid part — and the report entry carries the offending keys in `warnings` beside the error. Keys starting with `_` are the in-op comment convention and never warn. The universal `require` key is accepted on every op |
 | `file` | export ops | the path actually written |
 | `error` | on failure | `{"kind": <error kind>, "message": "..."}` — the message names the op id and the offending parameter/values |
 
@@ -124,7 +228,7 @@ A failing program looks like:
 | kind | when |
 |---|---|
 | `parse` | the program file is not valid JSON, or not `{"ops": [...]}` shaped (reported on id `$program`) |
-| `unknown_op` | `op` names none of the 160 operations below |
+| `unknown_op` | `op` names none of the 161 operations below |
 | `duplicate_id` | two ops share an `id` |
 | `missing_ref` | `in`/`a`/`b`/`sketch` names no prior result (or names a measure/export op, which binds nothing) |
 | `wrong_type` | the reference resolved to the wrong kind (e.g. a sketch where a solid is needed) |
@@ -203,7 +307,7 @@ nested BOM v2 tree rollup, and fails on any unexpected touching pair.
 
 # Op reference
 
-160 ops (mechanical count of `OpKind` — `describe` enumerates them all,
+161 ops (mechanical count of `OpKind` — `describe` enumerates them all,
 including the 13 assembly ops): solid constructors, sketch ops, booleans,
 features/transforms, measures, assertions, exports/imports, implicit/hybrid
 ops (including the voxel-route solid ops `offset_solid` / `shell_solid` /
@@ -265,7 +369,9 @@ sphere.
 ```
 
 ### `cone`
-Base disc tapering to an apex `height` along `axis`.
+Base disc tapering to an apex `height` along `axis` — or, with `top_radius`, the
+**frustum** that same taper cuts at `height` (a draughted boss, a chamfered
+spigot, a tapered stand-off).
 
 | param | type | required | meaning |
 |---|---|---|---|
@@ -274,9 +380,20 @@ Base disc tapering to an apex `height` along `axis`.
 | `radius` | number | yes | base radius > 0 |
 | `height` | number | yes | apex distance > 0 |
 | `segments` | int | no (32) | wall facet count |
+| `top_radius` | number | no (0) | flat top radius; 0 = a true cone (apex) |
+
+The frustum's lateral band carries the same exact `Surface::Cone` tag as the
+un-truncated cone, so `exact_volume` / `mass_properties` / `export_step` stay
+analytic. `top_radius == radius` is refused (`invalid_param`): that solid is a
+cylinder, and a cone surface with no apex is not representable — use `cylinder`.
 
 ```json
 {"ops": [{"id": "tip", "op": "cone", "base": [0, 0, 0], "axis": [0, 0, 1], "radius": 5, "height": 12}]}
+```
+
+```json
+{"ops": [{"id": "boss", "op": "cone", "base": [0, 0, 0], "axis": [0, 0, 1],
+          "radius": 10, "height": 20, "top_radius": 4}]}
 ```
 
 ### `torus`
@@ -528,10 +645,16 @@ robustness work).
 ```
 
 ### `union_all`
-n-ary union: folds every solid listed in `in` (≥ 2 ids) into one result, left
-to right — the one-op form of a chained `union` ladder. Disjoint bodies keep
-their own shells, so `union_all` + `assert {"shells": N}` is an N-body
-no-contact proof.
+n-ary union: folds every solid listed in `in` (≥ 2 ids) into one result — the
+one-op form of a chained `union` ladder. Since 2026-08-27 the fold order is
+robustness-aware rather than left-to-right: operands merge in ascending order
+of how many other operands' AABBs they touch (ties keep argument order, so
+the fold stays deterministic). Mutually-disjoint operands combine first as a
+cheap multi-shell union and a touch-everything "hub" operand is arranged
+once, last — a hub whose same face was re-arranged once per contacting
+operand used to fail `invalid_geometry` mid-ladder. Union is associative, so
+the resulting solid is unchanged. Disjoint bodies keep their own shells, so
+`union_all` + `assert {"shells": N}` is an N-body no-contact proof.
 
 | param | type | required | meaning |
 |---|---|---|---|
@@ -546,6 +669,25 @@ no-contact proof.
   {"id": "no_contact", "op": "assert", "in": "all", "shells": 3}
 ]}
 ```
+
+**Known hazard — a long fold of mostly-disjoint bodies can fail to terminate.**
+Measured on a 13-cutter fold (a Ø56 disc's cutters: 8 × Ø10 cylinders on a Ø42
+bolt circle, a Ø20.6 bore, 3 × Ø6 notches centred ON the bore wall, and a Ø28.6
+groove ring), folding the first *n* of those thirteen:
+
+| n | 2 | 9 | 10 | 11 | 12 | 13 |
+|---|---|---|---|---|---|---|
+| wall time | 0.44 s | 0.11 s | 0.22 s | 0.42 s | 0.85 s | **no completion in 100 s** |
+
+The cost doubles per body from n = 9 and then does not finish, and a BALANCED
+(tournament) fold of the same thirteen behaves identically — so this is the
+boolean arrangement over a many-shell accumulator, not the fold order. Every
+individual pair unions in well under a second.
+
+Until that is fixed: build the same solid as a CHAIN of `difference` ops against
+virgin primitives (the identical 13-cutter part completes in 0.38 s that way),
+and keep `union_all` for short folds. `assert {"shells": N}` still works, and is
+still the tessellation-independent no-contact proof, for folds that complete.
 
 ## Features & transforms
 
@@ -787,10 +929,30 @@ solid input (`wrong_type` on a sketch).
 ### `validate`
 Topological health. Note: every solid-producing op already gates on this; the
 op exists so a program can RECORD the topology (e.g. assert genus) in its
-report.
+report. Accepts a solid or a bound **mesh**.
 
-Measures: `closed`, `manifold`, `euler_characteristic`, `genus`, `shells`,
-`valid`.
+Measures (solid): `closed`, `manifold`, `euler_characteristic`, `genus`,
+`shells`, `valid`, `geometric_ok`, `source: "solid"`.
+Measures (mesh): `closed`, `manifold`, `valid`, `triangles`, `boundary_edges`,
+`non_manifold_edges`, `non_orientable_edges`, `geometric_ok`, `source: "mesh"`.
+
+`geometric_ok` is the GEOMETRIC validity flag: `false` means two triangles of
+the tessellation properly cross, i.e. the surface passes through itself. A solid
+can be closed, manifold and watertight and still be geometrically invalid, with
+a silently-wrong volume — and the exported STL inherits the crossing.
+
+When `geometric_ok` is `false` the report carries the **witness**, so the flag is
+actionable rather than something to learn to ignore:
+
+```json
+"self_intersection": {"triangles": [732, 1206],
+                      "point": [-21.7768, 15.1400, -1.5870],
+                      "pairs": 20}
+```
+
+`triangles` are the two crossing triangle indices in the measurement
+tessellation, `point` is a point on the crossing, `pairs` is how many crossing
+pairs exist. The witness is deterministic (the lexicographically lowest pair).
 
 ```json
 {"ops": [
@@ -950,6 +1112,82 @@ Measures: `min_draft_deg`, `low_draft_area`, `undercut_area`.
 ]}
 ```
 
+### `mesh_components`
+Connected-body count of the tessellated solid — the **single-body oracle** the
+other gates cannot give. `shells` counts B-rep shell *records*, which can still
+read 1 on a part severed into floating lumps (docs/FRICTION.md #24: a tapered
+cutter's apex run out through a wall leaves a free-floating panel that passes
+`validate`, watertightness, volume, sweeps and STEP round-trip). This measure
+tessellates the exact surfaces, position-welds vertices at `weld_tol` (so
+coincident-but-unshared boolean vertices count as one point), and union-finds
+actual triangle connectivity.
+
+| param | type | required | meaning |
+|---|---|---|---|
+| `in` | id | yes | a prior solid **or a bound mesh** |
+| `tol` | number | no | chord tolerance (mm) of the measurement tessellation (default 0.05); ignored for a bound mesh, which IS its triangles |
+| `weld_tol` | number | no | position-weld scale (mm) for vertex identity (default 1e-3, the house weld scale) |
+
+Measures: `components`, `is_one_body`, `triangles`, `tol`, `weld_tol`,
+`watertight`, `boundary_edges`, `non_orientable_edges`, `source`,
+`provenance: "faceted"`. Gate it with `require {"components": 1}` (or
+`assert {"components": 1}`) — any campaign that subtracts a tapered or tapering
+cutter must.
+
+`watertight` here is the rigorous 2-manifold test, so it can be `false` while
+`boundary_edges` is 0. When it is, `non_orientable_edges` is why: some triangles
+are wound inside-out. That closes every edge and shares every vertex, so it
+cannot change the component count — it is reported, never refused.
+
+#### `components` and `shells` are COMPLEMENTARY — neither dominates
+
+| | catches | misses |
+|---|---|---|
+| `components` | a part severed into floating lumps that the B-rep still records as ONE shell | a severance **narrower than `weld_tol`** — the two faces weld together and read as one body |
+| `shells` | a severance of any width, down to sub-micron, because the boolean records a new shell | a severance the B-rep does not record as a shell split |
+
+Run both. A worked case: two boxes with a **0.0005 mm** gap read `shells: 2`
+(severance seen) and `components: 1` at the default `weld_tol` of 1e-3
+(severance welded shut). Dropping `weld_tol` to `1e-6` makes `components` see it
+too — which is why `weld_tol` is exposed on `assert` as well as here. A hard
+severance proof needs `weld_tol` **below** the gap being ruled out.
+
+`weld_tol` is a true tolerance, not a grid pitch: any two vertices no farther
+apart than `weld_tol` are one point, wherever the part sits in space.
+
+#### Refusal: an untrustworthy measurement surface
+
+A bound **solid** is closed and manifold by construction, so if its measurement
+tessellation has boundary edges the faceter has dropped geometry and the
+component count is counting faceter cracks, not bodies. The op then FAILS with
+`invalid_geometry` rather than report the number — the message gives the
+boundary-edge count and the count it would have reported. Gate `validate`
+(`closed` / `manifold` / `shells`) meanwhile, and/or `export_stl` the part and
+run this measure on the export's bound mesh, which is what actually prints. A
+bound **mesh** is never refused: openness there is a property of the data, and
+is reported as `watertight: false` for `require` to gate.
+
+**Only an OPENING trips this.** A boundary edge is an undirected edge used by
+exactly ONE triangle. A *winding* defect — two triangles sharing an edge and
+traversing it the same way — closes that edge perfectly and is counted under
+`non_orientable_edges`, not here. The distinction is load-bearing: until
+2026-08-08 `Mesh::boundary_edge_count` asked "is the reverse directed edge
+absent?", which is true for every non-orientable edge, and this refusal
+therefore fired on 11 shipped part programs across 8 campaigns whose
+tessellations are closed and whose component count was correct.
+
+```json
+{"ops": [
+  {"id": "a", "op": "box", "min": [0,0,0], "max": [10,10,10]},
+  {"id": "b", "op": "box", "min": [20,0,0], "max": [30,10,10]},
+  {"id": "u", "op": "union", "a": "a", "b": "b"},
+  {"id": "mc", "op": "mesh_components", "in": "u"}
+]}
+```
+
+reports `components: 2, is_one_body: false` — the disjoint union is one bound
+solid in two bodies.
+
 ### `coincident_fit`
 Advisory **pre-scan for the near-coincident-face hazard class**
 (`kernel_brep::detect_coincident_fit`) — the question to ask BEFORE booleaning
@@ -1106,6 +1344,51 @@ executed) and `0.0` at `46`. So `teardrop_45` is a FALSE alarm, not a sagging
 roof: set the threshold to your printer's real limit and treat any reading
 within a degree of a modelled face angle as unresolved.
 
+### `clearance`
+Non-asserting gap / interference between two bound solids or meshes — the
+MEASURING twin of `assert_disjoint` (this op never fails a program; gate it with
+`require`).
+
+| param | type | required | meaning |
+|---|---|---|---|
+| `a`, `b` | ids | yes | two prior solids **or bound meshes** |
+| `tol` | number | no | measurement chord tolerance in mm (default `0.01`) |
+
+Measures: `distance` (minimum surface gap, mm), `interfering`,
+`overlap_volume`, `coincident_fit_hazard`, `tol`, `source`,
+`provenance: "faceted"`, and `overlap_volume_reason` whenever `overlap_volume`
+is `null`.
+
+```json
+{"id": "gap", "op": "clearance", "a": "bore", "b": "pin",
+ "require": {"distance": {"min": 0.20}}}
+```
+
+**What `distance` is, exactly.** It is the minimum distance between the two
+TESSELLATED surfaces, computed from exact triangle–triangle feature distances.
+Both operands are faceted with **inscribed** polygons, so for two nominally
+coaxial round features the measured gap is SMALLER than the nominal gap by the
+sagitta of both facetings: a Ø34.2 bore against a Ø33.6 spigot (0.30 mm nominal
+radial gap) measures ≈ 0.227 mm at the default `tol`, converging upward as `tol`
+tightens. That is not an error — it is the honest gap between the surfaces the
+kernel actually holds. For a nominal-geometry number use `measure_dimension`
+with `kind: "diameter"` on both features (`provenance: "analytic"`), which is a
+stronger receipt than any faceted distance.
+
+**`interfering` and `overlap_volume`.** `overlap_volume` is the volume of the
+exact boolean intersection and needs two exact SOLIDS. It is `null` — with
+`overlap_volume_reason` saying which of the three cases applies — when:
+
+- `coincident_fit_hazard` is true (the operands share a flush/press-fit face
+  pair, and the exact intersection across it is the known boolean-hang case);
+- the exact intersection produced no measurable body for the pair;
+- at least one operand is a bound mesh.
+
+When `overlap_volume` is `null`, `interfering` degrades to `distance < 1e-6`,
+which reads CONTACT as interference. Read `distance` in that case, or gate
+`exact_volume` on an explicit `intersection` body — the tessellation-independent
+route.
+
 ## Assertions
 
 Measures *record*; assertions *enforce*. An `assert` op fails its program
@@ -1114,24 +1397,39 @@ acceptance criteria live **in the program**, not in an external grep over the
 report. On success the measured values are echoed as measures.
 
 ### `assert`
-Declarative checks against a bound solid. Give at least one check (an
-assertion with nothing to assert is a loud `invalid_param`). All present
-checks are evaluated and every failure is listed in the one error message.
+Declarative **topology** checks against a bound solid (or mesh). Give at least
+one check (an assertion with nothing to assert is a loud `invalid_param`). All
+present checks are evaluated and every failure is listed in the one error
+message.
+
+Every OTHER kind of gate — export route, watertightness, support-freeness, wall
+thickness, bed fit, mass — is expressed with the universal `require` parameter on
+the op that measures it (see *Gating a program with `require`*). `assert` is not
+a second vocabulary for those.
+
+On a bound **mesh**, `genus` / `shells` / `exact_volume_within` are refused
+(`wrong_type`): a mesh carries no B-rep topology and no analytic surfaces, and
+inventing those numbers from triangles is exactly the plausible-looking answer
+this surface refuses to give. `components` / `closed` / `manifold` / `valid` /
+`volume_within` are answered from the mesh itself.
 
 | param | type | required | meaning |
 |---|---|---|---|
-| `in` | id | yes | a prior solid |
+| `in` | id | yes | a prior solid **or a bound mesh** |
 | `volume_within` | object | no | `{"target": v, "abs": a}` or `{"target": v, "percent": p}` — faceted volume must land in `target ± tolerance` (exactly one of `abs`/`percent`) |
 | `exact_volume_within` | object | no | same window applied to the analytic `exact_volume` |
 | `genus` | integer | no | topological genus must equal this |
 | `shells` | integer | no | shell count must equal this (e.g. `2` proves a union kept two disjoint bodies) |
+| `components` | integer | no | mesh connected-component count must equal this — the single-body gate (`components: 1`), measured exactly like `mesh_components`; `shells` alone cannot catch a severed part, and `components` alone cannot catch a severance narrower than `weld_tol` |
+| `tol` | number | no | chord tolerance (mm) of the `components` measurement tessellation (default 0.05) |
+| `weld_tol` | number | no | position-weld scale (mm) for `components` vertex identity (default 1e-3) — a severance narrower than this welds shut and reads as one body, so a hard severance proof needs `weld_tol` below the gap being ruled out |
 | `closed` / `manifold` / `valid` | bool | no | the corresponding `validate()` flag must equal this |
 
 ```json
 {"ops": [
   {"id": "b", "op": "box", "min": [0,0,0], "max": [20,10,5]},
   {"id": "gate", "op": "assert", "in": "b",
-   "volume_within": {"target": 1000, "percent": 0.1}, "genus": 0, "shells": 1, "valid": true}
+   "volume_within": {"target": 1000, "percent": 0.1}, "genus": 0, "shells": 1, "components": 1, "valid": true}
 ]}
 ```
 
@@ -1333,12 +1631,29 @@ with `invalid_geometry` rather than exporting garbage.
 | `tol` | number | no (0.01) | chord tolerance in mm |
 | `voxel` | number | no (0.3) | heal-fallback voxel size in mm |
 
-Measures: `route`, `triangles`, `watertight`.
+Measures: `route`, `triangles`, `watertight`, `watertight_means`,
+`boundary_edges`, `non_orientable_edges`, `two_manifold`. The op also **binds
+the mesh it wrote**, so the print file itself can be gated (`mesh_components`,
+`support_report`, `bounding_box`, `validate`, `require`) rather than the solid
+that stands in for it — on the `voxel_healed` route those are two different
+surfaces.
+
+**What `watertight` means here.** It is EDGE CLOSURE: every undirected edge is
+used by exactly two triangles. That is the property the op refuses without, and
+the one a slicer needs to fill a solid. It is *not* the rigorous
+closed-orientable-2-manifold property, and on this kernel the difference is
+real: a boolean result routinely carries a few triangles wound inside-out, which
+close their edges perfectly and leave the file non-orientable. Those show up as
+`non_orientable_edges > 0` with `boundary_edges: 0` and `two_manifold: false`,
+and they cannot be seen from `watertight` alone — which is why all four are
+reported. Gate `watertight` for printability; gate `two_manifold` as well if a
+downstream tool needs consistent normals.
 
 ```json
 {"ops": [
   {"id": "b", "op": "box", "min": [0,0,0], "max": [20,10,5]},
-  {"id": "out", "op": "export_stl", "in": "b", "file": "part.stl", "tol": 0.01}
+  {"id": "out", "op": "export_stl", "in": "b", "file": "part.stl", "tol": 0.01,
+   "require": {"watertight": true, "route": "exact", "boundary_edges": 0}}
 ]}
 ```
 

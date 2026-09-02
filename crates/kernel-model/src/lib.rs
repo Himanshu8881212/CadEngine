@@ -4230,18 +4230,153 @@ pub mod materials {
 		/// that cell as an extrapolation bound, so state the duration you
 		/// designed for in the analysis.
 		pub fn creep_allowable_mpa(temp_c: f64, hours: f64) -> f64 {
-			if !temp_c.is_finite() || !hours.is_finite() || hours < 0.0 || temp_c > CREEP_TEMPS_C[1] {
-				return 0.0;
-			}
-			let row = if temp_c <= CREEP_TEMPS_C[0] { 0 } else { 1 };
-			let mut col = CREEP_HOURS.len() - 1;
-			for (i, h) in CREEP_HOURS.iter().enumerate() {
-				if hours <= *h {
-					col = i;
-					break;
+			creep_lookup(temp_c, hours, false).sig_allow_mpa
+		}
+
+		/// How the cell behind an allowable was reached. The table is a COARSE
+		/// STEP (two temperature tiers, nothing between), so "which cell was
+		/// this margin read at" is the whole question — a campaign that writes
+		/// "gated against creep_allowable_mpa(23 C, 1 year)" while its declared
+		/// ambient is 25 °C has silently designed to a temperature it does not
+		/// hold. This makes the answer a value instead of a sentence.
+		///
+		/// The string forms are the SAME strings `tools/materials.py` puts in
+		/// its receipts, so a Python gate and a Rust gate match on one
+		/// vocabulary.
+		#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+		pub enum CreepCellMatch {
+			/// Both the temperature tier and the duration column were hit exactly.
+			Exact,
+			/// One or both axes were rounded UP to the next tabulated cell, so
+			/// the allowable read is the WORSE (conservative) one.
+			RoundedUpConservative,
+			/// The request is longer than the last tabulated duration; the last
+			/// column is reused, as the source record's own bound directs.
+			ExtrapolatedBeyondLastDuration,
+			/// No cell was read at all — see [`CreepCell::refusal`].
+			Refused,
+		}
+
+		impl CreepCellMatch {
+			pub fn as_str(self) -> &'static str {
+				match self {
+					CreepCellMatch::Exact => "exact",
+					CreepCellMatch::RoundedUpConservative => "rounded_up_conservative",
+					CreepCellMatch::ExtrapolatedBeyondLastDuration => "extrapolated_beyond_last_duration",
+					CreepCellMatch::Refused => "refused",
 				}
 			}
-			CREEP_SIG_ALLOW_MPA[row][col]
+		}
+
+		/// Machine-matchable reason a creep lookup REFUSED. Identical slugs to
+		/// `tools/materials.CREEP_REFUSAL_KINDS`.
+		#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+		pub enum CreepRefusal {
+			/// Temperature or duration was NaN / infinite.
+			InputNotFinite,
+			/// Duration was negative.
+			NegativeDuration,
+			/// Temperature is above the hottest tabulated tier. There is NO
+			/// fallback to the hot row — no data supports one there.
+			TempAboveTabulated,
+		}
+
+		impl CreepRefusal {
+			pub fn as_str(self) -> &'static str {
+				match self {
+					CreepRefusal::InputNotFinite => "creep_input_not_finite",
+					CreepRefusal::NegativeDuration => "creep_negative_duration",
+					CreepRefusal::TempAboveTabulated => "creep_temp_above_tabulated",
+				}
+			}
+		}
+
+		/// A receipted sustained-allowable lookup: the number PLUS the cell it
+		/// came from and how it was reached.
+		#[derive(Debug, Clone, Copy, PartialEq)]
+		pub struct CreepCell {
+			pub temp_c_requested: f64,
+			pub hours_requested: f64,
+			/// The allowable to gate against, MPa. **0.0 on refusal**, so
+			/// `demand <= sig_allow_mpa` fails loudly there.
+			pub sig_allow_mpa: f64,
+			/// The tabulated (in-plane) cell value before any anisotropy derate.
+			pub in_plane_mpa: f64,
+			/// Temperature tier actually read, °C (`None` on refusal).
+			pub row_used_c: Option<f64>,
+			/// Duration column actually read, hours (`None` on refusal).
+			pub col_used_h: Option<f64>,
+			pub cell_match: CreepCellMatch,
+			pub refusal: Option<CreepRefusal>,
+			/// Whether the caller asked for the across-layer derate. Never
+			/// applied silently — the tabulated cells are IN-PLANE.
+			pub across_layer: bool,
+			/// 1.0, or [`Z_VS_XY_STRENGTH_RATIO`] when `across_layer`.
+			pub anisotropy_factor: f64,
+		}
+
+		impl CreepCell {
+			pub fn refused(&self) -> bool {
+				self.refusal.is_some()
+			}
+		}
+
+		/// Receipted sustained (creep) allowable. Same lookup rule and same
+		/// number as [`creep_allowable_mpa`], but it also reports WHICH cell was
+		/// read and how — exact, rounded up, extrapolated, or refused.
+		///
+		/// `across_layer` applies [`Z_VS_XY_STRENGTH_RATIO`] to the allowable
+		/// (never to E). It is the caller's explicit choice, recorded on the
+		/// result; `creep_allowable_mpa` is the in-plane form.
+		pub fn creep_lookup(temp_c: f64, hours: f64, across_layer: bool) -> CreepCell {
+			let factor = if across_layer { Z_VS_XY_STRENGTH_RATIO } else { 1.0 };
+			let refuse = |why: CreepRefusal| CreepCell {
+				temp_c_requested: temp_c,
+				hours_requested: hours,
+				sig_allow_mpa: 0.0,
+				in_plane_mpa: 0.0,
+				row_used_c: None,
+				col_used_h: None,
+				cell_match: CreepCellMatch::Refused,
+				refusal: Some(why),
+				across_layer,
+				anisotropy_factor: factor,
+			};
+			if !temp_c.is_finite() || !hours.is_finite() {
+				return refuse(CreepRefusal::InputNotFinite);
+			}
+			if hours < 0.0 {
+				return refuse(CreepRefusal::NegativeDuration);
+			}
+			if temp_c > CREEP_TEMPS_C[CREEP_TEMPS_C.len() - 1] {
+				return refuse(CreepRefusal::TempAboveTabulated);
+			}
+			// Round the temperature UP to the next tabulated tier.
+			let row = CREEP_TEMPS_C.iter().position(|t| *t >= temp_c).unwrap_or(CREEP_TEMPS_C.len() - 1);
+			// Round the duration UP to the next tabulated column; beyond the
+			// last column, reuse it (flagged).
+			let beyond_last = hours > CREEP_HOURS[CREEP_HOURS.len() - 1];
+			let col = CREEP_HOURS.iter().position(|h| *h >= hours).unwrap_or(CREEP_HOURS.len() - 1);
+			let in_plane = CREEP_SIG_ALLOW_MPA[row][col];
+			let cell_match = if beyond_last {
+				CreepCellMatch::ExtrapolatedBeyondLastDuration
+			} else if CREEP_TEMPS_C[row] == temp_c && CREEP_HOURS[col] == hours {
+				CreepCellMatch::Exact
+			} else {
+				CreepCellMatch::RoundedUpConservative
+			};
+			CreepCell {
+				temp_c_requested: temp_c,
+				hours_requested: hours,
+				sig_allow_mpa: in_plane * factor,
+				in_plane_mpa: in_plane,
+				row_used_c: Some(CREEP_TEMPS_C[row]),
+				col_used_h: Some(CREEP_HOURS[col]),
+				cell_match,
+				refusal: None,
+				across_layer,
+				anisotropy_factor: factor,
+			}
 		}
 
 		/// Sustained (creep) SHEAR allowable, MPa — [`creep_allowable_mpa`]

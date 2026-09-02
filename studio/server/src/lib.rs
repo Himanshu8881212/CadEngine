@@ -33,6 +33,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use std::time::Duration;
+use tokio::sync::Semaphore;
 use tower::limit::GlobalConcurrencyLimitLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::timeout::TimeoutLayer;
@@ -59,9 +60,27 @@ pub struct AppState {
 	/// In-memory stateful-editing sessions (M4 loop). Lives HERE, not in kernel-api,
 	/// which stays a pure batch function. Process-local; not persisted.
 	pub sessions: session::Sessions,
+	/// Dedicated permits held by geometry tasks until the blocking computation
+	/// actually exits. HTTP timeout must not release admission while an orphaned
+	/// `spawn_blocking` task is still consuming CPU.
+	pub compute_slots: Arc<Semaphore>,
 }
 
 impl AppState {
+	/// Run synchronous kernel work while retaining a compute permit for the whole
+	/// task lifetime, including after an HTTP request future times out.
+	pub async fn spawn_compute<F, T>(&self, work: F) -> Result<T, tokio::task::JoinError>
+	where
+		F: FnOnce() -> T + Send + 'static,
+		T: Send + 'static,
+	{
+		let permit = self.compute_slots.clone().acquire_owned().await.expect("compute semaphore is never closed");
+		tokio::task::spawn_blocking(move || {
+			let _permit = permit;
+			work()
+		})
+		.await
+	}
 	/// Resolve (and create) the output directory for `session`. Session names
 	/// are confined to `[A-Za-z0-9_-]{1,64}` so a session id can never escape
 	/// `out_root`; anything else is rejected.
@@ -73,9 +92,12 @@ impl AppState {
 		if !ok {
 			return Err(format!("invalid session name '{name}': use [A-Za-z0-9_-], at most 64 chars"));
 		}
-		let dir = self.out_root.join(name);
+		std::fs::create_dir_all(&self.out_root)
+			.map_err(|e| format!("cannot create output root '{}': {e}", self.out_root.display()))?;
+		let dir = confine(&self.out_root, name)?;
 		std::fs::create_dir_all(&dir).map_err(|e| format!("cannot create session dir '{}': {e}", dir.display()))?;
-		Ok(dir)
+		// Re-check after creation so a pre-existing session symlink is never used.
+		confine(&self.out_root, name)
 	}
 
 	/// Resolve a repo-relative file path, refusing absolute paths and any `..`
@@ -97,7 +119,23 @@ pub(crate) fn confine(base: &Path, rel: &str) -> Result<PathBuf, String> {
 	if escapes {
 		return Err(format!("path may not contain '..': '{rel}'"));
 	}
-	Ok(base.join(p))
+	let canonical_base = std::fs::canonicalize(base)
+		.map_err(|e| format!("cannot canonicalize sandbox '{}': {e}", base.display()))?;
+	let mut current = canonical_base.clone();
+	for component in p.components() {
+		if let std::path::Component::Normal(name) = component {
+			current.push(name);
+			match std::fs::symlink_metadata(&current) {
+				Ok(meta) if meta.file_type().is_symlink() => {
+					return Err(format!("path crosses a symbolic link at '{}': '{rel}'", current.display()));
+				}
+				Ok(_) => {}
+				Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+				Err(e) => return Err(format!("cannot inspect '{}': {e}", current.display())),
+			}
+		}
+	}
+	Ok(canonical_base.join(p))
 }
 
 /// Build the full Studio router over `state`, serving the API plus the built
@@ -140,7 +178,8 @@ pub fn router(state: Arc<AppState>, web_dist: &Path, auth_token: Option<String>)
 	};
 	// The per-request timeout is ALSO the hard backstop for a runaway boolean (V4's
 	// coincident-fit hang): the op runs via spawn_blocking, so at the deadline the request
-	// future is dropped and returns 408 while the abandoned task is bounded by the concurrency cap.
+	// future is dropped and returns 408. AppState's compute semaphore stays inside the
+	// blocking closure, so detached work still consumes a slot until it actually exits.
 	app.layer(TimeoutLayer::with_status_code(StatusCode::REQUEST_TIMEOUT, Duration::from_secs(timeout_secs)))
 		.layer(GlobalConcurrencyLimitLayer::new(concurrency))
 		.layer(DefaultBodyLimit::max(MAX_BODY))
@@ -158,13 +197,25 @@ async fn require_auth(expected: Option<String>, req: Request, next: Next) -> Res
 				.get(header::AUTHORIZATION)
 				.and_then(|v| v.to_str().ok())
 				.and_then(|s| s.strip_prefix("Bearer "));
-			if presented == Some(token.as_str()) {
+			if presented.is_some_and(|value| constant_time_eq(value.as_bytes(), token.as_bytes())) {
 				next.run(req).await
 			} else {
 				(StatusCode::UNAUTHORIZED, "missing or invalid bearer token").into_response()
 			}
 		}
 	}
+}
+
+/// Compare secret bytes without a data-dependent early return. Length is part
+/// of the accumulated difference, so differently sized values never match.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+	let mut diff = a.len() ^ b.len();
+	for i in 0..a.len().max(b.len()) {
+		let av = a.get(i).copied().unwrap_or(0);
+		let bv = b.get(i).copied().unwrap_or(0);
+		diff |= usize::from(av ^ bv);
+	}
+	diff == 0
 }
 
 #[cfg(test)]
@@ -175,7 +226,10 @@ mod tests {
 	use tower::ServiceExt; // oneshot
 
 	fn test_app(token: Option<String>) -> Router {
-		let state = Arc::new(AppState { repo_root: std::env::temp_dir(), out_root: std::env::temp_dir(), api_key: None, sessions: Default::default() });
+		let state = Arc::new(AppState {
+			repo_root: std::env::temp_dir(), out_root: std::env::temp_dir(), api_key: None,
+			sessions: Default::default(), compute_slots: Arc::new(Semaphore::new(2)),
+		});
 		router(state, Path::new("/no-such-web-dist"), token)
 	}
 	fn get_catalog(auth: Option<&str>) -> HttpRequest<Body> {
@@ -216,5 +270,23 @@ mod tests {
 			.unwrap();
 		let resp = app.oneshot(req).await.unwrap();
 		assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE, "oversized body → 413 (got {})", resp.status());
+	}
+
+	#[tokio::test]
+	async fn timed_out_compute_keeps_its_slot_until_the_worker_really_exits() {
+		let slots = Arc::new(Semaphore::new(1));
+		let state = AppState {
+			repo_root: std::env::temp_dir(), out_root: std::env::temp_dir(), api_key: None,
+			sessions: Default::default(), compute_slots: slots.clone(),
+		};
+		let timed = tokio::time::timeout(
+			Duration::from_millis(10),
+			state.spawn_compute(|| std::thread::sleep(Duration::from_millis(120))),
+		).await;
+		assert!(timed.is_err(), "the simulated HTTP deadline must elapse first");
+		assert_eq!(slots.available_permits(), 0,
+			"dropping the HTTP future must not admit another CPU task while the orphan still runs");
+		tokio::time::sleep(Duration::from_millis(160)).await;
+		assert_eq!(slots.available_permits(), 1, "the real worker exit releases its slot");
 	}
 }

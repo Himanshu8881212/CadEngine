@@ -42,7 +42,7 @@ the unstructured field outputs (documented below).
 Output contract (IDENTICAL to ace_fea_runner.py): the LAST non-empty stdout
 line is ONE JSON object; all logging goes to stderr. Success =>
 {ok:true, max_von_mises_pa, ...}; any failure => {ok:false, error} and STILL
-exit 0 — the JSON line is the contract, not the exit code. Success also carries
+a NONZERO exit (see THE WIRE + EXIT CONTRACT below). Success also carries
 a mesh receipt {n_tets, n_nodes, min_corner_jacobian_mm3, volume_mm3} from
 MeshIR.check() and per-selector node-count receipts (selector_count_unit:
 "nodes").
@@ -57,9 +57,34 @@ Honest caveats: body-fitted tet10 resolves the fillet peak the voxel grid
 misses, but the reported peak is still nodal-recovered and mesh-dependent —
 refine elem_size_mm to confirm convergence. Only point loads and clamped/pinned
 fixtures are wired in the tet solver.
+
+THE WIRE + EXIT CONTRACT (shared; see tools/_receipt.py for the full rules):
+    python3 <runner>.py <job.json> [--out PATH]
+  The LAST non-empty stdout line is ONE JSON receipt; all logging goes to
+  stderr. The exit code AGREES with the receipt, always:
+    exit 0  ok:true   analysis ran, receipt usable
+    exit 1  ok:false   the tool could not run the request (usage, unreadable
+                       job, internal error) — NO analysis was performed
+    exit 2  ok:false   the tool RAN and REFUSED, or the analysis failed
+  `error_kind` is a machine-matchable slug (`refusal.*`, `timeout`, `killed.*`,
+  `internal`, `usage`, `receipt_path_conflict`). CHANGED 2026-08-08: this runner
+  used to exit 0 on ok:false by design. Parsing `ok` still works and is still
+  correct; `$?` now works too. `LMCAD_RUNNER_EXIT=legacy` or a job
+  `"legacy_exit_zero": true` restores exit-0-always and records the opt-out in
+  `exit_contract.mode`.
+  `--out PATH` writes the receipt atomically (temp+rename) so an interrupted run
+  can never leave a zero-byte file where a good receipt was; a job-level
+  `receipt` key that disagrees with `--out` is REFUSED, not silently preferred.
+  `LMCAD_RECEIPT_DRY_RUN=1` suppresses every on-disk write (safe what-if runs).
+  `"wall_budget_s"` (or `LMCAD_WALL_BUDGET_S`), SIGTERM and SIGINT all produce
+  an honest ok:false receipt instead of a vanished run.
+  `determinism` names the receipt's wall-clock fields and carries `core_digest`,
+  a sha256 over the rest at 12 significant figures — compare THAT between runs,
+  never the receipt bytes.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -69,9 +94,18 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _ace import (  # noqa: E402  — importing runs the boot side effects (ACE on path, kernel-api env)
     ACE_INSTALL_HINT,
+    apply_warnings,
+    determinism_block,
     emit,
+    finish,
+    load_job,
     log,
+    provenance_fields,
     resolve_material,
+    runtime_provenance,
+    run_cli,
+    validated_range_check,
+    validated_range_warning,
 )
 
 ANALYZER_VERSION = "reference_fea_tet/tet10-body-fitted/v1"
@@ -122,7 +156,8 @@ def selector_receipts(job: dict, mesh):
 
 
 def main() -> None:
-    job = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    job, out = load_job()
+    runtime_provenance(job)  # release strictness is checked before meshing/artifacts
     job["material"] = resolve_material(job["material"])  # Unit 3: single materials source
     out_dir = Path(job["out_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -148,9 +183,11 @@ def main() -> None:
     if not res.get("ok"):
         # The solver refused (0-node selector, singular system, inverted tet,
         # unsupported load) — surface it on the same {ok:false,error} contract.
-        emit({"ok": False, "error": f"tet solver refused: {res.get('error')}",
-              "mesh": mesh_receipt})
-        return
+        # It used to `return` here, i.e. EXIT 0 on a refused analysis; the
+        # exit code now agrees with `ok` (T3).
+        finish({"ok": False, "error": f"tet solver refused: {res.get('error')}",
+                "mesh": mesh_receipt}, job=job, tool="ace_fea_tet", out=out,
+               kind="refusal.tet_solver")
 
     stress_npy = out_dir / "stress_field.npy"   # (N_nodes,) nodal von Mises, Pa
     disp_npy = out_dir / "disp_field.npy"        # (N_nodes,3) displacement, m
@@ -193,15 +230,34 @@ def main() -> None:
         "analyzer_version": ANALYZER_VERSION,
         "timings_s": {"mesh_s": round(mesh_s, 3), "fea_s": round(fea_s, 3)},
     }
-    emit(payload)
+    vrange = validated_range_check(job, "tools/manifests/ace_fea_tet.manifest.json")
+    payload["validated_range"] = vrange
+    apply_warnings(payload, job, [validated_range_warning(vrange)])
+
+    # Bind the receipt to the exact body-fitted mesh solved, not merely the STL
+    # or specimen parameters from which gmsh happened to generate it.
+    mesh_digest = hashlib.sha256()
+    for array in (mesh.nodes_mm, mesh.tets, mesh.surf_tris, mesh.surf_group):
+        a = np.ascontiguousarray(array)
+        mesh_digest.update(str(a.dtype).encode("ascii"))
+        mesh_digest.update(json.dumps(list(a.shape)).encode("ascii"))
+        mesh_digest.update(a.tobytes(order="C"))
+    exact_mesh_hash = "tet10-mesh:sha256:" + mesh_digest.hexdigest()
+    payload.update(provenance_fields(
+        job, res, analyzer_name="ace_fea_tet", analyzer_version=ANALYZER_VERSION,
+        values={"max_von_mises_pa": res["max_von_mises_pa"],
+                "max_displacement_m": res["max_disp_m"]},
+        manifest_ref="tools/manifests/ace_fea_tet.manifest.json",
+        geometry_hash=exact_mesh_hash,
+        validation_applicability=vrange))
+    payload["determinism"] = determinism_block(
+        payload, nondeterministic_paths=["timings_s"],
+        solver_note=("SuperLU direct (or CG) on a gmsh tet10 mesh: the mesh itself is "
+                     "bit-identical run to run, but the factorisation's reduction order "
+                     "is not pinned, so peak stress moves ~2e-14 relative. Compare "
+                     "core_digest, not receipt bytes."))
+    finish(payload, job=job, tool="ace_fea_tet", out=out)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as exc:  # noqa: BLE001 — the JSON line IS the contract
-        error = f"{type(exc).__name__}: {exc}"
-        if isinstance(exc, (ImportError, ModuleNotFoundError)) and "engine" in str(exc):
-            error += f" | hint: {ACE_INSTALL_HINT}"
-        emit({"ok": False, "error": error})
-        sys.exit(0)
+    run_cli("ace_fea_tet", main, install_hint=ACE_INSTALL_HINT)

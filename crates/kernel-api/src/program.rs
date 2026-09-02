@@ -7,9 +7,9 @@
 //! through `in` / `a` / `b` / `sketch`. Units are millimetres; angles in the JSON
 //! surface are ALWAYS degrees (converted to radians at the kernel boundary).
 //!
-//! Unknown JSON fields are ignored (so a typo in an OPTIONAL param falls back to
-//! the default — check the report's measures when in doubt); a missing or
-//! malformed REQUIRED param is a loud `invalid_param` error.
+//! Unknown JSON fields fail closed as `invalid_param`; `_`-prefixed keys are
+//! reserved for inert in-op comments. Missing or malformed required parameters
+//! are also loud errors.
 
 use std::collections::BTreeMap;
 
@@ -58,6 +58,15 @@ fn d_overhang() -> f64 {
 /// Default voxel size (mm) for the watertight voxel-heal fallback on export.
 fn dsupersample() -> usize {
 	2
+}
+/// Default chord tolerance (mm) for measurement tessellations (`mesh_components`),
+/// matching `support_report`'s working scale.
+fn d005() -> f64 {
+	0.05
+}
+/// Default position-weld scale (mm) for mesh connectivity (the house weld scale).
+fn dweld() -> f64 {
+	1e-3
 }
 fn diso() -> f64 {
 	0.5
@@ -397,7 +406,11 @@ pub enum OpKind {
 		#[serde(default = "dv")]
 		v: usize,
 	},
-	/// Cone from a base disc of `radius` tapering to an apex at `height`.
+	/// Cone from a base disc of `radius` tapering to an apex at `height` — or,
+	/// with `top_radius`, the FRUSTUM (truncated cone) that same taper cuts at
+	/// `height`. A frustum is the shape almost every printed part actually wants
+	/// (a draughted boss, a chamfered spigot, a tapered stand-off); without it a
+	/// designer had to build a cone and difference the tip off.
 	Cone {
 		base: [f64; 3],
 		axis: [f64; 3],
@@ -405,6 +418,10 @@ pub enum OpKind {
 		height: f64,
 		#[serde(default = "d32")]
 		segments: usize,
+		/// Radius of the flat top face (mm). Omit (or 0) for a true cone — an
+		/// apex. Must differ from `radius`: equal radii are a cylinder, and the
+		/// op refuses rather than emit a cone surface with no apex.
+		top_radius: Option<f64>,
 	},
 	/// Torus around `axis` (`minor` < `major`).
 	Torus {
@@ -623,11 +640,30 @@ pub enum OpKind {
 		pull: [f64; 3],
 		min_deg: f64,
 	},
+	/// Connected-body count of the tessellated mesh — the single-body oracle the
+	/// other validity gates cannot give. `shells` counts B-rep shell RECORDS and
+	/// can read 1 on a part severed into floating lumps (docs/FRICTION.md #24);
+	/// this measure union-finds actual triangle connectivity over position-welded
+	/// vertices. Returns `{ components, is_one_body, triangles }` with
+	/// `provenance: "faceted"`. Gate it with `assert { components: 1 }`.
+	MeshComponents {
+		#[serde(rename = "in")]
+		input: String,
+		/// Chord tolerance (mm) of the measurement tessellation (default 0.05).
+		#[serde(default = "d005")]
+		tol: f64,
+		/// Position-weld scale (mm) for vertex identity (default 1e-3, the house
+		/// weld scale — coincident-but-unshared boolean vertices count as one point).
+		#[serde(default = "dweld")]
+		weld_tol: f64,
+	},
 
 	// --- Assertions ------------------------------------------------------------------
-	/// Declarative checks against a bound solid — the program FAILS (kind
-	/// `assert_failed`) when any present expectation is unmet, so intent lives in
-	/// the program instead of an external grep. At least one check is required.
+	/// Declarative checks against a bound solid (or mesh) — the program FAILS
+	/// (kind `assert_failed`) when any present expectation is unmet, so intent
+	/// lives in the program instead of an external grep. At least one check is
+	/// required. This op is the TOPOLOGY gate; every other measure is gated with
+	/// the universal `require` parameter on the op that measures it.
 	Assert {
 		#[serde(rename = "in")]
 		input: String,
@@ -639,12 +675,25 @@ pub enum OpKind {
 		genus: Option<i64>,
 		/// Shell count must equal this (e.g. 2 = two disjoint bodies after a union).
 		shells: Option<usize>,
+		/// Mesh connected-component count must equal this — the single-body gate
+		/// (`components: 1`). Measured exactly like `mesh_components`, with the
+		/// same `tol` / `weld_tol` knobs; `shells` alone cannot catch a severed part.
+		components: Option<usize>,
 		/// `validate().closed` must equal this.
 		closed: Option<bool>,
 		/// `validate().manifold` must equal this.
 		manifold: Option<bool>,
 		/// `validate().is_valid()` (closed + manifold + sane genus) must equal this.
 		valid: Option<bool>,
+		/// Chord tolerance (mm) of the `components` measurement tessellation
+		/// (default 0.05) — the same knob `mesh_components` exposes.
+		#[serde(default = "d005")]
+		tol: f64,
+		/// Position-weld scale (mm) for `components` vertex identity (default 1e-3).
+		/// A severance NARROWER than this welds shut and reads as one body, so a
+		/// hard severance proof needs `weld_tol` below the gap being ruled out.
+		#[serde(default = "dweld")]
+		weld_tol: f64,
 	},
 	/// Prove two solids do NOT touch: fails (kind `assert_failed`) unless the
 	/// measured surface distance EXCEEDS `min_clearance` (default 0). The

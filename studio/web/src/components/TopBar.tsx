@@ -8,9 +8,10 @@ interface Props {
 	codeOpen: boolean
 	onExport: () => void
 	canExport: boolean
+	onAuth: () => void
 }
 
-export function TopBar({ docTitle, onParts, onToggleCode, codeOpen, onExport, canExport }: Props) {
+export function TopBar({ docTitle, onParts, onToggleCode, codeOpen, onExport, canExport, onAuth }: Props) {
 	return (
 		<header className="topbar">
 			<span className="brand">LMCAD <em>STUDIO</em></span>
@@ -20,6 +21,7 @@ export function TopBar({ docTitle, onParts, onToggleCode, codeOpen, onExport, ca
 			<button className={codeOpen ? 'tb-btn primary' : 'tb-btn'} onClick={onToggleCode}>CODE</button>
 			<button className="tb-btn" disabled title="Wave 2">IMPORT</button>
 			<button className="tb-btn" onClick={onExport} disabled={!canExport} title="Download the current STL">EXPORT</button>
+			<button className="tb-btn" onClick={onAuth} title="Set a tab-scoped API bearer token">AUTH</button>
 			<button className="tb-btn" disabled title="Wave 2">SHARE</button>
 		</header>
 	)

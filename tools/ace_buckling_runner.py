@@ -76,7 +76,8 @@ disp_field_npy, stress_field_npy, method}, n_active_elements, n_dof,
 n_free_dof, method, fixtures/loads receipts, notes, timings_s, provenance
 envelope}; any failure — including the solver's honest refusals (no load, no
 compressive stress anywhere, no positive eigenvalue) => {ok:false, error}
-and STILL exit 0 — the JSON line is the contract, not the exit code.
+and exit 2 (a refused analysis) or exit 1 (a broken request) — see THE WIRE
++ EXIT CONTRACT below. The JSON line and the exit code now AGREE.
 
 Honest error band, measured (tools/test_ace_modal_buckling.py re-proves it
 every run): Euler clamped-free column 45x4.5x3 mm, closed form at the
@@ -85,6 +86,30 @@ element layer): voxel 0.75 -> +6.3%, voxel 0.5 -> +3.4%, voxel 0.375 ->
 +2.2% (observed order ~1.5, converging DOWN toward the analytic value —
 linear buckling on a stiff hex8 mesh over-predicts). ACE's own docstring
 says 10-30% high on coarse meshes; these slender-beam cases measure better.
+
+THE WIRE + EXIT CONTRACT (shared; see tools/_receipt.py for the full rules):
+    python3 <runner>.py <job.json> [--out PATH]
+  The LAST non-empty stdout line is ONE JSON receipt; all logging goes to
+  stderr. The exit code AGREES with the receipt, always:
+    exit 0  ok:true   analysis ran, receipt usable
+    exit 1  ok:false   the tool could not run the request (usage, unreadable
+                       job, internal error) — NO analysis was performed
+    exit 2  ok:false   the tool RAN and REFUSED, or the analysis failed
+  `error_kind` is a machine-matchable slug (`refusal.*`, `timeout`, `killed.*`,
+  `internal`, `usage`, `receipt_path_conflict`). CHANGED 2026-08-08: this runner
+  used to exit 0 on ok:false by design. Parsing `ok` still works and is still
+  correct; `$?` now works too. `LMCAD_RUNNER_EXIT=legacy` or a job
+  `"legacy_exit_zero": true` restores exit-0-always and records the opt-out in
+  `exit_contract.mode`.
+  `--out PATH` writes the receipt atomically (temp+rename) so an interrupted run
+  can never leave a zero-byte file where a good receipt was; a job-level
+  `receipt` key that disagrees with `--out` is REFUSED, not silently preferred.
+  `LMCAD_RECEIPT_DRY_RUN=1` suppresses every on-disk write (safe what-if runs).
+  `"wall_budget_s"` (or `LMCAD_WALL_BUDGET_S`), SIGTERM and SIGINT all produce
+  an honest ok:false receipt instead of a vanished run.
+  `determinism` names the receipt's wall-clock fields and carries `core_digest`,
+  a sha256 over the rest at 12 significant figures — compare THAT between runs,
+  never the receipt bytes.
 """
 from __future__ import annotations
 
@@ -98,12 +123,25 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _ace import (  # noqa: E402  — importing runs the boot side effects (ACE on path, kernel-api env)
 	ACE_INSTALL_HINT,
+	apply_warnings,
 	build_region_kind,
+	compression_check,
+	determinism_block,
 	emit,
+	finish,
 	load_geometry,
+	load_job,
 	log,
+	mesh_resolution_receipt,
+	mesh_resolution_warning,
 	provenance_fields,
+	refuse_empty_selectors,
+	refuse_tensile_load_case,
 	resolve_material,
+	run_cli,
+	selector_catch_audit,
+	validated_range_check,
+	validated_range_warning,
 )
 
 ANALYZER_VERSION = "reference_buckling/hex8/v2+prestress-receipts"
@@ -230,6 +268,18 @@ def run_buckling_job(job: dict) -> dict:
 	rho, origin, voxel, sample_s = load_geometry(job, out_dir)
 	kind = build_region_kind(job, rho.shape, voxel, origin)
 
+	# --- ADMISSIBILITY, BEFORE the solve (T13) --------------------------------
+	# Refusals are cheap and must fire before minutes of eigensolve, and before
+	# any receipt that could be mistaken for a design number exists.
+	from engine.verify.fea import _occupancy
+	occ = _occupancy(rho, kind, simp_floor=None)
+	catch = selector_catch_audit(job, occ, voxel, origin)
+	refuse_empty_selectors(catch)
+	comp = compression_check(job, occ, voxel, origin)
+	refuse_tensile_load_case(comp)
+	mesh_res = mesh_resolution_receipt(occ, voxel)
+	vrange = validated_range_check(job, "tools/manifests/ace_buckling.manifest.json")
+
 	t0 = time.monotonic()
 	res = reference_buckling(
 		rho, kind, voxel, job["material"],
@@ -311,31 +361,43 @@ def run_buckling_job(job: dict) -> dict:
 		"fixtures": fixtures,
 		"loads": loads,
 		"selector_count_unit": "nodes",
+		"selector_catch_audit": catch,
+		"compression_check": comp,
+		"mesh_resolution": mesh_res,
+		"validated_range": vrange,
 		"notes": notes,
 		"timings_s": {"sample_s": round(sample_s, 3),
 					  "buckling_s": round(buckling_s, 3),
 					  "prestress_s": round(prestress_s, 3)},
 	}
+	if comp.get("verdict") == "tensile" and comp.get("override"):
+		payload["notes"].append(
+			"OVERRIDE: allow_tensile_load_case is set — this load case has NO "
+			"compressive load path and the factor below is not a design margin.")
+	apply_warnings(payload, job, [
+		mesh_resolution_warning(mesh_res),
+		validated_range_warning(vrange),
+	])
 	# Provenance envelope, added alongside the scalar fields (Rule 4).
 	payload.update(provenance_fields(
 		job, res, analyzer_name="ace_buckling", analyzer_version=ANALYZER_VERSION,
 		values={"critical_load_N": res["critical_load_n"],
 				"buckling_load_factor": res["buckling_load_factor"]},
-		manifest_ref="tools/manifests/ace_buckling.manifest.json"))
+		manifest_ref="tools/manifests/ace_buckling.manifest.json",
+		validation_applicability=vrange))
+	payload["determinism"] = determinism_block(
+		payload, nondeterministic_paths=["timings_s"],
+		solver_note=("dense/sparse symmetric eigensolve (Cholesky reduction + "
+					 "ARPACK-class iteration): reproducible to ~1e-12 relative, "
+					 "NOT to the bit — the reduction order is not pinned. Geometry, "
+					 "mesh, DOF counts and all integer fields ARE bit-identical."))
 	return payload
 
 
 def main() -> None:
-	job = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-	emit(run_buckling_job(job))
+	job, out = load_job()
+	finish(run_buckling_job(job), job=job, tool="ace_buckling", out=out)
 
 
 if __name__ == "__main__":
-	try:
-		main()
-	except Exception as exc:  # noqa: BLE001 — the JSON line IS the contract
-		error = f"{type(exc).__name__}: {exc}"
-		if isinstance(exc, (ImportError, ModuleNotFoundError)) and "engine" in str(exc):
-			error += f" | hint: {ACE_INSTALL_HINT}"
-		emit({"ok": False, "error": error})
-		sys.exit(0)
+	run_cli("ace_buckling", main, install_hint=ACE_INSTALL_HINT)

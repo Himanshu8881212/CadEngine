@@ -31,10 +31,36 @@ Output contract: LAST non-empty stdout line is ONE JSON object (logging on
 stderr); failure => {ok:false, error}, exit 0 — the JSON is the contract.
 Produces out_dir/final_rho.npy (the filtered physical density) and the gated
 STL. The STL is a MESH ONLY — no density-to-B-rep reconstruction exists.
+
+THE WIRE + EXIT CONTRACT (shared; see tools/_receipt.py for the full rules):
+    python3 <runner>.py <job.json> [--out PATH]
+  The LAST non-empty stdout line is ONE JSON receipt; all logging goes to
+  stderr. The exit code AGREES with the receipt, always:
+    exit 0  ok:true   analysis ran, receipt usable
+    exit 1  ok:false   the tool could not run the request (usage, unreadable
+                       job, internal error) — NO analysis was performed
+    exit 2  ok:false   the tool RAN and REFUSED, or the analysis failed
+  `error_kind` is a machine-matchable slug (`refusal.*`, `timeout`, `killed.*`,
+  `internal`, `usage`, `receipt_path_conflict`). CHANGED 2026-08-08: this runner
+  used to exit 0 on ok:false by design. Parsing `ok` still works and is still
+  correct; `$?` now works too. `LMCAD_RUNNER_EXIT=legacy` or a job
+  `"legacy_exit_zero": true` restores exit-0-always and records the opt-out in
+  `exit_contract.mode`.
+  `--out PATH` writes the receipt atomically (temp+rename) so an interrupted run
+  can never leave a zero-byte file where a good receipt was; a job-level
+  `receipt` key that disagrees with `--out` is REFUSED, not silently preferred.
+  `LMCAD_RECEIPT_DRY_RUN=1` suppresses every on-disk write (safe what-if runs).
+  `"wall_budget_s"` (or `LMCAD_WALL_BUDGET_S`), SIGTERM and SIGINT all produce
+  an honest ok:false receipt instead of a vanished run.
+  `determinism` names the receipt's wall-clock fields and carries `core_digest`,
+  a sha256 over the rest at 12 significant figures — compare THAT between runs,
+  never the receipt bytes.
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 import os
 import sys
 import time
@@ -43,6 +69,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True  # keep tools/ free of __pycache__ litter
 REPO_ROOT = Path(__file__).resolve().parent.parent
 ACE_ROOT = os.environ.get("ACE_ROOT", os.path.expanduser("~/Work/ACE"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ACE_ROOT)
 os.environ.setdefault(
     "LMCAD_KERNEL_API", str(REPO_ROOT / "target" / "release" / "kernel-api")
@@ -58,13 +85,24 @@ def log(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
 
 
-def emit(payload: dict) -> None:
-    print(json.dumps(payload), flush=True)
-
+from _receipt import (  # noqa: E402  — the shared receipt + exit-code contract
+    Refusal,
+    determinism_block,
+    emit,
+    finish,
+    load_job,
+    run_cli,
+)
+from _ace import (  # noqa: E402
+    apply_warnings,
+    provenance_fields,
+    validated_range_check,
+    validated_range_warning,
+)
 
 def main() -> None:  # noqa: PLR0915 — one linear, documented pipeline
     t_start = time.monotonic()
-    job = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+    job, receipt_out = load_job()
     out_dir = Path(job["out_dir"])
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -88,6 +126,15 @@ def main() -> None:  # noqa: PLR0915 — one linear, documented pipeline
     floor = float(job.get("density_floor", 0.02))
     iso = float(job.get("iso", 0.5))
     budget = float(job.get("time_budget_s", 600.0))
+    for label, value in (("volfrac", volfrac), ("penalty", p),
+                         ("filter_radius_vox", r_filt), ("move", move),
+                         ("density_floor", floor), ("iso", iso),
+                         ("time_budget_s", budget)):
+        if not math.isfinite(value):
+            raise Refusal("invalid_parameter", f"{label} must be finite")
+    if p < 1.0 or r_filt <= 0.0 or max_iters <= 0 or not 0.0 < move <= 1.0 \
+            or not 0.0 < floor < 1.0 or not 0.0 < iso < 1.0 or budget <= 0.0:
+        raise Refusal("invalid_parameter", "optimizer controls are outside their physical/numerical ranges")
 
     rho0, origin, voxel, sample_s = load_geometry(job, out_dir)
     kind = build_region_kind(job, rho0.shape, voxel, origin)
@@ -169,6 +216,12 @@ def main() -> None:  # noqa: PLR0915 — one linear, documented pipeline
             stop_reason = "converged"
             break
     opt_s = time.monotonic() - t_opt
+    if stop_reason == "time_budget" and not job.get("allow_incomplete_optimization", False):
+        raise Refusal(
+            "optimization_incomplete",
+            "the topology run hit its wall-time budget; no release artifact is emitted. "
+            "Raise time_budget_s or explicitly set allow_incomplete_optimization=true.",
+            iterations=iters_done)
 
     x_phys = physical(x)
     final_npy = out_dir / "final_rho.npy"
@@ -211,8 +264,14 @@ def main() -> None:  # noqa: PLR0915 — one linear, documented pipeline
             break
         log(f"gated mesh refused at voxel/{factor}; escalating")
     stl_s = time.monotonic() - t0
+    if not stl.get("ok") or not stl.get("watertight"):
+        stl_path.unlink(missing_ok=True)
+        raise Refusal(
+            "manufacturing_mesh_invalid",
+            "the optimized density could not pass LMCAD's strict serialized mesh gate; no STL was released",
+            mesh_issues=stl.get("issues", []), mesh_upsample=upsample)
 
-    emit({
+    payload = {
         "ok": True,
         "iterations": iters_done,
         "stop_reason": stop_reason,
@@ -241,15 +300,44 @@ def main() -> None:  # noqa: PLR0915 — one linear, documented pipeline
             "as_built_s": round(as_built_s, 3),
             "stl_s": round(stl_s, 3),
         },
-    })
+    }
+    vrange = validated_range_check(job, "tools/manifests/ace_optimize.manifest.json")
+    payload["validated_range"] = vrange
+    warnings = [validated_range_warning(vrange)]
+    if stop_reason != "converged":
+        warnings.append(f"optimizer stopped at {stop_reason}, not its change convergence criterion")
+    apply_warnings(payload, job, warnings)
+    mesh_digest = hashlib.sha256()
+    exact_grid = np.ascontiguousarray(x_phys.astype(np.float32))
+    mesh_digest.update(exact_grid.tobytes(order="C"))
+    mesh_digest.update(json.dumps({
+        "shape": list(exact_grid.shape), "origin_mm": list(origin),
+        "voxel_mm": voxel, "iso": iso,
+    }, sort_keys=True, separators=(",", ":")).encode())
+    optimized_grid_hash = "optimized-density-grid:sha256:" + mesh_digest.hexdigest()
+    payload.update(provenance_fields(
+        job,
+        {"method": "SIMP/OC plus binary as-built reanalysis", "notes": [],
+         "n_dof": binary.get("n_dof"),
+         "n_active_elements": binary.get("n_active_elements")},
+        analyzer_name="ace_optimize", analyzer_version="simp-oc/as-built/v2",
+        values={"compliance_last": compliance_last,
+                "as_built_max_von_mises_pa": binary["max_von_mises_pa"],
+                "volume_fraction_achieved": payload["volume_fraction_achieved"]},
+        manifest_ref="tools/manifests/ace_optimize.manifest.json",
+        geometry_hash=optimized_grid_hash, validation_applicability=vrange))
+    payload["determinism"] = determinism_block(
+        payload, nondeterministic_paths=["timings_s"],
+        solver_note=("OC/SIMP over the reference FEA. HONEST CAVEAT: `time_budget_s` "
+                     "can end the loop at a different iteration on a loaded machine, "
+                     "which moves `iterations`, `stop_reason`, `compliance_last` and "
+                     "the exported STL — i.e. the ANSWER, not just the timings. Those "
+                     "fields are deliberately left INSIDE core_digest so a "
+                     "budget-truncated run reads as a different result, because it is "
+                     "one. Pin `max_iters` and raise `time_budget_s` for a reproducible "
+                     "run."))
+    finish(payload, job=job, tool="ace_optimize", out=receipt_out)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as exc:  # noqa: BLE001 — the JSON line IS the contract
-        error = f"{type(exc).__name__}: {exc}"
-        if isinstance(exc, (ImportError, ModuleNotFoundError)) and "engine" in str(exc):
-            error += f" | hint: {ACE_INSTALL_HINT}"
-        emit({"ok": False, "error": error})
-        sys.exit(0)
+    run_cli("ace_optimize", main, install_hint=ACE_INSTALL_HINT)

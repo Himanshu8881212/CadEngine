@@ -68,6 +68,23 @@ Each ``materials/<key>.json`` is one record:
               OTHER live copy still uses. Reconciling a conflict is a human
               physics decision (it changes an allowable), so it is surfaced, not
               silently overwritten.
+              ``validate()`` PROVES the ledger is not itself stale: every
+              ``field`` must resolve to a real dotted path in the record, and a
+              scalar ``canonical`` must equal the value the record actually
+              serves. Without that check a ledger entry is prose that can drift
+              away from the number it claims to describe (this is what kept the
+              PLA cp 1200 vs 1800 J/kgK entry honest, and it is now machine-checked).
+
+  creep       OPTIONAL time x temperature SUSTAINED-stress table:
+              { basis, sig_allow_mpa: { "<T>C": { "<n><unit>": MPa, ... }, ... },
+                confidence: same shape (per-cell strings), derivation[],
+                data_anchors[], model_constants{}, gaps_unknowns[] }
+              When a record carries this table it GOVERNS every sustained-load
+              allowable for that material, and ``thermal.creep_sustained_fraction``
+              is SUPERSEDED (see ``creep_lookup`` / ``legacy_creep_scalar``).
+              Read it ONLY through ``creep_lookup`` / ``creep_allowable_mpa`` —
+              they are the single reader, and they mirror the Rust contract in
+              ``kernel_model::materials::pla`` exactly (see CREEP SEMANTICS).
 
 ANISOTROPY + BUILD ORIENTATION (how a consumer combines record + print dir)
 ---------------------------------------------------------------------------
@@ -85,6 +102,53 @@ build_dir)``:
 This is exactly the scalar-tier rule ``production_check.py`` implements; it is
 unified here so every consumer derates identically. It is a DIRECTION heuristic,
 not a layer-normal stress-tensor check (that needs an ACE solver change).
+
+CREEP SEMANTICS — ONE TABLE, ONE READER, THE REFUSING SEMANTIC WINS
+-------------------------------------------------------------------
+Sustained load is a CREEP case, and creep — not instantaneous strength — is what
+kills a printed part held under load. The allowable lives in
+``materials/<key>.json#creep.sig_allow_mpa`` as a **temperature x duration step
+table**, and this module is its ONLY Python reader. The rules, which are the
+same rules `kernel_model::materials::pla::creep_allowable_mpa` implements in
+Rust (the cross-language pin in ``materials_crosslang_test.py`` proves it at
+every tier boundary):
+
+  * **NO interpolation, ever.** The table is a coarse step (printed PLA: two
+    temperature tiers, 23 C and 55 C, with NOTHING between). The temperature is
+    rounded UP to the next tabulated tier and the duration is rounded UP to the
+    next tabulated column, so an in-between request always reads the WORSE cell.
+    ``cell_match`` in the receipt says whether the cell was hit ``exact`` or
+    reached by ``rounded_up_conservative``.
+  * **Above the last tabulated temperature the lookup REFUSES.** It does NOT
+    fall back to the hottest row. ``sig_allow_mpa`` is 0.0, ``known`` is False,
+    ``refused`` is True and ``refusal_kind`` is machine-matchable, so a gate
+    written as ``demand <= allowable`` FAILS loudly in exactly the regime where
+    no data exists. (The previous Python reader returned the 55 C row at 70 C
+    and at 120 C, flagging only ``extrapolated: True`` — a field a gate can miss.
+    That is the divergence this module exists to end.)
+  * **Non-finite / missing / negative inputs REFUSE** rather than defaulting.
+    A typo must never become a silent allowable.
+  * **Beyond the last duration column the last column is reused**, flagged
+    ``duration_match = "extrapolated_beyond_last_column"`` — that is what the
+    source record's own bound says to do, and both languages agree on it.
+  * **The table GOVERNS the legacy scalar.** ``thermal.creep_sustained_fraction``
+    (the blanket "sustained = 20 % of yield" rule, ~11-12 MPa for PLA) is
+    reported as ``legacy_scalar_mpa`` for visibility and is NEVER the allowable
+    when a table exists. A material with NO table gets a refusal, not the scalar
+    (``legacy_creep_scalar()`` exists to quote the conflict, not to gate on it).
+  * **Anisotropy is the CALLER's explicit choice, never silent.** The tabulated
+    cells are IN-PLANE. Across-layer sustained load is derated by
+    ``process.anisotropy.z_vs_xy_strength_ratio`` (0.55 for PLA) only when the
+    caller passes ``across_layer=True``; the receipt always records
+    ``across_layer`` and ``anisotropy_factor`` so the choice is visible. The
+    ratio derates the ALLOWABLE, never the modulus E.
+
+Every lookup returns a RECEIPT (``creep_lookup``) that names the material, its
+content hash, the requested T and duration, the cell actually read, how it was
+reached, and the per-cell confidence string from the record — so "which cell was
+this margin read at" is a gateable number instead of a sentence in a README.
+``creep_allowable_mpa`` is the bare scalar for a one-line gate; it is exactly
+``creep_lookup(...)["sig_allow_mpa"]``.
 
 RUST CONSUMPTION CONTRACT (documented follow-up — NOT implemented here)
 ----------------------------------------------------------------------
@@ -107,9 +171,16 @@ CLI
   python materials.py --show PETG            pretty-print one record
   python materials.py --rehash               recompute + write meta.hash back
                                              (run after editing any record)
+  python materials.py --creep PLA 23 8760    sustained-creep allowable RECEIPT
+                                             (material, T in C, duration in h;
+                                             add --across-layer for the 0.55
+                                             across-layer derate). Exits 1 and
+                                             still prints the JSON receipt when
+                                             the lookup REFUSES.
   python materials.py --selftest             validate all + PROVE the PETG/TPU
                                              numbers match the drive/ball
-                                             hardcodes verbatim (nonzero on fail)
+                                             hardcodes verbatim + the creep
+                                             refusal contract (nonzero on fail)
 
 Pure stdlib — no numpy, no third-party deps.
 """
@@ -118,6 +189,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -193,6 +265,77 @@ def _assert_density_range(kg_m3: float, name: str) -> None:
         )
 
 
+_MISSING = object()
+
+
+def dig(record: dict, dotted: str):
+    """Resolve a dotted field path inside a record, or ``_MISSING``. Used by the
+    conflict-ledger validator and by consumers that want to quote a field by the
+    same name the ledger uses."""
+    cur = record
+    for part in str(dotted).split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return _MISSING
+        cur = cur[part]
+    return cur
+
+
+def _validate_conflicts(record: dict, name: str) -> None:
+    """A conflict ledger that has drifted from the record is WORSE than no
+    ledger: it documents a disagreement about a number the record no longer
+    serves. Every entry must name a real dotted path, and a scalar ``canonical``
+    must equal the live value. (This is what keeps the PLA cp 1200 vs 1800
+    J/kgK entry and the creep_sustained_fraction 0.2 vs creep-table entry
+    honest — they are now machine-checked, not prose.)"""
+    for i, entry in enumerate(record.get("conflicts") or []):
+        _require(isinstance(entry, dict), f"{name}: conflicts[{i}] must be an object")
+        field = entry.get("field")
+        _require(isinstance(field, str) and field,
+                 f"{name}: conflicts[{i}].field must be a non-empty dotted path")
+        for key in ("canonical", "other_value", "other_source", "note"):
+            _require(key in entry, f"{name}: conflicts[{i}] ({field}) is missing {key!r}")
+        live = dig(record, field)
+        _require(live is not _MISSING,
+                 f"{name}: conflicts[{i}].field {field!r} does not resolve to any "
+                 f"field in the record — the ledger names a value this record no "
+                 f"longer serves (stale conflict entry)")
+        canonical = entry["canonical"]
+        if isinstance(canonical, (int, float)) and not isinstance(canonical, bool):
+            _require(isinstance(live, (int, float)) and float(live) == float(canonical),
+                     f"{name}: conflicts[{i}] says {field} canonical is {canonical!r} "
+                     f"but the record serves {live!r} — the ledger has drifted from "
+                     f"the value it claims to describe; fix one or the other, never "
+                     f"leave them disagreeing")
+
+
+def _validate_creep_table(record: dict, name: str) -> None:
+    """Structural guard on a creep block. The lookup rounds T and duration UP to
+    the next tabulated cell to be conservative; that is only conservative if the
+    table is non-increasing in BOTH axes. A non-monotone cell would make
+    "round up" silently read a ROSIER number."""
+    creep = record.get("creep")
+    _require(isinstance(creep, dict), f"{name}: 'creep' must be an object")
+    _require(isinstance(creep.get("basis"), str) and creep["basis"],
+             f"{name}: creep.basis must be a non-empty provenance string")
+    rows = creep_cells(record)  # parses/raises on any malformed key
+    _require(len(rows) >= 1, f"{name}: creep.sig_allow_mpa has no temperature rows")
+    widths = {tuple(h for h, _k, _v in cols) for _t, _tk, cols in rows}
+    _require(len(widths) == 1,
+             f"{name}: creep.sig_allow_mpa rows have different duration columns "
+             f"{sorted(widths)} — every temperature tier must tabulate the same "
+             f"durations or 'round the duration up' means different things per row")
+    for temp_c, tkey, cols in rows:
+        for a, b in zip(cols, cols[1:]):
+            _require(a[2] >= b[2],
+                     f"{name}: creep.sig_allow_mpa[{tkey}] rises with duration "
+                     f"({a[1]}={a[2]} -> {b[1]}={b[2]}); longer must never be stronger")
+    for (t_lo, k_lo, lo), (t_hi, k_hi, hi) in zip(rows, rows[1:]):
+        for a, b in zip(lo, hi):
+            _require(a[2] >= b[2],
+                     f"{name}: creep.sig_allow_mpa rises with temperature at {a[1]} "
+                     f"({k_lo}={a[2]} -> {k_hi}={b[2]}); hotter must never be stronger")
+
+
 def validate(record: dict, *, check_hash: bool = True) -> None:
     """Assert one record satisfies the schema. Raises ValueError with a rich
     message on the first violation. If check_hash, the stored meta.hash must
@@ -240,6 +383,9 @@ def validate(record: dict, *, check_hash: bool = True) -> None:
              f"{name}: 'sources' must be an object (per-value citations)")
     _require(isinstance(record.get("conflicts"), list),
              f"{name}: 'conflicts' must be a list")
+    _validate_conflicts(record, name)
+    if record.get("creep") is not None:
+        _validate_creep_table(record, name)
 
     if check_hash:
         stored = meta.get("hash")
@@ -424,7 +570,304 @@ def derated(name: str, primary_load_dir, build_dir=(0.0, 0.0, 1.0),
 
 
 # ---------------------------------------------------------------------------
-# CLI: --rehash, --list, --show, --selftest
+# CREEP: the ONE reader of creep.sig_allow_mpa (see CREEP SEMANTICS above)
+# ---------------------------------------------------------------------------
+#: Machine-matchable refusal kinds. A caller gates on these strings, never on
+#: prose. `sig_allow_mpa` is 0.0 for every one of them, so a gate written as
+#: `demand <= allowable` fails on its own even if the caller ignores the kind.
+CREEP_REFUSAL_KINDS = (
+    "creep_input_not_finite",       # T or duration is None/NaN/inf/not a number
+    "creep_negative_duration",      # duration < 0 h
+    "creep_temp_above_tabulated",   # T above the hottest tier — NO fallback row
+    "creep_no_table",               # this material has no creep table at all
+    "creep_table_malformed",        # a key in the table could not be parsed
+)
+
+#: Duration-key suffixes accepted in a creep table, in hours.
+CREEP_TIME_UNITS_H = {"h": 1.0, "d": 24.0, "w": 168.0, "mo": 730.0, "y": 8760.0}
+
+CREEP_TABLE_FIELD = "creep.sig_allow_mpa"
+LEGACY_CREEP_SCALAR_FIELD = "thermal.creep_sustained_fraction"
+
+_TEMP_KEY_RE = re.compile(r"^(-?\d+(?:\.\d+)?)\s*C$", re.IGNORECASE)
+_DURATION_KEY_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*(h|d|w|mo|y)$", re.IGNORECASE)
+
+
+def creep_temp_key_c(key: str) -> float:
+    """'23C' -> 23.0. Raises ValueError on anything else — an unparseable key
+    must never sort to a default position and become a silent allowable."""
+    m = _TEMP_KEY_RE.match(str(key).strip())
+    if not m:
+        raise ValueError(
+            f"creep table temperature key {key!r} is not '<number>C' — refusing "
+            f"to guess which tier it is"
+        )
+    return float(m.group(1))
+
+
+def creep_duration_key_hours(key: str) -> float:
+    """'24h' -> 24.0, '30d' -> 720.0, '1y' -> 8760.0. Raises ValueError on
+    anything else (the old reader mapped an unparseable key to 0.0 hours, which
+    sorts FIRST and would then be picked for every request)."""
+    m = _DURATION_KEY_RE.match(str(key).strip())
+    if not m:
+        raise ValueError(
+            f"creep table duration key {key!r} is not '<number><h|d|w|mo|y>' — "
+            f"refusing to guess how long it is"
+        )
+    return float(m.group(1)) * CREEP_TIME_UNITS_H[m.group(2).lower()]
+
+
+def creep_cells(record: dict):
+    """Parse ``creep.sig_allow_mpa`` into a sorted, fully-typed structure:
+    ``[(temp_c, temp_key, [(hours, dur_key, mpa), ...]), ...]`` ascending in both
+    axes. Raises ValueError on a malformed table."""
+    table = ((record.get("creep") or {}).get("sig_allow_mpa"))
+    if not isinstance(table, dict) or not table:
+        raise ValueError(f"{CREEP_TABLE_FIELD} is missing or empty")
+    rows = []
+    for tkey, col in table.items():
+        if not isinstance(col, dict) or not col:
+            raise ValueError(f"{CREEP_TABLE_FIELD}[{tkey!r}] is not a non-empty object")
+        cells = []
+        for dkey, val in col.items():
+            if not isinstance(val, (int, float)) or isinstance(val, bool) or val < 0:
+                raise ValueError(
+                    f"{CREEP_TABLE_FIELD}[{tkey!r}][{dkey!r}] = {val!r} is not a "
+                    f"non-negative number of MPa")
+            cells.append((creep_duration_key_hours(dkey), dkey, float(val)))
+        cells.sort(key=lambda c: c[0])
+        rows.append((creep_temp_key_c(tkey), tkey, cells))
+    rows.sort(key=lambda r: r[0])
+    return rows
+
+
+def _resolve_material(material, version=None):
+    """Accept a material NAME ('pla', 'PLA', 'TPU') or an already-loaded record
+    dict — every material-facing entry point in the campaign surface is addressed
+    by name, so a name must work (cubesat F12), and the field tools already hold
+    a parsed record, so a dict must keep working."""
+    if isinstance(material, Material):
+        return material.record, material.name, material.hash
+    if isinstance(material, dict):
+        meta = material.get("meta") or {}
+        return material, str(meta.get("name", "?")), meta.get("hash")
+    mat = get(material, version=version)
+    return mat.record, mat.name, mat.hash
+
+
+def _is_real(x) -> bool:
+    return (isinstance(x, (int, float)) and not isinstance(x, bool)
+            and math.isfinite(float(x)))
+
+
+def legacy_creep_scalar(material, *, version=None) -> dict:
+    """The LEGACY, time-blind ``yield x thermal.creep_sustained_fraction`` number
+    — reported for VISIBILITY only. When the record carries a creep table the
+    table governs and this value is ``superseded``; it is never an allowable.
+    Quotes the record's own conflict-ledger entry when there is one."""
+    record, name, mat_hash = _resolve_material(material, version)
+    frac = dig(record, LEGACY_CREEP_SCALAR_FIELD)
+    yld = dig(record, "mechanical.yield_mpa")
+    has_table = isinstance((record.get("creep") or {}).get("sig_allow_mpa"), dict)
+    ledger = next((c for c in (record.get("conflicts") or [])
+                   if c.get("field") == LEGACY_CREEP_SCALAR_FIELD), None)
+    out = {
+        "material": name,
+        "field": LEGACY_CREEP_SCALAR_FIELD,
+        "fraction": None if frac is _MISSING else frac,
+        "yield_mpa": None if yld is _MISSING else yld,
+        "mpa": None,
+        "superseded_by": CREEP_TABLE_FIELD if has_table else None,
+        "usable_as_allowable": False,
+        "note": "",
+        "conflict_ledger": ledger,
+    }
+    if _is_real(out["fraction"]) and _is_real(out["yield_mpa"]):
+        out["mpa"] = round(float(out["fraction"]) * float(out["yield_mpa"]), 6)
+    if has_table:
+        out["note"] = (
+            f"SUPERSEDED: {name} carries {CREEP_TABLE_FIELD}, a temperature x "
+            f"duration table, and the TABLE GOVERNS. The scalar is time-blind and "
+            f"non-conservative at long duration (PLA: 11.0 MPa vs 2.5 MPa at "
+            f"23 C / 1 y). Reported so the conflict stays visible; never gate on it."
+        )
+    else:
+        out["note"] = (
+            f"{name} has NO creep table. The scalar is a blanket rule of thumb "
+            f"with no duration in it, so it cannot answer 'what may this hold for "
+            f"how long' — creep_lookup REFUSES for this material rather than "
+            f"returning this number as an allowable."
+        )
+    return out
+
+
+def creep_lookup(material, temp_c, hours, *, across_layer=False,
+                 version=None) -> dict:
+    """Sustained-load (creep) allowable RECEIPT for one material at one service
+    temperature and one design duration. THE single Python reader of
+    ``creep.sig_allow_mpa``; numerically identical to
+    ``kernel_model::materials::pla::creep_allowable_mpa`` at every point (pinned
+    by ``tools/materials_crosslang_test.py``).
+
+    material      material NAME (case-insensitive, aliases honored) or a record
+                  dict / Material.
+    temp_c        service temperature, deg C — REQUIRED, no default. The table
+                  is a coarse step (PLA: 23 C and 55 C, nothing between), so the
+                  temperature a margin was read at is the whole question.
+    hours         design duration in hours — REQUIRED, no default.
+    across_layer  True applies process.anisotropy.z_vs_xy_strength_ratio to the
+                  (in-plane) tabulated cell. The caller states this; it is never
+                  applied silently, and it derates the ALLOWABLE, never E.
+
+    Returns a receipt. On refusal: ``known`` False, ``refused`` True,
+    ``refusal_kind`` one of CREEP_REFUSAL_KINDS, ``sig_allow_mpa`` 0.0 — so a
+    gate ``demand <= sig_allow_mpa`` fails loudly rather than reading a rosier
+    row that the data does not support."""
+    record, name, mat_hash = _resolve_material(material, version)
+    ratio = float(((record.get("process") or {}).get("anisotropy") or {})
+                  .get("z_vs_xy_strength_ratio", 1.0))
+    factor = ratio if across_layer else 1.0
+    out = {
+        "material": name,
+        "material_version": (record.get("meta") or {}).get("version"),
+        "material_hash": mat_hash,
+        "table_source": f"tools/materials/{str(name).lower()}.json#{CREEP_TABLE_FIELD}",
+        "temp_c_requested": temp_c,
+        "hours_requested": hours,
+        "known": False,
+        "refused": True,
+        "refusal_kind": None,
+        "sig_allow_mpa": 0.0,
+        "in_plane_mpa": 0.0,
+        "temperature_bucket": None,   # legacy key name, kept for existing callers
+        "duration_bucket": None,      # legacy key name, kept for existing callers
+        "row_used_c": None,
+        "col_used_h": None,
+        "cell_match": "refused",
+        "temp_match": None,
+        "duration_match": None,
+        "interpolated": False,
+        "extrapolated": False,
+        "across_layer": bool(across_layer),
+        "anisotropy_factor": factor,
+        "z_vs_xy_strength_ratio": ratio,
+        "basis": None,
+        "confidence": None,
+        "note": None,
+        "legacy_scalar": legacy_creep_scalar(record),
+    }
+
+    def refuse(kind: str, note: str) -> dict:
+        out["refusal_kind"] = kind
+        out["note"] = note
+        return out
+
+    if not _is_real(temp_c) or not _is_real(hours):
+        return refuse(
+            "creep_input_not_finite",
+            f"creep allowable REFUSED: temp_c={temp_c!r} hours={hours!r} — both "
+            f"must be finite numbers. State the service temperature and the design "
+            f"duration; a missing one is not a default, it is an unanswered question.")
+    if float(hours) < 0.0:
+        return refuse(
+            "creep_negative_duration",
+            f"creep allowable REFUSED: hours={hours!r} is negative.")
+
+    try:
+        rows = creep_cells(record)
+    except ValueError as exc:
+        if (record.get("creep") or {}).get("sig_allow_mpa") is None:
+            legacy = out["legacy_scalar"]
+            return refuse(
+                "creep_no_table",
+                f"creep allowable REFUSED: {name} has no {CREEP_TABLE_FIELD}. The "
+                f"legacy scalar ({legacy['field']} {legacy['fraction']} x yield "
+                f"{legacy['yield_mpa']} MPa = {legacy['mpa']} MPa) is time-blind and "
+                f"is NOT served as an allowable — research a creep table for {name} "
+                f"or design the sustained case out.")
+        return refuse("creep_table_malformed",
+                      f"creep allowable REFUSED: {name} {CREEP_TABLE_FIELD}: {exc}")
+
+    t = float(temp_c)
+    h = float(hours)
+    hottest_c, hottest_key, _ = rows[-1]
+    if t > hottest_c:
+        return refuse(
+            "creep_temp_above_tabulated",
+            f"creep allowable REFUSED: service {t} C is above the hottest tabulated "
+            f"tier ({hottest_key} = {hottest_c} C) for {name}. There is NO sustained "
+            f"allowable to read — the reader does NOT fall back to the {hottest_key} "
+            f"row, because no data supports one there. Either hold the part below "
+            f"{hottest_c} C or state that no sustained load is defensible.")
+
+    row_c, row_key, cells = next(r for r in rows if r[0] >= t)
+    col_h, col_key, mpa = next((c for c in cells if c[0] >= h), cells[-1])
+    beyond_last = h > cells[-1][0]
+
+    temp_match = "exact" if row_c == t else "rounded_up"
+    if beyond_last:
+        duration_match = "extrapolated_beyond_last_column"
+    elif col_h == h:
+        duration_match = "exact"
+    else:
+        duration_match = "rounded_up"
+    if beyond_last:
+        cell_match = "extrapolated_beyond_last_duration"
+    elif temp_match == "exact" and duration_match == "exact":
+        cell_match = "exact"
+    else:
+        cell_match = "rounded_up_conservative"
+
+    conf = (((record.get("creep") or {}).get("confidence") or {})
+            .get(row_key, {}).get(col_key))
+    out.update({
+        "known": True,
+        "refused": False,
+        "refusal_kind": None,
+        "in_plane_mpa": mpa,
+        "sig_allow_mpa": round(mpa * factor, 6),
+        "temperature_bucket": row_key,
+        "duration_bucket": col_key,
+        "row_used_c": row_c,
+        "col_used_h": col_h,
+        "cell_match": cell_match,
+        "temp_match": temp_match,
+        "duration_match": duration_match,
+        "interpolated": False,
+        "extrapolated": beyond_last,
+        "basis": (f"{CREEP_TABLE_FIELD}[{row_key}][{col_key}] = {mpa} MPa in-plane"
+                  + (f" x z/xy {ratio} (across-layer, caller-stated) = "
+                     f"{round(mpa * factor, 6)} MPa" if across_layer else "")
+                  + f"; service {t} C / {h} h -> temperature {temp_match}, "
+                    f"duration {duration_match} (NO interpolation: the table is a "
+                    f"step and both axes round UP)"),
+        "confidence": conf or "(no confidence string in the record for this cell)",
+        "note": ((f"read at the {row_key} row for a {t} C service temperature — "
+                  f"state {row_key}, not {t} C, as the temperature this margin holds at"
+                  ) if temp_match == "rounded_up" else
+                 f"exact tabulated tier {row_key}"),
+    })
+    return out
+
+
+def creep_allowable_mpa(material, temp_c, hours, *, across_layer=False,
+                        version=None) -> float:
+    """Bare sustained (creep) allowable in MPa — the one-line gate the OPERATOR
+    BRIEF and DELIVERABLE_SPEC §2 gate 8 tell campaigns to use, now reachable
+    from Python. Exactly ``creep_lookup(...)["sig_allow_mpa"]``, and exactly the
+    number ``kernel_model::materials::pla::creep_allowable_mpa`` returns.
+
+    **Returns 0.0 when the lookup REFUSES** (above the hottest tabulated tier,
+    non-finite/negative input, or a material with no creep table) — i.e. "no
+    sustained load is defensible", so ``demand <= creep_allowable_mpa(...)``
+    FAILS there. Use ``creep_lookup`` when you need to know WHY, or a receipt."""
+    return creep_lookup(material, temp_c, hours, across_layer=across_layer,
+                        version=version)["sig_allow_mpa"]
+
+
+# ---------------------------------------------------------------------------
+# CLI: --rehash, --list, --show, --creep, --selftest
 # ---------------------------------------------------------------------------
 def _rehash() -> None:
     """Recompute meta.hash for every record and write it back (pretty JSON)."""
@@ -448,6 +891,32 @@ def _list() -> None:
 
 def _show(name: str) -> None:
     print(json.dumps(get(name).record, indent="\t", ensure_ascii=False))
+
+
+def _creep_cli(argv: list[str]) -> int:
+    """--creep <MATERIAL> <TEMP_C> <HOURS> [--across-layer]
+
+    Prints the full lookup receipt as JSON on stdout. Exit 0 when an allowable
+    was read, 1 when the lookup REFUSED — so a shell gate cannot mistake a
+    refusal for a number, and the refusal is never silent."""
+    args = [a for a in argv if a != "--across-layer"]
+    across = "--across-layer" in argv
+    if len(args) != 3:
+        print(json.dumps({
+            "refused": True, "refusal_kind": "creep_input_not_finite",
+            "note": "usage: materials.py --creep <MATERIAL> <TEMP_C> <HOURS> "
+                    "[--across-layer]; both the service temperature and the design "
+                    "duration are REQUIRED — neither has a default",
+        }, indent="\t"))
+        return 1
+    name, t_raw, h_raw = args
+    try:
+        temp_c, hours = float(t_raw), float(h_raw)
+    except ValueError:
+        temp_c, hours = t_raw, h_raw  # let creep_lookup refuse with its own kind
+    rec = creep_lookup(name, temp_c, hours, across_layer=across)
+    print(json.dumps(rec, indent="\t", ensure_ascii=False))
+    return 1 if rec["refused"] else 0
 
 
 def _selftest() -> None:
@@ -524,13 +993,96 @@ def _selftest() -> None:
                    abs(d["allowable_mpa"] - 47.0 * ratio) < 1e-9
                    and d["factor_applied"] == ratio))
 
+    # 6) CREEP CONTRACT — the refusing semantic, and cell provenance on every
+    #    lookup. These mirror crates/kernel-model/tests/materials_creep.rs.
+    checks.append(("creep 23C/1h exact cell = 7.5 MPa, cell_match 'exact'",
+                   creep_allowable_mpa("PLA", 23.0, 1.0) == 7.5
+                   and creep_lookup("PLA", 23.0, 1.0)["cell_match"] == "exact"))
+    checks.append(("creep 23C/1y = 2.5 MPa (the table, NOT the 11.0 MPa scalar)",
+                   creep_allowable_mpa("PLA", 23.0, 8760.0) == 2.5))
+    mid = creep_lookup("PLA", 25.0, 8760.0)
+    checks.append(("creep 25C rounds UP to the 55C row (0.5 MPa) and SAYS so",
+                   mid["sig_allow_mpa"] == 0.5 and mid["temperature_bucket"] == "55C"
+                   and mid["temp_match"] == "rounded_up"
+                   and mid["cell_match"] == "rounded_up_conservative"))
+    hot = creep_lookup("PLA", 70.0, 24.0)
+    checks.append(("creep ABOVE the hot tier REFUSES (0.0 MPa, known False, "
+                   "kind creep_temp_above_tabulated) — never the 55C row",
+                   hot["sig_allow_mpa"] == 0.0 and hot["known"] is False
+                   and hot["refused"] is True
+                   and hot["refusal_kind"] == "creep_temp_above_tabulated"))
+    checks.append(("creep refuses non-finite / missing / negative inputs",
+                   all(creep_lookup("PLA", t, h)["refusal_kind"] in
+                       ("creep_input_not_finite", "creep_negative_duration")
+                       for t, h in ((None, 24.0), (23.0, None), (float("nan"), 24.0),
+                                    (23.0, float("inf")), (23.0, -5.0)))))
+    checks.append(("creep refuses a material with NO table instead of serving the "
+                   "time-blind 0.2-fraction scalar",
+                   creep_lookup("PETG", 23.0, 8760.0)["refusal_kind"] == "creep_no_table"
+                   and creep_allowable_mpa("PETG", 23.0, 8760.0) == 0.0))
+    across = creep_lookup("PLA", 23.0, 8760.0, across_layer=True)
+    checks.append(("across-layer creep derate is the CALLER's explicit choice: "
+                   f"2.5 x 0.55 = 1.375 MPa (got {across['sig_allow_mpa']})",
+                   across["sig_allow_mpa"] == 1.375
+                   and across["anisotropy_factor"] == 0.55
+                   and creep_lookup("PLA", 23.0, 8760.0)["anisotropy_factor"] == 1.0))
+    legacy = legacy_creep_scalar("PLA")
+    checks.append((f"legacy scalar {legacy['mpa']} MPa is reported as SUPERSEDED by "
+                   f"the table, never usable as an allowable",
+                   legacy["mpa"] == 11.0 and legacy["superseded_by"] == CREEP_TABLE_FIELD
+                   and legacy["usable_as_allowable"] is False
+                   and legacy["conflict_ledger"] is not None))
+    checks.append(("creep table keys refuse to be guessed at (an unparseable "
+                   "duration key raises instead of sorting to 0 h)",
+                   _raises(lambda: creep_duration_key_hours("soon"))
+                   and _raises(lambda: creep_temp_key_c("RT"))))
+
+    # 7) THE CONFLICT LEDGER IS MACHINE-CHECKED. A ledger that has drifted from
+    #    the value it describes is worse than no ledger. Proven on the two live
+    #    entries this repo argues about: PLA cp 1200 vs 1800 J/kgK, and the
+    #    legacy creep fraction 0.2 vs the creep table.
+    pla_rec = get("PLA").record
+    cp_entry = next((c for c in pla_rec["conflicts"]
+                     if c["field"] == "thermal.specific_heat_j_kgk"), None)
+    checks.append((f"PLA cp conflict ledger is live and CHECKED: canonical "
+                   f"{cp_entry and cp_entry['canonical']} == record "
+                   f"{dig(pla_rec, 'thermal.specific_heat_j_kgk')} J/kgK "
+                   f"(other lineage {cp_entry and cp_entry['other_value']})",
+                   cp_entry is not None and cp_entry["canonical"] == 1200.0
+                   and cp_entry["other_value"] == 1800.0
+                   and dig(pla_rec, "thermal.specific_heat_j_kgk") == 1200.0))
+    drifted = json.loads(json.dumps(pla_rec))
+    drifted["thermal"]["specific_heat_j_kgk"] = 1800.0   # the OTHER lineage
+    checks.append(("a record whose value drifts away from its own conflict "
+                   "ledger is REFUSED at load (cp silently flipped to 1800)",
+                   _raises(lambda: validate(drifted, check_hash=False))))
+    stale = json.loads(json.dumps(pla_rec))
+    stale["conflicts"][0]["field"] = "thermal.no_such_field"
+    checks.append(("a conflict entry naming a field the record no longer serves "
+                   "is REFUSED at load (stale ledger)",
+                   _raises(lambda: validate(stale, check_hash=False))))
+    nonmono = json.loads(json.dumps(pla_rec))
+    nonmono["creep"]["sig_allow_mpa"]["55C"]["1y"] = 9.0  # hotter+longer = stronger
+    checks.append(("a non-monotone creep table is REFUSED at load — without "
+                   "monotonicity, 'round the request UP' is not conservative",
+                   _raises(lambda: validate(nonmono, check_hash=False))))
+
     _report(checks)
     if not all(ok for _, ok in checks):
         print("SELFTEST FAIL")
         sys.exit(1)
     print(f"SELFTEST PASS: {len(db)} records; PETG E/nu/rho/yield match the drive "
           f"FEA verbatim, gate basis 28.2 MPa reproduced; TPU basketball numbers "
-          f"match; anisotropy derate unified.")
+          f"match; anisotropy derate unified; creep table governs and REFUSES "
+          f"above the hot tier.")
+
+
+def _raises(fn) -> bool:
+    try:
+        fn()
+    except ValueError:
+        return True
+    return False
 
 
 def _report(checks: list[tuple[str, bool]]) -> None:
@@ -549,6 +1101,8 @@ def main(argv: list[str]) -> None:
         _list()
     elif cmd == "--show":
         _show(argv[1])
+    elif cmd == "--creep":
+        raise SystemExit(_creep_cli(argv[1:]))
     elif cmd == "--selftest":
         _selftest()
     else:

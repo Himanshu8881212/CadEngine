@@ -180,7 +180,7 @@ def generate_sequence(parts, seq):
 
 
 def main():
-	job = json.load(open(sys.argv[1]))
+	job = json.load(open(JOB_PATH))
 	frames_n = int(job.get("frames", 48))
 	fps = float(job.get("fps", 24))
 	Wpx, Hpx = job.get("size_px", [900, 640])
@@ -313,5 +313,18 @@ def main():
 	print(json.dumps(result))
 
 
+JOB_PATH = None
+
 if __name__ == "__main__":
-	main()
+	if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+		print(__doc__)          # digest F9: --help was read as a job path and traced back
+		sys.exit(0)
+	if len(sys.argv) != 2:
+		print(json.dumps({"ok": False, "error": "usage: motion_gif.py job.json"}))
+		sys.exit(1)
+	JOB_PATH = sys.argv[1]
+	try:
+		main()
+	except Exception as e:  # noqa: BLE001 — the receipt IS the error channel
+		print(json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"}))
+		sys.exit(1)

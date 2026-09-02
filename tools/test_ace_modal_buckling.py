@@ -334,6 +334,18 @@ def main() -> int:  # noqa: PLR0915 — a linear benchmark script reads best lin
 		gate("G6 no-fixture refusal", "free_free" in str(exc),
 		     f"refused, names the explicit opt-out: {str(exc)[:60]}...")
 	try:
+		under = dict(base, fixtures=[{
+			"kind": "slider",
+			"region_selector": {"type": "plane", "axis": "x", "value_mm": 0.0, "side": "-"},
+		}])
+		ace_modal_runner.run_modal_job(under)
+		gate("G6 under-constrained fixed model refusal", False,
+		     "near-zero modes were silently discarded")
+	except Exception as exc:  # Refusal is the expected public contract
+		gate("G6 under-constrained fixed model refusal",
+		     getattr(exc, "kind", "") == "refusal.under_constrained_model",
+		     f"kind={getattr(exc, 'kind', type(exc).__name__)}")
+	try:
 		bad = dict(base, free_free=True,
 		           material={"youngs_modulus_pa": E, "poisson": NU, "density_kg_m3": 0.0})
 		ace_modal_runner.run_modal_job(bad)

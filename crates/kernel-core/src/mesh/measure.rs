@@ -44,10 +44,41 @@ pub(crate) fn segment_segment_distance(p1: Vec3, q1: Vec3, p2: Vec3, q2: Vec3) -
 	((p1 + d1 * s) - (p2 + d2 * t)).length()
 }
 
+/// Is this triangle degenerate — zero area to within its own scale? Compared
+/// RELATIVE to the longest edge squared so the test is scale-invariant: a
+/// 0.001 mm triangle is not degenerate just because it is small, and a 100 mm
+/// sliver is degenerate when its width is below float resolution.
+pub(crate) fn triangle_is_degenerate(t: [Vec3; 3]) -> bool {
+	let (e0, e1, e2) = (t[1] - t[0], t[2] - t[1], t[0] - t[2]);
+	let longest = e0.length_squared().max(e1.length_squared()).max(e2.length_squared());
+	if longest <= 0.0 {
+		return true; // all three corners coincide
+	}
+	// |cross| = 2·area; compare against the longest edge so the ratio is a
+	// WIDTH (area / base) relative to the triangle's own size.
+	let twice_area = e0.cross(-e2).length();
+	twice_area <= 1e-7 * longest
+}
+
 /// Exact minimum distance between two triangles: `0` if they intersect, else the
 /// least of the six vertex–face and nine edge–edge feature distances.
+///
+/// **Degenerate operands never claim an intersection.** A zero-area triangle has
+/// no interior to be pierced, and the Möller triangle–triangle predicate is
+/// undefined on it: its plane normal is the zero vector, so the plane-side
+/// rejection cannot fire and the "planes are parallel" branch is entered with a
+/// null normal, which reports an intersection against essentially anything that
+/// straddles the sliver. Tessellations legitimately contain such slivers (a
+/// subdivided seam whose interior points are collinear), and a single one used
+/// to collapse the WHOLE clearance query to `0.0` — a real 0.30 mm gap read as
+/// contact (docs/FRICTION.md, campaign theme T5). Degenerate triangles are
+/// therefore routed straight to the feature distances, where the edge–edge terms
+/// measure the segment they actually are. Nothing is lost for interference
+/// detection: a sliver's edges are shared with non-degenerate neighbours in any
+/// surface mesh, so a real penetration through the sliver is still reported as
+/// `0` by those neighbouring pairs.
 pub(crate) fn triangle_triangle_distance(a: [Vec3; 3], b: [Vec3; 3]) -> f32 {
-	if crate::meshcheck::tri_tri_intersect(a, b) {
+	if !triangle_is_degenerate(a) && !triangle_is_degenerate(b) && crate::meshcheck::tri_tri_intersect(a, b) {
 		return 0.0;
 	}
 	let mut m = f32::INFINITY;
@@ -123,7 +154,144 @@ impl Mesh {
 
 }
 
+/// WHERE a mesh crosses itself — the actionable half of the self-intersection
+/// flag. `triangles` are the two triangle indices, `point` is the pierce point
+/// (where an edge of one triangle passes through the other's interior), and
+/// `pairs` is how many crossing pairs exist in total.
+#[derive(Clone, Copy, Debug)]
+pub struct SelfIntersection {
+	pub triangles: [usize; 2],
+	pub point: Vec3,
+	pub pairs: usize,
+}
+
+/// Does segment `o`→`e` pierce the INTERIOR of triangle `abc`, and where?
+///
+/// Möller–Trumbore with epsilon margins that exclude edge and vertex grazes, so
+/// only a proper crossing counts. This is the predicate behind
+/// [`Mesh::has_self_intersection`]; it is spelled out here because that one
+/// answers only yes/no and a bare yes on a validity flag is not actionable.
+/// `tests/self_intersection_witness.rs` in `kernel-api` pins the two to the same
+/// answer so they cannot drift apart.
+fn segment_pierces_triangle(o: Vec3, e: Vec3, a: Vec3, b: Vec3, c: Vec3) -> Option<Vec3> {
+	// Evaluated in f64 (the house f32-store / f64-compute doctrine): at f32 a
+	// rotated mesh's last-ulp coordinate noise manufactured crossings that do
+	// not exist in the stored coordinates — a posed solid's export was demoted
+	// to the voxel heal by a witness that vanished at double precision
+	// (friction folding_book_stand F4, 2026-08-27).
+	let (o, e, a, b, c) = (o.as_dvec3(), e.as_dvec3(), a.as_dvec3(), b.as_dvec3(), c.as_dvec3());
+	let eps = 1e-9_f64;
+	let dir = e - o;
+	let ab = b - a;
+	let ac = c - a;
+	let pv = dir.cross(ac);
+	let det = ab.dot(pv);
+	// Parallel guard, scale-aware: det = ±(n·dir) with n = ab×ac, so compare
+	// against the magnitudes rather than an absolute volume epsilon.
+	if det.abs() < 1e-12 * ab.cross(ac).length() * dir.length() {
+		return None; // segment parallel to the triangle plane
+	}
+	let inv = 1.0 / det;
+	let tv = o - a;
+	let u = tv.dot(pv) * inv;
+	if u <= eps || u >= 1.0 - eps {
+		return None;
+	}
+	let qv = tv.cross(ab);
+	let v = dir.dot(qv) * inv;
+	if v <= eps || u + v >= 1.0 - eps {
+		return None;
+	}
+	let t = ac.dot(qv) * inv;
+	if t > eps && t < 1.0 - eps {
+		Some((o + dir * t).as_vec3())
+	} else {
+		None
+	}
+}
+
+/// The first proper crossing between two triangles, as a point, or `None`.
+fn triangles_cross_at(t1: [Vec3; 3], t2: [Vec3; 3]) -> Option<Vec3> {
+	for i in 0..3 {
+		if let Some(p) = segment_pierces_triangle(t1[i], t1[(i + 1) % 3], t2[0], t2[1], t2[2]) {
+			return Some(p);
+		}
+	}
+	for i in 0..3 {
+		if let Some(p) = segment_pierces_triangle(t2[i], t2[(i + 1) % 3], t1[0], t1[1], t1[2]) {
+			return Some(p);
+		}
+	}
+	None
+}
+
 impl Mesh {
+	/// Locate a proper self-intersection: the same predicate as
+	/// [`Mesh::has_self_intersection`], but reporting WHERE.
+	///
+	/// A validity flag that only says "something is wrong somewhere" trains its
+	/// readers to ignore it — which is exactly what happened to
+	/// `validate.geometric_ok` across three campaigns (theme T15). The witness
+	/// turns it back into a defect report: two triangle indices and a point to
+	/// look at.
+	///
+	/// Deterministic and independent of traversal order: the reported witness is
+	/// always the lexicographically lowest crossing pair `(a, b)`, and `pairs`
+	/// counts them all. Candidate pairs come from a sweep-and-prune along the
+	/// mesh's longest axis, so a clean mesh costs ~O(T log T), not O(T²).
+	pub fn self_intersection_witness(&self) -> Option<SelfIntersection> {
+		let n = self.triangle_count();
+		if n < 2 {
+			return None;
+		}
+		let tris: Vec<[u32; 3]> = self.triangles().collect();
+		let verts: Vec<[Vec3; 3]> = tris
+			.iter()
+			.map(|t| [self.positions[t[0] as usize], self.positions[t[1] as usize], self.positions[t[2] as usize]])
+			.collect();
+		let bounds: Vec<Aabb> = verts.iter().map(|t| Aabb::from_points(t)).collect();
+
+		// Sweep along the widest axis so the active interval stays short.
+		let extent = self.aabb().size();
+		let axis = if extent.x >= extent.y && extent.x >= extent.z {
+			0
+		} else if extent.y >= extent.z {
+			1
+		} else {
+			2
+		};
+		let lo = |i: usize| -> f32 { [bounds[i].min.x, bounds[i].min.y, bounds[i].min.z][axis] };
+		let hi = |i: usize| -> f32 { [bounds[i].max.x, bounds[i].max.y, bounds[i].max.z][axis] };
+		let mut order: Vec<usize> = (0..n).collect();
+		// Ties broken by index so the sweep is byte-reproducible.
+		order.sort_by(|&i, &j| lo(i).total_cmp(&lo(j)).then(i.cmp(&j)));
+
+		let mut first: Option<SelfIntersection> = None;
+		let mut pairs = 0usize;
+		let mut active: Vec<usize> = Vec::new();
+		for &t in &order {
+			active.retain(|&a| hi(a) >= lo(t));
+			for &a in &active {
+				let (x, y) = if a < t { (a, t) } else { (t, a) };
+				// Adjacent triangles are EXPECTED to touch along shared edges.
+				if tris[x].iter().any(|v| tris[y].contains(v)) {
+					continue;
+				}
+				if bounds[x].distance_squared_box(bounds[y]) > 0.0 {
+					continue; // boxes disjoint ⇒ triangles cannot cross
+				}
+				if let Some(p) = triangles_cross_at(verts[x], verts[y]) {
+					pairs += 1;
+					if first.is_none_or(|w| [x, y] < w.triangles) {
+						first = Some(SelfIntersection { triangles: [x, y], point: p, pairs: 0 });
+					}
+				}
+			}
+			active.push(t);
+		}
+		first.map(|w| SelfIntersection { pairs, ..w })
+	}
+
 	/// Exact **radial extent** `(min, max)` of the surface about an axis,
 	/// optionally restricted to a slab `band = (t0, t1)` of axial coordinate
 	/// (`t = (p − axis_point)·axis_dir`). Returns `None` when no surface lies
@@ -306,5 +474,50 @@ impl Mesh {
 		let base = self.positions.len() as u32;
 		self.positions.extend_from_slice(&other.positions);
 		self.indices.extend(other.indices.iter().map(|i| i + base));
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn tri(a: [f32; 3], b: [f32; 3], c: [f32; 3]) -> [Vec3; 3] {
+		[Vec3::from_array(a), Vec3::from_array(b), Vec3::from_array(c)]
+	}
+
+	/// The T5 root cause, in isolation: a ZERO-AREA triangle (three collinear
+	/// points, which subdivided seams legitimately produce) used to make the
+	/// Möller triangle–triangle predicate claim an intersection against anything
+	/// straddling it, collapsing the measured distance to 0. A real 0.30 mm gap
+	/// read as contact because of one sliver.
+	#[test]
+	fn a_degenerate_triangle_never_fakes_contact() {
+		// A vertical sliver at x = 0, spanning z ∈ [0, 10].
+		let sliver = tri([0.0, 0.0, 0.0], [0.0, 0.0, 5.0], [0.0, 0.0, 10.0]);
+		assert!(triangle_is_degenerate(sliver));
+		// A real triangle 2 mm away in x, straddling the sliver in z.
+		let real = tri([2.0, -3.0, 5.0], [2.0, 3.0, 5.0], [2.0, 0.0, 8.0]);
+		assert!(!triangle_is_degenerate(real));
+		let d = triangle_triangle_distance(sliver, real);
+		assert!((d - 2.0).abs() < 1e-4, "the sliver's true distance is 2 mm, got {d}");
+	}
+
+	/// The guard must not blind the predicate: two genuinely crossing triangles
+	/// still measure 0.
+	#[test]
+	fn genuinely_crossing_triangles_still_measure_zero() {
+		let a = tri([-5.0, 0.0, 0.0], [5.0, 0.0, 0.0], [0.0, 0.0, 5.0]);
+		let b = tri([0.0, -5.0, 1.0], [0.0, 5.0, 1.0], [0.0, 0.0, 4.0]);
+		assert_eq!(triangle_triangle_distance(a, b), 0.0);
+	}
+
+	/// Degeneracy is judged RELATIVE to the triangle's own size, so a legitimately
+	/// tiny facet is not mistaken for a sliver.
+	#[test]
+	fn degeneracy_is_scale_invariant() {
+		let tiny = tri([0.0, 0.0, 0.0], [1e-3, 0.0, 0.0], [0.0, 1e-3, 0.0]);
+		assert!(!triangle_is_degenerate(tiny), "a small but well-formed facet is not degenerate");
+		let huge_sliver = tri([0.0, 0.0, 0.0], [100.0, 0.0, 0.0], [50.0, 1e-9, 0.0]);
+		assert!(triangle_is_degenerate(huge_sliver), "a 100 mm edge with 1e-9 mm width is degenerate");
 	}
 }

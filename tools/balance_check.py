@@ -6,9 +6,12 @@ combines them with real densities, and reports the imbalance of the assembly
 about a spin axis: CG offset, static imbalance, couple (product-of-inertia)
 terms, and the estimated 1x-rev wobble force at speed.
 
-Usage:  python3 balance_check.py <job.json>
-Persistence: receipt also written per the shared `_receipt` rule (job
-`receipt` path, else `<out_dir>/balance_check_receipt.json`).
+Usage:  python3 balance_check.py <job.json> [--out PATH]
+Persistence + exit codes: the shared contract in tools/_receipt.py.
+Optional `program_dir` (else `out_dir`, else the job file's own directory) is
+where each part's measurement program is materialised, and therefore the root
+its relative `import_step`/`load_part` paths resolve against — never a system
+temp dir.
 
 Job JSON (argv[1]) — one of the two geometry forms:
 {
@@ -50,13 +53,14 @@ analytic for planar/cylinder/sphere/cone-faced parts (pi-exact volumes).
 """
 import json
 
-import _receipt
 import math
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import param_optimize  # call_engine — the one-shot engine pattern
+import _receipt
+from _receipt import Refusal
 
 MP_ID = "__balance_mp"
 
@@ -80,28 +84,32 @@ def v_cross(a, b):
 def v_norm(a):
     n = math.sqrt(v_dot(a, a))
     if n < 1e-12:
-        raise ValueError("spin_axis.dir must be a non-zero vector")
+        raise Refusal("degenerate_axis", "spin_axis.dir must be a non-zero vector")
     return [x / n for x in a]
 
 
-def measure_part(part):
+def measure_part(part, program_dir=None):
     """Run mass_properties on one part -> (volume_mm3, com_mm, tensor_mm5)."""
     ops = list(part["ops"]) + [{"id": MP_ID, "op": "mass_properties", "in": part["solid"]}]
-    report = param_optimize.call_engine({"ops": ops})
+    report = param_optimize.call_engine({"ops": ops}, program_dir=program_dir)
     if not report.get("ok"):
         errs = [o.get("error") for o in report.get("ops", []) if o.get("error")]
-        raise RuntimeError(f"part '{part.get('name', part['solid'])}' failed: {errs[:1]}")
+        raise Refusal("part_program_failed",
+                      f"part '{part.get('name', part['solid'])}' failed: {errs[:1]}")
     m = next(o["measures"] for o in report["ops"] if o["id"] == MP_ID)
     return float(m["volume"]), list(m["center_of_mass"]), [list(r) for r in m["inertia_tensor"]]
 
 
-def main():
-    job = json.load(open(sys.argv[1]))
+def build(job, job_path=None):
+    pdir = param_optimize.station_dir(job, job_path)
     if "parts" in job:
         parts = job["parts"]
     else:
         parts = [{"name": job.get("name", job["solid"]), "ops": job["ops"],
                   "solid": job["solid"], "density_kg_m3": job["density_kg_m3"]}]
+    if not isinstance(job.get("spin_axis"), dict) or "point" not in job["spin_axis"] \
+            or "dir" not in job["spin_axis"]:
+        raise Refusal("missing_spin_axis", "job needs `spin_axis` {point: [x,y,z], dir: [x,y,z]}")
     axis = job["spin_axis"]
     p0 = [float(x) for x in axis["point"]]        # mm
     w = v_norm([float(x) for x in axis["dir"]])   # unit axis dir
@@ -117,7 +125,7 @@ def main():
     i_axis = [[0.0] * 3 for _ in range(3)]  # kg*m^2 about p0, world axes
     per_part = []
     for part in parts:
-        vol, com, tensor = measure_part(part)
+        vol, com, tensor = measure_part(part, pdir)
         rho = float(part["density_kg_m3"])
         mass = rho * vol * 1e-9  # mm^3 * kg/m^3 * 1e-9 = kg
         total_mass += mass
@@ -138,7 +146,7 @@ def main():
         log(f"part {per_part[-1]['name']}: V={vol:.4f} mm^3, m={mass * 1e3:.4f} g, com={com}")
 
     if total_mass <= 0:
-        raise ValueError("assembly has zero mass — check densities/volumes")
+        raise Refusal("zero_mass", "assembly has zero mass — check densities/volumes")
     cg = [m / total_mass for m in moment]  # mm
     r_vec = v_sub(cg, p0)
     r_perp = v_sub(r_vec, [v_dot(r_vec, w) * c for c in w])
@@ -175,19 +183,15 @@ def main():
         receipt["spin_rpm"] = float(rpm)
         receipt["est_wobble_force_N_at_rpm"] = round(
             total_mass * cg_offset_mm * 1e-3 * omega * omega, 6)
-    _receipt.emit(receipt, job, "balance_check")
+    return receipt
+
+
+def main():
+    job_path, _ = _receipt.parse_argv()
+    job, out = _receipt.load_job()
+    _receipt.finish(build(job, job_path), job=job, tool="balance_check", out=out,
+                    use_out_dir_default=True)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
-        print(__doc__)
-        sys.exit(0)
-    try:
-        main()
-    except Exception as e:  # honest failure receipt — the JSON line is the contract
-        try:
-            _job = json.load(open(sys.argv[1]))
-        except Exception:
-            _job = {}
-        _receipt.emit({"ok": False, "error": f"{type(e).__name__}: {e}"}, _job, "balance_check")
-        sys.exit(1)
+    _receipt.run_cli("balance_check", main)

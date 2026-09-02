@@ -100,11 +100,34 @@ export interface Catalog {
 }
 
 const SESSION = 'default'
+const TOKEN_KEY = 'lmcad.apiToken'
+let apiToken = typeof sessionStorage === 'undefined' ? '' : (sessionStorage.getItem(TOKEN_KEY) ?? '')
+
+/** Keep a bearer token in this browser tab only; never persist it to localStorage. */
+export function configureApiToken(token: string): void {
+	apiToken = token.trim()
+	if (typeof sessionStorage !== 'undefined') {
+		if (apiToken) sessionStorage.setItem(TOKEN_KEY, apiToken)
+		else sessionStorage.removeItem(TOKEN_KEY)
+	}
+}
+
+/** Headers for authenticated binary fetches such as mesh display/download. */
+export function authorizationHeaders(): Record<string, string> {
+	return apiToken ? { authorization: `Bearer ${apiToken}` } : {}
+}
+
+function requestHeaders(json = false): Record<string, string> {
+	const out: Record<string, string> = {}
+	if (json) out['content-type'] = 'application/json'
+	Object.assign(out, authorizationHeaders())
+	return out
+}
 
 async function post<T>(url: string, body: unknown): Promise<T> {
 	const resp = await fetch(url, {
 		method: 'POST',
-		headers: { 'content-type': 'application/json' },
+		headers: requestHeaders(true),
 		body: JSON.stringify(body),
 	})
 	const data = await resp.json()
@@ -129,7 +152,7 @@ export function savePart(path: string, envelope: unknown): Promise<{ ok: boolean
 }
 
 export async function getCatalog(): Promise<Catalog> {
-	const resp = await fetch('/api/catalog')
+	const resp = await fetch('/api/catalog', { headers: requestHeaders() })
 	if (!resp.ok) throw new Error(`catalog failed: ${resp.status}`)
 	return (await resp.json()) as Catalog
 }
@@ -141,6 +164,8 @@ export type ChatEvent =
 	| { type: 'thinking'; delta: string }
 	| { type: 'tool'; state: 'running' | 'done'; name: string; ops: number; ok?: boolean; error?: string; program?: unknown }
 	| { type: 'refresh'; artifacts: Artifact[]; receipt?: MeshReceipt }
+	| { type: 'tasks'; tasks: { content: string; status: string }[] }
+	| { type: 'subagent'; name: string; state: string; detail?: string }
 	| { type: 'chat_disabled'; message: string }
 	| { type: 'error'; message: string }
 	| { type: 'done'; stop_reason: string }
@@ -154,7 +179,7 @@ export interface ChatTurn {
 export async function* chatStream(messages: ChatTurn[]): AsyncGenerator<ChatEvent> {
 	const resp = await fetch('/api/chat', {
 		method: 'POST',
-		headers: { 'content-type': 'application/json' },
+		headers: requestHeaders(true),
 		body: JSON.stringify({ messages, session: SESSION }),
 	})
 	if (!resp.ok || !resp.body) {
@@ -168,6 +193,10 @@ export async function* chatStream(messages: ChatTurn[]): AsyncGenerator<ChatEven
 		const { done, value } = await reader.read()
 		if (done) break
 		buffer += decoder.decode(value, { stream: true })
+		if (buffer.length > 1_048_576) {
+			await reader.cancel()
+			throw new Error('chat stream frame exceeded the 1 MiB client safety limit')
+		}
 		for (;;) {
 			const cut = buffer.indexOf('\n\n')
 			if (cut < 0) break
@@ -175,7 +204,8 @@ export async function* chatStream(messages: ChatTurn[]): AsyncGenerator<ChatEven
 			buffer = buffer.slice(cut + 2)
 			let event = 'message'
 			const dataLines: string[] = []
-			for (const line of frame.split('\n')) {
+			for (const rawLine of frame.split('\n')) {
+				const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
 				if (line.startsWith('event:')) event = line.slice(6).trim()
 				else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart())
 			}

@@ -213,14 +213,57 @@ fn merge_into(dst: &mut Mesh, src: &Mesh, offset: DVec3) {
 	}
 }
 
-/// Mesh a solid for display/printing: the exact analytic tessellation when it is
-/// already watertight, else healed through the voxel half. Returns the route taken.
+/// True when a mesh is a closed orientable 2-manifold with no collapsed facets
+/// or proper triangle crossings. Contact/overlap diagnostics remain available in
+/// `check_mesh`, but edge/vertex grazes are not treated as crossings here.
+fn manufacturing_ready(mesh: &Mesh) -> bool {
+	let report = check_mesh(mesh);
+	report.watertight && report.degenerate_triangles == 0 && mesh.self_intersection_witness().is_none()
+}
+
+/// Write and re-read the actual manufacturing bytes. A failed round trip is
+/// removed so the gallery can never leave a defective artifact behind a PASS.
+fn write_manufacturing_mesh(mesh: &Mesh, path: &str) -> bool {
+	let p = std::path::Path::new(path);
+	let ext = p.extension().and_then(|x| x.to_str()).unwrap_or("").to_ascii_lowercase();
+	let written = match ext.as_str() {
+		"stl" => mesh.write_stl_binary(p),
+		"3mf" => mesh.write_3mf(p),
+		_ => return false,
+	};
+	if written.is_err() {
+		let _ = std::fs::remove_file(p);
+		return false;
+	}
+	let mut loaded = match ext.as_str() {
+		"stl" => Mesh::read_stl(p),
+		"3mf" => Mesh::read_3mf(p),
+		_ => unreachable!(),
+	};
+	let Ok(ref mut round_trip) = loaded else {
+		let _ = std::fs::remove_file(p);
+		return false;
+	};
+	round_trip.weld(1.0e-4);
+	round_trip.compute_normals();
+	if !manufacturing_ready(round_trip) {
+		let _ = std::fs::remove_file(p);
+		return false;
+	}
+	true
+}
+
+/// Mesh a solid for display/printing: use the exact analytic tessellation only
+/// when it passes the manufacturing gate; otherwise heal through the voxel half.
 fn part_mesh(solid: &Solid) -> (Mesh, &'static str) {
 	let exact = tessellate_adaptive_tol(solid, TOL);
-	if exact.is_watertight() {
+	if manufacturing_ready(&exact) {
 		(exact, "exact")
 	} else {
-		(watertight_mesh(solid, 0.3), "voxel-healed")
+		let mut healed = watertight_mesh(solid, 0.3);
+		healed.weld(1e-4);
+		healed.compute_normals();
+		(healed, "voxel-healed")
 	}
 }
 
@@ -229,9 +272,10 @@ fn part_mesh(solid: &Solid) -> (Mesh, &'static str) {
 fn emit(dir: &str, name: &str, solid: &Solid, want_genus: i64) -> bool {
 	let v = validate(solid);
 	let (mesh, route) = part_mesh(solid);
-	let ok = v.closed && v.manifold && v.genus == want_genus && mesh.is_watertight();
+	let mesh_ok = manufacturing_ready(&mesh);
+	let ok = v.closed && v.manifold && v.genus == want_genus && mesh_ok;
 	println!(
-		"  {:<13} closed={} manifold={} genus={} (want {})  vol={:>9.1} mm³ (exact {:>9.1})  {:>6} tris via {:<12} watertight={}  {}",
+		"  {:<13} closed={} manifold={} genus={} (want {})  vol={:>9.1} mm³ (exact {:>9.1})  {:>6} tris via {:<12} manufacturing_ready={}  {}",
 		name,
 		v.closed,
 		v.manifold,
@@ -241,10 +285,12 @@ fn emit(dir: &str, name: &str, solid: &Solid, want_genus: i64) -> bool {
 		exact_volume(solid).abs(),
 		mesh.triangle_count(),
 		route,
-		mesh.is_watertight(),
+		mesh_ok,
 		if ok { "PASS" } else { "FAIL" },
 	);
-	mesh.write_stl_binary(format!("{dir}/{name}.stl")).expect("write stl");
+	if ok && !write_manufacturing_mesh(&mesh, &format!("{dir}/{name}.stl")) {
+		return false;
+	}
 	std::fs::write(format!("{dir}/{name}.step"), export_step(solid, name)).expect("write step");
 	ok
 }
@@ -295,7 +341,7 @@ fn main() {
 	let mut th: Vec<f64> = shell_walls.thickness.iter().copied().filter(|t| t.is_finite()).collect();
 	th.sort_by(f64::total_cmp);
 	let (p01, median) = (th[th.len() / 100], th[th.len() / 2]);
-	let shell_ok = shell.is_watertight() && p01 > 1.8 && (1.9..=2.1).contains(&median);
+	let shell_ok = manufacturing_ready(&shell) && p01 > 1.8 && (1.9..=2.1).contains(&median);
 	all_ok &= shell_ok;
 	println!(
 		"                 DFM: min draft {:.2}° (≥1° area below: {:.1} mm², undercuts: {:.1} mm²); body min wall {:.1} mm",
@@ -311,13 +357,15 @@ fn main() {
 		shell_walls.min_thickness,
 		if shell_ok { "PASS" } else { "FAIL" },
 	);
-	shell.write_stl_binary(format!("{dir}/enclosure_shell.stl")).expect("write stl");
+	if shell_ok {
+		all_ok &= write_manufacturing_mesh(&shell, &format!("{dir}/enclosure_shell.stl"));
+	}
 
 	// 5) Gyroid lattice block.
 	let gy = gyroid_block();
 	let gr = check_mesh(&gy);
 	let gy_vol = gy.signed_volume().abs();
-	let gy_ok = gy.is_watertight() && gr.non_manifold_edges == 0 && gr.boundary_edges == 0;
+	let gy_ok = manufacturing_ready(&gy);
 	all_ok &= gy_ok;
 	println!(
 		"  {:<13} {} tris, watertight={}, non-manifold edges={}, fill {:.1}% of the 40 mm cube  {}",
@@ -328,8 +376,10 @@ fn main() {
 		gy_vol / (40.0f64.powi(3)) * 100.0,
 		if gy_ok { "PASS" } else { "FAIL" },
 	);
-	gy.write_stl_binary(format!("{dir}/gyroid_block.stl")).expect("write stl");
-	gy.write_3mf(format!("{dir}/gyroid_block.3mf")).expect("write 3mf");
+	if gy_ok {
+		all_ok &= write_manufacturing_mesh(&gy, &format!("{dir}/gyroid_block.stl"));
+		all_ok &= write_manufacturing_mesh(&gy, &format!("{dir}/gyroid_block.3mf"));
+	}
 
 	// 6) Fastener stack assembly: bolt + washer + nut on the shank.
 	let bolt = hex_bolt(16.0, 8.0, 10.0, 40.0);
@@ -347,7 +397,10 @@ fn main() {
 	let gap = asm.clearance(0, 1, Resolution::VoxelSize(0.2));
 	let hits = asm.interferences(0.05, Resolution::VoxelSize(0.2));
 	let total = asm.mass_properties(Resolution::VoxelSize(0.4));
-	let asm_ok = hits.is_empty() && gap > 0.05 && gap < 0.6;
+	let mut merged = mb.clone();
+	merge_into(&mut merged, &mw, DVec3::new(0.0, 0.0, 2.0));
+	merge_into(&mut merged, &mn, DVec3::new(0.0, 0.0, 5.5));
+	let asm_ok = hits.is_empty() && gap > 0.05 && gap < 0.6 && manufacturing_ready(&merged);
 	all_ok &= asm_ok;
 	println!(
 		"  {:<13} bolt CoM z={:.2} mm (analytic), washer↔shank clearance {:.2} mm (nominal 0.30), interferences: {}, stack volume {:.0} mm³  {}",
@@ -358,14 +411,30 @@ fn main() {
 		total.volume,
 		if asm_ok { "PASS" } else { "FAIL" },
 	);
-	let mut merged = mb.clone();
-	merge_into(&mut merged, &mw, DVec3::new(0.0, 0.0, 2.0));
-	merge_into(&mut merged, &mn, DVec3::new(0.0, 0.0, 5.5));
-	merged.write_stl_binary(format!("{dir}/fastener_stack.stl")).expect("write stl");
+	if asm_ok {
+		all_ok &= write_manufacturing_mesh(&merged, &format!("{dir}/fastener_stack.stl"));
+	}
 
 	println!(
 		"\n{} — wrote STL/STEP/3MF files to ./{dir}/",
 		if all_ok { "ALL PARTS PASS" } else { "SOME PARTS FAILED" }
 	);
 	std::process::exit(if all_ok { 0 } else { 1 });
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn gallery_flange_uses_a_manufacturing_ready_mesh() {
+		let (mesh, _route) = part_mesh(&flange());
+		let report = check_mesh(&mesh);
+		assert!(
+			report.watertight
+				&& report.degenerate_triangles == 0
+				&& mesh.self_intersection_witness().is_none(),
+			"gallery export must be a closed orientable manifold without collapsed or crossing triangles: {report:?}"
+		);
+	}
 }

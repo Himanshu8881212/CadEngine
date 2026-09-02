@@ -130,6 +130,7 @@ def parse_fields(body: str) -> list[dict]:
     fields: list[dict] = []
     doc: list[str] = []
     rename: str | None = None
+    aliases: list[str] = []
     has_default = False
     for raw in body.split("\n"):
         s = raw.strip()
@@ -148,7 +149,8 @@ def parse_fields(body: str) -> list[dict]:
                 rename = rm.group(1)
             if re.search(r"\bdefault\b", inner):
                 has_default = True
-            continue  # alias = "..." intentionally ignored: an alias, not the wire name
+            aliases += re.findall(r'alias\s*=\s*"([^"]+)"', inner)
+            continue
         for decl in split_top_level(s.rstrip(",")):
             dm = re.fullmatch(r"(\w+)\s*:\s*(.+)", decl)
             if not dm:
@@ -160,8 +162,9 @@ def parse_fields(body: str) -> list[dict]:
                 "ty": friendly(ty, wire),
                 "required": not is_optional(ty, has_default),
                 "doc": first_sentence(doc),
+                "aliases": aliases,
             })
-            doc, rename, has_default = [], None, False
+            doc, rename, aliases, has_default = [], None, [], False
     return fields
 
 
@@ -237,8 +240,9 @@ def emit(variants: list[dict]) -> str:
             param_rows.append(f'\t({rs_str(v["tag"])}, &[]),')
             continue
         specs = "\n".join(
-            "\t\tParamSpec { name: %s, ty: %s, required: %s, doc: %s },"
-            % (rs_str(f["name"]), rs_str(f["ty"]), "true" if f["required"] else "false", rs_str(f["doc"]))
+            "\t\tParamSpec { name: %s, ty: %s, required: %s, doc: %s, aliases: &[%s] },"
+            % (rs_str(f["name"]), rs_str(f["ty"]), "true" if f["required"] else "false", rs_str(f["doc"]),
+               ", ".join(rs_str(a) for a in f.get("aliases", [])))
             for f in v["fields"]
         )
         param_rows.append(f'\t({rs_str(v["tag"])}, &[\n{specs}\n\t]),')
@@ -274,13 +278,16 @@ pub const OP_COUNT: usize = {count};
 /// One parameter of an op, as served by `describe {{name}}`: the JSON wire name (post
 /// `#[serde(rename)]` — e.g. `in`), a friendly type string (`number` / `int` / `string` /
 /// `bool` / `id-ref` / `[x,y,z]` / `[[x,y]...]` / `object` / ...), whether the field is
-/// required (no `Option` and no serde default), and the first sentence of its doc comment.
+/// required (no `Option` and no serde default), the first sentence of its doc comment, and
+/// every accepted `#[serde(alias)]` wire spelling (the fail-closed unknown-param check and
+/// `describe` both honour aliases — an accepted spelling is never refused as unknown).
 #[derive(Clone, Copy, Debug)]
 pub struct ParamSpec {{
 \tpub name: &'static str,
 \tpub ty: &'static str,
 \tpub required: bool,
 \tpub doc: &'static str,
+\tpub aliases: &'static [&'static str],
 }}
 
 /// Per-op parameter specs, parallel to [`OP_NAMES`] (same tags, same declaration order — pinned

@@ -51,6 +51,18 @@ Every analyzer result that surfaces to a human should be wrapped by
 `validation_status` — the contract is enforced at construction, not by
 convention.
 
+ACE-backed runners additionally record the clean/dirty state and commit of both
+LMCAD and ACE, Python/platform and numerical-package versions, a SHA-256 for the
+hash-locked dependency file, hashes of the exact runner/solver source files, and
+the exact sampled grid or Tet10 node/connectivity hash. The supported environment
+is Python 3.11 plus `tools/requirements-analysis.lock`; ACE is pinned by
+`tools/ACE_REVISION`. A dirty checkout, missing lock, non-empty `PYTHONPATH`,
+package imported outside the selected Python prefix, or validation-range miss
+automatically downgrades a requested `validated` claim to `demonstrated`.
+`LMCAD_REQUIRE_REPRODUCIBLE_ANALYSIS=1` makes those same conditions a refusal
+before meshing or solver artifacts are produced. A mismatched ACE commit always
+refuses.
+
 ### Geometry content-hash (determinism)
 
 `provenance.geometry_hash(...)` is a pure function of geometry **content**:

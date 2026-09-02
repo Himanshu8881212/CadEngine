@@ -7,9 +7,14 @@ through the same typed panels.
 Usage: analysis_sheet.py job.json
 
 MODERN FORM — {title, meta_note?, panels:[...], results, gates, date, out}:
-  panel {"kind":"view",  caption, stl, loads:[{label,at,dir}], fixture:{label},
+  panel {"kind":"view",  caption, stl, loads:[{at,dir,label?}], fixture:{label?},
          elev?, azim?}                      — load-case / part view
+                                              (`loads[].label` is OPTIONAL, like
+                                              `fixture.label`; `at`/`dir` are
+                                              required and are named in the
+                                              refusal when they are missing)
   panel {"kind":"field", caption, stl, npy, origin_mm, voxel_mm, cmap, unit,
+         field_unit? (the unit the .npy is ACTUALLY in — see UNITS below),
          scale? (multiply raw field), vmax?, hotspot? (bool), elev?, azim?}
                                             — any voxel field mapped to the surface
   panel {"kind":"curve", caption, series:[{x,y,label?}], xlabel, ylabel,
@@ -40,6 +45,22 @@ Job keys:
   date         stamped in the header (never read from the clock)
   out          output PNG
 
+UNITS — `unit` used to be DECORATIVE (cubesat F8: a Pa field labelled "MPa" drew a
+colour bar reading `1.92e+07 MPa`, i.e. every stress on the sheet overstated 1e6×
+while looking self-consistent). The voxel runners emit SI (Pa, m, K/°C); `scale`
+was the only thing that made `unit` true, and nothing checked the two agreed.
+
+Now: declare `field_unit` (what the .npy holds) alongside `unit` (what the colour
+bar says) and the CONVERSION IS COMPUTED and cross-checked —
+  * unknown unit, or a dimension mismatch (`"m"` -> `"MPa"`)  -> REFUSED;
+  * `field_unit` + a `scale` that disagrees with the computed factor -> REFUSED
+    (`unit_scale_conflict`), never silently preferring one;
+  * temperature is an OFFSET relation, so K -> °C is refused rather than scaled.
+`field_unit` is optional and the default is exactly the old behaviour (`scale`,
+default 1.0) — but then the receipt carries a `warnings` entry saying the label
+was never verified, because an unchecked label is a claim without a receipt.
+Every field panel's `{unit, field_unit, scale, vmax}` lands in the receipt.
+
 Design: same STYLE/palette/chrome as render_sheet.py (imported — one system).
 Field-to-surface mapping: each triangle is colored by the MAX of the field in the
 2x2x2 voxel neighborhood of its centroid (the outermost half-voxel shell of a
@@ -58,6 +79,69 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import render_sheet as rs
 
 DPI = 100.0
+
+# unit -> (dimension, multiplicative factor to the dimension's SI base).
+# Deliberately small and explicit: an unknown unit is REFUSED, never guessed.
+UNITS = {
+	"Pa": ("pressure", 1.0), "kPa": ("pressure", 1e3), "MPa": ("pressure", 1e6),
+	"GPa": ("pressure", 1e9), "N/m^2": ("pressure", 1.0), "N/mm^2": ("pressure", 1e6),
+	"bar": ("pressure", 1e5), "psi": ("pressure", 6894.757293168361),
+	"m": ("length", 1.0), "cm": ("length", 1e-2), "mm": ("length", 1e-3),
+	"um": ("length", 1e-6), "µm": ("length", 1e-6), "nm": ("length", 1e-9),
+	"in": ("length", 0.0254),
+	"N": ("force", 1.0), "kN": ("force", 1e3), "mN": ("force", 1e-3),
+	"N.m": ("torque", 1.0), "N.mm": ("torque", 1e-3),
+	"kg": ("mass", 1.0), "g": ("mass", 1e-3),
+	"Hz": ("frequency", 1.0), "kHz": ("frequency", 1e3),
+	"W": ("power", 1.0), "mW": ("power", 1e-3), "kW": ("power", 1e3),
+	"K": ("temperature", 1.0), "degC": ("temperature", 1.0),
+	"C": ("temperature", 1.0), "°C": ("temperature", 1.0),
+	"": ("dimensionless", 1.0), "-": ("dimensionless", 1.0), "1": ("dimensionless", 1.0),
+	"%": ("dimensionless", 0.01),
+}
+
+
+def convert_factor(field_unit, display_unit):
+	"""Multiplier taking a value in `field_unit` to `display_unit`.
+
+	Refuses (never guesses) an unknown unit, a dimension mismatch, or a
+	temperature change of unit — K -> degC is an OFFSET, not a scale, and a
+	sheet that silently multiplied by 1.0 there would be wrong by 273.15."""
+	for u in (field_unit, display_unit):
+		if u not in UNITS:
+			raise ValueError(f"unknown unit {u!r} — known units: {sorted(k for k in UNITS if k)}")
+	(df, ff), (dd, fd) = UNITS[field_unit], UNITS[display_unit]
+	if df != dd:
+		raise ValueError(f"unit dimension mismatch: field_unit {field_unit!r} is {df}, "
+		                 f"unit {display_unit!r} is {dd} — these are not convertible")
+	if df == "temperature" and field_unit != display_unit:
+		raise ValueError(f"temperature conversion {field_unit!r} -> {display_unit!r} is an OFFSET, "
+		                 f"not a scale; emit the field in the unit you label it with")
+	return ff / fd
+
+
+def panel_scale(spec, i, warnings):
+	"""The multiplier applied to a field panel's raw .npy, with its provenance.
+
+	Returns (scale, field_unit_or_None). `field_unit` present -> the factor is
+	COMPUTED and cross-checked against any explicit `scale`; absent -> today's
+	semantics (`scale`, default 1.0) plus an honest warning that nothing verified
+	the `unit` label."""
+	display = str(spec.get("unit", ""))
+	fu = spec.get("field_unit")
+	explicit = spec.get("scale")
+	if fu is None:
+		if explicit is None and display not in ("", "-", "1"):
+			warnings.append(f"panel {i}: 'unit' {display!r} is a LABEL only — no 'field_unit' and no "
+			                f"'scale' declared, so the colour bar is unverified (voxel runners emit SI)")
+		return (1.0 if explicit is None else float(explicit)), None
+	factor = convert_factor(str(fu), display)
+	if explicit is not None:
+		s = float(explicit)
+		if factor == 0.0 or abs(s - factor) > 1e-9 * max(abs(factor), 1.0):
+			raise ValueError(f"panel {i}: unit_scale_conflict — field_unit {fu!r} -> unit {display!r} "
+			                 f"is ×{factor!r}, but the job says scale ×{s!r}; drop one of them")
+	return factor, str(fu)
 
 
 def sample_surface(tris, field, origin, voxel):
@@ -145,16 +229,24 @@ def view_panel(fig, rect, spec, tris):
 				rs.px_line(fig, xx, gy - 8.0, xx + 8.0, gy, rs.STYLE["border"], 0.8, z=20)
 			rs.px_text(fig, x1 + 6.0, gy - 4.0, spec["fixture"].get("label", "clamped"),
 			           rs.STYLE["fs_table"], rs.STYLE["ink2"], z=20)
-	for ld in spec.get("loads", []):
+	for li, ld in enumerate(spec.get("loads", [])):
 		at = np.asarray(ld["at"], dtype=np.float64)
-		d = np.asarray(ld["dir"], dtype=np.float64); d = d / np.linalg.norm(d)
+		d = np.asarray(ld["dir"], dtype=np.float64)
+		n = float(np.linalg.norm(d))
+		if n < 1e-12:
+			raise ValueError(f"panel {spec.get('_index','?')} load {li}: 'dir' is a zero vector")
+		d = d / n
 		tail, tip = rs.project_px(ax, np.vstack([at - 34.0 * d, at]))
 		fig.add_artist(FancyArrowPatch((tail[0] / W, tail[1] / H), (tip[0] / W, tip[1] / H),
 			transform=fig.transFigure, color="#a23b2e", linewidth=2.0,
 			arrowstyle="-|>", mutation_scale=16, zorder=30))
-		lw_px = rs.text_w_px(ld["label"], rs.STYLE["fs_table"], DPI, "bold")
+		label = ld.get("label")            # OPTIONAL, exactly like fixture.label
+		if not label:
+			continue
+		label = str(label)
+		lw_px = rs.text_w_px(label, rs.STYLE["fs_table"], DPI, "bold")
 		lx = tail[0] - lw_px - 6.0 if tip[0] >= tail[0] else tail[0] + 6.0
-		rs.px_text(fig, lx, tail[1] + 6.0, ld["label"], rs.STYLE["fs_table"],
+		rs.px_text(fig, lx, tail[1] + 6.0, label, rs.STYLE["fs_table"],
 		           "#a23b2e", weight="bold", z=30)
 
 
@@ -193,11 +285,13 @@ def curve_panel(fig, rect, spec):
 		lg.get_frame().set_linewidth(0.5)
 
 
-def render_field_panel(fig, rect, spec):
+def render_field_panel(fig, rect, spec, scale=None):
 	tris = rs.load_stl(spec["stl"])
 	if len(tris) > rs.MAX_SHADED_TRIS:
 		tris = tris[:: int(np.ceil(len(tris) / rs.MAX_SHADED_TRIS))]
-	field = np.load(spec["npy"]).astype(np.float64) * float(spec.get("scale", 1.0))
+	if scale is None:
+		scale = float(spec.get("scale", 1.0))
+	field = np.load(spec["npy"]).astype(np.float64) * float(scale)
 	vals = sample_surface(tris, field, np.asarray(spec["origin_mm"], dtype=np.float64),
 	                      float(spec["voxel_mm"]))
 	vmax = float(spec.get("vmax", field.max()))
@@ -216,6 +310,48 @@ def truncate_caption(cap, pw):
 	return cap
 
 
+REQUIRED_BY_KIND = {
+	"view": ("stl",),
+	"field": ("stl", "npy", "origin_mm", "voxel_mm"),
+	"curve": ("series",),
+	"image": ("png",),
+}
+
+
+def validate_job(job):
+	"""Refuse a malformed job with a message that NAMES the panel and the key.
+
+	cubesat F7: a load with no `label` died on a bare `KeyError: 'label'` from
+	inside the renderer — no panel index, no job name, no receipt. The general
+	defect is that nothing checked the job before drawing it; the general fix is
+	one up-front pass that refuses by name."""
+	if not isinstance(job.get("panels"), list) or not job["panels"]:
+		raise ValueError("job.panels must be a non-empty list (or use the legacy structural form)")
+	if "out" not in job:
+		raise ValueError("job.out (output PNG path) is required")
+	if "results" not in job:
+		raise ValueError("job.results is required (dict or [[label, value], ...])")
+	for i, spec in enumerate(job["panels"]):
+		if not isinstance(spec, dict) or "kind" not in spec:
+			raise ValueError(f"panel {i}: must be an object with a 'kind'")
+		kind = spec["kind"]
+		if kind not in REQUIRED_BY_KIND:
+			raise ValueError(f"panel {i}: unknown panel kind {kind!r} — "
+			                 f"known kinds: {sorted(REQUIRED_BY_KIND)}")
+		for key in REQUIRED_BY_KIND[kind]:
+			if key not in spec:
+				raise ValueError(f"panel {i} (kind {kind!r}): missing required key {key!r}")
+		spec["_index"] = i
+		if kind == "view":
+			for li, ld in enumerate(spec.get("loads") or []):
+				if not isinstance(ld, dict):
+					raise ValueError(f"panel {i} load {li}: must be an object {{at, dir, label?}}")
+				for key in ("at", "dir"):
+					if key not in ld:
+						raise ValueError(f"panel {i} load {li}: missing required key {key!r} "
+						                 f"(only 'label' is optional)")
+
+
 def main():
 	job = json.load(open(sys.argv[1]))
 	if "panels" not in job:                                   # legacy structural form
@@ -226,11 +362,15 @@ def main():
 			 "elev": job.get("elev", 16.0), "azim": job.get("azim", -62.0)},
 			{"kind": "field", "caption": "von Mises stress — surface map", "stl": job["stl"],
 			 "npy": job["stress_npy"], "origin_mm": job["origin_mm"], "voxel_mm": job["voxel_mm"],
-			 "cmap": "turbo", "unit": "MPa", "scale": 1e-6, "vmax": res["max_von_mises_mpa"],
+			 # ace_fea's stress_field.npy is SI (Pa); declaring BOTH makes the pair
+			 # self-checking — a drifted scale is now a refusal, not a 1e6 error.
+			 "cmap": "turbo", "unit": "MPa", "field_unit": "Pa", "scale": 1e-6,
+			 "vmax": res["max_von_mises_mpa"],
 			 "hotspot": True, "elev": job.get("elev", 16.0), "azim": job.get("azim", -62.0)},
 			{"kind": "field", "caption": "displacement — surface map", "stl": job["stl"],
 			 "npy": job["disp_npy"], "origin_mm": job["origin_mm"], "voxel_mm": job["voxel_mm"],
-			 "cmap": "viridis", "unit": "mm", "scale": 1000.0, "vmax": res["max_disp_mm"],
+			 "cmap": "viridis", "unit": "mm", "field_unit": "m", "scale": 1000.0,
+			 "vmax": res["max_disp_mm"],
 			 "elev": job.get("elev", 16.0), "azim": job.get("azim", -62.0)}]
 		job["results"] = [["max von Mises", f"{res['max_von_mises_mpa']:.2f} MPa"],
 		                  ["allowable (derated)", f"{res['allowable_mpa']:.1f} MPa"],
@@ -240,7 +380,19 @@ def main():
 		job.setdefault("meta_note",
 		               f"hex8 voxel FEA · {job.get('voxel_mm','?')} mm grid")
 
+	if "title" not in job:
+		raise ValueError("job.title is required")
+	validate_job(job)
 	panels = job["panels"]
+	# units resolved BEFORE anything is drawn: a refusal must not leave a half-written PNG
+	warnings, field_report = [], []
+	for spec in panels:
+		if spec["kind"] != "field":
+			continue
+		sc, fu = panel_scale(spec, spec["_index"], warnings)
+		spec["_scale"] = sc
+		field_report.append({"panel": spec["_index"], "caption": spec.get("caption", ""),
+		                     "unit": str(spec.get("unit", "")), "field_unit": fu, "scale": sc})
 	rows_n = 1 if len(panels) <= 3 else 2
 	per_row = int(np.ceil(len(panels) / rows_n))
 	Wpx = 1600.0
@@ -268,7 +420,7 @@ def main():
 				tris = tris[:: int(np.ceil(len(tris) / rs.MAX_SHADED_TRIS))]
 			view_panel(fig, rect, spec, tris)
 		elif spec["kind"] == "field":
-			render_field_panel(fig, rect, spec)
+			render_field_panel(fig, rect, spec, scale=spec["_scale"])
 		elif spec["kind"] == "curve":
 			curve_panel(fig, rect, spec)
 		elif spec["kind"] == "image":
@@ -306,8 +458,31 @@ def main():
 		                face="white", edge=c, text_color=c)
 		rs.px_text(fig, xx + 20.0, yy + chh / 2.0 - 3.0, k, rs.STYLE["fs_table"], rs.STYLE["ink"], z=9)
 	fig.savefig(job["out"], dpi=DPI, facecolor=fig.get_facecolor())
-	print(json.dumps({"ok": True, "out": os.path.abspath(job["out"]), "panels": len(panels)}))
+	receipt = {"ok": True, "out": os.path.abspath(job["out"]), "panels": len(panels)}
+	if field_report:
+		receipt["fields"] = field_report
+	if warnings:
+		receipt["warnings"] = warnings
+	return receipt
+
+
+def cli(argv):
+	if len(argv) < 2 or argv[1] in ("-h", "--help"):
+		print(__doc__)
+		return 0
+	if len(argv) != 2:
+		print(json.dumps({"ok": False, "error": "usage: analysis_sheet.py job.json"}))
+		return 1
+	try:
+		receipt = main()
+	except Exception as e:  # noqa: BLE001 — the receipt IS the error channel
+		# cubesat F7: this used to be a bare traceback with NO receipt line, which a
+		# shell gate keyed on the last stdout line could not see at all.
+		print(json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"}))
+		return 1
+	print(json.dumps(receipt))
+	return 0
 
 
 if __name__ == "__main__":
-	main()
+	sys.exit(cli(sys.argv))

@@ -415,16 +415,16 @@ of a static allowable; drybox: 43× bearing / 23× root shear, replacing a
 prose "structural analysis intentionally absent"). Neither product changed;
 both now prove the right CLASS of claim.
 
-**Meta-layer proofs** (`docs/META_PROOFS.md`): `tools/audit_docs.py`
+**Meta-layer proofs** (the historical META_PROOFS document): `tools/audit_docs.py`
 (op-count / path / section / symbol / claim-freshness drift, each check
 proven able to fire by injection into both a synthetic fixture and a copy of
-the real tree), `coldstart_probe.py` (entry-path readiness — and it states
+the real tree), the historical coldstart probe (entry-path readiness — and it states
 plainly it does NOT prove a fresh model would succeed; the real exam is a
-written manual protocol), `portability_check.py` (canonicality, adapter
+written manual protocol), the historical portability check (canonicality, adapter
 parity, Claude-specific-assumption scan). First run found 5 op-count errors,
 3 dead section pointers, 3 ops missing from API.md entirely, and a
 PORTABILITY BUG in the lessons skill (it told agents to update a section of
-`CLAUDE.md` that does not exist — `CLAUDE.md` is a 4-line shim). All fixed.
+the then-current CLAUDE.md shim). All fixed.
 
 **Engine fixes found BY this wave's own gates:**
 - **45° knife-edge** (`kernel-core/src/mesh/mod.rs`): the support threshold
@@ -593,7 +593,7 @@ closed forms (pure power law and pure Coulomb) to <0.5%, plus a
 meta-negative-control proving the benchmark can go red. Also written here
 because the engine has no API for them: transverse contact ratio (external AND
 internal, each driven by its own negative control), the ISO undercut floor, a
-polygon polar-second-moment helper benchmarked against πR⁴/2, an EN 71-1 §4.10
+polygon polar-second-moment helper benchmarked against πR⁴/2, an EN 71-1 section 4.10
 rod-rule gate with an 8-planet negative control that fires, and a grounded-carrier
 STAR pose evaluator (`kinematics::instance_poses` is ring-fixed/sun-driven and
 does not cover a held carrier).

@@ -51,12 +51,12 @@ impl Default for AsmOptions {
 
 /// Shorthand failing [`OpReport`].
 fn fail(id: &str, kind: ErrorKind, message: String) -> OpReport {
-	OpReport { id: id.to_string(), ok: false, measures: None, file: None, error: Some(OpError { kind, message }) }
+	OpReport { id: id.to_string(), ok: false, measures: None, warnings: Vec::new(), file: None, error: Some(OpError { kind, message }) }
 }
 
 /// Shorthand passing [`OpReport`].
 fn pass(id: &str, measures: Value, file: Option<String>) -> OpReport {
-	OpReport { id: id.to_string(), ok: true, measures: Some(measures), file, error: None }
+	OpReport { id: id.to_string(), ok: true, measures: Some(measures), warnings: Vec::new(), file, error: None }
 }
 
 /// `name` reduced to a filesystem-safe stem (`[A-Za-z0-9_-]`, never empty).

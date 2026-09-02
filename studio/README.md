@@ -28,6 +28,14 @@ the explicit "chat disabled — set ANTHROPIC_API_KEY" event. `STUDIO_ADDR`
 overrides the listen address; `LMCAD_ROOT` overrides the repo root (defaults
 to the working directory — run from the workspace root).
 
+Studio is loopback-only by default. A non-loopback bind refuses unless both
+`CADCODE_ALLOW_REMOTE=1` and a non-empty `CADCODE_API_TOKEN` are set. In the web
+UI, use **AUTH** to enter that bearer token; it is kept in `sessionStorage` for
+the current tab only and is attached to JSON, SSE, mesh display, and download
+requests. Put any remote deployment behind TLS and network/container isolation.
+`CADCODE_COMPUTE_CONCURRENCY` bounds CPU jobs, including work that outlives an
+HTTP timeout.
+
 ## The demo script (Wave IDE-1 acceptance path)
 
 1. **Open a recipe** — MODEL tab → quick-chip `spacer_21.lmcpart` (or type any

@@ -72,9 +72,34 @@ job origin_mm + voxel/2 on each axis — the CENTER of voxel (0,0,0) — ready t
 pass straight to GridField::from_npy_file. (Same +h/2 shift grid_field.rs
 documents for ace_fea's per-element fields.)
 
-Failure paths: {ok:false, error} AND exit 1 (deliberate deviation from the
+Failure paths: {ok:false, error} AND a nonzero exit — 2 for a JobError
+refusal, 1 for a broken request (this used to be the deviation from the
 ACE runners' exit-0 contract — this runner is also a shell-gate primitive;
 the negative controls in test_ace_thermal.py pin the nonzero exit).
+
+THE WIRE + EXIT CONTRACT (shared; see tools/_receipt.py for the full rules):
+    python3 <runner>.py <job.json> [--out PATH]
+  The LAST non-empty stdout line is ONE JSON receipt; all logging goes to
+  stderr. The exit code AGREES with the receipt, always:
+    exit 0  ok:true   analysis ran, receipt usable
+    exit 1  ok:false   the tool could not run the request (usage, unreadable
+                       job, internal error) — NO analysis was performed
+    exit 2  ok:false   the tool RAN and REFUSED, or the analysis failed
+  `error_kind` is a machine-matchable slug (`refusal.*`, `timeout`, `killed.*`,
+  `internal`, `usage`, `receipt_path_conflict`). CHANGED 2026-08-08: this runner
+  used to exit 0 on ok:false by design. Parsing `ok` still works and is still
+  correct; `$?` now works too. `LMCAD_RUNNER_EXIT=legacy` or a job
+  `"legacy_exit_zero": true` restores exit-0-always and records the opt-out in
+  `exit_contract.mode`.
+  `--out PATH` writes the receipt atomically (temp+rename) so an interrupted run
+  can never leave a zero-byte file where a good receipt was; a job-level
+  `receipt` key that disagrees with `--out` is REFUSED, not silently preferred.
+  `LMCAD_RECEIPT_DRY_RUN=1` suppresses every on-disk write (safe what-if runs).
+  `"wall_budget_s"` (or `LMCAD_WALL_BUDGET_S`), SIGTERM and SIGINT all produce
+  an honest ok:false receipt instead of a vanished run.
+  `determinism` names the receipt's wall-clock fields and carries `core_digest`,
+  a sha256 over the rest at 12 significant figures — compare THAT between runs,
+  never the receipt bytes.
 """
 from __future__ import annotations
 
@@ -96,8 +121,13 @@ def log(msg: str) -> None:
 	print(msg, file=sys.stderr, flush=True)
 
 
-def emit(payload: dict) -> None:
-	print(json.dumps(payload), flush=True)
+from _receipt import (  # noqa: E402  — the shared receipt + exit-code contract
+	determinism_block,
+	emit,
+	finish,
+	load_job,
+	run_cli,
+)
 
 
 class JobError(ValueError):
@@ -686,18 +716,16 @@ def run(job: dict) -> dict:
 
 
 def main() -> None:
-	if len(sys.argv) != 2:
-		emit({"ok": False, "error": "usage: ace_thermal_runner.py <job.json>"})
-		sys.exit(1)
-	job = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-	emit(run(job))
+	job, out = load_job()
+	payload = run(job)
+	payload["determinism"] = determinism_block(
+		payload, nondeterministic_paths=["timings_s"],
+		solver_note=("finite-volume conduction with a Jacobi-CG (steady) / backward-Euler "
+	             "(transient) solve at a pinned tolerance: every reported field is a "
+	             "deterministic function of the inputs and measured bit-identical "
+	             "across re-runs. Compare core_digest, not receipt bytes."))
+	finish(payload, job=job, tool="ace_thermal", out=out)
 
 
 if __name__ == "__main__":
-	try:
-		main()
-	except Exception as exc:  # noqa: BLE001 — the JSON line is the contract...
-		# ...but unlike the ACE runners this one ALSO exits 1: it doubles as a
-		# shell-gate primitive and the benchmark suite pins the nonzero exit.
-		emit({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
-		sys.exit(1)
+	run_cli("ace_thermal", main, refusal_types=(JobError,))

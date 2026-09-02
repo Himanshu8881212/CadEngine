@@ -305,7 +305,7 @@ order-dependence OUTSIDE the boolean pipeline — `kernel-core Mesh::fill_holes`
 walking boundary edges in HashSet order — was fixed the same day (W1, commit
 e0b1673): boundary edges are now taken in triangle order (see the
 `fill_holes` doc note in `crates/kernel-core/src/mesh/mod.rs` — the 2026-07-28
-split turned `mesh.rs` into the `mesh/` directory).
+split turned the old single mesh source file into the `crates/kernel-core/src/mesh/` directory).
 
 ## Measured 2026-06-10 — AFTER the R5 determinism fix (run-deterministic corpus)
 

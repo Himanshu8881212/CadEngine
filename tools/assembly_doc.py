@@ -18,7 +18,8 @@ Job JSON (argv[1]) — all lengths mm:
     parts       REQUIRED  [{name, stl (path), color? (any matplotlib color)}]
                           — listed in ASSEMBLY ORDER; the exploded offsets
                           follow list order (part i moves i x spacing_mm)
-    explode     REQUIRED  {axis: [x,y,z], auto: true, gap_mm: 8}  (offsets
+    explode     REQUIRED  {axis: [x,y,z] OR an axis name "z"/"+z"/"-z",
+                          auto: true, gap_mm: 8}  (offsets
                           DERIVED from the parts' bboxes — tight stacks with
                           no hand-tuning)  OR  {axis, spacing_mm: 30}  OR
                           {axis, offsets: {name: [dx,dy,dz], ...}} per-part
@@ -39,8 +40,13 @@ Job JSON (argv[1]) — all lengths mm:
     project     optional  title-block project name, default "cadcode"
     doc_title   optional  title-block document title, default
                           "<basename(out_prefix)> — assembly"
-    view        optional  {elev: 18, azim: -60} for both iso panels
+    view        optional  {elev: 18, azim: -60} — or the list [18, -60] — for
+                          both iso panels
     max_px      optional  long-edge pixel cap, default 1800
+    max_page_h_in optional tallest page the sheet may grow to, default 20.0
+                          (base page is 16 x 10 in; the sheet grows in 0.5 in
+                          steps ONLY when the measured steps/BOM do not fit, so
+                          a job that fitted before renders byte-identically)
 
 Layout contract (computed, never overlapped): landscape 16:10 page — header
 band; main row = EXPLODED VIEW panel (~55% width) + right column stacked
@@ -103,6 +109,53 @@ def fmt_mass(g) -> str:
 	return f"{g:.1f} g" if g < 10.0 else f"{g:.0f} g"
 
 
+AXIS_NAMES = {"x": (1.0, 0.0, 0.0), "y": (0.0, 1.0, 0.0), "z": (0.0, 0.0, 1.0)}
+
+
+def parse_axis(value, field):
+	"""A direction, given either as a 3-vector or as an axis NAME.
+
+	ball F6 / singulator F12(a): the obvious `"axis": "z"` died with
+	`ValueError: could not convert string to float: 'z'` — an error that names
+	neither the field nor the accepted shapes. Both spellings are now legal
+	(`"z"`, `"+z"`, `"-z"`, `[0,0,1]`), and anything else is refused with a
+	message that says what the field is and what it accepts."""
+	if value is None:
+		raise ValueError(f"{field} is required — a 3-vector like [0,0,1] or an axis name like 'z'/'-z'")
+	if isinstance(value, str):
+		s = value.strip().lower()
+		sign = -1.0 if s.startswith("-") else 1.0
+		s = s.lstrip("+-")
+		if s not in AXIS_NAMES:
+			raise ValueError(f"{field}: unknown axis name {value!r} — use 'x'/'y'/'z' "
+			                 f"(optionally signed, e.g. '-z') or a 3-vector like [0,0,1]")
+		return sign * np.asarray(AXIS_NAMES[s], dtype=np.float64)
+	try:
+		v = np.asarray(value, dtype=np.float64).reshape(-1)
+	except (TypeError, ValueError) as e:
+		raise ValueError(f"{field}: {value!r} is not a 3-vector or an axis name "
+		                 f"('x'/'y'/'z', optionally signed) — {e}") from None
+	if v.shape != (3,):
+		raise ValueError(f"{field}: expected 3 components, got {v.tolist()}")
+	return v
+
+
+def parse_view(value, field="view"):
+	"""Camera as `{elev, azim}` OR `[elev, azim]` -> (elev, azim).
+
+	horn F11: every other view-ish field in the render family is a LIST
+	(`build_dir`, `explode.axis`, `size_px`), so a list is the natural guess —
+	and it died on `AttributeError: 'list' object has no attribute 'get'`, an
+	error naming neither the field nor the job. Both shapes are legal now."""
+	if value is None:
+		return 18.0, -60.0
+	if isinstance(value, dict):
+		return float(value.get("elev", 18.0)), float(value.get("azim", -60.0))
+	if isinstance(value, (list, tuple)) and len(value) == 2:
+		return float(value[0]), float(value[1])
+	raise ValueError(f"{field}: expected {{elev, azim}} or [elev, azim], got {value!r}")
+
+
 def resolve_offsets(job, names, tris=None):
 	"""Per-part exploded translation vectors, in part-list order.
 
@@ -113,7 +166,7 @@ def resolve_offsets(job, names, tris=None):
 	  plus gap_mm (default 8), so the explode reads tight without hand-tuning;
 	- explode.spacing_mm: the legacy uniform ladder."""
 	ex = job["explode"]
-	axis = np.asarray(ex["axis"], dtype=np.float64)
+	axis = parse_axis(ex.get("axis"), "explode.axis")
 	n = np.linalg.norm(axis)
 	if n < 1e-12:
 		raise ValueError("explode.axis is a zero vector")
@@ -435,8 +488,7 @@ def render(job):
 		for i, p in enumerate(parts[1:], start=2):
 			steps.append({"order": i, "text": f"Lower the {p['name']} onto the assembly along the explode axis until it seats fully against the previous parts. Check it sits square before continuing."})
 	out_prefix = job["out_prefix"]
-	view = job.get("view") or {}
-	elev, azim = float(view.get("elev", 18.0)), float(view.get("azim", -60.0))
+	elev, azim = parse_view(job.get("view"))
 	max_px = int(job.get("max_px", 1800))
 	if max_px < 1200:
 		raise ValueError(f"max_px {max_px} is too small for the assembly-doc grid (min 1200)")
@@ -461,49 +513,83 @@ def render(job):
 	item_of = resolve_items(names, bom_rows)
 
 	# ---- page grid (all px, origin bottom-left; regions are disjoint) ----
-	fig_w, fig_h = 16.0, 10.0
-	dpi = max_px / fig_w
-	W, H = max_px, max_px * fig_h / fig_w
+	# Right-column split is MEASURED, never guessed: the sequence panel takes
+	# exactly what its steps need at body 9 pt (the assembled view absorbs the
+	# rest — dead-space doctrine — between 32% and 66% of the column); if the
+	# steps outgrow that, the font steps down to 6 pt.
+	#
+	# singulator F12(b): an 8-step / 12-BOM-row job was then REFUSED outright —
+	# "shorten the steps or split the doc". A page is not a fixed object: the
+	# general defect was that the sheet height was a constant while its content
+	# is not, so documentation-rich assemblies could not be documented at all and
+	# the only workaround was DELETING engineering prose. The page now GROWS
+	# (16:10 -> at most 16:`max_page_h_in`, default 20 = aspect 1.25) until the
+	# measured layout fits, and only then refuses — with the height it reached.
+	# A job that already fitted at 16:10 takes the first iteration and renders a
+	# byte-identical PNG.
+	fig_w = 16.0
+	max_page_h = float(job.get("max_page_h_in", 20.0))
+	if max_page_h < 10.0:
+		raise ValueError(f"max_page_h_in {max_page_h} is below the 10.0 in base page height")
 	mg, gt, pad = STYLE["margin"], STYLE["gutter"], STYLE["pad"]
+	dpi = max_px / fig_w
+	W = max_px
 	content_w = W - 2.0 * mg
 	tb_h = 44.0
 	row_h = np.ceil(2.0 * STYLE["fs_table"] * dpi / 72.0)
 	bom_h = caption_h(dpi) + 2.0 * pad + (len(bom_rows) + 2) * row_h  # header + rows + TOTAL
+	left_w = round(0.55 * content_w)
+	right_x = mg + left_w + gt
+	right_w = content_w - left_w - gt
+	seq_probe_w = right_w - 2.0 * pad - (2.0 * 8.0 + 14.0)
+	seq_chrome = caption_h(dpi) + 2.0 * pad
 
+	# The step layout depends only on (steps, fs, dpi, wrap width) — all constant
+	# across page heights — so it is measured ONCE, and the height search is then
+	# pure arithmetic (no figure is created until the winning height is known).
+	# Lazily: measuring a step block is the dominant cost of the whole sheet, and
+	# the overwhelmingly common case fits at the first size.
+	_need_cache = {}
+
+	def need_at(fs):
+		if fs not in _need_cache:
+			_need_cache[fs] = layout_steps(steps, fs, dpi, seq_probe_w)[1]
+		return _need_cache[fs]
+
+	needs = [(fs, need_at) for fs in (9.0, 8.5, 8.0, 7.5, 7.0, 6.5, 6.0)]
+	fit, fig_h, grew, last_short = None, 10.0, False, None
+	heights = [10.0]
+	while heights[-1] + 0.5 <= max_page_h + 1e-9:
+		heights.append(round(heights[-1] + 0.5, 6))
+	for fig_h in heights:
+		H = max_px * fig_h / fig_w
+		band_y = H - mg - STYLE["header_h"]
+		tb_y = mg
+		bom_y = tb_y + tb_h + gt
+		main_y = bom_y + bom_h + gt
+		main_h = band_y - gt - main_y
+		if main_h < 260.0:
+			last_short = f"BOM ({len(bom_rows)} rows) leaves only {main_h:.0f} px for the views"
+			continue
+		for fs, _need_at in needs:
+			asm_avail = main_h - gt - (_need_at(fs) + seq_chrome)
+			if asm_avail >= 0.32 * main_h:
+				fit = (fs, min(asm_avail, 0.66 * main_h))
+				break
+		if fit:
+			grew = fig_h > 10.0
+			break
+		last_short = (f"steps do not fit the sequence panel even at 6 pt "
+			f"({len(steps)} steps, {len(bom_rows)} BOM rows)")
+	if not fit:
+		raise ValueError(f"{last_short} — even at the maximum page height "
+			f"{max_page_h:.1f} in; raise 'max_page_h_in' or split the doc")
+	H = max_px * fig_h / fig_w
 	fig = plt.figure(figsize=(fig_w, fig_h), dpi=dpi)
 	fig.patch.set_facecolor(STYLE["page_fill"])
 	page_frame(fig)
 	band_y = header_band(fig, fields["doc_title"],
 		f"{len(parts)} parts · {len(steps)} steps · units mm")
-
-	tb_y = mg
-	bom_y = tb_y + tb_h + gt
-	main_y = bom_y + bom_h + gt
-	main_h = band_y - gt - main_y
-	if main_h < 260.0:
-		raise ValueError(f"BOM ({len(bom_rows)} rows) leaves only {main_h:.0f} px for the views — split the doc")
-
-	left_w = round(0.55 * content_w)
-	right_x = mg + left_w + gt
-	right_w = content_w - left_w - gt
-
-	# Right-column split is MEASURED, never guessed: the sequence panel takes
-	# exactly what its steps need at body 9 pt (the assembled view absorbs the
-	# rest — dead-space doctrine — between 32% and 66% of the column); if the
-	# steps outgrow that, the font steps down to 6 pt, and a sheet that still
-	# cannot fit is refused, not overlapped.
-	seq_probe_w = right_w - 2.0 * pad - (2.0 * 8.0 + 14.0)
-	seq_chrome = caption_h(dpi) + 2.0 * pad
-	fit = None
-	for fs in (9.0, 8.5, 8.0, 7.5, 7.0, 6.5, 6.0):
-		_, need, _, _ = layout_steps(steps, fs, dpi, seq_probe_w)
-		asm_avail = main_h - gt - (need + seq_chrome)
-		if asm_avail >= 0.32 * main_h:
-			fit = (fs, min(asm_avail, 0.66 * main_h))
-			break
-	if not fit:
-		raise ValueError(f"steps do not fit the sequence panel even at 6 pt "
-			f"({len(steps)} steps, {len(bom_rows)} BOM rows) — shorten the steps or split the doc")
 	steps_fs, asm_h = fit
 	seq_h = main_h - asm_h - gt
 
@@ -572,10 +658,14 @@ def render(job):
 	return {"ok": True, "png": os.path.abspath(png), "md": os.path.abspath(md), "px": [w, h],
 		"parts": len(parts), "steps": len(steps), "auto_steps": auto_steps, "bom_rows": len(bom_rows),
 		"bom_from_csv": bom_from_csv, "date": fields["date"], "rev": fields["rev"],
-		"explode_axis": [round(float(a), 6) for a in axis]}
+		"explode_axis": [round(float(a), 6) for a in axis],
+		"page_h_in": round(float(fig_h), 3), "page_grew": bool(grew), "steps_fs": float(steps_fs)}
 
 
 def main():
+	if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+		print(__doc__)
+		return 0
 	if len(sys.argv) != 2:
 		print(json.dumps({"ok": False, "error": "usage: assembly_doc.py job.json"}))
 		return 1

@@ -427,6 +427,7 @@ struct AgentCtx {
 	out_dir: PathBuf,
 	repo_root: PathBuf,
 	session: String,
+	compute_slots: Arc<tokio::sync::Semaphore>,
 }
 
 /// Role parameters of one agent loop — the parent/child split of the shared
@@ -487,7 +488,10 @@ pub async fn chat_endpoint(State(state): State<Arc<AppState>>, Json(req): Json<C
 	if messages.is_empty() || messages.last().and_then(|m| m.get("role")).and_then(Value::as_str) != Some("user") {
 		return crate::run::bad_request("messages must end with a non-empty user turn");
 	}
-	let ctx = AgentCtx { client: reqwest::Client::new(), api_key, out_dir, repo_root, session };
+	let ctx = AgentCtx {
+		client: reqwest::Client::new(), api_key, out_dir, repo_root, session,
+		compute_slots: state.compute_slots.clone(),
+	};
 	tokio::spawn(agent_loop(sink, ctx, messages));
 	sse_response(rx)
 }
@@ -630,7 +634,11 @@ async fn run_program_tool(sink: &Sink, ctx: &AgentCtx, last_receipts: &mut Optio
 	let text = program.to_string();
 	let dir = ctx.out_dir.clone();
 	let base = ctx.repo_root.clone();
-	let report = match tokio::task::spawn_blocking(move || kernel_api::run_program_with_input_base(&text, &dir, &base)).await {
+	let permit = ctx.compute_slots.clone().acquire_owned().await.expect("compute semaphore is never closed");
+	let report = match tokio::task::spawn_blocking(move || {
+		let _permit = permit;
+		kernel_api::run_program_with_input_base(&text, &dir, &base)
+	}).await {
 		Ok(r) => r,
 		Err(e) => {
 			let msg = format!("kernel task failed: {e}");
@@ -674,7 +682,11 @@ async fn describe_api_tool(sink: &Sink, ctx: &AgentCtx, input: &Value) -> (Strin
 		sink.event("tool", json!({"state": "running", "name": "describe_api", "op": op})).await;
 	}
 	let scratch = ctx.out_dir.clone();
-	let (count, names) = match tokio::task::spawn_blocking(move || crate::apidoc::op_catalogue(&scratch)).await {
+	let permit = ctx.compute_slots.clone().acquire_owned().await.expect("compute semaphore is never closed");
+	let (count, names) = match tokio::task::spawn_blocking(move || {
+		let _permit = permit;
+		crate::apidoc::op_catalogue(&scratch)
+	}).await {
 		Ok(Ok(c)) => c,
 		Ok(Err(e)) => return describe_fail(sink, &op, e).await,
 		Err(e) => return describe_fail(sink, &op, format!("task failed: {e}")).await,
@@ -993,6 +1005,7 @@ mod tests {
 			out_dir,
 			repo_root: std::env::temp_dir(),
 			session: "t-harness".to_string(),
+			compute_slots: Arc::new(tokio::sync::Semaphore::new(2)),
 		}
 	}
 

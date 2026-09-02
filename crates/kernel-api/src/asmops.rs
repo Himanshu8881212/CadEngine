@@ -169,7 +169,7 @@ pub(crate) fn instance_mesh(
 	rotate: &Option<RotateSpec>,
 	material: &Option<MaterialSpec>,
 ) -> Result<Outcome, OpError> {
-	let (mesh, format) = read_mesh_file(op_id, input_base, file)?;
+	let (mesh, format) = read_mesh_file(op_id, input_base, input_base, file)?;
 	let pose = seed_pose(op_id, translate, rotate)?;
 	let display = name.clone().unwrap_or_else(|| op_id.to_string());
 	let index = state.instances.len();
@@ -736,12 +736,12 @@ pub(crate) fn export(
 	let mut merged = Mesh::new();
 	let mut per_instance = Vec::new();
 	for inst in &state.instances {
-		let (mut mesh, route) = match &inst.geom {
+		let (mut mesh, route, _) = match &inst.geom {
 			InstanceGeom::Solid { solid_ref, .. } => {
 				let solid = fetch_solid(env, all_ids, op_id, "instance", solid_ref)?;
 				solid_mesh(solid, tol, voxel)
 			}
-			InstanceGeom::Mesh(m) => (m.clone(), "mesh"),
+			InstanceGeom::Mesh(m) => (m.clone(), "mesh", 0.0),
 		};
 		pose_mesh(&mut mesh, inst.pose);
 		let mut entry = json!({
@@ -758,13 +758,23 @@ pub(crate) fn export(
 		append_soup(&mut merged, &mesh);
 		per_instance.push(entry);
 	}
-	let written = write_mesh_auto(op_id, out_dir, file, &merged)?;
+	// The MERGED file is a diagnostic SCENE (posed instances, possibly a
+	// negative-control failure attitude that interpenetrates BY DESIGN), never a
+	// print file — per-instance part files above stay on the strict path. The
+	// scene write skips the manufacturing refusal and instead puts the quality
+	// counters on the record here, so a self-intersecting fail pose exports
+	// with its interference VISIBLE in the receipt rather than failing the run.
+	let written = crate::interp::write_mesh_scene(op_id, out_dir, file, &merged)?;
+	let scene_crossings = merged.self_intersection_witness().map_or(0, |w| w.pairs);
 	Ok(Outcome {
 		value: None,
 		measures: Some(json!({
 			"instances": per_instance,
 			"triangles": merged.triangle_count(),
 			"watertight": merged.is_watertight(),
+			"scene": true,
+			"scene_policy": "diagnostic export: manufacturing refusal not applied to the merged scene; print files are the per-instance parts",
+			"cross_instance_self_intersections": scene_crossings,
 			"solved": state.solved,
 		})),
 		file: Some(written),
@@ -856,7 +866,7 @@ pub(crate) fn save(
 				// Program-built geometry: export its exact-else-heal mesh next to
 				// the assembly and reference it with the mesh source.
 				let solid = fetch_solid(env, all_ids, op_id, "instance", solid_ref)?;
-				let (mesh, route) = solid_mesh(solid, 0.05, 0.3);
+				let (mesh, route, _) = solid_mesh(solid, 0.05, 0.3);
 				let rel = format!("{parts_rel}/{}.stl", sanitize(&inst.name));
 				let path = asm_parent.join(&rel);
 				if let Some(parent) = path.parent() {

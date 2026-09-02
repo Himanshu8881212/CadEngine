@@ -3,7 +3,7 @@
 How to design real parts and assemblies with this engine, cold, through its
 public surfaces only. Written for an LLM operator and for a careful human —
 both work the same way here: send JSON, read receipts, gate on measures.
-Companions: [`API.md`](API.md) is the op-by-op reference (160 ops, every
+Companions: [`API.md`](API.md) is the op-by-op reference (161 ops, every
 parameter and default); this guide is the *method* — what to reach for, in
 what order, and how to know you are right.
 
@@ -21,7 +21,7 @@ Two reading paths:
   reference detail behind it. Budget an afternoon.
 - **AI, lookup**: jump by section anchor. The coverage map in Appendix A
   routes every op family to its guide section and its API.md heading, and the
-  160-op arithmetic is reconciled there. Failure-first lookups: §23 (error
+  161-op arithmetic is reconciled there. Failure-first lookups: §23 (error
   kinds, verbatim) and §24 (known limits).
 
 Contents:
@@ -37,7 +37,7 @@ Contents:
   §20 the catalog
 - **Part V — Shipping & survival**: §21 exports · §22 print-readiness ·
   §23 failure playbook · §24 limits ledger · §25 campaign cookbook
-- **Appendix A — coverage map (160 ops reconciled)**
+- **Appendix A — coverage map (161 ops reconciled)**
 
 ---
 
@@ -377,12 +377,14 @@ all verified by execution:
   (CLI), so programs and their recipes travel together. Export `file` paths
   and library `dir`s join `--out-dir`.
 
-## 5. Solid constructors — all nine, plus the two Document-only sweeps
+## 5. Solid constructors — all eleven (loft and sweep in both worlds)
 
-The nine constructor ops (`box`, `cylinder`, `sphere`, `cone`, `torus`,
+The nine core constructor ops (`box`, `cylinder`, `sphere`, `cone`, `torus`,
 `extrude`, `extrude_with_holes`, `extrude_tapered`, `revolve`) all validate
 their result and refuse to bind a broken or empty solid. Two more solid
-builders — **loft** and **sweep** — exist as Document features only (§5.4).
+builders — **loft** and **sweep** — are first-class ops as well (op forms in
+API.md); §5.4 shows their *Document-feature* form, which is what you want
+when the shape must stay parametric.
 
 **Segment counts and the two volumes.** Curved walls are faceted (`segments`,
 `u`/`v`, `ring_segments`/`tube_segments`) but each facet carries its exact
@@ -563,8 +565,10 @@ receipt — the point is that *you* must put the volume gate in.)
 
 ### 5.4 Loft and sweep — Document features, loaded via `load_part`
 
-`LoftSolid` and `SweepSolid` have no op-surface twin; author them in a
-`.lmcpart` (full recipe grammar: §16). Save as `loft_funnel.lmcpart`:
+`LoftSolid` and `SweepSolid` now have op-surface twins (`loft` / `sweep`,
+one-shot forms — see API.md); the `.lmcpart` Document form shown here is the
+*parametric* route, re-evaluated on every load (full recipe grammar: §16).
+Save as `loft_funnel.lmcpart`:
 
 ```json
 {
@@ -1107,18 +1111,19 @@ exactly (and the inertia diagonal permutes (1.36e4, 4.36e4, 5.0e4) →
 A real posing example with a gear (`Rx(−90°)` then offset) is in API.md
 "Features & transforms".
 
-### 9.2 Where patterns live (there is no B-rep array op — by design)
+### 9.2 Where patterns live (one-shot ops vs parametric features)
 
 | you want | reach for | executed at |
 |---|---|---|
 | a hole pattern | `bolt_circle` (any wizard cut × n on a BCD) | §3.3, §10.2 |
-| repeated *solids* in an exact part | Document `LinearPattern` / `CircularPattern` / `Mirror` | §9.3 |
+| repeated *solids*, one-shot | ops `linear_pattern` / `polar_pattern` (fold clones by exact union; count includes the original) and `mirror` (does NOT auto-union) | API.md |
+| repeated *solids*, parametric | Document `LinearPattern` / `CircularPattern` / `Mirror` | §9.3 |
 | repeated *fields* (lattice cells, cage bars, fin arrays) | implicit `linear_pattern` / `circular_pattern` / `mirror` combinators (count ≤ 4096) | §11.4 |
 | repeated *parts* in an assembly | `.lmcasm` instances (each its own pose/BOM line) | §18 |
 
-A standalone op-surface solid array would duplicate the Document feature with
-none of its parametric re-evaluation — when you want arrays, you almost
-always want them *parametric*, so they live in the recipe grammar.
+The op-surface arrays are one-shot folds for programs; when the array must
+*re-evaluate* as dimensions change, use the Document features — that is what
+the recipe grammar is for.
 
 ### 9.3 Document patterns, executed
 
@@ -1289,10 +1294,13 @@ Two assertion patterns worth stealing from the gearbox:
 ---
 # Part III — The implicit half
 
-### 10.4 The witness-fixture pattern (and the missing bbox)
+### 10.4 The witness-fixture pattern (stronger than a direct measure)
 
-There is **no bounding-box or linear-dimension measure**: envelope and
-placement claims must be proven indirectly. The strongest indirect proof —
+Direct measures exist now — `bounding_box` (envelope/`fits_within`) and
+`measure_dimension` (point_point / face_face / diameter) — and are the right
+tool for envelope and single-dimension receipts. But a *positional* claim
+("this Ø5.2 bore exists open, on THIS axis, at THIS height") is still best
+proven by the strongest indirect proof —
 invented unprompted by the cold-start audit session, now canon — is the
 **witness fixture**: build a virtual gauge part at the exact specified
 geometry and let shell topology be the verdict. To prove a Ø5.2 bore exists
@@ -2497,10 +2505,11 @@ receipts:
 | entry id | what it proves here |
 |---|---|
 | `load` | `instances: 4, mates: 4, states: ["service"], suppressed: [3]` — file parsed, parts rebuilt |
-| `mates` | `residual: 1.34e-12` against the runner's 1e-6 gate — the deliberately-off seeds (pin at (14.2, 9.5, 0.4)) snapped to the bore axis; >1e-6 would FAIL the run (`assert_failed`) |
+| `mates` | `residual: 1.34e-12` against the runner's 1e-6 gate — the deliberately-off seeds (pin at (14.2, 9.5, 0.4)) snapped to the bore axis; >1e-6 would FAIL the run (`assert_failed`). Also a `per_mate` residual list and the DOF block: `dof: {instances: 4, grounded_instances: 1, constraint_rows: 10, rank: 8, redundant_rows: 2, free_dof: 10, verdict: "under_constrained (10 free DOF)"}` — read `verdict`/`free_dof` the way you read the sketch solver's (§6): under-constrained is a *diagnosis*, not a failure |
 | `bom` | 3 grouped flat lines (suppressed spare excluded): `cap ×1`, `pin ×1`, `spacer ×1` with `"params": "h=8"` — same-named parts at different parameters stay distinct lines (§18.4); since BOM v2 the file wraps them in the `bom/2` envelope with a `tree` view and `bom.csv` (§18.7) |
 | `export:00:base` … | one world-posed STL per instance with the honest per-part route: all `"route": "exact"` here, 160/124/12 triangles; `export:03:spare_pin` reports `{"suppressed": true}` and writes nothing |
 | `export:assembly` | merged mesh: `instances: 3, triangles: 296, watertight: true` |
+| `export:assembly_step` | the runner also writes AP214 assembly STEP automatically: `parts: 3, bytes: 47650, skipped: []` → `mates_tour_assembly.step` (suppressed instances are skipped by name) |
 | `contacts` | the §18.3 receipt below |
 | `state:service` | the state applied + exported (`suppressed: 1` — the cap is out in this state), then assembled poses restored |
 
@@ -3113,7 +3122,7 @@ API-documented in the crates):
 
 If you need OBJ/glTF from a program today: export STL and convert, or call
 the Rust API. Do not guess at unlisted ops — the §23 `unknown_op` error
-names exactly 116.
+names the live count (161 today) and points at `describe`.
 
 ## 22. Print-readiness method
 
@@ -3143,7 +3152,28 @@ method it encodes, distilled:
    *area* calibrated against a negative control. That is
    `iphone_stand/tools/overhang_audit.py` (~60 lines, STL-in, exit-coded) —
    copy it; it aborts on inside-out meshes by checking the signed volume
-   first.
+   first. In-engine, the same audit is the `support_report` op — but
+   `describe` ships **empty `doc` strings** for its two parameters, and both
+   conventions are counter-intuitive enough that four campaigns wrote wrong
+   orientation prose (one shipped a render of the wrong bed). Measured
+   2026-08-08 and authoritative:
+   - **`build_dir` points AWAY from the bed** (it is the layer-growth
+     direction), so `[0,0,1]` puts the bed at min-Z. Verified on an L-bracket:
+     `bed_area 50.0` (the foot) at `[0,0,1]`, `bed_area 200.0` (the two top
+     faces) at `[0,0,-1]`. `render_sheet`'s `build_dir` is the same
+     convention — if the bed view looks upside-down, the claim is backwards.
+   - **A LARGER `overhang_deg` is MORE permissive** (default 45). A downward
+     face is counted in `steep_area` iff its tilt from `build_dir` *exceeds*
+     `overhang_deg`; verified on lofted frusta (a 63.435° wall is steep at 63,
+     clean at 64; a 45° wall is steep at 44, clean at 45). A "second, stricter
+     reading" is a **smaller** number. The comparison is strict on f32, so
+     never set `overhang_deg` to a modelled face angle.
+   - `steep_area == 0.0` is the support gate; a horizontal underside is
+     `bridge_area`, not `steep_area`, so `support_free: true` does **not**
+     mean "no bridging" — always quote `max_bridge_span` beside it, and note
+     that it is the *short way across* the bridging region (an under-read for
+     a cantilever, which is not a bridge).
+   Full measured tables: `campaign/digests/ops_core.md` §11a.
 5. **Datum-plane probe for anything blended**: §14's pillow check (bbox
    z_min == bed plane) — the stand shipped only after a standalone bed-planarity
    assertion, because receipts alone smiled through a 0.46 mm pillow.
@@ -3163,7 +3193,7 @@ during the writing of this guide.
 | kind | meaning | typical fix |
 |---|---|---|
 | `parse` | file not JSON / not `{"ops": […]}`, reported on id `$program` — *"program is not valid JSON: expected ident at line 1 column 2"* | fix the envelope |
-| `unknown_op` | `op` names nothing — *"unknown op 'cube' — see API.md for the 116 supported ops"* | check API.md spelling (`box`, not `cube`) |
+| `unknown_op` | `op` names nothing — *"unknown op 'cube' — not one of the 161 supported ops; call the `describe` op to enumerate them"* | check spelling (`box`, not `cube`); `describe` lists the catalogue |
 | `duplicate_id` | *"this id was already used by an earlier op — ids must be unique"* | ids unique per program |
 | `missing_ref` | *"no result named 'nope' — it must be the id of an earlier geometry-producing op"*; also fired when referencing a measure/export op (*"binds no geometry"*) | reference a binding op; remember `implicit`, measures, exports, design-math bind nothing |
 | `wrong_type` | *"'sq' is a sketch, expected a solid"* | route sketches through `sketch_extrude`/`sketch_revolve` first |
@@ -3457,8 +3487,8 @@ compile-forced exhaustive match over `OpKind` (regenerated by
 error message and the `describe` op both say 160). Re-derived
 2026-07-30 by extracting every `op_tag` arm and grouping:
 
-**11 + 3 + 4 + 11 + 13 + 3 + 2 + 3 + 10 + 4 + 5 + 48 + 13 + 13 + 7 + 7 + 3
-= 160.**
+**11 + 3 + 4 + 11 + 14 + 3 + 2 + 3 + 10 + 4 + 5 + 48 + 13 + 13 + 7 + 7 + 3
+= 161.**
 
 | family (count) | ops | guide | API.md heading |
 |---|---|---|---|
@@ -3466,11 +3496,11 @@ error message and the `describe` op both say 160). Re-derived
 | sketch ops (3) | sketch, sketch_extrude, sketch_revolve | §6 (revolve variant §6.4 → API example) | "Sketch ops" |
 | booleans (4) | union, difference, intersection, union_all | §7 (all four executed; `try_*` Rust note §7.5) | "Booleans" |
 | features & transforms (11) | fillet_edge_near, chamfer_edge_near, fillet_circular_rim, translate, rotate_x, rotate_y, rotate_z, pose, mirror, linear_pattern, polar_pattern | §8.1–8.2, §9.1 (original six executed; rotations/mirror/patterns echo §9.3's Document forms) | "Features & transforms" |
-| measures (13) | validate, volume, exact_volume, mass_properties, bounding_box, wall_thickness, draft_analysis, coincident_fit, support_report, clearance, measure_dimension, thin_wall, min_ligament | §10.1–10.2 (core six executed); §22 support_report; §25.1 thin_wall/min_ligament (2026-07-30, executed API.md) | "Measures" (thin_wall/min_ligament under "Implicit / hybrid") |
+| measures (14) | validate, volume, exact_volume, mass_properties, bounding_box, wall_thickness, draft_analysis, mesh_components, coincident_fit, support_report, clearance, measure_dimension, thin_wall, min_ligament | §10.1–10.2 (core six executed); §22 support_report; §25.1 thin_wall/min_ligament (2026-07-30, executed API.md) | "Measures" (thin_wall/min_ligament under "Implicit / hybrid") |
 | assertions (2) | assert, assert_disjoint | §10.2–10.3 (both executed, incl. failures) | "Assertions" |
 | exports (3) | export_stl, export_step, export_3mf | §21 (all three executed) | "Exports" |
 | implicit / hybrid (10) | implicit, gyroid_block, tpms, hybrid_boolean, shell, offset_solid, shell_solid, solid_from_implicit, sample_density_grid, mesh_density_grid | §11–15 (tree exhaustively; gyroid_block §11.6; tpms 2026-07-12); §17 hybrid; §25.1 voxel-route solid trio 2026-07-30 (executed API.md) | "Implicit / hybrid" |
-| discovery (3) | describe, list_faces, list_edges | self-describing surface (M3): `describe` serves the 160-op catalogue + per-op param tables over the wire (pinned `tests/describe.rs`) | "Discovery & introspection" |
+| discovery (3) | describe, list_faces, list_edges | self-describing surface (M3): `describe` serves the 161-op catalogue + per-op param tables over the wire (pinned `tests/describe.rs`) | "Discovery & introspection" |
 | native formats & imports (4) | load_part, import_step, import_mesh, mesh_carve | §16 (load_part throughout; refusal §16.7); §21.3 STEP import; §17 mesh routes | "Native formats" / "Imports" |
 | parts library (5) | library_add, library_search, library_instantiate, library_deprecate, library_remove | §3.4 + §19 (all five executed, both refusals provoked) | "Parts library" |
 | standard parts (48) | §20.1 full table | §20.2 (one executed program per family group; plus spur_gear §3.1, shaft §10.2) | "Standard parts catalog" |

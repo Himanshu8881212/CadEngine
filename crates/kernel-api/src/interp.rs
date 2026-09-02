@@ -13,6 +13,7 @@
 //!   process always receives a parseable report.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
 use std::panic::AssertUnwindSafe;
 use std::path::{Component, Path, PathBuf};
 
@@ -35,16 +36,30 @@ use crate::implicit;
 use crate::program::{BoltHoleSpec, BoolOpSpec, ConstraintSpec, FitSpec, LibraryMetaSpec, MesherSpec, OpKind};
 use crate::report::{ErrorKind, OpError, OpReport, Report};
 
-/// A named value in the program environment. Meshes NEVER enter it — the
-/// environment holds exact solids and sketches only. Mesh-producing ops
-/// (`gyroid_block`, `shell`, `mesh_carve`, …) write straight to file and bind
-/// nothing, and the mesh-consuming ops (`import_mesh`, `mesh_carve`) read the
-/// mesh FILE, so the Solid|Sketch contract is preserved.
+/// A named value in the program environment.
+///
+/// # Why meshes are values, and why that does not break the one-directional bridge
+///
+/// The voxel/implicit route produces MESHES, not B-reps: `implicit`, `tpms`,
+/// `gyroid_block`, `hybrid_boolean`, `mesh_carve`, `shell`, `import_mesh` and
+/// the exports all end in a triangle mesh. Those meshes are the files that get
+/// PRINTED, and until they were values there was no way to gate them in-program
+/// at all — two campaigns shipped print files with no gate on them (theme T10).
+///
+/// A mesh value is a mesh forever. Nothing here promotes one to a [`Solid`]:
+/// the only field→exact route stays the explicit, honestly-labelled
+/// `solid_from_implicit` reverse bridge, which re-meshes and wraps a FACETED
+/// B-rep under its own `route: "voxel"` receipt. Binding the mesh adds an
+/// oracle; it does not add a conversion.
 pub(crate) enum EnvValue {
 	/// An exact B-rep solid (most ops).
 	Solid(Solid),
 	/// A solved 2D sketch (consumed by `sketch_extrude` / `sketch_revolve`).
 	Sketch(Sketch),
+	/// A triangle mesh — the voxel/implicit route's result, and what an export
+	/// actually wrote. Accepted by the mesh-capable measures (`validate`,
+	/// `volume`, `bounding_box`, `mesh_components`, `support_report`, `assert`).
+	Mesh(Mesh),
 }
 
 impl EnvValue {
@@ -53,6 +68,7 @@ impl EnvValue {
 		match self {
 			EnvValue::Solid(_) => "solid",
 			EnvValue::Sketch(_) => "sketch",
+			EnvValue::Mesh(_) => "mesh",
 		}
 	}
 }
@@ -72,6 +88,122 @@ impl Outcome {
 	pub(crate) fn measures(measures: Value) -> Outcome {
 		Outcome { value: None, measures: Some(measures), file: None }
 	}
+}
+
+/// A rotation taking +Z onto the unit vector `dir` (any rotation about `dir`
+/// will do — the shapes placed with it are surfaces of revolution). Uses the
+/// shortest-arc axis; the antipodal case gets an explicit 180° flip because the
+/// cross product vanishes there.
+fn align_z_to(dir: DVec3) -> kernel_brep::math::DMat3 {
+	use kernel_brep::math::DMat3;
+	let z = DVec3::Z;
+	let c = z.dot(dir);
+	if c > 1.0 - 1e-12 {
+		return DMat3::IDENTITY;
+	}
+	if c < -1.0 + 1e-12 {
+		return DMat3::from_rotation_x(std::f64::consts::PI);
+	}
+	let axis = z.cross(dir).normalize();
+	DMat3::from_axis_angle(axis, c.clamp(-1.0, 1.0).acos())
+}
+
+/// The witness block `validate` reports when `geometric_ok` is false: the two
+/// crossing triangles, a point on the crossing, and the total pair count.
+fn self_intersection_json(w: &kernel_core::mesh::SelfIntersection) -> Value {
+	json!({
+		"triangles": w.triangles,
+		"point": [w.point.x, w.point.y, w.point.z],
+		"pairs": w.pairs,
+	})
+}
+
+/// Validate the two knobs of the connectivity oracle. Shared by `mesh_components`
+/// and `assert`, so the gate and its diagnostic can never be tuned differently.
+fn connectivity_tolerances(op_id: &str, tol: f64, weld_tol: f64) -> Result<(), OpError> {
+	if !(tol.is_finite() && tol > 0.0) {
+		return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': tol must be a positive chord tolerance in mm")));
+	}
+	if !(weld_tol.is_finite() && weld_tol > 0.0) {
+		return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': weld_tol must be a positive weld scale in mm")));
+	}
+	Ok(())
+}
+
+/// The connected-body count plus the receipt that says whether it can be
+/// believed.
+///
+/// # The trust rule
+///
+/// Union-find over welded triangles answers "how many connected pieces is this
+/// SURFACE in". That is the part's body count only when the surface is the whole
+/// boundary of the part. A bound solid is closed and manifold by construction
+/// (every solid-producing op is gated through `validate`), so if its measurement
+/// tessellation has boundary edges the faceter has dropped geometry, and the
+/// count is then counting faceter cracks. Reporting that number as a body count
+/// is precisely the confident-wrong-answer this engine refuses to give, so the
+/// op FAILS instead, and says what to gate meanwhile.
+///
+/// A bound MESH is different: openness is a property of the data, not a defect
+/// of the measurement, so an open mesh is measured and reported honestly with
+/// `watertight: false` for `require` to gate.
+fn connectivity_measures(
+	op_id: &str,
+	mesh: &Mesh,
+	tol: f64,
+	weld_tol: f64,
+	source: &str,
+) -> Result<serde_json::Map<String, Value>, OpError> {
+	// Topology only — `check_mesh` would also run the self-intersection sweep,
+	// which is orders of magnitude more expensive and answers a question this
+	// gate does not ask. (`validate` is where self-intersection is paid for, on
+	// demand.) These two are edge-hash passes, linear in triangle count.
+	let boundary_edges = mesh.boundary_edge_count();
+	let watertight = mesh.is_two_manifold();
+	let components = mesh.component_count(weld_tol as f32);
+	// Openings are the only defect that can break the count. A winding
+	// inconsistency (`non_orientable`) leaves every triangle in place and every
+	// vertex shared, so connectivity is untouched — it is reported, never
+	// refused. (It USED to refuse: `boundary_edge_count` counted non-orientable
+	// edges as boundary edges until 2026-08-08, which turned this guard on 11
+	// shipped part programs whose tessellations are closed.)
+	if source == "solid" && boundary_edges > 0 {
+		return Err(err(
+			ErrorKind::InvalidGeometry,
+			format!(
+				"op '{op_id}': the connectivity oracle cannot be trusted on this solid — tessellating it at tol {tol} mm left {} boundary edges ({} triangles), so the measurement surface is NOT closed and its component count ({components}) counts faceter cracks, not severed bodies. A bound solid is closed by construction, so this is a tessellation defect, not a geometry defect (a planar face carrying inner/hole loops is the known case: `extrude_with_holes` and `import_step` pockets). Gate this part with `validate` (closed / manifold / shells) meanwhile, and/or `export_stl` it and run this measure on the export's bound mesh — the exported mesh IS what prints",
+				boundary_edges,
+				mesh.triangle_count()
+			),
+		));
+	}
+	let mut m = serde_json::Map::new();
+	m.insert("components".into(), json!(components));
+	m.insert("is_one_body".into(), json!(components == 1));
+	m.insert("triangles".into(), json!(mesh.triangle_count()));
+	m.insert("tol".into(), json!(tol));
+	m.insert("weld_tol".into(), json!(weld_tol));
+	m.insert("watertight".into(), json!(watertight));
+	m.insert("boundary_edges".into(), json!(boundary_edges));
+	// Reported, not gated: this is what `watertight: false` means whenever
+	// `boundary_edges` is 0, and without it that pair is unexplained. Another
+	// edge-hash pass, not `check_mesh` (which would also pay for the
+	// self-intersection sweep this gate does not ask about).
+	let non_orientable = mesh.non_orientable_edge_count();
+	m.insert("non_orientable_edges".into(), json!(non_orientable));
+	if non_orientable > 0 {
+		// A nonzero count must be locatable, not just countable: midpoints of
+		// the first few offending edges, for aiming a fix or a disclosure.
+		m.insert("non_orientable_witness".into(), json!(mesh.non_orientable_edge_witnesses(8)));
+	}
+	m.insert("source".into(), json!(source));
+	Ok(m)
+}
+
+/// The `describe` entry for the universal `require` gate — identical for every
+/// op, because `require` IS identical for every op.
+fn universal_require_param() -> Value {
+	json!({ "name": crate::require::REQUIRE_KEY, "type": "object", "required": false, "doc": crate::require::REQUIRE_DOC })
 }
 
 /// Shorthand [`OpError`] constructor.
@@ -109,16 +241,16 @@ pub fn run_program_with_input_base(json_text: &str, out_dir: &Path, input_base: 
 	let mut reports: Vec<OpReport> = Vec::new();
 
 	for (index, raw) in ops.iter().enumerate() {
-		let (id, result) = run_one(index, raw, &mut env, &mut all_ids, &mut asm, out_dir, input_base);
+		let (id, warnings, result) = run_one(index, raw, &mut env, &mut all_ids, &mut asm, out_dir, input_base);
 		match result {
 			Ok(outcome) => {
 				if let Some(value) = outcome.value {
 					env.insert(id.clone(), value);
 				}
-				reports.push(OpReport { id, ok: true, measures: outcome.measures, file: outcome.file, error: None });
+				reports.push(OpReport { id, ok: true, measures: outcome.measures, warnings, file: outcome.file, error: None });
 			}
 			Err(error) => {
-				reports.push(OpReport { id, ok: false, measures: None, file: None, error: Some(error) });
+				reports.push(OpReport { id, ok: false, measures: None, warnings, file: None, error: Some(error) });
 				return Report { ok: false, ops: reports };
 			}
 		}
@@ -127,7 +259,8 @@ pub fn run_program_with_input_base(json_text: &str, out_dir: &Path, input_base: 
 }
 
 /// Identify, parse, and execute one raw op value. Returns the op id (or a
-/// synthetic `#<index>` when none could be read) plus the outcome.
+/// synthetic `#<index>` when none could be read), any non-fatal warnings
+/// (unknown-param hazards), plus the outcome.
 fn run_one(
 	index: usize,
 	raw: &Value,
@@ -136,17 +269,19 @@ fn run_one(
 	asm: &mut crate::asmops::AsmProgramState,
 	out_dir: &Path,
 	input_base: &Path,
-) -> (String, Result<Outcome, OpError>) {
+) -> (String, Vec<String>, Result<Outcome, OpError>) {
 	let fallback_id = format!("#{index}");
 	let Some(obj) = raw.as_object() else {
 		return (
 			fallback_id.clone(),
+			Vec::new(),
 			Err(err(ErrorKind::InvalidParam, format!("op {fallback_id}: each entry of 'ops' must be a JSON object"))),
 		);
 	};
 	let Some(id) = obj.get("id").and_then(Value::as_str) else {
 		return (
 			fallback_id.clone(),
+			Vec::new(),
 			Err(err(ErrorKind::InvalidParam, format!("op {fallback_id}: missing required string field 'id'"))),
 		);
 	};
@@ -154,12 +289,56 @@ fn run_one(
 	if !all_ids.insert(id.clone()) {
 		return (
 			id.clone(),
+			Vec::new(),
 			Err(err(ErrorKind::DuplicateId, format!("op '{id}': this id was already used by an earlier op — ids must be unique"))),
 		);
 	}
 	let Some(op_name) = obj.get("op").and_then(Value::as_str) else {
-		return (id.clone(), Err(err(ErrorKind::InvalidParam, format!("op '{id}': missing required string field 'op'"))));
+		return (id.clone(), Vec::new(), Err(err(ErrorKind::InvalidParam, format!("op '{id}': missing required string field 'op'"))));
 	};
+	// Direction-like vectors have no meaningful zero value. Reject them before
+	// constructors can normalize NaN/zero and produce a misleading success.
+	for name in ["axis", "direction", "normal", "up", "build_direction", "x_dir", "y_dir"] {
+		if let Some(a) = obj.get(name).and_then(Value::as_array) {
+			if a.len() == 3 {
+				let xyz = [a[0].as_f64(), a[1].as_f64(), a[2].as_f64()];
+				if xyz.iter().all(Option::is_some) {
+					let v = [xyz[0].unwrap(), xyz[1].unwrap(), xyz[2].unwrap()];
+					let norm2 = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+					if !v.iter().all(|n| n.is_finite()) || !norm2.is_finite() || norm2 <= 1e-24 {
+						return (
+							id.clone(), Vec::new(),
+							Err(err(ErrorKind::InvalidParam,
+								format!("op '{id}': {name} must be a non-zero finite 3-vector"))),
+						);
+					}
+				}
+			}
+		}
+	}
+
+	// Unknown parameters fail closed. A misspelled manufacturing dimension must
+	// never silently select a default and still return an apparently valid part.
+	// `_`-prefixed keys remain the explicit in-op comment convention.
+	let mut warnings: Vec<String> = Vec::new();
+	if let Some(params) = crate::discover::op_params(op_name) {
+		for key in obj.keys() {
+			// `require` is UNIVERSAL (crate::require) — accepted on every op and
+			// applied to that op's own measures, so it is never an unknown param.
+			if key == "id" || key == "op" || key == crate::require::REQUIRE_KEY || key.starts_with('_') {
+				continue;
+			}
+			if !params.iter().any(|p| p.name == key || p.aliases.contains(&key.as_str())) {
+				warnings.push(format!(
+					"unknown param '{key}' — '{op_name}' does not accept it; call describe {{\"name\":\"{op_name}\"}} for the accepted params"
+				));
+			}
+		}
+	}
+	if !warnings.is_empty() {
+		let message = format!("op '{id}': {}", warnings.join("; "));
+		return (id.clone(), warnings, Err(err(ErrorKind::InvalidParam, message)));
+	}
 
 	let kind: OpKind = match serde_json::from_value(raw.clone()) {
 		Ok(k) => k,
@@ -168,23 +347,24 @@ fn run_one(
 		Err(e) if e.to_string().starts_with("unknown variant") => {
 			return (
 				id.clone(),
+				warnings,
 				Err(err(ErrorKind::UnknownOp, format!("op '{id}': unknown op '{op_name}' — not one of the {} supported ops; call the `describe` op to enumerate them", crate::discover::OP_COUNT))),
 			);
 		}
 		Err(e) => {
-			return (id.clone(), Err(err(ErrorKind::InvalidParam, format!("op '{id}' ('{op_name}'): bad params: {e}"))));
+			return (id.clone(), warnings, Err(err(ErrorKind::InvalidParam, format!("op '{id}' ('{op_name}'): bad params: {e}"))));
 		}
 	};
 
 	// V3: reject allocation-hostile params (huge segment/pattern/voxel counts) BEFORE any op
 	// runs, so a mistaken or malicious count can't OOM the shared process past the panic net.
 	if let Err(e) = check_limits(&id, obj) {
-		return (id, Err(e));
+		return (id, warnings, Err(e));
 	}
 
 	// A kernel panic must not kill the driving process without a report.
 	let result = std::panic::catch_unwind(AssertUnwindSafe(|| exec_op(&id, kind, env, all_ids, asm, out_dir, input_base)));
-	let result = match result {
+	let mut result = match result {
 		Ok(r) => r,
 		Err(payload) => {
 			let detail = payload
@@ -195,7 +375,19 @@ fn run_one(
 			Err(err(ErrorKind::Internal, format!("op '{id}' ('{op_name}'): kernel panic: {detail}")))
 		}
 	};
-	(id, result)
+
+	// The universal gate, applied to whatever the op measured. A `require` that
+	// is unmet turns a successful op into an `assert_failed` FAILURE, so the
+	// program stops here and the report names the gate — the whole point of an
+	// in-program gate over an external grep.
+	if let Ok(outcome) = &mut result {
+		match crate::require::apply(&id, obj, outcome.measures.as_ref()) {
+			Ok(Some(gated)) => outcome.measures = Some(gated),
+			Ok(None) => {}
+			Err(e) => result = Err(e),
+		}
+	}
+	(id, warnings, result)
 }
 
 // --- Environment access -------------------------------------------------------
@@ -236,6 +428,56 @@ pub(crate) fn fetch_solid<'e>(
 		other => Err(err(
 			ErrorKind::WrongType,
 			format!("op '{op_id}' param '{param}': '{name}' is a {}, expected a solid", other.kind_name()),
+		)),
+	}
+}
+
+/// What a mesh-capable measure was handed: an exact solid (measured on its
+/// tessellation) or a mesh value (measured directly).
+///
+/// The two carry DIFFERENT provenance and the measures say which: a solid can be
+/// re-tessellated at any tolerance, a mesh is the fixed set of triangles that
+/// was written to (or read from) a file. Gating the mesh is the only way to gate
+/// what actually prints.
+pub(crate) enum Measurable<'e> {
+	Solid(&'e Solid),
+	Mesh(&'e Mesh),
+}
+
+impl Measurable<'_> {
+	/// The triangles to measure. A solid is tessellated crack-free at `tol`; a
+	/// mesh IS its triangles and `tol` does not apply to it (saying otherwise
+	/// would be a claim the geometry cannot support).
+	fn mesh(&self, tol: f64) -> std::borrow::Cow<'_, Mesh> {
+		match self {
+			Measurable::Solid(s) => std::borrow::Cow::Owned(kernel_brep::tessellate_adaptive_tol(s, tol)),
+			Measurable::Mesh(m) => std::borrow::Cow::Borrowed(m),
+		}
+	}
+	/// `"solid"` for an exact B-rep measured through its tessellation, `"mesh"`
+	/// for a bound mesh — the provenance every measure taken this way carries.
+	fn source(&self) -> &'static str {
+		match self {
+			Measurable::Solid(_) => "solid",
+			Measurable::Mesh(_) => "mesh",
+		}
+	}
+}
+
+/// Fetch a solid OR a mesh — the input rule of every mesh-capable measure.
+pub(crate) fn fetch_measurable<'e>(
+	env: &'e BTreeMap<String, EnvValue>,
+	all_ids: &BTreeSet<String>,
+	op_id: &str,
+	param: &str,
+	name: &str,
+) -> Result<Measurable<'e>, OpError> {
+	match fetch(env, all_ids, op_id, param, name)? {
+		EnvValue::Solid(s) => Ok(Measurable::Solid(s)),
+		EnvValue::Mesh(m) => Ok(Measurable::Mesh(m)),
+		other => Err(err(
+			ErrorKind::WrongType,
+			format!("op '{op_id}' param '{param}': '{name}' is a {}, expected a solid or a mesh", other.kind_name()),
 		)),
 	}
 }
@@ -644,17 +886,92 @@ const NEMA_FRAMES: &str = "17, 23";
 /// Hobby-servo models in the table (see `kernel_model::parts::servo_spec`).
 const SERVO_MODELS: &str = "sg90, mg996r";
 
+
+/// Snap rotation-matrix entries that are pure float dirt to exact 0 / ±1.
+///
+/// An axis-permutation rotation (90/180/270° about a coordinate axis, 120°
+/// about [1,1,1], …) SHOULD be an exact signed permutation matrix, but the
+/// axis-angle construction leaves ~1e-16 residue in the "zero" entries. That
+/// residue is what turned exactly-coplanar face pairs into near-coplanar
+/// limbo inside the boolean arrangement: a prism posed by the [1,1,1]/120°
+/// permutation and abutting a hole wall failed `union` with
+/// `invalid_geometry` while the identical axis-aligned box unioned fine
+/// (friction folding_book_stand F1/F3, 2026-08-27). Entries within 1e-12 of
+/// {0, ±1} are snapped; a genuinely oblique rotation has no such entries and
+/// passes through unchanged.
+fn snap_rotation(m: DAffine3) -> DAffine3 {
+	let snap = |v: f64| {
+		if v.abs() < 1e-12 {
+			0.0
+		} else if (v - 1.0).abs() < 1e-12 {
+			1.0
+		} else if (v + 1.0).abs() < 1e-12 {
+			-1.0
+		} else {
+			v
+		}
+	};
+	let mut out = m;
+	let m3 = &mut out.matrix3;
+	for col in [&mut m3.x_axis, &mut m3.y_axis, &mut m3.z_axis] {
+		col.x = snap(col.x);
+		col.y = snap(col.y);
+		col.z = snap(col.z);
+	}
+	out
+}
+
 // --- Tessellation & file helpers ---------------------------------------------------
 
-/// Mesh a solid on the exact adaptive path when watertight, else through the
-/// voxel heal. Returns the mesh and the route taken (`"exact"` / `"voxel_healed"`).
-pub(crate) fn solid_mesh(solid: &Solid, tol: f64, voxel: f64) -> (Mesh, &'static str) {
+/// A manufacturing export must bound one unambiguous solid volume: closed,
+/// consistently oriented, free of bow-tie vertices, collapsed triangles, and
+/// non-adjacent triangle contacts/overlaps.
+fn manufacturing_ready(mesh: &Mesh, report: &MeshReport) -> bool {
+	report.watertight && report.degenerate_triangles == 0 && mesh.self_intersection_witness().is_none()
+}
+
+/// Mesh a solid on the exact adaptive path only when the resulting triangles are
+/// manufacturing-ready; otherwise use the voxel heal. Returns the mesh, the
+/// route taken (`"exact"` / `"voxel_healed"`), and the heal voxel actually used
+/// (= the requested voxel unless the heal budget coarsened it; meaningful only
+/// on the healed route).
+pub(crate) fn solid_mesh(solid: &Solid, tol: f64, voxel: f64) -> (Mesh, &'static str, f64) {
 	let exact = kernel_brep::tessellate_adaptive_tol(solid, tol);
-	if exact.is_watertight() {
-		(exact, "exact")
+	if manufacturing_ready(&exact, &check_mesh(&exact)) {
+		(exact, "exact", voxel)
 	} else {
-		(watertight_mesh(solid, voxel as f32), "voxel_healed")
+		let heal_voxel = heal_voxel_for_budget(solid, voxel);
+		(watertight_mesh(solid, heal_voxel as f32), "voxel_healed", heal_voxel)
 	}
+}
+
+/// The heal voxel that keeps the winding-number lattice inside the heal's
+/// TIME budget. The mesher's own [`kernel_core::mesher::MAX_LATTICE_CELLS`]
+/// (2²⁸) is a MEMORY bound: a heal well under it — a 160×140×20 mm body at
+/// voxel 0.3 is ~19M cells — still costs one winding-number SDF traversal per
+/// cell and ground for many minutes with no feedback, indistinguishable from a
+/// hang (friction folding_book_stand F4, 2026-08-27). 2²² cells (~4M) keeps
+/// the worst heal around a minute; the receipt reports the voxel used, so the
+/// coarsening is on the record, never silent.
+fn heal_voxel_for_budget(solid: &Solid, voxel: f64) -> f64 {
+	const HEAL_CELL_BUDGET: f64 = (1u64 << 22) as f64;
+	let Some(b) = kernel_brep::measure::bounding_box(solid) else {
+		return voxel;
+	};
+	let s = b.max - b.min;
+	// pad + margins mirrored from the mesher's lattice sizing
+	let cells = |vs: f64| {
+		let g = |d: f64| (d + 4.0 * vs) / vs + 3.0;
+		g(s.x) * g(s.y) * g(s.z)
+	};
+	if cells(voxel) <= HEAL_CELL_BUDGET {
+		return voxel;
+	}
+	let mut vs = voxel;
+	while cells(vs) > HEAL_CELL_BUDGET {
+		vs *= 1.05;
+	}
+	(vs * 100.0).ceil() / 100.0
 }
 
 /// Join `file` onto the input base directory for READING — the input twin of
@@ -663,6 +980,39 @@ pub(crate) fn solid_mesh(solid: &Solid, tol: f64, voxel: f64) -> (Mesh, &'static
 /// program can only read files UNDER its input base.
 pub(crate) fn resolve_input_path(op_id: &str, input_base: &Path, file: &str) -> Result<PathBuf, OpError> {
 	confined_join(op_id, input_base, file)
+}
+
+/// [`resolve_input_path`] with the write-side fallback that heals the T4
+/// path-root asymmetry (campaign friction, 7/10 campaigns): a program that
+/// `export_step`s a file (which lands under `--out-dir`) and then imports it
+/// back used to fail with `io` unless `--out-dir` happened to BE the program's
+/// directory — writes resolved against one root, reads against another.
+/// Resolution order, both roots confined: the program's own directory first
+/// (relocatable program-relative inputs keep priority), then `--out-dir` iff
+/// the file exists there and not beside the program. The error on a total miss
+/// names BOTH tried roots so the operator sees where the engine looked.
+pub(crate) fn resolve_input_or_out(
+	op_id: &str,
+	input_base: &Path,
+	out_dir: &Path,
+	file: &str,
+) -> Result<PathBuf, OpError> {
+	let primary = confined_join(op_id, input_base, file)?;
+	if primary.exists() || input_base == out_dir {
+		return Ok(primary);
+	}
+	let fallback = confined_join(op_id, out_dir, file)?;
+	if fallback.exists() {
+		return Ok(fallback);
+	}
+	Err(err(
+		ErrorKind::Io,
+		format!(
+			"op '{op_id}': cannot read '{file}': not found beside the program ('{}') nor under --out-dir ('{}')",
+			primary.display(),
+			fallback.display()
+		),
+	))
 }
 
 // --- Allocation caps (audit V3) -----------------------------------------------------------------
@@ -724,10 +1074,14 @@ fn check_limits(op_id: &str, obj: &serde_json::Map<String, Value>) -> Result<(),
 
 /// Confine an agent-supplied path to the sandbox `base`: reject absolute paths and any
 /// `..` / root / drive-prefix component so a work-order can only reach files UNDER the
-/// output (or input) directory. This is the security boundary — the previous unconfined
-/// join accepted `is_absolute()` and `..`, so a one-line prompt could make the backend
-/// write anywhere on disk (audit V1). Returns `InvalidParam` on any escape attempt.
+/// output (or input) directory. Existing symlink components are also refused: a
+/// lexical `base/link/file` check is not confinement when `link -> /outside`.
 fn confined_join(op_id: &str, base: &Path, file: &str) -> Result<PathBuf, OpError> {
+	// An EMPTY base is the current directory: `Path::parent()` of a bare
+	// program filename ("part.json") yields "", and canonicalizing "" fails —
+	// which broke every campaign whose Reproducing invokes `run <prog>.json`
+	// from inside programs/ (measured on the cleat's own README commands).
+	let base = if base.as_os_str().is_empty() { Path::new(".") } else { base };
 	let rel = Path::new(file);
 	if rel.is_absolute() {
 		return Err(err(
@@ -752,10 +1106,34 @@ fn confined_join(op_id: &str, base: &Path, file: &str) -> Result<PathBuf, OpErro
 			}
 		}
 	}
-	Ok(base.join(file))
+	let canonical_base = fs::canonicalize(base).map_err(|e| {
+		err(ErrorKind::Io, format!("op '{op_id}': cannot canonicalize sandbox '{}': {e}", base.display()))
+	})?;
+	let mut current = canonical_base.clone();
+	for comp in rel.components() {
+		if let Component::Normal(name) = comp {
+			current.push(name);
+			match fs::symlink_metadata(&current) {
+				Ok(meta) if meta.file_type().is_symlink() => {
+					return Err(err(
+						ErrorKind::InvalidParam,
+						format!("op '{op_id}': path '{file}' crosses a symbolic link at '{}' — sandbox symlinks are refused", current.display()),
+					));
+				}
+				Ok(_) => {}
+				Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+				Err(e) => {
+					return Err(err(ErrorKind::Io, format!("op '{op_id}': cannot inspect '{}': {e}", current.display())));
+				}
+			}
+		}
+	}
+	Ok(canonical_base.join(rel))
 }
 
 pub(crate) fn resolve_path(op_id: &str, out_dir: &Path, file: &str) -> Result<PathBuf, OpError> {
+	fs::create_dir_all(out_dir)
+		.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot create sandbox '{}': {e}", out_dir.display())))?;
 	let path = confined_join(op_id, out_dir, file)?;
 	if let Some(parent) = path.parent() {
 		if !parent.as_os_str().is_empty() {
@@ -782,11 +1160,73 @@ fn export_mesh(
 	if !(voxel.is_finite() && voxel > 0.0) {
 		return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': voxel must be a positive voxel size in mm")));
 	}
-	let (mesh, route) = solid_mesh(solid, tol, voxel);
-	if !mesh.is_watertight() {
+	let (mut mesh, route, heal_voxel) = solid_mesh(solid, tol, voxel);
+	// An EMPTY healed mesh is the dual-contour mesher's only refusal channel —
+	// it means the heal never ran (its lattice would blow the cell budget), not
+	// that the geometry healed to nothing. Letting it fall through to the
+	// counter-based refusal below produces the worst message in the engine:
+	// "not manufacturing-ready: boundary_edges=0, …, self_intersections=0" with
+	// every counter zero. Name the real cause and the fix instead.
+	if route == "voxel_healed" && mesh.triangle_count() == 0 {
+		let budget = kernel_core::mesher::MAX_LATTICE_CELLS;
+		let (extent, vmin) = match kernel_brep::measure::bounding_box(solid) {
+			Some(b) => {
+				let s = b.max - b.min;
+				// Smallest voxel whose heal lattice fits the budget for this
+				// part's extent (pad + 3-point margins mirrored from the
+				// mesher), with 5% headroom, coarsened to 2 decimals.
+				let fits = |vs: f64| {
+					let g = |d: f64| (d + 4.0 * vs) / vs + 3.0;
+					g(s.x) * g(s.y) * g(s.z) <= budget
+				};
+				let mut vs = (s.x * s.y * s.z / budget).cbrt() * 1.05;
+				while !fits(vs) {
+					vs *= 1.05;
+				}
+				(format!("{:.0}×{:.0}×{:.0} mm", s.x, s.y, s.z), (vs * 100.0).ceil() / 100.0)
+			}
+			None => ("unbounded".into(), voxel),
+		};
 		return Err(err(
 			ErrorKind::InvalidGeometry,
-			format!("op '{op_id}': mesh is not watertight even after the voxel heal (voxel {voxel} mm) — refusing to export a leaky mesh"),
+			format!(
+				"op '{op_id}': the exact tessellation at tol {tol} mm is not manufacturing-ready, and the voxel heal cannot run at voxel {voxel} mm — this part's {extent} bounds need a lattice over the mesher's {budget:.0}-cell budget, so the heal returns nothing. Re-export with voxel ≥ {vmin} mm, or at a tol where the exact route is manufacturing-ready",
+			),
+		));
+	}
+	// The implicit mesher can emit near-coincident vertices on neighbouring cells.
+	// Normalize the healed mesh with the same weld used by STL round-trip import so
+	// the in-memory gate checks the topology that downstream readers reconstruct.
+	if route == "voxel_healed" {
+		mesh.weld(1e-4);
+		mesh.compute_normals();
+	}
+	let mesh_report = check_mesh(&mesh);
+	let proper_self_intersections = mesh.self_intersection_witness().map_or(0, |witness| witness.pairs);
+	// Route-aware refusal. The EXACT route promises an arrangement-exact solid,
+	// so any self-intersection there is a lie worth refusing. The VOXEL-HEALED
+	// route promises voxel-accurate closure only — dual-contoured TPMS/lattice
+	// output legitimately carries crossing slivers that slicers resolve by
+	// covered volume, so crossings REPORT (see `self_intersections` +
+	// `manufacturing_ready` in the receipt, both `require`-gateable) while true
+	// breakage (open edges, non-manifold, degenerate triangles) still refuses.
+	let route_ready = if route == "voxel_healed" {
+		mesh_report.watertight && mesh_report.degenerate_triangles == 0
+	} else {
+		manufacturing_ready(&mesh, &mesh_report)
+	};
+	if !route_ready {
+		return Err(err(
+			ErrorKind::InvalidGeometry,
+			format!(
+				"op '{op_id}': mesh is not manufacturing-ready even after the voxel heal (voxel {voxel} mm): boundary_edges={}, non_manifold_edges={}, non_orientable_edges={}, non_manifold_vertices={}, degenerate_triangles={}, self_intersections={} — refusing export",
+				mesh_report.boundary_edges,
+				mesh_report.non_manifold_edges,
+				mesh_report.non_orientable_edges,
+				mesh_report.non_manifold_vertices,
+				mesh_report.degenerate_triangles,
+				proper_self_intersections,
+			),
 		));
 	}
 	let path = resolve_path(op_id, out_dir, file)?;
@@ -795,25 +1235,130 @@ fn export_mesh(
 		_ => mesh.write_3mf(&path),
 	};
 	write_result.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot write '{}': {e}", path.display())))?;
+	// Gate the serialized artifact, not merely the in-memory source mesh. STL is
+	// a triangle soup, so reconstruct shared topology with the kernel's standard
+	// import weld before applying the same strict manufacturing predicate.
+	let mut round_trip = match format {
+		"stl" => Mesh::read_stl(&path),
+		_ => Mesh::read_3mf(&path),
+	}
+	.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot read back '{}': {e}", path.display())))?;
+	if format == "stl" {
+		round_trip.weld(1e-4);
+		round_trip.compute_normals();
+	}
+	let round_trip_report = check_mesh(&round_trip);
+	let round_trip_crossings = round_trip.self_intersection_witness().map_or(0, |witness| witness.pairs);
+	let round_trip_ready = if route == "voxel_healed" {
+		round_trip_report.watertight && round_trip_report.degenerate_triangles == 0
+	} else {
+		manufacturing_ready(&round_trip, &round_trip_report)
+	};
+	if !round_trip_ready {
+		let _ = std::fs::remove_file(&path);
+		return Err(err(
+			ErrorKind::InvalidGeometry,
+			format!(
+				"op '{op_id}': serialized {format} failed strict round-trip validation: boundary_edges={}, non_manifold_edges={}, non_orientable_edges={}, non_manifold_vertices={}, degenerate_triangles={}, self_intersections={} — artifact removed",
+				round_trip_report.boundary_edges,
+				round_trip_report.non_manifold_edges,
+				round_trip_report.non_orientable_edges,
+				round_trip_report.non_manifold_vertices,
+				round_trip_report.degenerate_triangles,
+				round_trip_crossings,
+			),
+		));
+	}
+	// Bind and report the exact mesh that was written. `watertight` uses the
+	// strict closed-orientable-2-manifold definition. `manufacturing_ready` is
+	// the FULL predicate (incl. zero self-intersections) — on the healed route
+	// it can honestly read false while the export still ships, and a campaign
+	// that needs the strict bar gates it with `require {manufacturing_ready: true}`.
 	Ok(Outcome {
-		value: None,
+		value: Some(EnvValue::Mesh(round_trip.clone())),
 		measures: Some(json!({
 			"route": route,
-			"triangles": mesh.triangle_count(),
-			"watertight": true,
+			"heal_voxel_mm": if route == "voxel_healed" { json!(heal_voxel) } else { json!(null) },
+			"triangles": round_trip.triangle_count(),
+			"manufacturing_ready": manufacturing_ready(&round_trip, &round_trip_report),
+			"round_trip_validated": true,
+			"watertight": round_trip_report.watertight,
+			"watertight_means": "closed, consistently oriented 2-manifold: no boundary, non-manifold, or non-orientable edges and no non-manifold vertices",
+			"boundary_edges": round_trip_report.boundary_edges,
+			"non_manifold_edges": round_trip_report.non_manifold_edges,
+			"non_orientable_edges": round_trip_report.non_orientable_edges,
+			"non_manifold_vertices": round_trip_report.non_manifold_vertices,
+			"degenerate_triangles": round_trip_report.degenerate_triangles,
+			"self_intersections": round_trip_crossings,
+			"contacts_or_coplanar_overlaps": round_trip_report.self_intersections,
+			"two_manifold": round_trip_report.watertight,
 		})),
 		file: Some(path.display().to_string()),
 	})
 }
 
-/// Resolve `file` under `out_dir` and write `mesh` in the format its extension
-/// picks (`.stl` / `.3mf`) — the same switch as `mesh_density_grid`. Returns the
-/// path actually written.
+/// Resolve `file` under `out_dir`, enforce the manufacturing mesh contract,
+/// write `.stl` / `.3mf`, then re-read and validate the bytes actually written.
+/// Invalid files are removed rather than left behind as plausible artifacts.
 pub(crate) fn write_mesh_auto(op_id: &str, out_dir: &Path, file: &str, mesh: &Mesh) -> Result<String, OpError> {
+	write_mesh_policy(op_id, out_dir, file, mesh, MeshWritePolicy::Strict)
+}
+
+/// [`write_mesh_auto`] for a VOXEL-HEALED result: closure and non-degeneracy
+/// still refuse, but proper self-intersections REPORT instead of refusing —
+/// dual-contoured TPMS/lattice output legitimately carries crossing slivers
+/// that slicers resolve by covered volume, and the receipt carries the count
+/// for `require` gating. The exact route keeps the full strict predicate.
+pub(crate) fn write_mesh_healed(op_id: &str, out_dir: &Path, file: &str, mesh: &Mesh) -> Result<String, OpError> {
+	write_mesh_policy(op_id, out_dir, file, mesh, MeshWritePolicy::Healed)
+}
+
+/// Refusal policy for [`write_mesh_policy`], per the writing op's route contract.
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum MeshWritePolicy {
+	/// Arrangement-exact print file: the full manufacturing predicate refuses.
+	Strict,
+	/// Voxel-accurate print file: breakage refuses, crossings report.
+	Healed,
+	/// Diagnostic scene: IO validated only; quality counters are the caller's receipt.
+	Scene,
+}
+
+/// [`write_mesh_auto`] for a DIAGNOSTIC SCENE: a merged multi-instance pose
+/// snapshot, not a print file. A negative-control scene is DESIGNED to
+/// interpenetrate (`overlap_volume > 0` is the whole claim), so refusing it on
+/// `proper_self_intersections` would make every failure-attitude export fail
+/// the run (campaign friction: SLAS F9). Scene writes skip the
+/// manufacturing-readiness refusals; IO and read-back are still validated, and
+/// the caller must report the quality counters so the exemption is on the
+/// record. Per-instance part files stay on the strict path — only the merged
+/// soup is a scene.
+pub(crate) fn write_mesh_scene(op_id: &str, out_dir: &Path, file: &str, mesh: &Mesh) -> Result<String, OpError> {
+	write_mesh_policy(op_id, out_dir, file, mesh, MeshWritePolicy::Scene)
+}
+
+fn write_mesh_policy(op_id: &str, out_dir: &Path, file: &str, mesh: &Mesh, policy: MeshWritePolicy) -> Result<String, OpError> {
+	let ready = |m: &Mesh, r: &MeshReport| -> bool {
+		match policy {
+			MeshWritePolicy::Strict => manufacturing_ready(m, r),
+			// Healed = voxel-accurate closure: every EDGE closed, consistently
+			// oriented, no degenerate triangles. Non-manifold VERTICES (pinch
+			// points at TPMS saddle tangencies) and crossing slivers are
+			// characteristic dual-contoured output that slicers resolve by
+			// covered volume — they REPORT in the receipt instead of refusing.
+			MeshWritePolicy::Healed => {
+				r.boundary_edges == 0
+					&& r.non_manifold_edges == 0
+					&& r.non_orientable_edges == 0
+					&& r.degenerate_triangles == 0
+			}
+			MeshWritePolicy::Scene => true,
+		}
+	};
 	let path = resolve_path(op_id, out_dir, file)?;
-	let write_result = match path.extension().and_then(|e| e.to_str()) {
-		Some("stl") => mesh.write_stl_binary(&path),
-		Some("3mf") => mesh.write_3mf(&path),
+	let format = match path.extension().and_then(|e| e.to_str()) {
+		Some("stl") => "stl",
+		Some("3mf") => "3mf",
 		other => {
 			return Err(err(
 				ErrorKind::InvalidParam,
@@ -821,7 +1366,59 @@ pub(crate) fn write_mesh_auto(op_id: &str, out_dir: &Path, file: &str, mesh: &Me
 			));
 		}
 	};
+	let mut output_mesh = mesh.clone();
+	let mut report = check_mesh(&output_mesh);
+	if !ready(&output_mesh, &report) {
+		// Imported STL soups and grid meshing can carry near-coincident, unshared
+		// vertices. Normalize once before refusing; geometry is not otherwise healed.
+		output_mesh.weld(1e-4);
+		output_mesh.compute_normals();
+		report = check_mesh(&output_mesh);
+	}
+	if !ready(&output_mesh, &report) {
+		return Err(err(
+			ErrorKind::InvalidGeometry,
+			format!(
+				"op '{op_id}': refusing manufacturing output: boundary_edges={}, non_manifold_edges={}, non_orientable_edges={}, non_manifold_vertices={}, degenerate_triangles={}, proper_self_intersections={}",
+				report.boundary_edges, report.non_manifold_edges,
+				report.non_orientable_edges, report.non_manifold_vertices,
+				report.degenerate_triangles,
+				output_mesh.self_intersection_witness().as_ref().map_or(0, |w| w.pairs)
+			),
+		));
+	}
+	let write_result = if format == "stl" {
+		output_mesh.write_stl_binary(&path)
+	} else {
+		output_mesh.write_3mf(&path)
+	};
 	write_result.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot write '{}': {e}", path.display())))?;
+	let read_result = if format == "stl" { Mesh::read_stl(&path) } else { Mesh::read_3mf(&path) };
+	let mut round_trip = match read_result {
+		Ok(mesh) => mesh,
+		Err(e) => {
+			let _ = fs::remove_file(&path);
+			return Err(err(ErrorKind::Io, format!("op '{op_id}': cannot read back '{}': {e}", path.display())));
+		}
+	};
+	round_trip.weld(1e-4);
+	round_trip.compute_normals();
+	let round_trip_report = check_mesh(&round_trip);
+	if !ready(&round_trip, &round_trip_report) {
+		let _ = fs::remove_file(&path);
+		return Err(err(
+			ErrorKind::InvalidGeometry,
+			format!(
+				"op '{op_id}': serialized manufacturing mesh failed round-trip validation (policy {}): boundary_edges={}, non_manifold_edges={}, non_orientable_edges={}, non_manifold_vertices={}, degenerate_triangles={} — partial artifact removed",
+				match policy { MeshWritePolicy::Strict => "strict", MeshWritePolicy::Healed => "healed", MeshWritePolicy::Scene => "scene" },
+				round_trip_report.boundary_edges,
+				round_trip_report.non_manifold_edges,
+				round_trip_report.non_orientable_edges,
+				round_trip_report.non_manifold_vertices,
+				round_trip_report.degenerate_triangles,
+			),
+		));
+	}
 	Ok(path.display().to_string())
 }
 
@@ -830,8 +1427,9 @@ pub(crate) fn write_mesh_auto(op_id: &str, out_dir: &Path, file: &str, mesh: &Me
 /// exporters store an unshared triangle soup; welding recovers shared topology
 /// so the `check_mesh` receipt is meaningful). Returns the welded mesh plus the
 /// sniffed format name. An unreadable file is `io`; an empty one `invalid_param`.
-pub(crate) fn read_mesh_file(op_id: &str, input_base: &Path, file: &str) -> Result<(Mesh, &'static str), OpError> {
-	let path = resolve_input_path(op_id, input_base, file)?;
+pub(crate) fn read_mesh_file(op_id: &str, input_base: &Path, out_dir: &Path, file: &str) -> Result<(Mesh, &'static str), OpError> {
+	// T4: program-relative first, then --out-dir (a mesh written by an earlier op lands there).
+	let path = resolve_input_or_out(op_id, input_base, out_dir, file)?;
 	let format = match path.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref() {
 		Some("stl") => "stl",
 		Some("obj") => "obj",
@@ -1172,8 +1770,54 @@ fn exec_op(
 			bind_solid(op_id, "cylinder", kernel_brep::cylinder(dv3(base), dv3(axis), radius, height, segments))
 		}
 		OpKind::Sphere { center, radius, u, v } => bind_solid(op_id, "sphere", kernel_brep::sphere(dv3(center), radius, u, v)),
-		OpKind::Cone { base, axis, radius, height, segments } => {
-			bind_solid(op_id, "cone", kernel_brep::cone(dv3(base), dv3(axis), radius, height, segments))
+		OpKind::Cone { base, axis, radius, height, segments, top_radius } => {
+			let top = top_radius.unwrap_or(0.0);
+			if !(top.is_finite() && top >= 0.0) {
+				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': top_radius must be a finite non-negative radius in mm")));
+			}
+			if top == 0.0 {
+				return bind_solid(op_id, "cone", kernel_brep::cone(dv3(base), dv3(axis), radius, height, segments));
+			}
+			if !(radius.is_finite() && radius > 0.0 && height.is_finite() && height != 0.0) {
+				return Err(err(
+					ErrorKind::InvalidParam,
+					format!("op '{op_id}': a frustum needs a positive finite 'radius' and a non-zero finite 'height'"),
+				));
+			}
+			if (top - radius).abs() <= 1e-12 * radius.abs().max(1.0) {
+				return Err(err(
+					ErrorKind::InvalidParam,
+					format!(
+						"op '{op_id}': top_radius {top} equals radius {radius} — that solid is a CYLINDER, not a frustum; use the 'cylinder' op (a cone surface with no apex is not representable)"
+					),
+				));
+			}
+			// A frustum is the revolution of the trapezoid (0,0)→(r,0)→(rt,h)→(0,h).
+			// Reusing `revolve` is not a shortcut: it is what gives the lateral band
+			// its exact `Surface::Cone` tag (and the caps their planes), so
+			// `exact_volume` / `mass_properties` / STEP export stay analytic —
+			// exactly as they are for the un-truncated `cone`.
+			let profile = [DVec2::new(0.0, 0.0), DVec2::new(radius, 0.0), DVec2::new(top, height.abs()), DVec2::new(0.0, height.abs())];
+			let solid = kernel_brep::revolve(&profile, segments.max(3));
+			if solid.face_count() == 0 {
+				return Err(err(
+					ErrorKind::InvalidGeometry,
+					format!("op '{op_id}': the frustum profile (radius {radius}, top_radius {top}, height {height}) does not revolve to a valid solid"),
+				));
+			}
+			// `revolve` builds about +Z through the origin; place it on the requested
+			// base/axis with the same conventions the `cone` op already uses (a
+			// negative height puts the small end below the base plane).
+			let ax = dv3(axis);
+			let Some(dir) = (ax * height.signum()).try_normalize() else {
+				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': axis must be a non-zero finite vector")));
+			};
+			let b = dv3(base);
+			if !b.is_finite() {
+				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': base must be finite")));
+			}
+			let m = DAffine3::from_translation(b) * DAffine3::from_mat3(align_z_to(dir));
+			bind_solid(op_id, "cone", solid.transformed(m))
 		}
 		OpKind::Torus { center, axis, major, minor, ring_segments, tube_segments } => bind_solid(
 			op_id,
@@ -1253,11 +1897,41 @@ fn exec_op(
 					format!("op '{op_id}': union_all needs at least two ids in 'in' (got {})", input.len()),
 				));
 			}
-			let first = fetch_solid(env, all_ids, op_id, "in", &input[0])?;
-			let second = fetch_solid(env, all_ids, op_id, "in", &input[1])?;
-			let mut acc = kernel_brep::union(first, second);
-			for name in &input[2..] {
-				acc = kernel_brep::union(&acc, fetch_solid(env, all_ids, op_id, "in", name)?);
+			// Robustness-aware fold order. A left fold in argument order used to
+			// re-arrange the SAME rebuilt face once per contacting operand: four
+			// prisms abutting one plate's hole wall died at the third union with
+			// `invalid_geometry`, while grouping the mutually-disjoint prisms
+			// first and touching the plate once succeeded (friction
+			// folding_book_stand F1/F3, 2026-08-27). So operands are folded in
+			// ascending order of how many other operands' AABBs they touch —
+			// mutually-disjoint operands merge first (a cheap multi-shell
+			// union), the touch-everything operand arranges last and once. The
+			// result is the same solid (union is associative); ties keep the
+			// argument order, so the fold stays deterministic.
+			let solids: Vec<&Solid> = input
+				.iter()
+				.map(|name| fetch_solid(env, all_ids, op_id, "in", name))
+				.collect::<Result<_, _>>()?;
+			let boxes: Vec<Option<kernel_brep::BoundingBox>> =
+				solids.iter().map(|s| kernel_brep::measure::bounding_box(s)).collect();
+			let touches = |i: usize, j: usize| -> bool {
+				match (&boxes[i], &boxes[j]) {
+					(Some(a), Some(b)) => {
+						a.min.x <= b.max.x
+							&& b.min.x <= a.max.x && a.min.y <= b.max.y
+							&& b.min.y <= a.max.y && a.min.z <= b.max.z
+							&& b.min.z <= a.max.z
+					}
+					_ => true, // unknown bounds: treat as touching (conservative)
+				}
+			};
+			let mut order: Vec<usize> = (0..solids.len()).collect();
+			let degree: Vec<usize> =
+				(0..solids.len()).map(|i| (0..solids.len()).filter(|&j| j != i && touches(i, j)).count()).collect();
+			order.sort_by_key(|&i| (degree[i], i));
+			let mut acc = kernel_brep::union(solids[order[0]], solids[order[1]]);
+			for &i in &order[2..] {
+				acc = kernel_brep::union(&acc, solids[i]);
 			}
 			bind_solid(op_id, "union_all", acc)
 		}
@@ -1301,7 +1975,7 @@ fn exec_op(
 		}
 		OpKind::RotateZ { input, degrees } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
-			bind_solid(op_id, "rotate_z", s.transformed(DAffine3::from_rotation_z(degrees.to_radians())))
+			bind_solid(op_id, "rotate_z", s.transformed(snap_rotation(DAffine3::from_rotation_z(degrees.to_radians()))))
 		}
 		OpKind::Pose { input, translate, rotate } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
@@ -1321,7 +1995,7 @@ fn exec_op(
 				}
 				let center = dv3(r.center);
 				m = DAffine3::from_translation(center)
-					* DAffine3::from_axis_angle(axis, r.degrees.to_radians())
+					* snap_rotation(DAffine3::from_axis_angle(axis, r.degrees.to_radians()))
 					* DAffine3::from_translation(-center);
 			}
 			if let Some(t) = translate {
@@ -1334,14 +2008,14 @@ fn exec_op(
 			if !degrees.is_finite() {
 				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': degrees must be finite")));
 			}
-			bind_solid(op_id, "rotate_x", s.transformed(DAffine3::from_rotation_x(degrees.to_radians())))
+			bind_solid(op_id, "rotate_x", s.transformed(snap_rotation(DAffine3::from_rotation_x(degrees.to_radians()))))
 		}
 		OpKind::RotateY { input, degrees } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
 			if !degrees.is_finite() {
 				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': degrees must be finite")));
 			}
-			bind_solid(op_id, "rotate_y", s.transformed(DAffine3::from_rotation_y(degrees.to_radians())))
+			bind_solid(op_id, "rotate_y", s.transformed(snap_rotation(DAffine3::from_rotation_y(degrees.to_radians()))))
 		}
 		OpKind::Mirror { input, plane } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
@@ -1396,7 +2070,7 @@ fn exec_op(
 			let mut acc = s.clone();
 			for k in 1..count {
 				let m = DAffine3::from_translation(c)
-					* DAffine3::from_axis_angle(ax, (step * k as f64).to_radians())
+					* snap_rotation(DAffine3::from_axis_angle(ax, (step * k as f64).to_radians()))
 					* DAffine3::from_translation(-c);
 				acc = kernel_brep::union(&acc, &s.transformed(m));
 			}
@@ -1405,28 +2079,98 @@ fn exec_op(
 
 		// --- Measures ----------------------------------------------------------------------
 		OpKind::Validate { input } => {
-			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
+			let target = fetch_measurable(env, all_ids, op_id, "in", &input)?;
+			// A bound mesh has no B-rep record to validate; report the triangle
+			// topology under the same key names, plus the mesh-only counts, and say
+			// `source: "mesh"` so no reader mistakes one for the other.
+			let s = match target {
+				Measurable::Solid(s) => s,
+				Measurable::Mesh(m) => {
+					// `closed` is CLOSURE — no openings — and nothing else, so it can
+					// never contradict the `boundary_edges` printed beside it. It used
+					// to be `check_mesh().watertight`, which folds orientability and
+					// vertex-manifoldness in, and a mesh with a flipped triangle then
+					// reported `closed: false` next to `boundary_edges: 0` in the same
+					// receipt. Everything the old `closed` covered still gates through
+					// `manifold`, so `valid` (closed AND manifold) is unchanged.
+					let r = check_mesh(m);
+					let closed = r.boundary_edges == 0 && m.triangle_count() > 0;
+					let manifold =
+						r.non_manifold_edges == 0 && r.non_orientable_edges == 0 && r.non_manifold_vertices == 0;
+					let witness = m.self_intersection_witness();
+					let mut out = json!({
+						"closed": closed,
+						"manifold": manifold,
+						"valid": closed && manifold,
+						"triangles": m.triangle_count(),
+						"boundary_edges": r.boundary_edges,
+						"non_manifold_edges": r.non_manifold_edges,
+						"non_orientable_edges": r.non_orientable_edges,
+						"non_manifold_vertices": r.non_manifold_vertices,
+						"geometric_ok": witness.is_none(),
+						"source": "mesh",
+					});
+					if let Some(w) = &witness {
+						out["self_intersection"] = self_intersection_json(w);
+					}
+					return Ok(Outcome::measures(out));
+				}
+			};
 			let v = kernel_brep::validate(s);
 			// M2 trust: `geometric_ok` is the geometric-validity flag (no self-intersection),
 			// distinct from the topological validity above — a solid can be closed+manifold yet
 			// self-overlapping with a silently-wrong volume. self_intersects() tessellates and is
 			// O(tri²)-ish, so it is computed here on the EXPLICIT validate op (on demand), not on
 			// every bind. false ⇒ measure the fit / re-route; do not trust the volume as exact.
-			Ok(Outcome::measures(json!({
+			//
+			// A bare `false` is not actionable, and a validity flag nobody can act on
+			// is a validity flag everybody learns to ignore (theme T15 — three
+			// campaigns shipped `geometric_ok:false` disclosed as "unexplained").
+			// When the flag trips, the report now carries the WITNESS: which two
+			// triangles cross, where in space, and how many pairs do it.
+			let witness = kernel_brep::tessellate_default(s).self_intersection_witness();
+			let mut out = json!({
 				"closed": v.closed,
 				"manifold": v.manifold,
 				"euler_characteristic": v.euler_characteristic,
 				"genus": v.genus,
 				"shells": v.shells,
 				"valid": v.is_valid(),
-				"geometric_ok": !kernel_brep::self_intersects(s),
-			})))
+				"geometric_ok": witness.is_none(),
+				"source": "solid",
+			});
+			if let Some(w) = &witness {
+				out["self_intersection"] = self_intersection_json(w);
+			}
+			Ok(Outcome::measures(out))
 		}
 		OpKind::Volume { input } => {
-			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
+			let target = fetch_measurable(env, all_ids, op_id, "in", &input)?;
 			// Provenance (M2): `volume` is the tessellated (faceted) volume — use `exact_volume`
 			// or `mass_properties` for the analytic value where the faces carry analytic surfaces.
-			Ok(Outcome::measures(json!({ "volume": kernel_brep::volume(s), "provenance": "faceted" })))
+			// A bound mesh's enclosed volume is only defined when it is watertight;
+			// a leaky mesh gets a refusal, never a plausible number.
+			match target {
+				Measurable::Solid(s) => {
+					Ok(Outcome::measures(json!({ "volume": kernel_brep::volume(s), "provenance": "faceted", "source": "solid" })))
+				}
+				Measurable::Mesh(m) => {
+					// Edge topology only: whether the surface closes is an O(T) question,
+					// and `check_mesh` would additionally run the self-intersection sweep
+					// that `validate` exists to pay for.
+					if !m.is_two_manifold() {
+						return Err(err(
+							ErrorKind::InvalidGeometry,
+							format!(
+								"op '{op_id}': '{input}' is a mesh with {} boundary edges and {} edges not shared by exactly two triangles — an open or non-manifold surface encloses no volume, so there is no number to report. Heal it (`import_mesh` with heal, or re-mesh through the voxel route) or measure its `bounding_box` instead",
+								m.boundary_edge_count(),
+								m.non_manifold_edge_count()
+							),
+						));
+					}
+					Ok(Outcome::measures(json!({ "volume": m.signed_volume(), "provenance": "faceted", "source": "mesh" })))
+				}
+			}
 		}
 		OpKind::ExactVolume { input } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
@@ -1455,12 +2199,25 @@ fn exec_op(
 			})))
 		}
 		OpKind::BoundingBox { input, envelope } => {
-			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
-			let b = kernel_brep::measure::bounding_box(s).ok_or_else(|| {
+			let target = fetch_measurable(env, all_ids, op_id, "in", &input)?;
+			let b = match target {
+				Measurable::Solid(s) => kernel_brep::measure::bounding_box(s),
+				// The mesh's own extent — for an exported print file this is the
+				// envelope check that matters, not the solid's.
+				Measurable::Mesh(m) => {
+					let a = m.aabb();
+					(!m.is_empty() && a.is_valid()).then(|| kernel_brep::measure::BoundingBox {
+						min: DVec3::new(a.min.x as f64, a.min.y as f64, a.min.z as f64),
+						max: DVec3::new(a.max.x as f64, a.max.y as f64, a.max.z as f64),
+					})
+				}
+			};
+			let b = b.ok_or_else(|| {
 				err(ErrorKind::InvalidGeometry, format!("op '{op_id}': 'bounding_box' has no finite geometry to measure"))
 			})?;
 			let (mn, mx, sz, c) = (b.min, b.max, b.size(), b.center());
 			let mut m = serde_json::Map::new();
+			m.insert("source".into(), json!(target.source()));
 			m.insert("min".into(), json!([mn.x, mn.y, mn.z]));
 			m.insert("max".into(), json!([mx.x, mx.y, mx.z]));
 			m.insert("size".into(), json!([sz.x, sz.y, sz.z]));
@@ -1510,21 +2267,63 @@ fn exec_op(
 				"undercut_area": d.undercut_area,
 			})))
 		}
+		OpKind::MeshComponents { input, tol, weld_tol } => {
+			let target = fetch_measurable(env, all_ids, op_id, "in", &input)?;
+			connectivity_tolerances(op_id, tol, weld_tol)?;
+			// Raw exact tessellation (never the voxel heal): connectivity of the
+			// modelled surfaces is the question, and welding is what makes
+			// coincident-but-unshared boolean vertices count as one point.
+			let mesh = target.mesh(tol);
+			let mut m = connectivity_measures(op_id, &mesh, tol, weld_tol, target.source())?;
+			m.insert("provenance".into(), json!("faceted"));
+			Ok(Outcome::measures(Value::Object(m)))
+		}
 
 		// --- Assertions ----------------------------------------------------------------------
-		OpKind::Assert { input, volume_within, exact_volume_within, genus, shells, closed, manifold, valid } => {
-			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
+		OpKind::Assert { input, volume_within, exact_volume_within, genus, shells, components, closed, manifold, valid, tol, weld_tol } => {
+			let target = fetch_measurable(env, all_ids, op_id, "in", &input)?;
 			let any_check = volume_within.is_some()
 				|| exact_volume_within.is_some()
-				|| genus.is_some() || shells.is_some()
+				|| genus.is_some() || shells.is_some() || components.is_some()
 				|| closed.is_some() || manifold.is_some() || valid.is_some();
 			if !any_check {
 				return Err(err(
 					ErrorKind::InvalidParam,
-					format!("op '{op_id}': assert has no checks — give at least one of volume_within / exact_volume_within / genus / shells / closed / manifold / valid"),
+					format!("op '{op_id}': assert has no checks — give at least one of volume_within / exact_volume_within / genus / shells / components / closed / manifold / valid"),
 				));
 			}
-			let v = kernel_brep::validate(s);
+			connectivity_tolerances(op_id, tol, weld_tol)?;
+			// A bound MESH has no B-rep topology: genus / shells / exact_volume are
+			// records of the solid model, and inventing them from triangles would be
+			// exactly the plausible-looking number this surface refuses to produce.
+			// The mesh-meaningful checks (components / closed / manifold / valid /
+			// volume_within) are answered from the mesh itself.
+			let s = match target {
+				Measurable::Solid(s) => Some(s),
+				Measurable::Mesh(_) => {
+					for (name, present) in
+						[("genus", genus.is_some()), ("shells", shells.is_some()), ("exact_volume_within", exact_volume_within.is_some())]
+					{
+						if present {
+							return Err(err(
+								ErrorKind::WrongType,
+								format!(
+									"op '{op_id}': assert '{name}' needs a bound SOLID — '{input}' is a mesh, which carries no B-rep topology or analytic surfaces. On a mesh assert components / closed / manifold / valid / volume_within instead"
+								),
+							));
+						}
+					}
+					None
+				}
+			};
+			let v = s.map(kernel_brep::validate);
+			// Closed / manifold for a mesh come from edge topology alone; running the
+			// full `check_mesh` here would drag in the self-intersection sweep, which
+			// `assert` never reports and which is the expensive part of that call.
+			let mesh_report = match target {
+				Measurable::Mesh(m) => Some((m.boundary_edge_count() == 0 && !m.is_empty(), m.is_two_manifold())),
+				Measurable::Solid(_) => None,
+			};
 			let mut measures = serde_json::Map::new();
 			let mut failures: Vec<String> = Vec::new();
 			let mut within = |what: &str, measured: f64, spec: &crate::program::WithinSpec| -> Result<(), OpError> {
@@ -1544,11 +2343,15 @@ fn exec_op(
 				Ok(())
 			};
 			if let Some(spec) = &volume_within {
-				let measured = kernel_brep::volume(s);
+				let measured = match (s, &target) {
+					(Some(s), _) => kernel_brep::volume(s),
+					(None, Measurable::Mesh(m)) => m.signed_volume(),
+					(None, _) => unreachable!("a non-solid target is a mesh"),
+				};
 				within("volume_within", measured, spec)?;
 				measures.insert("volume".to_string(), json!(measured));
 			}
-			if let Some(spec) = &exact_volume_within {
+			if let (Some(spec), Some(s)) = (&exact_volume_within, s) {
 				let measured = kernel_brep::exact_volume(s);
 				within("exact_volume_within", measured, spec)?;
 				measures.insert("exact_volume".to_string(), json!(measured));
@@ -1559,20 +2362,47 @@ fn exec_op(
 				}
 				measures.insert(what.to_string(), measured);
 			};
-			if let Some(g) = genus {
+			if let (Some(g), Some(v)) = (genus, &v) {
 				equals("genus", json!(v.genus), json!(g));
 			}
-			if let Some(n) = shells {
+			if let (Some(n), Some(v)) = (shells, &v) {
 				equals("shells", json!(v.shells), json!(n));
 			}
+			if let Some(n) = components {
+				// The single-body oracle (FRICTION #24): union-find over welded
+				// triangle connectivity — `shells` counts B-rep records and cannot
+				// catch a severed part, while this cannot see a severance narrower
+				// than `weld_tol`. They are COMPLEMENTARY; neither dominates.
+				let mesh = target.mesh(tol);
+				let m = connectivity_measures(op_id, &mesh, tol, weld_tol, target.source())?;
+				equals("components", m["components"].clone(), json!(n));
+			}
+			// closed / manifold / valid come from the B-rep record for a solid and
+			// from the triangle topology for a mesh — same question, same answer
+			// shape, measured where the geometry actually lives.
 			if let Some(c) = closed {
-				equals("closed", json!(v.closed), json!(c));
+				let measured = match (&v, &mesh_report) {
+					(Some(v), _) => v.closed,
+					(None, Some((closed, _))) => *closed,
+					(None, None) => unreachable!("a target is a solid or a mesh"),
+				};
+				equals("closed", json!(measured), json!(c));
 			}
 			if let Some(m) = manifold {
-				equals("manifold", json!(v.manifold), json!(m));
+				let measured = match (&v, &mesh_report) {
+					(Some(v), _) => v.manifold,
+					(None, Some((_, manifold))) => *manifold,
+					(None, None) => unreachable!("a target is a solid or a mesh"),
+				};
+				equals("manifold", json!(measured), json!(m));
 			}
 			if let Some(ok) = valid {
-				equals("valid", json!(v.is_valid()), json!(ok));
+				let measured = match (&v, &mesh_report) {
+					(Some(v), _) => v.is_valid(),
+					(None, Some((closed, manifold))) => *closed && *manifold,
+					(None, None) => unreachable!("a target is a solid or a mesh"),
+				};
+				equals("valid", json!(measured), json!(ok));
 			}
 			if failures.is_empty() {
 				Ok(Outcome::measures(Value::Object(measures)))
@@ -1581,8 +2411,8 @@ fn exec_op(
 			}
 		}
 		OpKind::AssertDisjoint { a, b, min_clearance, tol } => {
-			let sa = fetch_solid(env, all_ids, op_id, "a", &a)?;
-			let sb = fetch_solid(env, all_ids, op_id, "b", &b)?;
+			let ta = fetch_measurable(env, all_ids, op_id, "a", &a)?;
+			let tb = fetch_measurable(env, all_ids, op_id, "b", &b)?;
 			if !(tol.is_finite() && tol > 0.0) {
 				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': tol must be a positive chord tolerance in mm")));
 			}
@@ -1591,11 +2421,13 @@ fn exec_op(
 			}
 			// Raw exact tessellations: vertices lie on the true surfaces, and a
 			// distance query needs no watertightness — never the voxel heal.
-			let ma = kernel_brep::tessellate_adaptive_tol(sa, tol);
-			let mb = kernel_brep::tessellate_adaptive_tol(sb, tol);
+			let ma = ta.mesh(tol);
+			let mb = tb.mesh(tol);
 			let distance = ma.min_distance(&mb);
 			if distance > min_clearance {
-				Ok(Outcome::measures(json!({ "distance": distance, "min_clearance": min_clearance })))
+				Ok(Outcome::measures(
+					json!({ "distance": distance, "min_clearance": min_clearance, "tol": tol, "source": [ta.source(), tb.source()] }),
+				))
 			} else {
 				Err(err(
 					ErrorKind::AssertFailed,
@@ -1616,8 +2448,10 @@ fn exec_op(
 		}
 		OpKind::SupportReport { input, build_dir, overhang_deg } => {
 			// M5: FDM support-necessity audit — wires the existing Mesh::support_free_report.
-			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
-			let mesh = kernel_brep::tessellate_adaptive_tol(s, 0.05);
+			// Accepts a bound mesh so the audit can be run on the file that actually
+			// prints (an export's healed mesh is not the solid's tessellation).
+			let target = fetch_measurable(env, all_ids, op_id, "in", &input)?;
+			let mesh = target.mesh(0.05);
 			let up = Vec3::new(build_dir[0] as f32, build_dir[1] as f32, build_dir[2] as f32);
 			let r = mesh.support_free_report(up, overhang_deg as f32, 0.2);
 			Ok(Outcome::measures(json!({
@@ -1628,30 +2462,74 @@ fn exec_op(
 				"total_area": r.total_area,
 				"max_bridge_span": r.max_bridge_span,
 				"provenance": "faceted",
+				"source": target.source(),
 			})))
 		}
 		OpKind::Clearance { a, b, tol } => {
 			// M5: non-asserting clearance/interference — the measuring twin of assert_disjoint.
-			let sa = fetch_solid(env, all_ids, op_id, "a", &a)?;
-			let sb = fetch_solid(env, all_ids, op_id, "b", &b)?;
+			let ta = fetch_measurable(env, all_ids, op_id, "a", &a)?;
+			let tb = fetch_measurable(env, all_ids, op_id, "b", &b)?;
 			if !(tol.is_finite() && tol > 0.0) {
 				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': tol must be a positive chord tolerance in mm")));
 			}
-			let ma = kernel_brep::tessellate_adaptive_tol(sa, tol);
-			let mb = kernel_brep::tessellate_adaptive_tol(sb, tol);
+			let ma = ta.mesh(tol);
+			let mb = tb.mesh(tol);
 			let distance = ma.min_distance(&mb);
-			// overlap_volume runs a boolean intersection; skip it on the coincident-fit hazard
-			// (a press-fit) so a clearance query can't trigger the coincident-fit boolean hang (V4).
-			let hazard = kernel_brep::detect_coincident_fit(sa, sb);
-			let overlap = if hazard { None } else { kernel_brep::overlap_volume(sa, sb) };
+			// overlap_volume runs an EXACT boolean intersection, so it needs two exact
+			// solids, and it is skipped on the coincident-fit hazard (a press-fit) so a
+			// clearance query can't trigger the coincident-fit boolean hang (V4).
+			// `overlap_volume: null` used to arrive with no explanation attached —
+			// a null that does not say why is indistinguishable from a bug, so the
+			// reason is now a first-class field and is never absent when the value is.
+			let (overlap, hazard, reason) = match (&ta, &tb) {
+				(Measurable::Solid(sa), Measurable::Solid(sb)) => {
+					let hazard = kernel_brep::detect_coincident_fit(sa, sb);
+					if hazard {
+						(None, true, Some("coincident_fit_hazard: the operands share a flush/press-fit face pair, and the exact intersection across it is the known boolean-hang case (V4) — measure the fit analytically (measure_dimension diameter) instead"))
+					} else {
+						match kernel_brep::overlap_volume(sa, sb) {
+							Some(v) => (Some(v), false, None),
+							// The exact arrangement can fail on posed/near-degenerate
+							// pairs while the meshes overlap plainly (friction
+							// folding_book_stand F5: `overlap_volume: null` on an
+							// interfering posed pair). Fall back to the mesh-level
+							// boolean of the already-tessellated operands — a faceted
+							// estimate, labelled as such, instead of a null.
+							None => {
+								let common = kernel_brep::mesh_intersection(&ma, &mb);
+								let v = common.signed_volume().abs();
+								(
+									Some(v),
+									false,
+									Some("the exact boolean intersection did not produce a measurable body for this operand pair — `overlap_volume` is the FACETED mesh-boolean volume of the tessellated operands at `tol` (an estimate, not the analytic overlap); gate `exact_volume` on an explicit `intersection` body when the exact number matters"),
+								)
+							}
+						}
+					}
+				}
+				_ => (
+					None,
+					false,
+					Some("overlap_volume needs two exact solids; at least one operand is a bound MESH, which carries no exact boolean — `distance` is measured on the meshes and is the honest answer here"),
+				),
+			};
+			// With no overlap volume the only evidence is the surface gap. A gap of
+			// exactly 0 on faceted operands is CONTACT within the faceting, not proof
+			// of interpenetration, so it is reported as such rather than as a boolean.
 			let interfering = overlap.map(|v| v > 1e-9).unwrap_or(distance < 1e-6);
-			Ok(Outcome::measures(json!({
+			let mut m = json!({
 				"distance": distance,
 				"interfering": interfering,
 				"overlap_volume": overlap,
 				"coincident_fit_hazard": hazard,
+				"tol": tol,
 				"provenance": "faceted",
-			})))
+				"source": [ta.source(), tb.source()],
+			});
+			if let Some(r) = reason {
+				m["overlap_volume_reason"] = json!(r);
+			}
+			Ok(Outcome::measures(m))
 		}
 		OpKind::Describe { name } => {
 			// M3: self-describe the op surface from the single authoritative catalogue (discover.rs),
@@ -1664,10 +2542,21 @@ fn exec_op(
 					let params = crate::discover::op_params(&n);
 					let mut m = json!({ "name": n, "exists": params.is_some() });
 					if let Some(specs) = params {
-						m["params"] = specs
+						// The generated per-op table PLUS the universal params every op
+						// accepts, so `describe` is the complete answer to "what may I
+						// pass here" — a param advertised nowhere is a param nobody uses.
+						let mut list: Vec<Value> = specs
 							.iter()
-							.map(|p| json!({ "name": p.name, "type": p.ty, "required": p.required, "doc": p.doc }))
+							.map(|p| {
+								let mut spec = json!({ "name": p.name, "type": p.ty, "required": p.required, "doc": p.doc });
+								if !p.aliases.is_empty() {
+									spec["aliases"] = json!(p.aliases);
+								}
+								spec
+							})
 							.collect();
+						list.push(universal_require_param());
+						m["params"] = Value::Array(list);
 					}
 					Ok(Outcome::measures(m))
 				}
@@ -1675,6 +2564,7 @@ fn exec_op(
 					"count": crate::discover::OP_COUNT,
 					"ops": crate::discover::OP_NAMES,
 					"params_available": true,
+					"universal_params": [universal_require_param()],
 				}))),
 			}
 		}
@@ -1772,7 +2662,7 @@ fn exec_op(
 				"watertight": true,
 				"healed": healed,
 			});
-			Ok(Outcome { value: None, measures: Some(measures), file: Some(path.display().to_string()) })
+			Ok(Outcome { value: Some(EnvValue::Mesh(mesh.clone())), measures: Some(measures), file: Some(path.display().to_string()) })
 		}
 
 		OpKind::SampleDensityGrid { input, expr, origin, voxel, shape, supersample, file } => {
@@ -1824,7 +2714,7 @@ fn exec_op(
 			if !(voxel.is_finite() && voxel > 0.0) {
 				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': voxel must be a positive voxel size in mm")));
 			}
-			let path_in = resolve_input_path(op_id, input_base, &npy)?;
+			let path_in = resolve_input_or_out(op_id, input_base, out_dir, &npy)?;
 			let bytes = std::fs::read(&path_in).map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot read '{}': {e}", path_in.display())))?;
 			let (nshape, rho) = crate::bridge::read_npy_f32(&bytes)
 				.map_err(|e| err(ErrorKind::InvalidParam, format!("op '{op_id}': '{npy}': {e}")))?;
@@ -1862,7 +2752,7 @@ fn exec_op(
 			};
 			write_result.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot write '{}': {e}", path.display())))?;
 			Ok(Outcome {
-				value: None,
+				value: Some(EnvValue::Mesh(mesh.clone())),
 				measures: Some(json!({
 					"ok": true,
 					"volume_mm3": volume,
@@ -1959,7 +2849,7 @@ fn exec_op(
 				None => None,
 			};
 			Ok(Outcome {
-				value: None,
+				value: Some(EnvValue::Mesh(mesh.clone())),
 				measures: Some(json!({
 					"triangles": mesh.triangle_count(),
 					"watertight": true,
@@ -2048,7 +2938,7 @@ fn exec_op(
 				None => None,
 			};
 			Ok(Outcome {
-				value: None,
+				value: Some(EnvValue::Mesh(mesh.clone())),
 				measures: Some(json!({
 					"route": "voxel_healed",
 					"triangles": mesh.triangle_count(),
@@ -2301,7 +3191,8 @@ fn exec_op(
 
 		// --- Native formats ----------------------------------------------------------------------
 		OpKind::LoadPart { file } => {
-			let path = resolve_input_path(op_id, input_base, &file)?;
+			// T4: program-relative first, then --out-dir (a generated .lmcpart lands there).
+			let path = resolve_input_or_out(op_id, input_base, out_dir, &file)?;
 			let text = std::fs::read_to_string(&path)
 				.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot read '{}': {e}", path.display())))?;
 			let (doc, meta) = format::load_part(&text)
@@ -2328,7 +3219,8 @@ fn exec_op(
 			// file merges into ONE multi-shell solid (each MANIFOLD_SOLID_BREP keeps its
 			// own shell — `shells` in the measures is the honest count). Trimmed-NURBS
 			// faces enter as their chord facets; `freeform_faces` counts them.
-			let path = resolve_input_path(op_id, input_base, &file)?;
+			// T4: fall back to --out-dir so an exported STEP re-imports under any out dir.
+			let path = resolve_input_or_out(op_id, input_base, out_dir, &file)?;
 			let text = std::fs::read_to_string(&path)
 				.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot read '{}': {e}", path.display())))?;
 			let (solid, freeform) = kernel_brep::import_step_freeform(&text).map_err(|e| {
@@ -2355,7 +3247,7 @@ fn exec_op(
 			// Mesh file → welded mesh → full check_mesh receipt. Binds NOTHING (the
 			// environment stays Solid|Sketch); `volume` is reported ONLY when the mesh
 			// is watertight — a leaky mesh has no defined enclosed volume.
-			let (mut mesh, mesh_format) = read_mesh_file(op_id, input_base, &file)?;
+			let (mut mesh, mesh_format) = read_mesh_file(op_id, input_base, out_dir, &file)?;
 			if heal {
 				// The kernel's deterministic import repair: cap boundary loops, then
 				// split non-manifold junctions (never worse than the input).
@@ -2384,10 +3276,13 @@ fn exec_op(
 				m.insert("volume".into(), json!(mesh.signed_volume()));
 			}
 			let written = match out {
-				Some(f) => Some(write_mesh_auto(op_id, out_dir, &f, &mesh)?),
+				Some(f) => Some(write_mesh_healed(op_id, out_dir, &f, &mesh)?),
 				None => None,
 			};
-			Ok(Outcome { value: None, measures: Some(Value::Object(m)), file: written })
+			// `import_mesh` BINDS the mesh it read: a print file that came from
+			// anywhere — this engine's voxel route, another tool, a repaired STL —
+			// becomes gateable with the ordinary measures.
+			Ok(Outcome { value: Some(EnvValue::Mesh(mesh.clone())), measures: Some(Value::Object(m)), file: written })
 		}
 		OpKind::MeshCarve { input, file, bool_op, voxel, out } => {
 			// The hybrid solid∘mesh boolean: the bound solid is meshed on the honest
@@ -2399,8 +3294,8 @@ fn exec_op(
 			if !(voxel.is_finite() && voxel > 0.0) {
 				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': voxel must be a positive voxel size in mm")));
 			}
-			let (a, _) = solid_mesh(s, 0.01, voxel);
-			let (b, _) = read_mesh_file(op_id, input_base, &file)?;
+			let (a, _, _) = solid_mesh(s, 0.01, voxel);
+			let (b, _) = read_mesh_file(op_id, input_base, out_dir, &file)?;
 			// The boolean's lattice spans BOTH operands — same allocation cap as `shell`.
 			grid_guard(op_id, "mesh_carve", a.aabb().union(b.aabb()).pad(2.0 * voxel as f32), voxel)?;
 			let op = match bool_op {
@@ -2418,9 +3313,9 @@ fn exec_op(
 					),
 				));
 			}
-			let path = write_mesh_auto(op_id, out_dir, &out, &mesh)?;
+			let path = write_mesh_healed(op_id, out_dir, &out, &mesh)?;
 			Ok(Outcome {
-				value: None,
+				value: Some(EnvValue::Mesh(mesh.clone())),
 				measures: Some(json!({
 					"route": "voxel_implicit",
 					"triangles": mesh.triangle_count(),
@@ -2617,9 +3512,9 @@ fn exec_op(
 					),
 				));
 			}
-			let path = write_mesh_auto(op_id, out_dir, &file, &mesh)?;
+			let path = write_mesh_healed(op_id, out_dir, &file, &mesh)?;
 			Ok(Outcome {
-				value: None,
+				value: Some(EnvValue::Mesh(mesh.clone())),
 				measures: Some(json!({
 					"route": "voxel_implicit",
 					"kind": kind,
@@ -2661,7 +3556,7 @@ fn exec_op(
 					(Some(parsed.node), None, "implicit_field")
 				}
 				(None, Some(f)) => {
-					let (m, fmt) = read_mesh_file(op_id, input_base, &f)?;
+					let (m, fmt) = read_mesh_file(op_id, input_base, out_dir, &f)?;
 					if m.triangle_count() == 0 {
 						return Err(err(ErrorKind::InvalidGeometry, format!("op '{op_id}': the mesh operand '{f}' ({fmt}) has no triangles")));
 					}
@@ -2712,7 +3607,12 @@ fn exec_op(
 				HybridRoute::ExactStitch => ("exact_stitch", None),
 				HybridRoute::Healed { reason } => ("voxel_healed", Some(reason.clone())),
 			};
-			let path = write_mesh_auto(op_id, out_dir, &out, &result.mesh)?;
+			// Route-aware write: the healed route reports crossings instead of
+			// refusing on them; the exact stitch keeps the strict predicate.
+			let path = match &result.route {
+				HybridRoute::ExactStitch => write_mesh_auto(op_id, out_dir, &out, &result.mesh)?,
+				HybridRoute::Healed { .. } => write_mesh_healed(op_id, out_dir, &out, &result.mesh)?,
+			};
 			let r = &result.report;
 			let mut measures = json!({
 				"route": route,
@@ -2734,7 +3634,7 @@ fn exec_op(
 			if let Some(reason) = healed_reason {
 				measures["healed_reason"] = json!(reason);
 			}
-			Ok(Outcome { value: None, measures: Some(measures), file: Some(path) })
+			Ok(Outcome { value: Some(EnvValue::Mesh(result.mesh)), measures: Some(measures), file: Some(path) })
 		}
 
 		// --- Parts library (curated, admission-gated; BAR.md I7) -------------------------------
@@ -3725,9 +4625,9 @@ fn exec_op(
 					),
 				));
 			}
-			let path = write_mesh_auto(op_id, out_dir, &file, &mesh)?;
+			let path = write_mesh_healed(op_id, out_dir, &file, &mesh)?;
 			Ok(Outcome {
-				value: None,
+				value: Some(EnvValue::Mesh(mesh.clone())),
 				measures: Some(json!({
 					"route": route,
 					"m": m,

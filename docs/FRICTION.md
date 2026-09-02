@@ -62,7 +62,7 @@ Evidence: `kernel-api` usage string (`usage: kernel-api run <program.json> [--ou
 API.md op table ("1 native-format loader"). A program op `{"op": "load_assembly"}` is
 `unknown_op`.
 
-Workaround (HISTORICAL — `gearbox/tools/asmcheck/` is no longer in the tree; the
+Workaround (HISTORICAL — the former gearbox/tools/asmcheck directory is no longer in the tree; the
 recipe is kept because it still works): a ~150-line read-only downstream crate consuming
 the public Rust API (`kernel_model::format::load_assembly`) to verify the file loads, the
 mates re-solve (residual 1.4e-12), the BOM groups, and contacts are as designed.

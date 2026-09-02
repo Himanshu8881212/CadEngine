@@ -9,8 +9,9 @@
 //!   exit 0 iff the kernel report says ok.
 //!
 //! Server discovery: `CADCODE_SERVER` (default `http://127.0.0.1:7878`); when
-//! the health probe is refused and `./target/release/studio-server` exists it
-//! is auto-started (disable with `--no-spawn`). `CADCODE_API_TOKEN` adds a
+//! the health probe is refused, the trusted `studio-server` sibling of the
+//! running TUI binary is auto-started (disable with `--no-spawn`; an explicit
+//! `CADCODE_SERVER_BIN` may override it). `CADCODE_API_TOKEN` adds a
 //! bearer header to every API request.
 
 use std::io::IsTerminal;

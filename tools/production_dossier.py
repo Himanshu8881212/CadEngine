@@ -465,6 +465,9 @@ def build_dossier(job):
 
 
 def main():
+	if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+		print(__doc__)          # digest F9: --help was read as a job path and traced back
+		return 0
 	if len(sys.argv) != 2:
 		print(json.dumps({"ok": False, "error": "usage: production_dossier.py job.json"}))
 		return 1

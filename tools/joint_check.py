@@ -5,9 +5,16 @@ The #1 assembly failure is the joint, not the part: heat-set inserts pulled out,
 threads stripped out of plastic, creep under sustained load. This is a RULES
 engine over published-typical capacity tables — no FEA, no engine calls.
 
-Usage:  python3 joint_check.py <job.json>
-Persistence: receipt also written per the shared `_receipt` rule (job
-`receipt` path, else `<out_dir>/joint_check_receipt.json`).
+Usage:  python3 joint_check.py <job.json> [--out PATH]
+Persistence + exit codes: the shared contract in tools/_receipt.py.
+
+**The exit code AGREES with the verdict.** Before 2026-08-08 it was INVERTED in
+practice (ball F5): an out-of-table size leaked
+`{"ok": false, "error": "KeyError: 'M6'"}` at exit 1 while a genuine
+`min_engagement_rule` FAIL exited 0, so `$?` carried the opposite of the
+engineering verdict. An unsupported size / material / joint type is now a
+per-joint REFUSAL with a machine-matchable `error_kind` and no invented
+capacity — the other joints in the job keep their numbers.
 
 Job JSON (argv[1]):
 {
@@ -45,9 +52,13 @@ mid-range values from the cited sources, not guarantees.
 """
 import json
 
-import _receipt
 import math
+import os
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _receipt  # noqa: E402
+from _receipt import Refusal  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # DATA TABLES — typical values, sources cited. VERIFY per brand before flight.
@@ -113,12 +124,45 @@ def log(msg):
     print(msg, file=sys.stderr, flush=True)
 
 
+JOINT_TYPES = ("machine_screw_into_heatset", "screw_into_plastic_thread", "bolt_through_nut")
+
+
 def check_joint(j, sf_required):
+    name = j.get("name", "?") if isinstance(j, dict) else "?"
+    if not isinstance(j, dict):
+        raise Refusal("bad_joint", f"joint '{name}': must be an object")
+    for k in ("type", "size"):
+        if k not in j:
+            raise Refusal(f"missing_{k}", f"joint '{name}': needs a `{k}`")
     jtype, size = j["type"], j["size"]
     material = j.get("material", "petg").lower()
+    # Refuse out-of-table inputs by NAME. These used to leak a raw
+    # `KeyError: 'M6'` as the whole receipt (ball F5): the tables are the
+    # tool's entire authority, so an entry that is not in them has no
+    # conservative default — the only honest answer is a refusal.
+    if jtype not in JOINT_TYPES:
+        raise Refusal("unknown_joint_type",
+                      f"joint '{name}': unknown type '{jtype}' — supported: {list(JOINT_TYPES)}")
+    if size not in NOMINAL_D_MM:
+        raise Refusal("size_not_in_table",
+                      f"joint '{name}': size '{size}' is not in the capacity tables — "
+                      f"supported: {sorted(NOMINAL_D_MM)}. No capacity is published for it here "
+                      f"and extrapolating one would be an invented number.")
+    if jtype != "bolt_through_nut" and material not in PLASTIC_SHEAR_MPA:
+        raise Refusal("material_not_in_table",
+                      f"joint '{name}': plastic '{material}' is not in the capacity tables — "
+                      f"supported: {sorted(PLASTIC_SHEAR_MPA)}")
     loads = j.get("loads", {})
+    if not isinstance(loads, dict):
+        raise Refusal("invalid_load", f"joint '{name}': `loads` must be an object")
     tension = float(loads.get("tension_N", 0.0))
     shear = float(loads.get("shear_N", 0.0))
+    if not (math.isfinite(tension) and math.isfinite(shear)) or tension < 0.0 or shear < 0.0:
+        raise Refusal(
+            "invalid_load",
+            f"joint '{name}': tension_N and shear_N are non-negative finite load magnitudes; "
+            f"got tension_N={tension!r}, shear_N={shear!r}. Encode direction in the load case, "
+            "not by giving a capacity rule a negative demand.")
     sustained = bool(loads.get("sustained", False))
     d = NOMINAL_D_MM[size]
     notes = []
@@ -133,6 +177,8 @@ def check_joint(j, sf_required):
 
     if jtype == "machine_screw_into_heatset":
         insert_len = float(j.get("insert_len_mm", HEATSET_STD_LEN_MM[size]))
+        if not math.isfinite(insert_len) or insert_len <= 0.0:
+            raise Refusal("invalid_geometry", f"joint '{name}': insert_len_mm must be positive and finite")
         base = HEATSET_PULLOUT_N[size][material]
         scale = min(max(insert_len / HEATSET_STD_LEN_MM[size], HEATSET_LEN_SCALE_CLAMP[0]),
                     HEATSET_LEN_SCALE_CLAMP[1])
@@ -151,6 +197,8 @@ def check_joint(j, sf_required):
                                f"(heat-set rule: engagement >= insert length)")
     elif jtype == "screw_into_plastic_thread":
         L = float(engagement if engagement is not None else 0.0)
+        if not math.isfinite(L) or L < 0.0:
+            raise Refusal("invalid_geometry", f"joint '{name}': engagement_mm must be non-negative and finite")
         tau = PLASTIC_SHEAR_MPA[material]
         strip = tau * math.pi * d * L * THREAD_FORM_FACTOR * derate
         modes["plastic_thread_strip"] = (strip, tension)
@@ -173,8 +221,6 @@ def check_joint(j, sf_required):
         shear_modes = ["screw_shear_steel"]
         notes.append("steel-on-steel joint: plastic compression/creep under the head is NOT "
                      "modeled — use washers on printed faces")
-    else:
-        raise ValueError(f"unknown joint type '{jtype}'")
 
     # Per-mode SF, plus the combined tension+shear interaction on the joint's
     # weakest tension/shear pair when both loads are present.
@@ -216,34 +262,52 @@ def check_joint(j, sf_required):
     }
 
 
-def main():
-    job = json.load(open(sys.argv[1]))
+def build(job):
+    if not isinstance(job.get("joints"), list) or not job["joints"]:
+        raise Refusal("no_joints", "job needs a non-empty `joints` list")
     sf_required = float(job.get("safety_factor", 2.0))
     receipts = []
     for j in job["joints"]:
-        r = check_joint(j, sf_required)
+        try:
+            r = check_joint(j, sf_required)
+        except Refusal as e:
+            # Per-joint refusal: this joint gets NO capacity number and fails the
+            # run, but the other joints keep their evidence (a whole-receipt
+            # KeyError threw all of it away — din_rail F1's sibling defect).
+            r = {"name": j.get("name", "?") if isinstance(j, dict) else "?",
+                 "type": j.get("type") if isinstance(j, dict) else None,
+                 "size": j.get("size") if isinstance(j, dict) else None,
+                 "material": (j.get("material") if isinstance(j, dict) else None),
+                 "governing_mode": None, "capacity_N": None, "demand_N": None,
+                 "SF_actual": None, "pass": False,
+                 "error_kind": e.kind, "error": f"{e.kind}: {e}",
+                 "modes": {}, "notes": [f"REFUSED ({e.kind}): {e}"]}
+            log(f"{r['name']}: REFUSED {e.kind}: {e}")
+            receipts.append(r)
+            continue
         log(f"{r['name']}: {r['governing_mode']} SF={r['SF_actual']} -> "
             f"{'PASS' if r['pass'] else 'FAIL'}")
         receipts.append(r)
-    _receipt.emit({
+    out = {
         "ok": all(r["pass"] for r in receipts),
         "safety_factor_required": sf_required,
         "data_caveat": "capacity tables are typical published values — verify per insert "
                        "brand / filament before trusting a safety-critical joint",
         "joints": receipts,
-    }, job, "joint_check")
+    }
+    refused = [r["name"] for r in receipts if r.get("error_kind")]
+    if refused:
+        out["refused_joints"] = refused
+    return out
+
+
+def main():
+    job, out = _receipt.load_job()
+    payload = build(job)
+    kind = "refusal.joint_refused" if payload.get("refused_joints") else None
+    _receipt.finish(payload, job=job, tool="joint_check", out=out, kind=kind,
+                    use_out_dir_default=True)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
-        print(__doc__)
-        sys.exit(0)
-    try:
-        main()
-    except Exception as e:  # honest failure receipt — the JSON line is the contract
-        try:
-            _job = json.load(open(sys.argv[1]))
-        except Exception:
-            _job = {}
-        _receipt.emit({"ok": False, "error": f"{type(e).__name__}: {e}"}, _job, "joint_check")
-        sys.exit(1)
+    _receipt.run_cli("joint_check", main)

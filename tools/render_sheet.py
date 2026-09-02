@@ -2,11 +2,18 @@
 """render_sheet.py — the 12-view VISION contact sheet: one PNG that lets the
 designing model SEE a part from every side, inside and out, every iteration.
 
-Usage: render_sheet.py job.json
+Usage: render_sheet.py job.json      (also: render_sheet.py --help)
 Job keys:
   stl        : path to ONE binary STL,  OR
   stls       : [paths] rendered as an OVERLAY (distinct colors + legend)
   out        : output PNG path (required)
+  base_dir   : optional root for every relative path in the job. Without it a
+               relative INPUT is looked for under the CWD first (unchanged) and
+               then under the JOB FILE's own directory, and a fallback that
+               fires is named in the receipt's `notes` — so a job carrying
+               `parts/x.stl` rebuilds from the repo root as well as from the
+               part directory (gripper F10). Nothing found under any root is a
+               refusal that lists the roots tried, never a guess.
   dimensions : optional [{kind:"linear", a, b, label?, view?, offset?} |
                {kind:"diameter", center, axis, radius, label?, view?}] —
                engineering callouts drawn on the ortho panels (views auto-
@@ -65,6 +72,7 @@ Honesty notes:
   "px": [w, h], ...}; failures print {"ok": false, "error": ...} and exit 1.
 """
 
+import functools
 import json
 import os
 import sys
@@ -141,14 +149,23 @@ def tracked(s):
 	return " ".join(str(s).upper())
 
 
+@functools.lru_cache(maxsize=8192)
+def _text_w_pt(s, fs, weight):
+	tp = TextPath((0, 0), s, prop=FontProperties(family=STYLE["font"], size=fs, weight=weight))
+	ext = tp.get_extents()
+	return float(ext.x1 - ext.x0)
+
+
 def text_w_px(s, fs, dpi, weight="normal"):
 	"""MEASURED text width in px (TextPath metrics — deterministic, no
-	renderer round-trip). The wrap/fit logic uses this, never a guess."""
+	renderer round-trip). The wrap/fit logic uses this, never a guess.
+
+	Memoized on (string, size, weight): a greedy word-wrap re-measures the same
+	prefixes thousands of times, and TextPath construction dominates the run.
+	Pure function of its arguments, so the cache cannot change any output."""
 	if not s:
 		return 0.0
-	tp = TextPath((0, 0), str(s), prop=FontProperties(family=STYLE["font"], size=fs, weight=weight))
-	ext = tp.get_extents()
-	return float(ext.x1 - ext.x0) * dpi / 72.0
+	return _text_w_pt(str(s), fs, weight) * dpi / 72.0
 
 
 def fig_px(fig):
@@ -464,12 +481,82 @@ def dim_annotate(ax, a3, b3, off_dir, off_frac, label, scale_ref, fs=STYLE["fs_t
 		family=STYLE["font"], ha="center", va="center", rotation=0 if horizontal else 90, clip_on=False)
 
 
+# ------------------------------------------------------------- path roots --
+PATH_ROOT_MAX_ASCENT = 6
+
+
+def resolve_job_root(rel_paths, job_dir, base_dir, notes):
+	"""Pick the ONE directory every relative input in this job is relative to.
+
+	gripper F10 (path-root class, T4): job files carry relative paths like
+	`parts/palm.stl`, but `kernel-api run` resolves program-relative paths
+	against `--out-dir` while this tool resolved them against `os.getcwd()` —
+	the one directory the README does not tell you to stand in, so the
+	documented repo-root command line could not rebuild any render.
+
+	Candidates, in order: the explicit `base_dir` job key; the CWD (today's
+	semantics, so every existing invocation is unchanged); then the job file's
+	directory and its ancestors, nearest first, at most PATH_ROOT_MAX_ASCENT up
+	(a job at `<part>/programs/jobs/x.json` naming `parts/y.stl` means `<part>`).
+	A root qualifies only when EVERY relative input exists under it, so the
+	answer is a fact about the job, not about one lucky path.
+
+	This is a search, so it says what it found: the winning root's KIND lands in
+	the receipt `notes` (kind, never an absolute path — the receipt stays
+	byte-comparable across checkouts). Two ancestors that both qualify are
+	AMBIGUOUS and are refused, not silently ranked; none is refused with the
+	list of roots tried. Nothing is ever guessed at."""
+	if not rel_paths:
+		return None, []
+	cands = []
+	if base_dir:
+		cands.append(("base_dir", base_dir))
+	cands.append(("cwd", os.getcwd()))
+	if job_dir:
+		d = os.path.abspath(job_dir)
+		for i in range(PATH_ROOT_MAX_ASCENT):
+			cands.append((f"job file's directory{'' if i == 0 else f' + {i} up'}", d))
+			parent = os.path.dirname(d)
+			if parent == d:
+				break
+			d = parent
+
+	def qualifies(root):
+		return all(os.path.exists(os.path.join(root, p)) for p in rel_paths)
+
+	for kind, root in cands[:2 if base_dir else 1]:   # base_dir / cwd: authoritative, no ambiguity
+		if qualifies(root):
+			return root, []
+	hits = [(kind, root) for kind, root in cands if qualifies(root)]
+	if not hits:
+		raise FileNotFoundError(
+			f"none of {rel_paths} resolve under any job path root (tried: "
+			+ ", ".join(k for k, _ in cands) + ") — set 'base_dir' in the job")
+	roots = {os.path.realpath(r) for _, r in hits}
+	if len(roots) > 1:
+		raise ValueError(
+			f"ambiguous path root: {rel_paths} resolve under {len(roots)} different "
+			f"directories ({', '.join(k for k, _ in hits)}) — set 'base_dir' in the job")
+	kind, root = hits[0]
+	notes.append(f"relative paths resolved against the {kind}, not the CWD")
+	return root, notes
+
+
 # ------------------------------------------------------------------ render --
-def render(job):
+def render(job, job_dir=None):
 	paths = job["stls"] if "stls" in job else [job["stl"]]
 	if not isinstance(paths, list) or not paths:
 		raise ValueError("'stls' must be a non-empty list of STL paths")
+	base_dir = job.get("base_dir")
+	path_notes = []
+	rel = [p for p in paths if not os.path.isabs(p)]
+	root, _ = resolve_job_root(rel, job_dir, base_dir, path_notes)
+	paths = [p if os.path.isabs(p) else os.path.join(root, p) for p in paths]
+	# The OUTPUT lands under the same root the inputs came from (identical to
+	# today whenever that root is the CWD, which is every job that worked before).
 	out = job["out"]
+	if not os.path.isabs(out):
+		out = os.path.join(base_dir or root or os.getcwd(), out)
 	max_px = int(job.get("max_px", 1600))
 	if max_px < 800:
 		raise ValueError(f"max_px {max_px} is too small for the 12-panel grid (min 800)")
@@ -537,15 +624,46 @@ def render(job):
 	if decimated:
 		meta = f"shaded views subsampled to {shown_tris} tris (sections exact) · " + meta
 	band_y = header_band(fig, name, meta)
-	if overlay:  # swatch legend INSIDE the header band, right of the title
-		sx = mg + text_w_px(name, STYLE["fs_title"], dpi, weight="bold") + 30.0
-		cy = band_y + STYLE["header_h"] / 2.0
-		for nm, c in zip(names, colors):
-			px_rect(fig, sx, cy - 4.0, 12.0, 8.0, fill=c, edge=STYLE["border"], lw=0.4, z=8)
-			px_text(fig, sx + 17.0, cy, nm, fs=STYLE["fs_table"], color=STYLE["ink"], va="center")
-			sx += 17.0 + text_w_px(nm, STYLE["fs_table"], dpi) + 18.0
+	legend_h = 0.0
+	if overlay:
+		# Swatch legend. din_rail F4: it was drawn INSIDE the header band at a
+		# fixed x with NO collision test against the right-aligned meta string,
+		# so a long title + 5 parts overprinted the meta line. The presentation
+		# contract says "nothing floats, nothing touches" — so MEASURE the free
+		# span first and, when the legend does not fit, give it its own full-width
+		# strip under the rule (the panel grid gives up exactly that height).
+		# A legend that fits is drawn exactly where it always was: identical PNG.
+		item_w = [17.0 + text_w_px(nm, STYLE["fs_table"], dpi) + 18.0 for nm in names]
+		sx0 = mg + text_w_px(name, STYLE["fs_title"], dpi, weight="bold") + 30.0
+		meta_left = W - mg - text_w_px(meta, STYLE["fs_body"], dpi)
+		row_px = STYLE["fs_table"] * dpi / 72.0 * 1.9
+		if sx0 + sum(item_w) <= meta_left - 12.0:
+			sx = sx0
+			cy = band_y + STYLE["header_h"] / 2.0
+			for nm, c, w in zip(names, colors, item_w):
+				px_rect(fig, sx, cy - 4.0, 12.0, 8.0, fill=c, edge=STYLE["border"], lw=0.4, z=8)
+				px_text(fig, sx + 17.0, cy, nm, fs=STYLE["fs_table"], color=STYLE["ink"], va="center")
+				sx += w
+		else:
+			rows, cur = [[]], mg
+			for nm, c, w in zip(names, colors, item_w):
+				if cur + w > W - mg and rows[-1]:
+					rows.append([])
+					cur = mg
+				rows[-1].append((nm, c, w))
+				cur += w
+			legend_h = len(rows) * row_px + 6.0
+			for r, row in enumerate(rows):
+				cy = band_y - gt - (r + 0.5) * row_px
+				sx = mg
+				for nm, c, w in row:
+					px_rect(fig, sx, cy - 4.0, 12.0, 8.0, fill=c, edge=STYLE["border"], lw=0.4, z=8)
+					px_text(fig, sx + 17.0, cy, nm, fs=STYLE["fs_table"], color=STYLE["ink"], va="center")
+					sx += w
+			path_notes.append(f"overlay legend moved out of the header band into its own "
+			                  f"{len(rows)}-row strip (it would have collided with the meta line)")
 
-	grid_top = band_y - gt
+	grid_top = band_y - gt - legend_h
 	col_w = (W - 2.0 * mg - 3.0 * gt) / 4.0
 	row_h = (grid_top - mg - 2.0 * gt) / 3.0
 	if row_h < 120.0:
@@ -706,10 +824,15 @@ def render(job):
 	if decimated:
 		receipt["decimated"] = True
 		receipt["shown_triangles"] = shown_tris
+	if path_notes:
+		receipt["notes"] = path_notes
 	return receipt
 
 
 def main():
+	if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+		print(__doc__)
+		return 0
 	if len(sys.argv) != 2:
 		print(json.dumps({"ok": False, "error": "usage: render_sheet.py job.json"}))
 		return 1
@@ -718,7 +841,7 @@ def main():
 			job = json.load(f)
 		if "out" not in job or ("stl" not in job and "stls" not in job):
 			raise ValueError("job needs 'out' and either 'stl' or 'stls'")
-		receipt = render(job)
+		receipt = render(job, job_dir=os.path.dirname(os.path.abspath(sys.argv[1])))
 	except Exception as e:  # noqa: BLE001 — the receipt IS the error channel
 		print(json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"}))
 		return 1

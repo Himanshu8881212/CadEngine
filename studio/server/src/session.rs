@@ -125,7 +125,8 @@ mod tests {
 			repo_root: std::env::temp_dir(),
 			out_root: std::env::temp_dir(),
 			api_key: None,
-			sessions: Sessions::default(),
+			sessions: Default::default(),
+			compute_slots: Arc::new(tokio::sync::Semaphore::new(2)),
 		});
 		router(state, &PathBuf::from("no-web-dist"), None)
 	}

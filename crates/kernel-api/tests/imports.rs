@@ -277,3 +277,66 @@ fn mesh_carve_empty_intersection_refuses() {
 	);
 	let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// T4 (path-root asymmetry, 7/10 campaigns): `export_step` writes under
+/// `--out-dir`, but `import_step` used to resolve ONLY against the program's
+/// directory — so a write-then-read-back program failed with `io` unless the
+/// two roots happened to coincide. The read now falls back to `--out-dir`
+/// when the file is not beside the program; a total miss names both roots.
+#[test]
+fn step_round_trip_resolves_across_the_out_dir_root() {
+	let dir = std::env::temp_dir().join(format!("cadcode_t4_out_{}", std::process::id()));
+	let out = dir.join("out"); // deliberately NOT the program's directory
+	std::fs::create_dir_all(&out).unwrap();
+
+	let program = serde_json::json!({"ops": [
+		{"id": "p", "op": "box", "min": [0, 0, 0], "max": [12, 8, 4]},
+		{"id": "w", "op": "export_step", "in": "p", "file": "rt/probe.step"},
+		{"id": "r", "op": "import_step", "file": "rt/probe.step"},
+		{"id": "g", "op": "assert", "in": "r", "exact_volume_within": {"target": 384.0, "percent": 0.5}}
+	]});
+	// input base = `dir` (where the "program" lives), out dir = `dir/out`.
+	let report = kernel_api::run_program_with_input_base(&program.to_string(), &out, &dir);
+	assert!(
+		report.ok,
+		"write-then-import must resolve across roots (write lands under --out-dir): {report:#?}"
+	);
+
+	// A total miss still refuses loudly, naming BOTH roots it tried.
+	let missing = serde_json::json!({"ops": [
+		{"id": "r", "op": "import_step", "file": "rt/nope.step"}
+	]});
+	let report = kernel_api::run_program_with_input_base(&missing.to_string(), &out, &dir);
+	let e = report.ops[0].error.as_ref().expect("io error");
+	assert!(
+		e.message.contains("beside the program") && e.message.contains("--out-dir"),
+		"the miss must name both tried roots: {}",
+		e.message
+	);
+	let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn bare_program_filename_empty_input_base_still_resolves() {
+	// `Path::parent()` of a bare program filename ("part.json") is the EMPTY
+	// path. The sandbox join used to canonicalize "" and fail with "cannot
+	// canonicalize sandbox ''" BEFORE the out-dir fallback could run — which
+	// broke every campaign whose Reproducing invokes `run <prog>.json` from
+	// inside programs/ (the cleat's README does exactly that). Empty base
+	// means the current directory; this pins the fix.
+	let dir = std::env::temp_dir().join(format!("lmcad_bare_base_{}", std::process::id()));
+	let out = dir.join("out");
+	std::fs::create_dir_all(&out).unwrap();
+	let program = serde_json::json!({"ops": [
+		{"id": "p", "op": "box", "min": [0, 0, 0], "max": [10, 6, 3]},
+		{"id": "w", "op": "export_step", "in": "p", "file": "rt/bare.step"},
+		{"id": "r", "op": "import_step", "file": "rt/bare.step"},
+		{"id": "g", "op": "assert", "in": "r", "exact_volume_within": {"target": 180.0, "percent": 0.5}}
+	]});
+	let report = kernel_api::run_program_with_input_base(&program.to_string(), &out, std::path::Path::new(""));
+	assert!(
+		report.ok,
+		"an empty input base (bare program filename) must behave as the current directory, not refuse on canonicalize: {report:#?}"
+	);
+	let _ = std::fs::remove_dir_all(&dir);
+}
