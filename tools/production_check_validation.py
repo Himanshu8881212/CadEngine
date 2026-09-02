@@ -23,6 +23,10 @@ with `ok` trips a pin.
 	                     PETG sustained -> refusal.creep_no_table — each allowable 0.0,
 	                     pass false, ok:false, exit 2, legacy 11.0 MPa scalar reported NOT used
 	Pin 7  a request the tool cannot run (unknown material) exits 1, not 2
+	Pin 9  opt-in creep interpolation (creep_interpolation:true): 30 C / 24 h reads
+	       5.0 + 7/32 x (1.5-5.0) = 4.234375 MPa with basis 'interpolated' and both
+	       cells named, while the default still reads the 55 C row; log-linear in
+	       time at 23 C / 12 h; the flag never extrapolates above 55 C
 	Pin 8  determinism: the stdout receipt is byte-identical across two runs
 
 Hermetic: stdlib only; the analyzer is driven through its real CLI
@@ -55,6 +59,7 @@ PLA_FATIGUE_KD = 0.3    # tools/material_db.json PLA.fatigue_knockdown
 PLA_LEGACY_MPA = 11.0   # 55 x creep_sustained_fraction 0.2 — reported, NEVER an allowable
 CREEP_23C_1Y = 2.5      # tools/materials/pla.json creep.sig_allow_mpa["23C"]["1y"]
 CREEP_23C_24H = 5.0     # tools/materials/pla.json creep.sig_allow_mpa["23C"]["24h"]
+CREEP_55C_24H = 1.5     # tools/materials/pla.json creep.sig_allow_mpa["55C"]["24h"]
 CREEP_55C_30D = 0.5     # tools/materials/pla.json creep.sig_allow_mpa["55C"]["30d"]
 
 
@@ -232,6 +237,50 @@ def main() -> None:
 	assert r7["ok"] is False and rc7 == 1 and r7.get("error_kind") == "internal" and "unknown material" in r7.get("error", ""), (
 		f"pin 7 FAILED: an unknown material is a request the tool cannot run -> exit 1, internal; got {rc7} / {r7}")
 	print(f"pin 7 OK: unknown material -> exit 1 ({r7['error'][:50]}...)")
+
+	# ------------------------------------------------------------------
+	# Pin 9 — OPT-IN creep interpolation (job key creep_interpolation:true), 30 C / 24 h, demand 1 MPa.
+	#   default: 30 C rounds UP to the 55C row -> [55C][24h] = 1.5 MPa -> SF 1.5 < 2.0 FAILS, no flag.
+	#   interpolated (linear in T at the exact 24h column): bracketing rows 23C (5.0) and 55C (1.5):
+	#     5.0 + (30-23)/(55-23) x (1.5-5.0) = 5.0 - 7/32 x 3.5 = 5.0 - 0.765625 = 4.234375 MPa -> SF 4.23 PASSES;
+	#     basis "interpolated", both cells named, default bucket 1.5 beside it, receipt flagged top-level.
+	#   log-linear in time at 23 C / 12 h: 7.5 + ln(12)/ln(24) x (5.0-7.5) = 5.545261 MPa.
+	#   interpolation never extrapolates: 70 C sustained with the flag still refuses (creep_temp_above_tabulated).
+	# ------------------------------------------------------------------
+	import math
+	r9d, rc9d, _ = run(dict(base, service_temp_c=30.0, duration_h=24.0), work, "pin9_default_30c")
+	cd = rule(r9d, "creep")
+	close(cd["allowable_mpa"], CREEP_55C_24H, "pin 9 default 30 C reads [55C][24h]")
+	assert cd["creep_interpolation"] is False and "creep_interpolation" not in r9d \
+		and cd["creep_cell"]["cell_match"] == "rounded_up_conservative" and cd["pass"] is False and rc9d == 2, (
+		f"pin 9 FAILED: the default must stay the conservative bucket with no interpolation flag: {cd['creep_cell']['cell_match']} / {rc9d}")
+	r9, rc9, _ = run(dict(base, service_temp_c=30.0, duration_h=24.0, creep_interpolation=True), work, "pin9_interp_30c")
+	ci = rule(r9, "creep")
+	expect = CREEP_23C_24H + (30.0 - 23.0) / (55.0 - 23.0) * (CREEP_55C_24H - CREEP_23C_24H)  # 4.234375
+	close(ci["allowable_mpa"], expect, "pin 9 interpolated 30 C / 24 h = 5.0 + 7/32 x (1.5 - 5.0)")
+	close(ci["SF"], expect / 1.0, "pin 9 interpolated SF")
+	cell = ci["creep_cell"]
+	cells_named = [(c["temperature_bucket"], c["duration_bucket"], c["mpa"]) for c in cell.get("bracketing_cells", [])]
+	says_so = (ci["creep_interpolation"] is True and r9.get("creep_interpolation") is True and rc9 == 0 and ci["pass"]
+	           and cell["basis"] == "interpolated" and cell["cell_match"] == "interpolated" and cell["interpolated"] is True
+	           and cells_named == [("23C", "24h", CREEP_23C_24H), ("55C", "24h", CREEP_55C_24H)]
+	           and abs(cell["default_bucket_mpa"] - CREEP_55C_24H) <= 1e-9 and "formula" in cell
+	           and "INTERPOLATED" in ci["detail"] and "[23C][24h]" in ci["detail"] and "[55C][24h]" in ci["detail"]
+	           and any("creep_interpolation: true" in n for n in r9["notes"]))
+	assert says_so, (
+		f"pin 9 FAILED: the interpolated row must say so everywhere (flag, basis, both cells, default bucket, detail, note); "
+		f"got flag={ci['creep_interpolation']} top={r9.get('creep_interpolation')} basis={cell.get('basis')} "
+		f"cells={cells_named} default={cell.get('default_bucket_mpa')} exit={rc9}")
+	r9t, _, _ = run(dict(base, service_temp_c=23.0, duration_h=12.0, creep_interpolation=True), work, "pin9_interp_12h")
+	ct = rule(r9t, "creep")
+	expect_t = 7.5 + math.log(12.0) / math.log(24.0) * (CREEP_23C_24H - 7.5)  # [23C][1h] = 7.5
+	close(ct["allowable_mpa"], expect_t, "pin 9 log-linear in time: 23 C / 12 h", tol=2e-4)
+	assert ct["creep_cell"]["duration_match"] == "log_linear_interpolated" and ct["creep_cell"]["temp_match"] == "exact"
+	r9h, rc9h, _ = run(dict(base, service_temp_c=70.0, duration_h=24.0, creep_interpolation=True), work, "pin9_interp_hot")
+	assert rule(r9h, "creep")["refusal_kind"] == "creep_temp_above_tabulated" and rc9h == 2, (
+		"pin 9 FAILED: interpolation must never extrapolate above the hottest row")
+	print(f"pin 9 OK: 30 C/24 h default {cd['allowable_mpa']} MPa (55C row, FAIL) vs creep_interpolation:true "
+	      f"{ci['allowable_mpa']} MPa (hand {expect}); 23 C/12 h log-linear {ct['allowable_mpa']} (hand {expect_t:.6f}); 70 C still refuses")
 
 	# ------------------------------------------------------------------
 	# Pin 8 — determinism.

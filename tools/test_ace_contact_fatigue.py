@@ -19,6 +19,11 @@ Gates:
      goes to zero (ratio -> 1 monotonically); the linear reference is asserted
      EXACT (a cubic-Hermite beam element is exact for a tip-loaded cantilever)
      and the root moment is asserted = P*L.
+  1b PRESCRIBED-DISPLACEMENT REACTION — a ramped tip support (displacement
+     control) must report the force it took: tip_reaction_n = 3 EI d / L^3
+     within 2% at d/L = 0.01, the linear reaction exact, the root balancing
+     it, the curve columns agreeing with the receipt, and load control
+     reporting null / NaN rather than a silent zero.
   2  LARGE DEFLECTION — cantilever under a fixed-direction tip load at
      alpha = PL^2/EI = 3 against the EXACT elastica (elliptic-integral solution
      re-derived and quadratured in this file); mesh convergence measured; and
@@ -206,6 +211,102 @@ def gate_1(tmp: Path) -> None:
 	     f"|1-ratio| {devs[0]:.2e} -> {devs[1]:.2e} -> {devs[2]:.2e} "
 	     f"(per-decade factors {devs[0] / devs[1]:.0f}, {devs[1] / devs[2]:.0f}; gate > 50 "
 	     f"~ quadratic; measured ~100)")
+
+
+# ---------------------------------------------------------------------------
+# Gate 1b — PRESCRIBED-DISPLACEMENT REACTION (displacement control).
+# The same cantilever driven the other way round: the tip is PUSHED to a
+# prescribed deflection d by a ramped support ({"node":"tip","dofs":{"uy":-d},
+# "ramped":true}) and the receipt must report the force that took. Closed
+# form (small deflection): F = 3 EI d / L^3, applied ON the beam in the
+# direction of d, so the tip reaction is -F for uy = -d; the root carries the
+# equal-and-opposite +F and the moment F L. A cubic-Hermite element is EXACT
+# for this load case, so the LINEAR reaction must match to round-off; the
+# nonlinear reaction differs by the O(alpha^2) elastica correction, which at
+# d/L = 0.01 (alpha = P L^2/EI = 3 d/L = 0.03) is ~1e-4 relative.
+# Measured 2026-09-02 (L=100, w=t=1 mm, E=3.3 GPa, 20 el, d = 1.0 mm):
+#     F = 8.25e-4 N; nonlinear tip reaction -8.250863e-4 (+1.05e-4 relative),
+#     linear -8.2500000e-4 (9.9e-12 relative); root fy +8.250846e-4, root mz
+#     0.0825035 N*mm (F L = 0.0825); curve columns reaction_fy_n /
+#     tip_reaction_n equal the receipt; a load-controlled run reports
+#     tip_reaction_n null and NaN in its curve column (never a silent 0).
+# Gates: nonlinear within 2% of 3EId/L^3 (the spec band; measured 1e-4);
+# linear <= 1e-9; root reactions balance the tip to 1e-5 relative (measured
+# 2.0e-6 — the Newton tolerance on a moment-dominated ref, see below); curve
+# columns agree with the receipt; load control -> null/NaN.
+# ---------------------------------------------------------------------------
+def gate_1b(tmp: Path) -> None:
+	L, w, t, n_el = 100.0, 1.0, 1.0, 20
+	EI = EI_of(w, t)
+	d = 0.01 * L
+	F = 3.0 * EI * d / L ** 3
+	rec, _ = run_job(CONTACT, {
+		"beam": slender_beam(L, n_el, t, w),
+		"material": {"youngs_modulus_pa": E_PLA_PA},
+		"supports": CLAMP + [{"node": "tip", "dofs": {"uy": -d}, "ramped": True}],
+		"steps": {"n": 4},
+	}, tmp, "g1b_prescribed")
+	tip = n_el
+	nl_tip = rec["tip_reaction_n"]
+	lin_tip = rec["linear"]["tip_reaction_n"]
+	by_node = {r["node"]: r for r in rec["reactions"]}
+	root, tipr = by_node[0], by_node[tip]
+	err_nl = abs(nl_tip - (-F)) / F
+	err_lin = abs(lin_tip - (-F)) / F
+	print(f"        d/L = {d / L:g}: F = 3EId/L^3 = {F:.6e} N; nonlinear tip reaction {nl_tip:.6e} "
+	      f"({err_nl:.2e} rel), linear {lin_tip:.6e} ({err_lin:.2e} rel); root fy {root['fy_n']:.6e}, "
+	      f"root mz {root['mz_nmm']:.6e} (F L = {F * L:.6e})")
+	gate("1b prescribed-displacement reaction == 3EId/L^3 within 2%", err_nl <= 0.02,
+	     f"tip_reaction_n {nl_tip:.6e} vs -F {-F:.6e}: {err_nl:.2e} relative (gate 2e-2; "
+	     f"measured 1.05e-4 = the O(alpha^2) elastica correction at alpha 0.03)")
+	gate("1b LINEAR reaction is the exact cubic-Hermite answer", err_lin <= 1e-9,
+	     f"linear.tip_reaction_n {lin_tip:.6e}: {err_lin:.2e} relative (gate 1e-9; measured 9.9e-12)")
+	gate("1b reaction row names the prescribed node, dof and ramp",
+	     tipr["ramped"] is True and tipr["prescribed"] is True and tipr["dofs_constrained"] == ["uy"]
+	     and rec["reaction_nodes_prescribed"] == [tip] and root["prescribed"] is False,
+	     f"tip row {{ramped {tipr['ramped']}, prescribed {tipr['prescribed']}, dofs {tipr['dofs_constrained']}}}, "
+	     f"prescribed nodes {rec['reaction_nodes_prescribed']}")
+	# fy_root + fy_tip = -(sum of the free-dof residuals): it is bounded by the
+	# Newton tolerance (tol 1e-8 x a ref that the N*mm moment entries dominate,
+	# ~0.08 here, against a force scale of 8e-4 N), NOT by machine precision —
+	# measured 2.0e-6 relative. A bookkeeping error (wrong sign, wrong node)
+	# would read ~1e0.
+	bal_f = abs(root["fy_n"] + tipr["fy_n"]) / F
+	bal_m = abs(root["mz_nmm"] - F * L) / (F * L)
+	gate("1b root reaction balances the tip: fy_root = -fy_tip, mz_root = F L",
+	     bal_f <= 1e-5 and bal_m <= 0.02,
+	     f"|fy_root + fy_tip|/F = {bal_f:.2e} (gate 1e-5; measured 2.0e-6 = the converged "
+	     f"Newton residual on a moment-dominated ref, not a bookkeeping error); "
+	     f"mz_root {root['mz_nmm']:.6e} vs F L {F * L:.6e}: {bal_m:.2e} (gate 2e-2)")
+	curve = np.load(rec["curve_npy"])
+	cols = rec["curve_columns"]
+	c_fy = curve[-1, cols.index("reaction_fy_n")]
+	c_tip = curve[-1, cols.index("tip_reaction_n")]
+	gate("1b curve columns carry the same reaction as the receipt",
+	     c_fy == tipr["fy_n"] and c_tip == nl_tip and curve.shape[1] == len(cols)
+	     and float(curve[0, cols.index("tip_reaction_n")]) == 0.0,
+	     f"last row reaction_fy_n {c_fy:.6e} == receipt {tipr['fy_n']:.6e}; tip_reaction_n column "
+	     f"{c_tip:.6e} == receipt {nl_tip:.6e}; row 0 (lambda 0) reads 0; {curve.shape[1]} columns")
+	# Load control: no ramped support -> the scalar is NULL and its column NaN,
+	# while the root still reports +P (the plain-clamp reaction).
+	P = F
+	rec_l, _ = run_job(CONTACT, {
+		"beam": slender_beam(L, n_el, t, w),
+		"material": {"youngs_modulus_pa": E_PLA_PA},
+		"supports": CLAMP,
+		"loads": [{"node": "tip", "fy_n": -P}],
+		"steps": {"n": 4},
+	}, tmp, "g1b_load_control")
+	curve_l = np.load(rec_l["curve_npy"])
+	root_l = next(r for r in rec_l["reactions"] if r["node"] == 0)
+	gate("1b load control: tip_reaction_n is null, its column NaN, root carries +P",
+	     rec_l["tip_reaction_n"] is None and rec_l["reaction_nodes_prescribed"] == []
+	     and bool(np.isnan(curve_l[-1, cols.index("tip_reaction_n")]))
+	     and float(curve_l[-1, cols.index("reaction_fy_n")]) == 0.0
+	     and abs(root_l["fy_n"] - P) / P <= 1e-9,
+	     f"tip_reaction_n {rec_l['tip_reaction_n']}, prescribed {rec_l['reaction_nodes_prescribed']}, "
+	     f"column NaN={bool(np.isnan(curve_l[-1, cols.index('tip_reaction_n')]))}, "
+	     f"root fy {root_l['fy_n']:.6e} vs P {P:.6e}")
 
 
 # ---------------------------------------------------------------------------
@@ -906,7 +1007,8 @@ def gate_7(tmp: Path) -> None:
 	     f"{scratch} removed (no temporary diagnostics left behind)")
 
 
-GATES = {"1": gate_1, "2": gate_2, "3": lambda t: (gate_3a(t), gate_3b(t)),
+GATES = {"1": lambda t: (gate_1(t), gate_1b(t)), "2": gate_2,
+         "3": lambda t: (gate_3a(t), gate_3b(t)),
          "4": gate_4, "5": gate_5, "6": gate_6, "7": gate_7}
 
 

@@ -237,8 +237,16 @@ mz_nmm?}]` (λ-scaled, fixed direction), `obstacles`? `[{kind: plane|cylinder|pr
 penalty_n_per_mm, friction?:{mu,k_t_n_per_mm}, motion?:{dir,travel_mm}, nodes?}]`,
 `steps`? `{n:20, max_iter:30, tol:1e-8, ...}`, `linear_reference`? (true).
 
-Receipt includes `curve_columns` (12 named columns: lambda, insertion_force_n, tip_ux/uy_mm,
-max_abs_stress_mpa, max_penetration_mm, ...) for `curve.npy` `(n_steps+1, n_cols)`.
+Receipt includes `curve_columns` (16 named columns: lambda, insertion_force_n, tip_ux/uy_mm,
+max_abs_stress_mpa, max_penetration_mm, ..., reaction_fx_n/reaction_fy_n/reaction_mz_nmm,
+tip_reaction_n) for `curve.npy` `(n_steps+1, n_cols)`.
+**Reactions (2026-09-02):** `reactions` = one row per support node at λ = 1
+`{node, dofs_constrained, ramped, prescribed, fx_n, fy_n, mz_nmm}` (force BY the support ON the
+beam — `reaction_convention` spells it out). For a prescribed displacement
+(`{"node":"tip","dofs":{"uy":-1.0},"ramped":true}`) that row IS the actuator force, and
+`tip_reaction_n` is the scalar (null under load control; its curve column is NaN there, never a
+silent 0). `linear.tip_reaction_n` sits beside it. Pinned: 3EId/L³ within 2 % at d/L = 0.01
+(gate 1b, measured 1e-4; linear exact).
 Limits: planar, Euler-Bernoulli, node-based contact, quasi-static, isotropic.
 
 ## ace_fatigue_runner.py — S-N (Basquin + Miner) post-processor (numpy ONLY)  [not yet in registry]
@@ -424,7 +432,12 @@ Job: `{material* (PLA|PETG|ABS|ASA|TPU95A|PC|PA), max_von_mises_pa* (from ace_fe
 load_character?:{sustained,cyclic}, **duration_h — REQUIRED when sustained**
 (also accepted as service.duration_h / load_character.duration_h),
 service_temp_c?:25, orientation?:{build_dir, primary_load_dir},
-safety_factor_required?:2.0}`.
+safety_factor_required?:2.0, creep_interpolation?:false}`.
+`creep_interpolation:true` (2026-09-02, opt-in) reads the creep allowable INTERPOLATED between
+the bracketing table cells (linear in T, log-linear in time: 30 °C/24 h → 4.234375 MPa instead of
+the default 55 °C-row 1.5 MPa); the receipt says so (top-level flag, the creep row's
+`creep_interpolation`, `creep_cell.basis: "interpolated"`, both cells, the formula, and the
+default bucket beside it). Never extrapolates (70 °C still refuses); quote it as interpolated.
 Rules: static (yield), creep (the material's `creep.sig_allow_mpa`
 temperature×duration TABLE at the stated service_temp_c and duration_h,
 sustained — the legacy `yield × creep_sustained_fraction` scalar is reported

@@ -472,6 +472,15 @@ DB the records were migrated from — datasheet-class, "verify per filament bran
 - Above 55 °C the reader **REFUSES** (`refused: true`,
   `refusal_kind: "creep_temp_above_tabulated"`) and does **not** fall back to
   the 55 °C row — "no sustained load is defensible" fails the gate loudly.
+- **Opt-in interpolation (2026-09-02).** `creep_lookup("PLA", 30, 24,
+  interpolate=True)` → `4.234375` MPa = 5.0 + (30−23)/(55−23) × (1.5−5.0)
+  (linear in T, log-linear in time), `basis: "interpolated"`, `cell_match:
+  "interpolated"`, `bracketing_cells` with their confidence strings, the
+  `formula`, and `default_bucket_mpa: 1.5` (what the default reads). Never
+  extrapolates — above 55 °C it still refuses; no Rust mirror; no measured
+  cell invented. `production_check.py` honours it only under
+  `"creep_interpolation": true` and says so in the receipt. Quote it as
+  *interpolated between [23C][24h] and [55C][24h]*, never as a cell.
 - The 55 °C / 30 d and 1 y cells are **BOUNDS, not measurements** — read as
   "do not design sustained load into unannealed PLA at 55 °C".
 - Across-layer sustained load: pass `across_layer=True` (the 0.55 ratio is

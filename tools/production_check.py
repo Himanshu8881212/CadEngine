@@ -32,6 +32,21 @@ Job JSON:
                                       the anisotropy rule; absent => rule
                                       skipped WITH a note (never silently)
     safety_factor_required  optional  default 2.0
+    creep_interpolation     optional  default false. true = OPT IN to reading
+                                      the creep allowable INTERPOLATED between
+                                      the bracketing table cells (linear in
+                                      temperature, log-linear in duration —
+                                      materials.creep_lookup(interpolate=True))
+                                      instead of the default conservative
+                                      round-up (a 30 C request reads the 55 C
+                                      row by default). The receipt says so:
+                                      top-level creep_interpolation:true, the
+                                      creep row's creep_interpolation flag,
+                                      creep_cell.basis "interpolated", both
+                                      bracketing cells, the formula, and the
+                                      bucket the default would have read.
+                                      Never extrapolates; above 55 C still
+                                      refuses; no Rust mirror.
 
 Rules (each receipt row shows every derating in its arithmetic):
     static      allowable = yield                       (always)
@@ -239,8 +254,16 @@ def creep_row(mat_name: str, demand_mpa: float, sf_req: float, service_c: float,
             "is a fraction of the STATIC yield this rule exists to replace",
             common)
 
+    # Opt-in ONLY: the default is the conservative bucket (both axes rounded
+    # UP). A job that sets "creep_interpolation": true gets the allowable
+    # interpolated between the bracketing cells (linear in temperature,
+    # log-linear in duration — tools/materials.py CREEP_INTERPOLATION_FORMULA)
+    # and the row says so in `creep_interpolation`, `creep_cell.basis` and its
+    # detail, naming both cells and the bucket the default would have read.
+    interp = bool(job.get("creep_interpolation", False))
+    common["creep_interpolation"] = interp
     lookup = _materials.creep_lookup(mat_name, service_c, duration_h,
-                                     across_layer=across_layer)
+                                     across_layer=across_layer, interpolate=interp)
     common["creep_cell"] = lookup
     if lookup["refused"]:
         return refusal_row("creep", demand_mpa, sf_req, lookup["refusal_kind"],
@@ -248,15 +271,25 @@ def creep_row(mat_name: str, demand_mpa: float, sf_req: float, service_c: float,
 
     ani = (f" x z/xy {lookup['z_vs_xy_strength_ratio']} (across-layer)"
            if across_layer else " (in-plane)")
-    row = stress_rule(
-        "creep", lookup["sig_allow_mpa"], demand_mpa, sf_req,
-        f"allowable = {lookup['table_source'].split('#')[1]}"
-        f"[{lookup['temperature_bucket']}][{lookup['duration_bucket']}] "
-        f"{lookup['in_plane_mpa']:.4g} MPa{ani} = {lookup['sig_allow_mpa']:.4g} MPa "
-        f"for {service_c:.1f} C held {duration_h:g} h "
-        f"(cell {lookup['cell_match']}; legacy scalar {legacy.get('mpa')} MPa is "
-        f"SUPERSEDED by the table and is NOT the allowable)",
-    )
+    if lookup.get("interpolated"):
+        cells = ", ".join(f"[{c['temperature_bucket']}][{c['duration_bucket']}] {c['mpa']:.4g}"
+                          for c in lookup["bracketing_cells"])
+        db = lookup["default_bucket"]
+        detail = (f"allowable = INTERPOLATED (creep_interpolation:true — linear in T, "
+                  f"log-linear in time) between {cells} MPa -> "
+                  f"{lookup['in_plane_mpa']:.4g} MPa{ani} = {lookup['sig_allow_mpa']:.4g} MPa "
+                  f"for {service_c:.1f} C held {duration_h:g} h (basis interpolated; the "
+                  f"default conservative bucket would read [{db['temperature_bucket']}]"
+                  f"[{db['duration_bucket']}] {db['in_plane_mpa']:.4g} MPa; legacy scalar "
+                  f"{legacy.get('mpa')} MPa is SUPERSEDED by the table and is NOT the allowable)")
+    else:
+        detail = (f"allowable = {lookup['table_source'].split('#')[1]}"
+                  f"[{lookup['temperature_bucket']}][{lookup['duration_bucket']}] "
+                  f"{lookup['in_plane_mpa']:.4g} MPa{ani} = {lookup['sig_allow_mpa']:.4g} MPa "
+                  f"for {service_c:.1f} C held {duration_h:g} h "
+                  f"(cell {lookup['cell_match']}; legacy scalar {legacy.get('mpa')} MPa is "
+                  f"SUPERSEDED by the table and is NOT the allowable)")
+    row = stress_rule("creep", lookup["sig_allow_mpa"], demand_mpa, sf_req, detail)
     row["refused"] = False
     row["refusal_kind"] = None
     row.update(common)
@@ -339,8 +372,20 @@ def run_check(job: dict) -> dict:
             f"legacy scalar yield {yield_mpa:.2f} x creep_sustained_fraction "
             f"{creep_frac:.2f} = {yield_mpa * creep_frac:.2f} MPa is a recorded "
             "conflict, not an allowable")
+        if job.get("creep_interpolation"):
+            notes.append(
+                "creep_interpolation: true — the creep allowable is INTERPOLATED "
+                "between the bracketing table cells (linear in temperature, "
+                "log-linear in duration; tools/materials.py "
+                "CREEP_INTERPOLATION_FORMULA) instead of the default conservative "
+                "round-up; the creep row names both cells and the bucket the default "
+                "would have read. Quote it as 'interpolated', never as a table cell — "
+                "it is a model between two conservative constructions, has no Rust "
+                "mirror, and never extrapolates (above 55 C it still refuses)")
     else:
-        skipped.append({"rule": "creep", "reason": "load not sustained"})
+        skipped.append({"rule": "creep", "reason": "load not sustained"
+                        + (" (creep_interpolation requested — no effect without a "
+                           "sustained load)" if job.get("creep_interpolation") else "")})
 
     # --- fatigue (cyclic load) ------------------------------------------------
     if cyclic:
@@ -367,7 +412,7 @@ def run_check(job: dict) -> dict:
                   f"applied to temperature — the limit IS the derated number)",
     })
 
-    return {
+    out = {
         "ok": all(r["pass"] for r in rules),
         "material": mat_name,
         "safety_factor_required": sf_req,
@@ -377,6 +422,11 @@ def run_check(job: dict) -> dict:
         "notes": notes,
         "disclaimer": db["disclaimer"],
     }
+    if job.get("creep_interpolation"):
+        # Only present when the job asked for it, so every receipt that never
+        # did stays byte-identical to what its campaign shipped.
+        out["creep_interpolation"] = True
+    return out
 
 
 def selftest() -> None:
@@ -428,6 +478,10 @@ def selftest() -> None:
                          orientation={"build_dir": [0, 0, 1],
                                       "primary_load_dir": [0, 0, 1]})
     r_nest, c_nest = pla_creep(service={"duration_h": 8760.0})
+    # Opt-in interpolation (2026-09-02): 30 C / 24 h — default reads the 55C row
+    # (1.5 MPa); interpolated = 5.0 + (30-23)/(55-23) x (1.5-5.0) = 4.234375 MPa.
+    r_i30, c_i30 = pla_creep(duration_h=24.0, service_temp_c=30.0, creep_interpolation=True)
+    r_d30, c_d30 = pla_creep(duration_h=24.0, service_temp_c=30.0)
 
     checks = [
         ("static passes SF>4 at 12 MPa vs yield 50",
@@ -479,6 +533,29 @@ def selftest() -> None:
         ("duration may also be stated as service.duration_h",
          c_nest["duration_from"] == "service.duration_h"
          and abs(c_nest["allowable_mpa"] - 2.5) < 1e-9),
+        # --- opt-in creep interpolation: the default is UNCHANGED, the opt-in
+        # says so everywhere it can ------------------------------------------
+        ("30 C / 24 h by DEFAULT reads the 55C row (1.5 MPa) and carries no "
+         "interpolation flag",
+         abs(c_d30["allowable_mpa"] - 1.5) < 1e-9
+         and c_d30["creep_cell"]["cell_match"] == "rounded_up_conservative"
+         and c_d30["creep_interpolation"] is False
+         and "creep_interpolation" not in r_d30),
+        ("creep_interpolation:true at 30 C / 24 h -> 5.0 + 7/32 x (1.5-5.0) = "
+         "4.234375 MPa, basis 'interpolated', both cells named, default bucket "
+         "1.5 MPa beside it, top-level flag + note present",
+         c_i30["creep_cell"]["sig_allow_mpa"] == 4.234375
+         and abs(c_i30["allowable_mpa"] - 4.234375) < 1e-4  # the row rounds to 4 decimals
+         and c_i30["creep_interpolation"] is True
+         and c_i30["creep_cell"]["basis"] == "interpolated"
+         and c_i30["creep_cell"]["cell_match"] == "interpolated"
+         and [(c["temperature_bucket"], c["duration_bucket"], c["mpa"])
+              for c in c_i30["creep_cell"]["bracketing_cells"]]
+         == [("23C", "24h", 5.0), ("55C", "24h", 1.5)]
+         and c_i30["creep_cell"]["default_bucket_mpa"] == 1.5
+         and "INTERPOLATED" in c_i30["detail"]
+         and r_i30.get("creep_interpolation") is True
+         and any("creep_interpolation: true" in n for n in r_i30["notes"])),
     ]
     for name, okay in checks:
         print(f"  {'PASS' if okay else 'FAIL'}: {name}", file=sys.stderr)

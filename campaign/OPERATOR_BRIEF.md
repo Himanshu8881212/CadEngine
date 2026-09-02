@@ -317,6 +317,18 @@ Stock reality: 0.4 mm nozzle, **256 mm bed** (gate `bounding_box` with
   wrong by 7×. **Declare 23 °C or accept the 55 °C row — there is no middle.**
   Above 55 °C the reader **REFUSES** (`refusal_kind:
   "creep_temp_above_tabulated"`, no fallback to the 55 °C row).
+  - **Opt-in interpolation (2026-09-02) — labelled, never silent.**
+    `creep_lookup("PLA", 30, 24, interpolate=True)` → 4.234375 MPa
+    (= 5.0 + (30−23)/(55−23) × (1.5−5.0); linear in T, log-linear in time)
+    with `basis: "interpolated"`, `cell_match: "interpolated"`, both
+    bracketing cells and their confidence strings, the formula, and the
+    bucket the default would have read (`default_bucket_mpa: 1.5`). It never
+    extrapolates (above 55 °C it still refuses) and has **no Rust mirror**.
+    `production_check.py` uses it only when the job sets
+    `"creep_interpolation": true`, and its receipt says so (top-level flag,
+    the creep row, a note). Quote an interpolated allowable AS interpolated,
+    with both cells — it is a model between two conservative constructions,
+    not a cell.
   - **Always ship the `creep_lookup` receipt, not the scalar.** It carries
     `row_used_c` / `col_used_h` / `cell_match` / `extrapolated` / `refused` /
     `anisotropy_factor` / `material_hash` — i.e. *which cell your margin was

@@ -87,6 +87,16 @@ them **Validated**; that word there means "the arithmetic is proven against an
 independent hand derivation with a stated error band", and their `kind` stays
 rules_engine / reporting. `joint_check` remains Cataloged (no pin).
 
+Creep-table reads (`tools/materials.py creep_lookup`) are a conservative
+STEP by default (both axes round up to the next tabulated cell). Since
+2026-09-02 an explicit opt-in — `creep_lookup(..., interpolate=True)`, or
+`"creep_interpolation": true` in a `production_check` job — interpolates
+between the bracketing cells (linear in temperature, log-linear in duration)
+and the receipt states `basis: "interpolated"`, both cells with their
+confidence strings, and the formula. It never extrapolates, invents no
+measured cell, and has no Rust mirror; the formula and limits are documented
+in the `materials.py` CREEP SEMANTICS docstring and `tools/solvers/creep.md`.
+
 ## NOT covered — refuse and say so
 
 There is **no in-tree solver** for: 3-D fluid flow / aerodynamic fields (CFD),

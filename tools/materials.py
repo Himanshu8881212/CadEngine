@@ -113,12 +113,30 @@ same rules `kernel_model::materials::pla::creep_allowable_mpa` implements in
 Rust (the cross-language pin in ``materials_crosslang_test.py`` proves it at
 every tier boundary):
 
-  * **NO interpolation, ever.** The table is a coarse step (printed PLA: two
-    temperature tiers, 23 C and 55 C, with NOTHING between). The temperature is
-    rounded UP to the next tabulated tier and the duration is rounded UP to the
-    next tabulated column, so an in-between request always reads the WORSE cell.
-    ``cell_match`` in the receipt says whether the cell was hit ``exact`` or
-    reached by ``rounded_up_conservative``.
+  * **NO interpolation by default.** The table is a coarse step (printed PLA:
+    two temperature tiers, 23 C and 55 C, with NOTHING between). The temperature
+    is rounded UP to the next tabulated tier and the duration is rounded UP to
+    the next tabulated column, so an in-between request always reads the WORSE
+    cell. ``cell_match`` in the receipt says whether the cell was hit ``exact``
+    or reached by ``rounded_up_conservative``.
+  * **Interpolation is OPT-IN, labelled, and Python-only** (2026-09-02).
+    ``creep_lookup(..., interpolate=True)`` returns the allowable interpolated
+    between the bracketing cells — linear in temperature, log-linear in
+    duration (``CREEP_INTERPOLATION_FORMULA``): a 30 C / 24 h request reads
+    5.0 + (30-23)/(55-23) x (1.5-5.0) = 4.234375 MPa instead of the default
+    bucket's 1.5 MPa. The receipt then carries ``basis: "interpolated"``,
+    ``cell_match: "interpolated"``, every bracketing cell with its confidence
+    string in ``bracketing_cells``, the ``formula``, and ``default_bucket`` /
+    ``default_bucket_mpa`` (what the default would have read) so the two
+    answers always sit side by side. It NEVER extrapolates: above the hottest
+    row it still refuses; below the coldest row / before the first column it
+    clamps to that cell and is then NOT labelled interpolated (nothing was);
+    beyond the last column the last column is reused as in the default. No
+    measured cell is invented — it is a model between two conservative
+    constructions, the LOWEST bracketing confidence governs, and it has NO
+    Rust mirror (the cross-language pin covers the default reader only).
+    ``production_check.py`` uses it only when the job sets
+    ``"creep_interpolation": true`` and its receipt says so.
   * **Above the last tabulated temperature the lookup REFUSES.** It does NOT
     fall back to the hottest row. ``sig_allow_mpa`` is 0.0, ``known`` is False,
     ``refused`` is True and ``refusal_kind`` is machine-matchable, so a gate
@@ -174,9 +192,12 @@ CLI
   python materials.py --creep PLA 23 8760    sustained-creep allowable RECEIPT
                                              (material, T in C, duration in h;
                                              add --across-layer for the 0.55
-                                             across-layer derate). Exits 1 and
-                                             still prints the JSON receipt when
-                                             the lookup REFUSES.
+                                             across-layer derate, --interpolate
+                                             for the opt-in labelled
+                                             interpolation between bracketing
+                                             cells). Exits 1 and still prints
+                                             the JSON receipt when the lookup
+                                             REFUSES.
   python materials.py --selftest             validate all + PROVE the PETG/TPU
                                              numbers match the drive/ball
                                              hardcodes verbatim + the creep
@@ -702,13 +723,74 @@ def legacy_creep_scalar(material, *, version=None) -> dict:
     return out
 
 
+CREEP_INTERPOLATION_FORMULA = (
+    "a(T, t) = a_lo(t) + (T - T_lo)/(T_hi - T_lo) * (a_hi(t) - a_lo(t)),  "
+    "a_row(t) = a[row][t_lo] + (ln t - ln t_lo)/(ln t_hi - ln t_lo) * (a[row][t_hi] - a[row][t_lo])  "
+    "— linear in temperature between the bracketing rows, log-linear in duration "
+    "between the bracketing columns; clamped (never extrapolated) below the coldest "
+    "row and before the first column; the last column is reused beyond it; above the "
+    "hottest row the lookup still REFUSES."
+)
+
+
+def _creep_interpolate(rows, t: float, h: float):
+    """Opt-in interpolation between the bracketing cells of a parsed creep table
+    (``creep_cells`` output): linear in temperature, log-linear in duration.
+
+    Returns None when the request sits ON tabulated cells in both axes (or is
+    clamped onto one — below the coldest row / before the first column /
+    beyond the last column), so the caller falls through to the ordinary
+    exact / rounded read and the receipt is never labelled ``interpolated``
+    when nothing was interpolated. Otherwise returns a dict with the value
+    and the bracketing cells. Callers guarantee t <= hottest row."""
+    temps = [r[0] for r in rows]
+    if t <= temps[0]:
+        lo_i = hi_i = 0
+    else:
+        hi_i = next(i for i, tc in enumerate(temps) if tc >= t)
+        lo_i = hi_i if temps[hi_i] == t else hi_i - 1
+
+    def in_row(row):
+        row_c, row_key, cells = row
+        hours = [c[0] for c in cells]
+        if h <= hours[0]:
+            return cells[0][2], [(row_c, row_key) + cells[0]], "clamped_to_first_column"
+        if h >= hours[-1]:
+            match = "exact" if h == hours[-1] else "extrapolated_beyond_last_column"
+            return cells[-1][2], [(row_c, row_key) + cells[-1]], match
+        hi = next(i for i, hh in enumerate(hours) if hh >= h)
+        if hours[hi] == h:
+            return cells[hi][2], [(row_c, row_key) + cells[hi]], "exact"
+        lo = hi - 1
+        f = (math.log(h) - math.log(hours[lo])) / (math.log(hours[hi]) - math.log(hours[lo]))
+        val = cells[lo][2] + f * (cells[hi][2] - cells[lo][2])
+        return val, [(row_c, row_key) + cells[lo], (row_c, row_key) + cells[hi]], "log_linear"
+
+    a_lo, cells_lo, dm = in_row(rows[lo_i])
+    if lo_i == hi_i:
+        tm = "exact" if temps[lo_i] == t else "clamped_to_coldest_row"
+        value, cells = a_lo, cells_lo
+    else:
+        a_hi, cells_hi, dm_hi = in_row(rows[hi_i])
+        g = (t - temps[lo_i]) / (temps[hi_i] - temps[lo_i])
+        value, cells, tm = a_lo + g * (a_hi - a_lo), cells_lo + cells_hi, "linear"
+    if tm != "linear" and dm != "log_linear":
+        return None  # nothing was interpolated: the ordinary reader answers this
+    return {
+        "value": value, "temp_match": tm, "duration_match": dm,
+        "rows_c": sorted({c[0] for c in cells}), "cols_h": sorted({c[2] for c in cells}),
+        "cells": [{"temperature_bucket": c[1], "duration_bucket": c[3],
+                   "row_c": c[0], "col_h": c[2], "mpa": c[4]} for c in cells],
+    }
+
+
 def creep_lookup(material, temp_c, hours, *, across_layer=False,
-                 version=None) -> dict:
+                 version=None, interpolate=False) -> dict:
     """Sustained-load (creep) allowable RECEIPT for one material at one service
     temperature and one design duration. THE single Python reader of
-    ``creep.sig_allow_mpa``; numerically identical to
-    ``kernel_model::materials::pla::creep_allowable_mpa`` at every point (pinned
-    by ``tools/materials_crosslang_test.py``).
+    ``creep.sig_allow_mpa``; with the default ``interpolate=False`` it is
+    numerically identical to ``kernel_model::materials::pla::creep_allowable_mpa``
+    at every point (pinned by ``tools/materials_crosslang_test.py``).
 
     material      material NAME (case-insensitive, aliases honored) or a record
                   dict / Material.
@@ -719,6 +801,23 @@ def creep_lookup(material, temp_c, hours, *, across_layer=False,
     across_layer  True applies process.anisotropy.z_vs_xy_strength_ratio to the
                   (in-plane) tabulated cell. The caller states this; it is never
                   applied silently, and it derates the ALLOWABLE, never E.
+    interpolate   False (default): the conservative BUCKET — both axes round UP
+                  to the next tabulated cell (a 30 C request reads the 55 C
+                  row). True (opt-in, Python only, no Rust mirror): the
+                  allowable is INTERPOLATED between the bracketing cells,
+                  linear in temperature and log-linear in duration
+                  (``CREEP_INTERPOLATION_FORMULA``); the receipt then says
+                  ``basis: "interpolated"``, ``cell_match: "interpolated"``,
+                  names every bracketing cell in ``bracketing_cells`` with its
+                  confidence string, carries the ``formula``, and reports the
+                  bucket the default would have read as ``default_bucket`` /
+                  ``default_bucket_mpa`` so the two are always side by side.
+                  Interpolation NEVER extrapolates: above the hottest row it
+                  still refuses, below the coldest row / before the first
+                  column it clamps to that cell (and is then not labelled
+                  interpolated, because nothing was). The interpolated number
+                  is a model between two conservative constructions, not a
+                  measurement — the LOWEST bracketing confidence governs.
 
     Returns a receipt. On refusal: ``known`` False, ``refused`` True,
     ``refusal_kind`` one of CREEP_REFUSAL_KINDS, ``sig_allow_mpa`` 0.0 — so a
@@ -757,6 +856,10 @@ def creep_lookup(material, temp_c, hours, *, across_layer=False,
         "note": None,
         "legacy_scalar": legacy_creep_scalar(record),
     }
+    if interpolate:
+        # Only present when asked for, so the default receipt is byte-identical
+        # to what every shipped campaign and the cross-language pin recorded.
+        out["interpolation_requested"] = True
 
     def refuse(kind: str, note: str) -> dict:
         out["refusal_kind"] = kind
@@ -805,6 +908,66 @@ def creep_lookup(material, temp_c, hours, *, across_layer=False,
     col_h, col_key, mpa = next((c for c in cells if c[0] >= h), cells[-1])
     beyond_last = h > cells[-1][0]
 
+    if interpolate:
+        interp = _creep_interpolate(rows, t, h)
+        if interp is not None:
+            conf_tbl = (record.get("creep") or {}).get("confidence") or {}
+            for cell in interp["cells"]:
+                cell["confidence"] = (conf_tbl.get(cell["temperature_bucket"], {})
+                                      .get(cell["duration_bucket"])
+                                      or "(no confidence string in the record for this cell)")
+            val = float(interp["value"])
+            t_lo, t_hi = interp["rows_c"][0], interp["rows_c"][-1]
+            h_lo, h_hi = interp["cols_h"][0], interp["cols_h"][-1]
+            row_keys = sorted({c["temperature_bucket"] for c in interp["cells"]},
+                              key=creep_temp_key_c)
+            col_keys = sorted({c["duration_bucket"] for c in interp["cells"]},
+                              key=creep_duration_key_hours)
+            out.update({
+                "known": True,
+                "refused": False,
+                "refusal_kind": None,
+                "in_plane_mpa": round(val, 6),
+                "sig_allow_mpa": round(val * factor, 6),
+                "temperature_bucket": "..".join(row_keys),
+                "duration_bucket": "..".join(col_keys),
+                "row_used_c": None if len(row_keys) > 1 else t_lo,
+                "col_used_h": None if len(col_keys) > 1 else h_lo,
+                "rows_used_c": [t_lo, t_hi],
+                "cols_used_h": [h_lo, h_hi],
+                "cell_match": "interpolated",
+                "temp_match": ("linear_interpolated" if interp["temp_match"] == "linear"
+                               else interp["temp_match"]),
+                "duration_match": ("log_linear_interpolated" if interp["duration_match"] == "log_linear"
+                                   else interp["duration_match"]),
+                "interpolated": True,
+                "extrapolated": beyond_last,
+                "basis": "interpolated",
+                "formula": CREEP_INTERPOLATION_FORMULA,
+                "bracketing_cells": interp["cells"],
+                "default_bucket": {"temperature_bucket": row_key, "duration_bucket": col_key,
+                                   "row_c": row_c, "col_h": col_h, "in_plane_mpa": mpa,
+                                   "sig_allow_mpa": round(mpa * factor, 6)},
+                "default_bucket_mpa": round(mpa * factor, 6),
+                "confidence": ("interpolated — the LOWEST bracketing confidence governs: "
+                               + "; ".join(f"[{c['temperature_bucket']}][{c['duration_bucket']}] "
+                                           f"{c['confidence']}" for c in interp["cells"])),
+                "note": (f"INTERPOLATED (opt-in) between "
+                         + ", ".join(f"[{c['temperature_bucket']}][{c['duration_bucket']}]={c['mpa']} MPa"
+                                     for c in interp["cells"])
+                         + f" for {t} C / {h} h -> {round(val, 6)} MPa in-plane"
+                         + (f" x z/xy {ratio} (across-layer, caller-stated) = "
+                            f"{round(val * factor, 6)} MPa" if across_layer else "")
+                         + f"; the default conservative bucket would read [{row_key}][{col_key}] "
+                           f"= {mpa} MPa. State 'interpolated' with both cells when you quote this; "
+                           f"it is a model between two conservative constructions, not a measurement, "
+                           f"and it has no Rust mirror."),
+            })
+            return out
+        out["interpolation_note"] = (
+            "interpolation was requested but the request sits on a tabulated cell "
+            "(exact or clamped at the table edge) — the ordinary read answers it")
+
     temp_match = "exact" if row_c == t else "rounded_up"
     if beyond_last:
         duration_match = "extrapolated_beyond_last_column"
@@ -852,18 +1015,21 @@ def creep_lookup(material, temp_c, hours, *, across_layer=False,
 
 
 def creep_allowable_mpa(material, temp_c, hours, *, across_layer=False,
-                        version=None) -> float:
+                        version=None, interpolate=False) -> float:
     """Bare sustained (creep) allowable in MPa — the one-line gate the OPERATOR
     BRIEF and DELIVERABLE_SPEC §2 gate 8 tell campaigns to use, now reachable
-    from Python. Exactly ``creep_lookup(...)["sig_allow_mpa"]``, and exactly the
-    number ``kernel_model::materials::pla::creep_allowable_mpa`` returns.
+    from Python. Exactly ``creep_lookup(...)["sig_allow_mpa"]``, and (with the
+    default ``interpolate=False``) exactly the number
+    ``kernel_model::materials::pla::creep_allowable_mpa`` returns.
 
     **Returns 0.0 when the lookup REFUSES** (above the hottest tabulated tier,
     non-finite/negative input, or a material with no creep table) — i.e. "no
     sustained load is defensible", so ``demand <= creep_allowable_mpa(...)``
-    FAILS there. Use ``creep_lookup`` when you need to know WHY, or a receipt."""
+    FAILS there. Use ``creep_lookup`` when you need to know WHY, or a receipt —
+    and ALWAYS use it when ``interpolate=True``, because the bare scalar cannot
+    carry the bracketing cells a quoted interpolated allowable must name."""
     return creep_lookup(material, temp_c, hours, across_layer=across_layer,
-                        version=version)["sig_allow_mpa"]
+                        version=version, interpolate=interpolate)["sig_allow_mpa"]
 
 
 # ---------------------------------------------------------------------------
@@ -894,19 +1060,20 @@ def _show(name: str) -> None:
 
 
 def _creep_cli(argv: list[str]) -> int:
-    """--creep <MATERIAL> <TEMP_C> <HOURS> [--across-layer]
+    """--creep <MATERIAL> <TEMP_C> <HOURS> [--across-layer] [--interpolate]
 
     Prints the full lookup receipt as JSON on stdout. Exit 0 when an allowable
     was read, 1 when the lookup REFUSED — so a shell gate cannot mistake a
     refusal for a number, and the refusal is never silent."""
-    args = [a for a in argv if a != "--across-layer"]
+    args = [a for a in argv if a not in ("--across-layer", "--interpolate")]
     across = "--across-layer" in argv
+    interp = "--interpolate" in argv
     if len(args) != 3:
         print(json.dumps({
             "refused": True, "refusal_kind": "creep_input_not_finite",
             "note": "usage: materials.py --creep <MATERIAL> <TEMP_C> <HOURS> "
-                    "[--across-layer]; both the service temperature and the design "
-                    "duration are REQUIRED — neither has a default",
+                    "[--across-layer] [--interpolate]; both the service temperature "
+                    "and the design duration are REQUIRED — neither has a default",
         }, indent="\t"))
         return 1
     name, t_raw, h_raw = args
@@ -914,7 +1081,7 @@ def _creep_cli(argv: list[str]) -> int:
         temp_c, hours = float(t_raw), float(h_raw)
     except ValueError:
         temp_c, hours = t_raw, h_raw  # let creep_lookup refuse with its own kind
-    rec = creep_lookup(name, temp_c, hours, across_layer=across)
+    rec = creep_lookup(name, temp_c, hours, across_layer=across, interpolate=interp)
     print(json.dumps(rec, indent="\t", ensure_ascii=False))
     return 1 if rec["refused"] else 0
 
@@ -1036,6 +1203,57 @@ def _selftest() -> None:
                    "duration key raises instead of sorting to 0 h)",
                    _raises(lambda: creep_duration_key_hours("soon"))
                    and _raises(lambda: creep_temp_key_c("RT"))))
+
+    # 6b) OPT-IN INTERPOLATION (2026-09-02) — labelled, bracketed, never
+    #     extrapolated, and the DEFAULT receipt byte-for-byte unchanged.
+    #     Hand values: 30 C / 24 h = 5.0 + 7/32 x (1.5 - 5.0) = 4.234375 (exact
+    #     in binary); 23 C / 12 h = 7.5 + ln12/ln24 x (5.0 - 7.5) = 5.545261;
+    #     30 C / 12 h = a23(12h) + 7/32 x (a55(12h) - a23(12h)), a55(12h) =
+    #     3.0 + ln12/ln24 x (1.5 - 3.0) = 1.827157 -> 4.731925.
+    i30 = creep_lookup("PLA", 30.0, 24.0, interpolate=True)
+    d30 = creep_lookup("PLA", 30.0, 24.0)
+    checks.append(("interpolate=True at 30C/24h = 5.0 + 7/32 x (1.5-5.0) = 4.234375 MPa, "
+                   f"basis 'interpolated', both cells named (got {i30['sig_allow_mpa']})",
+                   i30["sig_allow_mpa"] == 4.234375 and i30["basis"] == "interpolated"
+                   and i30["cell_match"] == "interpolated" and i30["interpolated"] is True
+                   and [(c["temperature_bucket"], c["duration_bucket"], c["mpa"])
+                        for c in i30["bracketing_cells"]] == [("23C", "24h", 5.0), ("55C", "24h", 1.5)]
+                   and i30["default_bucket_mpa"] == 1.5 and i30["formula"] == CREEP_INTERPOLATION_FORMULA
+                   and i30["temp_match"] == "linear_interpolated" and i30["duration_match"] == "exact"))
+    checks.append(("the DEFAULT at 30C/24h is unchanged: 1.5 MPa from the 55C row, no "
+                   "interpolation key on the receipt",
+                   d30["sig_allow_mpa"] == 1.5 and d30["cell_match"] == "rounded_up_conservative"
+                   and "interpolation_requested" not in d30 and "bracketing_cells" not in d30))
+    f12 = math.log(12.0) / math.log(24.0)
+    a23_12 = 7.5 + f12 * (5.0 - 7.5)
+    a55_12 = 3.0 + f12 * (1.5 - 3.0)
+    i23_12 = creep_lookup("PLA", 23.0, 12.0, interpolate=True)
+    i30_12 = creep_lookup("PLA", 30.0, 12.0, interpolate=True)
+    checks.append((f"log-linear in duration: 23C/12h = {a23_12:.6f} MPa "
+                   f"(got {i23_12['sig_allow_mpa']}), exact row, log_linear column",
+                   abs(i23_12["sig_allow_mpa"] - a23_12) < 1e-6 and i23_12["temp_match"] == "exact"
+                   and i23_12["duration_match"] == "log_linear_interpolated"
+                   and len(i23_12["bracketing_cells"]) == 2))
+    checks.append((f"bilinear (T linear x ln t) at 30C/12h = {a23_12 + 7 / 32 * (a55_12 - a23_12):.6f} MPa "
+                   f"(got {i30_12['sig_allow_mpa']}), 4 bracketing cells",
+                   abs(i30_12["sig_allow_mpa"] - (a23_12 + 7.0 / 32.0 * (a55_12 - a23_12))) < 1e-6
+                   and len(i30_12["bracketing_cells"]) == 4
+                   and i30_12["temperature_bucket"] == "23C..55C" and i30_12["duration_bucket"] == "1h..24h"))
+    checks.append(("interpolated value is bracketed by the two cells (monotone table)",
+                   1.5 <= i30["sig_allow_mpa"] <= 5.0 and 1.5 <= i30_12["sig_allow_mpa"] <= 7.5))
+    checks.append(("interpolate=True still REFUSES above the hottest row (no extrapolation) "
+                   "and reads an exact cell as exact (not labelled interpolated)",
+                   creep_lookup("PLA", 70.0, 24.0, interpolate=True)["refusal_kind"]
+                   == "creep_temp_above_tabulated"
+                   and creep_lookup("PLA", 23.0, 8760.0, interpolate=True)["cell_match"] == "exact"
+                   and "interpolation_note" in creep_lookup("PLA", 23.0, 8760.0, interpolate=True)
+                   and creep_lookup("PLA", 10.0, 0.5, interpolate=True)["cell_match"]
+                   == "rounded_up_conservative"))
+    checks.append(("across-layer applies to the interpolated value too: 4.234375 x 0.55 = "
+                   "2.32890625 -> 2.328906 at the receipt's 6-decimal rounding",
+                   creep_lookup("PLA", 30.0, 24.0, interpolate=True, across_layer=True)["sig_allow_mpa"]
+                   == round(4.234375 * 0.55, 6)
+                   and creep_allowable_mpa("PLA", 30.0, 24.0, interpolate=True) == 4.234375))
 
     # 7) THE CONFLICT LEDGER IS MACHINE-CHECKED. A ledger that has drifted from
     #    the value it describes is worse than no ledger. Proven on the two live

@@ -92,6 +92,21 @@ ONE JSON receipt; all logging goes to stderr. `curve.npy` (float64,
 out_dir. Failure = {ok:false, error} + a nonzero exit: **2** for a refusal
 (JobError / ConvergenceError), **1** for a broken request. See below.
 
+REACTIONS (2026-09-02): the receipt carries `reactions` — one row per support
+node at the final step, `{node, dofs_constrained, ramped, prescribed, fx_n,
+fy_n, mz_nmm}` — with `reaction_convention` spelled out (force exerted BY the
+support ON the beam, R = f_int - f_contact - f_ext). For a PRESCRIBED
+DISPLACEMENT support (`{"node":"tip","dofs":{"uy":d},"ramped":true}`) that row
+IS the actuator force needed to impose d; `tip_reaction_n` is the scalar
+convenience (reaction at the node named "tip" along its ramped translational
+dof; null under load control), `linear.reactions` / `linear.tip_reaction_n`
+give the small-displacement answer beside it, and the curve gains four
+columns: `reaction_fx_n / reaction_fy_n / reaction_mz_nmm` (summed over the
+ramped nodes per step, 0.0 when none) and `tip_reaction_n` (NaN when the tip
+carries no ramped support). Pinned by gate 1b of
+tools/test_ace_contact_fatigue.py: 3 EI d / L^3 within 2% at d/L = 0.01
+(measured 1e-4), the linear reaction exact to 1e-11.
+
 Honest limits (also in tools/solvers/contact.md): planar only; Euler-Bernoulli
 (no transverse shear — beams under L/t ~ 10 read a few % stiff); contact is
 NODE-based, so contact-patch resolution equals the node spacing; friction is a
@@ -148,7 +163,25 @@ CURVE_COLUMNS = [
 	"n_contact_nodes",
 	"newton_iters",
 	"residual_norm_n",
+	# Reactions at PRESCRIBED-DISPLACEMENT nodes (supports with ramped:true),
+	# summed over those nodes: the force the actuator must apply to hold the
+	# prescribed displacement at this lambda. 0.0 when no support is ramped
+	# (a sum over no nodes). Convention: force exerted BY the support ON the
+	# beam, = f_int - f_contact - f_ext at the node.
+	"reaction_fx_n", "reaction_fy_n", "reaction_mz_nmm",
+	# The scalar convenience: the reaction at the node named "tip" along its
+	# ramped translational dof (fy for uy, fx for ux, |f| when both). NaN when
+	# the tip carries no ramped support — never a silent 0.
+	"tip_reaction_n",
 ]
+
+REACTION_CONVENTION = (
+	"reaction = force exerted BY the support ON the beam at that node, "
+	"R = f_int - f_contact - f_ext (N, N*mm); at a prescribed displacement this "
+	"is the actuator force needed to hold it, with the same sign as the "
+	"displacement for a stiffening structure. Components on a node's FREE dofs "
+	"are the converged residual (~0), reported so the row is complete."
+)
 
 
 def log(msg: str) -> None:
@@ -630,6 +663,53 @@ def build_bcs(job, X0):
 	return np.array(dofs, dtype=int), np.array(vals), np.array(ramped, dtype=bool)
 
 
+def support_nodes(con, con_base, con_ramped):
+	"""Group constrained dofs by node -> [{node, dofs, ramped, prescribed}], in
+	node order. `prescribed` = the node carries a NON-ZERO or RAMPED
+	displacement (a displacement-control node whose reaction is the answer);
+	a plain clamp (all zeros, not ramped) is reported too, as a reaction
+	support, but is not 'prescribed'."""
+	by_node: dict = {}
+	names = {v: k for k, v in DOF_NAMES.items()}
+	for d, v, r in zip(con, con_base, con_ramped):
+		n = int(d) // 3
+		rec = by_node.setdefault(n, {"node": n, "dofs": [], "ramped": False, "prescribed": False})
+		rec["dofs"].append(names[int(d) % 3])
+		rec["ramped"] = rec["ramped"] or bool(r)
+		rec["prescribed"] = rec["prescribed"] or bool(r) or float(v) != 0.0
+	return [by_node[n] for n in sorted(by_node)]
+
+
+def node_reactions(R_all, supports):
+	"""Per-support-node reaction rows from the full residual vector R_all =
+	f_int - f_c - f_ext (its constrained entries ARE the reactions; its free
+	entries are the converged residual)."""
+	rows = []
+	for s in supports:
+		n = s["node"]
+		rows.append({"node": n, "dofs_constrained": list(s["dofs"]), "ramped": s["ramped"],
+		             "prescribed": s["prescribed"],
+		             "fx_n": float(R_all[3 * n]), "fy_n": float(R_all[3 * n + 1]),
+		             "mz_nmm": float(R_all[3 * n + 2])})
+	return rows
+
+
+def tip_reaction_scalar(rows, tip):
+	"""The reaction at the tip node along its RAMPED translational dof, or None
+	when the tip carries no ramped support (load control) — never a silent 0."""
+	row = next((r for r in rows if r["node"] == tip and r["ramped"]), None)
+	if row is None:
+		return None
+	trans = [d for d in row["dofs_constrained"] if d in ("ux", "uy")]
+	if trans == ["uy"]:
+		return row["fy_n"]
+	if trans == ["ux"]:
+		return row["fx_n"]
+	if trans:
+		return math.hypot(row["fx_n"], row["fy_n"])
+	return None  # only rz prescribed: no translational reaction to name
+
+
 def build_loads(job, X0):
 	import numpy as np
 
@@ -817,7 +897,10 @@ def linear_reference(X0, props, con, con_val, f_ext):
 	u[con] = con_val
 	rhs = f_ext[free] - K0[np.ix_(free, con)] @ con_val if len(con) else f_ext[free]
 	u[free] = np.linalg.solve(K0[np.ix_(free, free)], rhs)
-	return u, linear_local_forces(X0, u, props)
+	# Linear reactions: R = K0 u - f_ext (constrained entries), same convention
+	# as the nonlinear f_int - f_c - f_ext (contact ignored here).
+	R_lin = K0 @ u - f_ext
+	return u, linear_local_forces(X0, u, props), R_lin
 
 
 # ---------------------------------------------------------------------------
@@ -858,13 +941,18 @@ def run(job: dict) -> dict:
 	curve = []
 	steps_rec = []
 	tip = n_nodes - 1
+	supports = support_nodes(con, con_base, con_ramped)
+	ramped_nodes = [s["node"] for s in supports if s["ramped"]]
 
-	def snapshot(lam, iters, res, loc, recs, f_c):
+	def snapshot(lam, iters, res, loc, recs, f_c, R_all):
 		disp = u.reshape(n_nodes, 3)
 		mag = np.hypot(disp[:, 0], disp[:, 1])
 		sig = element_stress_mpa(loc, props)
 		pen = max([r["max_penetration_mm"] for r in recs], default=0.0)
 		nct = sum(r["n_contact_nodes"] for r in recs)
+		rows = node_reactions(R_all, supports)
+		ramped_rows = [r for r in rows if r["node"] in ramped_nodes]
+		tip_r = tip_reaction_scalar(rows, tip)
 		curve.append([
 			lam,
 			recs[0]["travel_mm"] if recs else 0.0,
@@ -874,12 +962,18 @@ def run(job: dict) -> dict:
 			float(mag.max()),
 			float(sig.max()),
 			pen, float(nct), float(iters), float(res),
+			float(sum(r["fx_n"] for r in ramped_rows)),
+			float(sum(r["fy_n"] for r in ramped_rows)),
+			float(sum(r["mz_nmm"] for r in ramped_rows)),
+			float("nan") if tip_r is None else float(tip_r),
 		])
+		return rows, tip_r
 
 	# lambda = 0 reference row (already-satisfied state, no iteration)
 	f0, _K0, loc0, _a0 = internal_force_and_tangent(X0, u, props, alpha_ref)
 	fc0, _d0, recs0 = contact_forces(obstacles, X0, u, 0.0, dict(fric_state))
-	snapshot(0.0, 0, 0.0, loc0, recs0, fc0)
+	snapshot(0.0, 0, 0.0, loc0, recs0, fc0, f0 - fc0)
+	rows_final, tip_r_final = [], None
 
 	t1 = time.monotonic()
 	iters_total, ls_total, by_energy = 0, 0, 0
@@ -907,6 +1001,7 @@ def run(job: dict) -> dict:
 		for ax in (0, 1):
 			eq[ax] = float(react[np.array([(d % 3) == ax for d in con], dtype=bool)].sum()
 			               + f_c[ax::3].sum() + lam * f_ext_full[ax::3].sum())
+		rows_final, tip_r_final = snapshot(lam, iters, res, loc, recs, f_c, R_all)
 		steps_rec.append({
 			"step": k, "lambda": lam, "newton_iters": iters,
 			"residual_rel": res, "residual_ref_n": ref,
@@ -917,9 +1012,9 @@ def run(job: dict) -> dict:
 			"obstacles": recs,
 			"reactions_n": [float(v) for v in react],
 			"reaction_dofs": [int(d) for d in con],
+			"reactions_by_node": rows_final,
 			"equilibrium_residual_n": [float(eq[0]), float(eq[1])],
 		})
-		snapshot(lam, iters, res, loc, recs, f_c)
 	solve_s = time.monotonic() - t1
 
 	curve = np.asarray(curve, dtype=np.float64)
@@ -1008,6 +1103,21 @@ def run(job: dict) -> dict:
 			"initial_state": row0,
 		},
 		"obstacles_final": steps_rec[-1]["obstacles"] if steps_rec else [],
+		# Reactions at every support node at the FINAL step (lambda = 1). For a
+		# prescribed-displacement support ({"node":"tip","dofs":{"uy":d},
+		# "ramped":true}) the row IS the force needed to impose d — the number a
+		# displacement-controlled test rig reads. Pinned by gate 1b of
+		# tools/test_ace_contact_fatigue.py against F = 3 EI d / L^3.
+		"reactions": rows_final,
+		"reaction_convention": REACTION_CONVENTION,
+		"reaction_nodes_prescribed": [s["node"] for s in supports if s["prescribed"]],
+		"tip_reaction_n": tip_r_final,
+		"tip_reaction_note": (
+			"reaction at the node named 'tip' along its RAMPED translational dof "
+			"(fy for uy, fx for ux, |f| for both) at lambda = 1; null when the tip "
+			"carries no ramped support (load control) — the curve column "
+			"tip_reaction_n is NaN there. curve columns reaction_{fx_n,fy_n,mz_nmm} "
+			"sum the reactions over every ramped node per step (0.0 when none)."),
 		"timings_s": {"setup_s": round(setup_s, 4), "solve_s": round(solve_s, 4)},
 	}
 	if obstacles:
@@ -1044,20 +1154,28 @@ def run(job: dict) -> dict:
 			})
 			payload["warning_kinds"] = [w["kind"] for w in payload["warnings"]]
 	if job.get("linear_reference", True):
-		u_lin, loc_lin = linear_reference(X0, props, con,
-		                                  np.where(con_ramped, con_base, con_base), f_ext_full)
+		u_lin, loc_lin, R_lin = linear_reference(X0, props, con,
+		                                         np.where(con_ramped, con_base, con_base), f_ext_full)
 		dl = u_lin.reshape(n_nodes, 3)
 		sig_lin = element_stress_mpa(loc_lin, props)
 		nl_uy = payload["nonlinear"]["tip_uy_mm"]
+		rows_lin = node_reactions(R_lin, supports)
 		payload["linear"] = {
 			"tip_ux_mm": float(dl[tip, 0]), "tip_uy_mm": float(dl[tip, 1]),
 			"max_disp_mm": float(np.hypot(dl[:, 0], dl[:, 1]).max()),
 			"max_abs_stress_mpa": float(sig_lin.max()),
+			# Linear reactions at the same nodes: for a prescribed tip deflection
+			# of a cantilever this is EXACTLY 3 EI d / L^3 (cubic Hermite is exact).
+			"reactions": rows_lin,
+			"tip_reaction_n": tip_reaction_scalar(rows_lin, tip),
 			"note": ("small-displacement solve with the INITIAL tangent at lambda=1, "
 			         "contact IGNORED — this is what a linear FEA (ace_fea) answers"),
 		}
 		if abs(float(dl[tip, 1])) > 1e-14:
 			payload["linear"]["nonlinear_over_linear_tip_uy"] = float(nl_uy / dl[tip, 1])
+		if tip_r_final is not None and payload["linear"]["tip_reaction_n"] not in (None, 0.0):
+			payload["linear"]["nonlinear_over_linear_tip_reaction"] = float(
+				tip_r_final / payload["linear"]["tip_reaction_n"])
 	return payload
 
 
