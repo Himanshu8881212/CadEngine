@@ -68,10 +68,14 @@ synthesis guardrail in `docs/ANALYSIS_TIERS.md`, not by a committed manifest.
 parses as JSON, has `schema == "lmcad.manifest.v1"`, and carries every required
 top-level field above with a non-empty value. A `Validated` claim additionally
 requires the `validation.pin_file` to exist on disk. Reference examples that
-pass this check ship for the three structural analyzers
-(`tools/manifests/ace_fea.manifest.json`, `ace_modal.manifest.json`,
-`ace_buckling.manifest.json`) and both optimizers
-(`param_optimize.manifest.json`, `ace_optimize.manifest.json`).
+pass this check ship for the four structural analyzers
+(`tools/manifests/ace_fea.manifest.json`, `ace_fea_tet.manifest.json`,
+`ace_modal.manifest.json`, `ace_buckling.manifest.json`), both optimizers
+(`param_optimize.manifest.json`, `ace_optimize.manifest.json`), and the three
+rules/bookkeeping engines (`tolerance_stack.manifest.json`,
+`production_check.manifest.json`, `production_dossier.manifest.json` — closed
+forms with a hand-derived pin; `discretization.method` is "closed form" and the
+`sources` block cites the textbook / table each rule is arithmetic over).
 
 ## Derived-model manifests (`tools/manifests/derived/`)
 

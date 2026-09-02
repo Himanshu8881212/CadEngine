@@ -10,8 +10,12 @@ Tiers (honest, non-inflatable — full definitions in docs/ANALYSIS_TIERS.md):
 
   Validated    manifest present AND >= 1 validation pin present; the pin checks
                the result against a closed-form / measured ground truth with a
-               documented error band. fea / modal / buckling and BOTH optimizers
-               (ace_optimize, param_optimize) qualify as of 2026-07-17.
+               documented error band. fea / fea_tet / modal / buckling and BOTH
+               optimizers (ace_optimize, param_optimize) qualify as of
+               2026-07-17; the three rules/bookkeeping engines tolerance_stack,
+               production_check and production_dossier qualify as of 2026-09-02
+               (pinned to hand-derived arithmetic — their `kind` still says
+               rules_engine / reporting, so the tier never reads as physics).
   Demonstrated runs end-to-end on real geometry through the engine/solver and
                emits a receipt with a built-in self-check or sanity gate, but is
                NOT pinned to independent ground truth.
@@ -199,19 +203,40 @@ REGISTRY = [
           [], None,
           "Fastener/insert capacity rules over published-typical capacity "
           "tables; no FEA, no engine calls, not validated against pull tests."),
-    entry("tolerance_stack", "tolerance_stack.py", "rules_engine", CATALOGED,
-          [], None,
-          "1-D worst-case + RSS tolerance stack-up; exact closed-form "
-          "arithmetic, correct-by-construction, but not a physics model."),
-    entry("production_check", "production_check.py", "rules_engine", CATALOGED,
-          [], None,
-          "FDM production derating rules over material_db.json allowables; "
-          "carries a pinned --selftest of the RULE arithmetic (self-consistency, "
-          "NOT a ground-truth physics pin)."),
-    entry("production_dossier", "production_dossier.py", "reporting", CATALOGED,
-          [], None,
-          "BOM cost rollup + FDM plate packing; deterministic bookkeeping and "
-          "a stated print-time heuristic, not a physics analysis."),
+    # --- Validated rules/bookkeeping engines: closed-form arithmetic pinned to
+    # hand-derived ground truth (2026-09-02). Validated here means "the
+    # arithmetic is proven against an independent hand derivation with a
+    # stated error band", NOT "a physics simulation" — the `kind` column keeps
+    # saying rules_engine / reporting so nobody reads the tier as physics.
+    entry("tolerance_stack", "tolerance_stack.py", "rules_engine", VALIDATED,
+          ["tolerance_stack_validation.py"],
+          "manifests/tolerance_stack.manifest.json",
+          "1-D worst-case + RSS tolerance stack-up + bore/shaft fit; pinned to "
+          "hand-derived textbook stacks (worst-case sum|t|, RSS sqrt(sum t^2) "
+          "with +/-t = 3 sigma, asymmetric mid-shift, fit extremes) — exact to "
+          "the receipt's 9-decimal rounding, plus the worst-case-fails/RSS-passes "
+          "divergence, refusal and exit-code contract, and byte determinism.",
+          gate_suite="test_checkers.py"),
+    entry("production_check", "production_check.py", "rules_engine", VALIDATED,
+          ["production_check_validation.py"],
+          "manifests/production_check.manifest.json",
+          "FDM production derating rules over material_db.json + the PLA creep "
+          "table; pinned to the table cells times the documented rules (static "
+          "55/10, creep [23C][1y] 2.5 MPa, 25 C rounds UP to the 55C row, "
+          "across-layer x0.55, fatigue 60x0.3, temp 55/60) and to the three "
+          "creep REFUSALS (no duration / above table / no table -> allowable "
+          "0.0, exit 2). The --selftest is self-consistency; the pin is the "
+          "independent hand derivation."),
+    entry("production_dossier", "production_dossier.py", "reporting", VALIDATED,
+          ["production_dossier_validation.py"],
+          "manifests/production_dossier.manifest.json",
+          "BOM cost rollup + printed-mass model + FDM plate packing; pinned to "
+          "analytic box STLs (exact volume and area, the documented shell "
+          "formula by hand: 30x20x10 PLA box -> 5.3072 g printed / 7.44 g "
+          "solid, thick-section warning, shell cap, TBD buy lines, 2-plate "
+          "packing on a 60x60 bed with in-bed non-overlapping placements, "
+          "too-tall refusal). Bookkeeping proven exact, NOT a physics analysis.",
+          gate_suite="test_aux_tools.py"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -281,6 +306,9 @@ NON_ANALYSIS = {
     "ace_fea_kt_tet_validation.py": "validation pin (body-fitted tet10 Kt convergence)",
     "ace_optimize_validation.py": "validation pin",
     "param_optimize_validation.py": "validation pin",
+    "tolerance_stack_validation.py": "validation pin (hand-derived worst-case + RSS stacks)",
+    "production_check_validation.py": "validation pin (material-table cells x the documented rules)",
+    "production_dossier_validation.py": "validation pin (analytic box STLs: volume, area, shell mass model, packing)",
     "_receipt.py": "shared receipt + exit-code contract for the runners",
     "test_ace_thermal.py": "benchmark gate suite (evidence, not a surface)",
     "test_ace_contact_fatigue.py": "benchmark gate suite (evidence, not a surface)",
@@ -811,7 +839,15 @@ def demo() -> dict:
         raise RuntimeError(f"tolerance_stack produced no receipt: {proc.stderr[:300]}")
 
     # The 'geometry' of a tolerance stack IS its dimension chain — hash it as a
-    # program (deterministic, sorted-keys). Status = the analyzer's registry tier.
+    # program (deterministic, sorted-keys). Status = the analyzer's registry
+    # tier, READ FROM THE RESOLVED LEDGER (never hardcoded): if the manifest or
+    # pin ever goes missing the demo downgrades with the registry instead of
+    # keeping a stale "validated" stamp.
+    row = resolve(next(e for e in REGISTRY if e["name"] == "tolerance_stack"))
+    status = {VALIDATED: provenance.STATUS_VALIDATED,
+              DEMONSTRATED: provenance.STATUS_DEMONSTRATED,
+              CATALOGED: provenance.STATUS_CATALOGED}[row["effective_tier"]]
+    manifest_ref = (f"tools/{row['manifest']}" if row["manifest_present"] else None)
     ghash = provenance.geometry_hash(program=chain_job)
     matver = provenance.material_db_version(str(TOOLS / "material_db.json"))
     envelope = provenance.stamp(
@@ -819,8 +855,8 @@ def demo() -> dict:
         geometry_hash=ghash,
         material_version=matver,
         analyzer_name="tolerance_stack",
-        analyzer_version="1.0.0",
-        validation_status=provenance.STATUS_CATALOGED,
+        analyzer_version="1.1.0",
+        validation_status=status,
         residual_or_convergence={
             "method": "closed-form worst-case + RSS",
             "iterative": False,
@@ -829,7 +865,7 @@ def demo() -> dict:
                     "linear chain — 'convergence' is not applicable, reported "
                     "structurally rather than as a bare number.",
         },
-        manifest_ref=None,  # Cataloged: no manifest — the envelope says so honestly
+        manifest_ref=manifest_ref,  # None only if the ledger has no manifest for it
         geometry_relation=provenance.equality_relation(ghash),
     )
     return envelope

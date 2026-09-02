@@ -75,12 +75,17 @@ graduation ledger automatically — at Demonstrated, below the validated line,
 until a real pin lands (`docs/MANIFEST_SCHEMA.md`). Start a new one with
 `python3 tools/derived_model.py --new my_domain`.
 
-## Tier (c) — rules and tables (Cataloged)
+## Tier (c) — rules and tables (Cataloged, or Validated-arithmetic)
 
 Deterministic arithmetic over published tables: ISO 286 fits, tolerance stacks,
-FDM production derating, joint/fastener checks. Correct by construction
-relative to their cited sources; not physics simulations, never presented as
-such (`docs/ANALYSIS_TIERS.md`).
+FDM production derating, joint/fastener checks, BOM/plate bookkeeping. Correct
+by construction relative to their cited sources; not physics simulations, never
+presented as such (`docs/ANALYSIS_TIERS.md`). Three of them —
+`tolerance_stack`, `production_check`, `production_dossier` — carry a manifest
+and a hand-derived validation pin since 2026-09-02 and the registry reports
+them **Validated**; that word there means "the arithmetic is proven against an
+independent hand derivation with a stated error band", and their `kind` stays
+rules_engine / reporting. `joint_check` remains Cataloged (no pin).
 
 ## NOT covered — refuse and say so
 
@@ -128,6 +133,7 @@ eval, never silently scored.
 
 `python3 tools/analyzer_registry.py` prints the live ledger; the CI gate
 (`analysis-gate.yml`) blocks any Validated claim lacking manifest+pin and any
-unparseable derived manifest. As of 2026-07-17: 14 registered surfaces, 5
-Validated (35.7% above the line — the three structural solvers and both
-optimizers), the rest honestly below it.
+unparseable derived manifest. As of 2026-09-02: 18 registered surfaces, 9
+Validated (50.0% above the line — the four structural solvers, both
+optimizers, and the three pinned rules/bookkeeping engines), the rest honestly
+below it.

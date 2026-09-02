@@ -100,6 +100,10 @@ PY_GATES="$PY_GATES tools/analyzer_registry.py::--check"
 PY_GATES="$PY_GATES tools/analyzer_registry.py::--check-contract"
 PY_GATES="$PY_GATES tools/materials.py::--selftest"
 PY_GATES="$PY_GATES tools/production_check.py::--selftest"
+# The hermetic (non-ACE) validation pins of the Validated rules engines.
+PY_GATES="$PY_GATES tools/tolerance_stack_validation.py"
+PY_GATES="$PY_GATES tools/production_check_validation.py"
+PY_GATES="$PY_GATES tools/production_dossier_validation.py"
 
 PY_TOTAL=0
 PY_OK=0

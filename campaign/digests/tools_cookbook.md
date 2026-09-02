@@ -358,7 +358,7 @@ so selectors keep world coordinates. Struts under ~4 cells: quote stresses as ap
 
 # 3. FIT / MOTION / ASSEMBLY CHECKS
 
-## tolerance_stack.py — 1-D stack-up + bore/shaft fit (pure stdlib)  [Cataloged]
+## tolerance_stack.py — 1-D stack-up + bore/shaft fit (pure stdlib)  [Validated — arithmetic pinned, not physics]
 
 `python3 tools/tolerance_stack.py job.json [--out PATH]` — 0/1/2 exit contract; persists receipt.
 
@@ -417,7 +417,7 @@ required pair is disconnected.
 
 # 4. PRINT / PRODUCTION GATES
 
-## production_check.py — FDM derated-allowables gate on FEA results (pure stdlib)  [Cataloged]
+## production_check.py — FDM derated-allowables gate on FEA results (pure stdlib)  [Validated — table arithmetic pinned, not physics]
 
 `python3 tools/production_check.py job.json` (also `--selftest`)
 Job: `{material* (PLA|PETG|ABS|ASA|TPU95A|PC|PA), max_von_mises_pa* (from ace_fea),
@@ -444,7 +444,7 @@ duration; sustained-load PLA still fails early — design to ~5 MPa (24 h) /
 ~2.5 MPa (1 y) or switch material. Demand also inherits ace_fea's ~20%
 under-prediction: margin accordingly.
 
-## production_dossier.py — BOM cost + print-time + plate packing (numpy)  [Cataloged]
+## production_dossier.py — BOM cost + print-time + plate packing (numpy)  [Validated — bookkeeping pinned to analytic boxes, not physics]
 
 `python3 tools/production_dossier.py job.json` — 0/1/2 exit contract.
 Job: `out_dir`*, `parts`* (MADE `{name, stl, material, qty?, material_required?, print_notes?,
@@ -561,11 +561,13 @@ Receipt: `{ok, out_dir, artifacts, gates, ...}`. Nothing is claimed a receipt do
 # Trust tiers (tools/analyzer_registry.py — run it to see the live ledger)
 
 Validated (manifest+pin): ace_fea, ace_fea_tet, ace_modal, ace_buckling, ace_optimize,
-param_optimize. Demonstrated: graded_infill, air_topology_audit, sweep_check, balance_check,
-damped_oscillator. Cataloged: joint_check, tolerance_stack, production_check, production_dossier.
-**Registry drift warning (live output)**: ace_contact, ace_fatigue, ace_thermal, audit_docs are
-analyzer-shaped but NOT in the registry — cite their tier as "unregistered/in-house-gated", not
-Validated.
+param_optimize, and — since 2026-09-02, pinned to hand-derived arithmetic rather than physics —
+tolerance_stack, production_check, production_dossier (quote them as "Validated arithmetic",
+their registry `kind` is rules_engine / reporting). Demonstrated: ace_thermal, ace_contact,
+graded_infill, air_topology_audit, sweep_check, balance_check, damped_oscillator. Cataloged:
+ace_fatigue (deliberately — the gate suite proves the Miner arithmetic, not the life), joint_check.
+ace_thermal / ace_contact / ace_fatigue ARE registered (Demonstrated / Demonstrated / Cataloged,
+`--tier <name>` returns the reason); their solver cards' "green" is a gate-suite status, not a tier.
 
 # Pitfalls checklist (each one observed or source-documented)
 

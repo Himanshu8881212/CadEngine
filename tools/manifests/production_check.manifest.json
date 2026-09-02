@@ -1,0 +1,106 @@
+{
+  "schema": "lmcad.manifest.v1",
+  "analyzer": "production_check",
+  "analyzer_version": "1.1.0",
+  "title": "FDM production derating rules on a peak stress: static / creep-table / fatigue / temperature / anisotropy",
+  "governing_equations": [
+    {
+      "name": "static rule",
+      "expr": "SF_static = (yield_mpa * derate) / demand_mpa ;  pass iff SF_static >= safety_factor_required",
+      "description": "demand_mpa = max_von_mises_pa / 1e6 from a prior ace_fea; yield_mpa is the material's tools/material_db.json cell; derate = layer_adhesion_factor when the anisotropy rule fires, else 1."
+    },
+    {
+      "name": "creep rule (sustained load)",
+      "expr": "allow_creep = creep.sig_allow_mpa[T_row][t_col] * (z_vs_xy_strength_ratio if across_layer else 1) ;  SF_creep = allow_creep / demand_mpa",
+      "description": "Read through tools/materials.py creep_lookup — the ONE reader of the material record's temperature x duration table. Both axes round UP to the next tabulated cell (a conservative step: an in-between request reads the worse cell). Above the hottest tabulated tier, without a duration_h, or for a material with no table the row REFUSES (allowable 0.0, pass false, refusal_kind named) — the legacy yield x creep_sustained_fraction scalar is reported as legacy_scalar_mpa and is never the allowable."
+    },
+    {
+      "name": "fatigue rule (cyclic load)",
+      "expr": "allow_fatigue = ultimate_mpa * fatigue_knockdown * derate ;  SF_fatigue = allow_fatigue / demand_mpa",
+      "description": "~1e6-cycle allowable as a knockdown fraction of ultimate (engineering rule of thumb, NOT a measured S-N curve — ace_fatigue is the S-N tool)."
+    },
+    {
+      "name": "temperature rule",
+      "expr": "pass iff service_temp_c <= service_temp_c_limit ;  SF_temp = limit / service (reported, no factor applied)",
+      "description": "The HDT-class limit IS the derated number; no safety factor is applied to temperature."
+    },
+    {
+      "name": "anisotropy rule (scalar-tier)",
+      "expr": "theta = asin(|load . build| / (|load| |build|)) ;  if theta > 30 deg: derate = layer_adhesion_factor and an explicit across-layer static row is added",
+      "description": "Load-DIRECTION heuristic only (across-layer strength / in-plane strength); not a layer-normal stress-tensor check. Skipped WITH a note when orientation is absent — never silently."
+    }
+  ],
+  "assumptions": [
+    "The demand is a single scalar peak von Mises stress from a prior analysis; the tool does no geometry or FEA and inherits the upstream error band (voxel ace_fea under-reads coarse peaks ~20%).",
+    "Allowables are TYPICAL desktop-FDM datasheet-class values in tools/material_db.json (as-printed XY), to be verified per filament brand.",
+    "The creep table (tools/materials/pla.json#creep.sig_allow_mpa) is a conservative CONSTRUCTION from published printed-PLA creep/rupture data, not a measured design curve; only PLA carries one.",
+    "Fatigue knockdown and creep fraction are rules of thumb, not measured filament data; the anisotropy rule is scalar-tier.",
+    "Overall verdict ok = every evaluated rule passes; skipped rules are listed with a reason."
+  ],
+  "boundary_conditions": {
+    "fixtures": "not applicable — the 'boundary' is the service condition: service_temp_c (default 25), duration_h (REQUIRED when sustained — never defaulted), load_character {sustained, cyclic}, orientation {build_dir, primary_load_dir}.",
+    "loads": "max_von_mises_pa (Pa) — the peak stress being graded.",
+    "selector_count_unit": "rules evaluated (each rule = one receipt row)"
+  },
+  "units": {
+    "inputs": {
+      "max_von_mises_pa": "Pa",
+      "service_temp_c": "deg C",
+      "duration_h": "hours",
+      "safety_factor_required": "dimensionless",
+      "orientation.build_dir/primary_load_dir": "direction vectors (any length)"
+    },
+    "outputs": {
+      "rules[].allowable_mpa/demand_mpa": "MPa",
+      "rules[].SF": "dimensionless (null at zero demand)",
+      "rules[temp].allowable_c/demand_c": "deg C",
+      "rules[creep].creep_cell.sig_allow_mpa": "MPa"
+    }
+  },
+  "discretization": {
+    "method": "closed form",
+    "element": "none — rule arithmetic over table cells; the creep table is a step (rounded up on both axes)",
+    "notes": "No iteration. Deterministic: no clock, no RNG; the receipt is byte-identical across runs."
+  },
+  "validation": {
+    "pin_file": "tools/production_check_validation.py",
+    "additional_pins": ["tools/production_check.py --selftest (the pinned PETG gate + the PLA creep-table contract)", "tools/materials_crosslang_test.py (540-probe Python/Rust creep-cell pin)"],
+    "ground_truth": "Hand-derived from the material tables, arithmetic stated in the pin: PLA static SF = 55/10 = 5.5; PLA creep 23 C / 1 y = table cell 2.5 MPa (SF 2.5 at 1 MPa), 23 C / 24 h = 5.0 MPa, 25 C rounds UP to the 55 C row (0.5 MPa at 30 d); across-layer 55 x 0.55 = 30.25 MPa static and 2.5 x 0.55 = 1.375 MPa creep; fatigue 60 x 0.3 = 18 MPa; temperature 60 C > 55 C fails with SF 55/60; refusals: sustained without duration_h -> refusal.creep_duration_required, 70 C sustained -> refusal.creep_temp_above_tabulated, PETG sustained -> refusal.creep_no_table (each ok:false, allowable 0.0, exit 2); an unknown material exits 1.",
+    "error_band": {
+      "rule_arithmetic": "exact to 1e-9 MPa (receipt rounds to 4 decimals; the pin compares at 1e-4) — measured 0.0",
+      "refusal_contract": "exact: refusal rows carry allowable 0.0, pass false, the named refusal_kind, and exit 2 — measured as specified",
+      "determinism": "stdout receipt byte-identical across reruns — measured identical"
+    },
+    "direction": "no bias in the arithmetic; the creep lookup (round up on both axes) is deliberately conservative — it reads the worse cell.",
+    "last_measured": "2026-09-02"
+  },
+  "caveats": [
+    "This is a RULES engine over datasheet-class tables, not a physics simulation: the verdict is only as good as the table cells and the upstream stress.",
+    "The creep lookup is a STEP: a 25 C declared ambient reads the 55 C row (7x lower than the 23 C row) — declare 23 C or accept the 55 C row; there is no middle.",
+    "Anisotropy is scalar-tier (load direction only); a tensor layer-normal check needs an ACE solver change.",
+    "The demand inherits ace_fea's ~20% coarse-mesh under-prediction of peak bending stress — margin accordingly.",
+    "Only PLA has a creep table; every other material REFUSES a sustained-load verdict outright."
+  ],
+  "limits_of_validity": {
+    "regime": "as-printed FDM thermoplastics in tools/material_db.json (PLA|PETG|ABS|ASA|TPU95A|PC|PA); scalar peak-stress grading",
+    "slenderness": "not applicable",
+    "resolution": "creep: PLA 23 C and 55 C rows x 1 h / 24 h / 30 d / 1 y columns; nothing above 55 C (refused), nothing between the rows (rounded up)"
+  },
+  "sources": [
+    {
+      "title": "tools/material_db.json (typical desktop-FDM datasheet values; per-material source strings inside)",
+      "ref": "tools/material_db.json#materials.<KEY>.{yield_mpa, ultimate_mpa, service_temp_c, layer_adhesion_factor, fatigue_knockdown}",
+      "used_for": "static, fatigue, temperature and anisotropy allowables"
+    },
+    {
+      "title": "tools/materials/pla.json creep block (derivation chain, data anchors and model constants cited inside the record)",
+      "ref": "tools/materials/pla.json#creep.sig_allow_mpa — Waseem 2020 (PMC7764475), Dogan 2022 (sv-jme), Fischbach 2023 (arXiv 2302.11240), Kontou 2024 (PMC11243430), NatureWorks Ingeo 4043D TDS",
+      "used_for": "the sustained-load (creep) allowable cells; tools/solvers/creep.md is the card"
+    },
+    {
+      "title": "tools/materials.py creep_lookup (the one reader; Rust mirror kernel_model::materials::pla)",
+      "ref": "tools/materials.py CREEP SEMANTICS docstring; tools/materials/creep_crosslang_vectors.json",
+      "used_for": "cell selection (round-up) and the refusal kinds"
+    }
+  ]
+}

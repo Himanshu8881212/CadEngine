@@ -35,10 +35,14 @@ Every analysis result carries a `validation_status` inside the
 
 `stamp()` refuses a bare-scalar `residual_or_convergence` and unknown statuses.
 A synthesized result can NEVER claim `validated` — no code path exists.
-Ledger: `python3 tools/analyzer_registry.py`. As of 2026-07-17: 14 surfaces,
-5 Validated (ace_fea, ace_modal, ace_buckling, ace_optimize, param_optimize),
-64.3% honestly below the line (thermal/contact/fatigue cards are green in-house
-gate suites; check the registry before claiming tier).
+Ledger: `python3 tools/analyzer_registry.py`. As of 2026-09-02: 18 surfaces,
+9 Validated (ace_fea, ace_fea_tet, ace_modal, ace_buckling, ace_optimize,
+param_optimize, plus tolerance_stack / production_check / production_dossier —
+those three are pinned ARITHMETIC over tables and analytic boxes, quote them as
+"validated arithmetic", never as validated physics), 50% honestly below the
+line (thermal/contact/fatigue cards are green in-house gate suites and are
+registered at Demonstrated / Demonstrated / Cataloged; check the registry
+before claiming tier).
 
 Geometry hashes: `program:sha256:<hex>` (sorted-key canonical JSON) or
 `mesh:sha256:<hex>` (order-independent STL canonicalisation). Two reps of the

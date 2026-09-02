@@ -1,0 +1,123 @@
+{
+  "schema": "lmcad.manifest.v1",
+  "analyzer": "production_dossier",
+  "analyzer_version": "1.1.0",
+  "title": "BOM cost rollup, printed-mass model, print-time heuristic and FDM plate packing over STL parts",
+  "governing_equations": [
+    {
+      "name": "mesh volume (divergence theorem)",
+      "expr": "V = | sum_tris (v0 . (v1 x v2)) / 6 |",
+      "description": "Signed-tetrahedron sum over the STL triangle soup; exact for a closed, consistently wound mesh (the absolute value is taken)."
+    },
+    {
+      "name": "mesh surface area",
+      "expr": "A = sum_tris |(v1 - v0) x (v2 - v0)| / 2",
+      "description": "Total triangle area — both sides of every internal wall count, which is what a slicer's perimeters do."
+    },
+    {
+      "name": "printed-mass model",
+      "expr": "t_shell = perimeters * line_width + top_bottom_layers * layer_h / 2 ;  V_shell = min(V, A * t_shell) ;  printed_g = rho * [V_shell + infill * max(0, V - V_shell)] / 1e6 ;  solid_g = rho * V / 1e6",
+      "description": "Slicer-style planning estimate: a shell of thickness t_shell over the whole surface plus sparse infill in the remaining core, capped at the solid mass (a part thinner than its own shell prints fully dense). Defaults {perimeters 3, line_width 0.45, layer_h 0.2, top_bottom_layers 4, infill 0.20} give t_shell = 1.75 mm. Stated band +/-30%."
+    },
+    {
+      "name": "print-time heuristic",
+      "expr": "t_h = printed_g / 12 * speed_factor per part ;  + 0.25 h setup per plate",
+      "description": "0.2 mm-layer-class grams-per-hour rule of thumb; stated band +/-50% — the slicer is the real number."
+    },
+    {
+      "name": "cost rollup",
+      "expr": "unit_cost = printed_g * price_per_kg / 1000 ;  line_cost = unit_cost * qty ;  total = sum(made) + sum(priced buy lines)",
+      "description": "Buy lines without unit_price are TBD and EXCLUDED from the numeric total; the receipt names how many."
+    },
+    {
+      "name": "thick-section warning",
+      "expr": "warn iff solid_g > 2 * printed_g",
+      "description": "The part is mostly bulk solid — consider hollowing or lattice infill."
+    },
+    {
+      "name": "plate packing",
+      "expr": "first-fit-decreasing (long side desc) shelf packing with 0/90 deg rotation, spacing s to every neighbour and to the bed edges; refuse iff height > bed.z or min(w,d)+2s > bed.y or max(w,d)+2s > bed.x",
+      "description": "2-D bin packing on axis-aligned footprint bounding boxes; a part that cannot fit an empty bed refuses the whole job loudly."
+    }
+  ],
+  "assumptions": [
+    "STLs are binary, watertight and consistently wound; volume/area are geometric truths of the mesh only under that assumption (garbage in => garbage grams).",
+    "The printed-mass model smears the top/bottom skin stacks over ALL surfaces at half thickness — a heuristic, since only up/down-facing regions carry them; it is a planning figure with a stated +/-30% band.",
+    "Print time is a grams-per-hour heuristic for 0.2 mm layers (band +/-50%); it does not model travel, retraction, or geometry-dependent speed.",
+    "Densities come from tools/material_db.json (inline job overrides win); a material with no density from either source is refused.",
+    "Packing uses axis-aligned bounding boxes, not true outlines, so a plate can be packable in reality yet refused here (conservative), never the reverse.",
+    "Bookkeeping, not physics: no strength, no thermal, no slicer emulation."
+  ],
+  "boundary_conditions": {
+    "fixtures": "not applicable — the printable envelope is bed {x, y, z} (default 220 x 220 x 250 mm) with spacing_mm (default 5) to neighbours and edges.",
+    "loads": "not applicable.",
+    "selector_count_unit": "part lines (made + buy)"
+  },
+  "units": {
+    "inputs": {
+      "parts[].stl": "binary STL in mm",
+      "bed.x/y/z, spacing_mm": "mm",
+      "density_kg_m3": "kg/m^3",
+      "print_params.line_width/layer_h": "mm",
+      "print_params.infill": "fraction 0..1",
+      "filament_price_per_kg, unit_price": "currency (same unit throughout)"
+    },
+    "outputs": {
+      "parts[].volume_mm3": "mm^3",
+      "parts[].surface_mm2": "mm^2",
+      "parts[].solid_g_per_unit/printed_g_per_unit/grams_per_unit/grams_total": "g",
+      "parts[].t_shell_mm": "mm",
+      "parts[].print_time_h": "h",
+      "parts[].unit_cost/line_cost, totals.*_cost": "currency",
+      "plates[].parts[].x_mm/y_mm/w_mm/d_mm": "mm (bed frame, part corner at its placed origin)",
+      "totals.total_print_time_h": "h"
+    }
+  },
+  "discretization": {
+    "method": "closed form over the triangle soup",
+    "element": "STL triangles (float64); packing on footprint bounding boxes",
+    "notes": "Deterministic: FFD order is (long side desc, name, instance); no clock (date is a job string), no RNG."
+  },
+  "validation": {
+    "pin_file": "tools/production_dossier_validation.py",
+    "additional_pins": ["tools/test_aux_tools.py (gate suite: plate STLs, staleness guards)"],
+    "ground_truth": "Analytic boxes written as 12-triangle binary STLs, arithmetic stated in the pin: 30x20x10 mm box -> V = 6000 mm^3, A = 2(600+200+300) = 2200 mm^2, PLA rho 1240 -> solid 7.44 g; t_shell = 3x0.45 + 4x0.2/2 = 1.75 mm, V_shell = min(6000, 2200x1.75 = 3850) = 3850, printed volume 3850 + 0.2x2150 = 4280 mm^3 -> printed 5.3072 g, cost 5.3072 x 25/1000, time 5.3072/12 h + 0.25 h/plate; a 50 mm cube (V 125000, A 15000 -> printed 46000 mm^3 = 57.04 g vs solid 155 g) fires the thick-section warning; a 30x20x1 mm plate (A t_shell 2275 > V 600) is capped at its solid mass; qty 4 of the box on a 60x60 bed at 5 mm spacing packs 2 per plate -> 2 plates and 2 x 0.25 h setup; a 300 mm tall part refuses the job (exit 1).",
+    "error_band": {
+      "volume_and_area": "exact to 1e-6 relative (float64 on axis-aligned triangles) — measured 0.0",
+      "mass_cost_time": "exact to the receipt's rounding (3-4 decimals) — measured within 5e-4",
+      "packing": "exact plate count and in-bed, non-overlapping placements — measured as derived",
+      "determinism": "stdout receipt byte-identical across reruns (paths are absolute but stable within one run directory) — measured identical"
+    },
+    "direction": "volume/area are unbiased mesh truths; printed_g and print time are heuristics with stated +/-30% / +/-50% planning bands (no direction claimed); packing is conservative (bounding boxes).",
+    "last_measured": "2026-09-02"
+  },
+  "caveats": [
+    "printed_g and print_time_h are PLANNING figures with stated bands; the slicer is the real number.",
+    "A non-watertight or inconsistently wound STL gives a wrong volume with no warning here — gate `watertight` on the export receipt first.",
+    "Bounding-box packing over-estimates plate count for L-shaped or nested parts.",
+    "Failure (bad job, unfit part, missing density) exits 1 with {ok:false, error} — this tool has its own main and does not distinguish exit 1 from exit 2.",
+    "The plate layout PNG needs matplotlib; set emit_plates:false for a numpy-only run."
+  ],
+  "limits_of_validity": {
+    "regime": "closed binary-STL parts in mm; FDM plate packing on a rectangular bed",
+    "slenderness": "not applicable",
+    "resolution": "mass model: parts thinner than t_shell print fully dense (cap applied); infill fraction in [0,1]"
+  },
+  "sources": [
+    {
+      "title": "Divergence-theorem volume of a closed triangle mesh",
+      "ref": "Zhang & Chen, 'Efficient feature extraction for 2D/3D objects in mesh representation', Proc. ICIP 2001 (signed tetrahedron volume sum)",
+      "used_for": "mesh_volume_mm3"
+    },
+    {
+      "title": "tools/material_db.json densities",
+      "ref": "tools/material_db.json#materials.<KEY>.density_kg_m3",
+      "used_for": "rho for solid and printed mass"
+    },
+    {
+      "title": "Slicer shell/infill decomposition (perimeters x line width + top/bottom layers, sparse infill in the core)",
+      "ref": "PrusaSlicer / Bambu Studio documentation of perimeters, top/bottom solid layers and infill density — the model in this tool is a stated simplification of that decomposition",
+      "used_for": "printed_mass_g and the t_shell default 1.75 mm"
+    }
+  ]
+}

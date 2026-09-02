@@ -59,8 +59,11 @@ not here. Repo root has a space: **always quote**
   is the honest state.
 - **Provenance discipline.** Analysis results carry `validation_status`; only
   registry-`validated` surfaces (ace_fea, ace_fea_tet, ace_modal,
-  ace_buckling, ace_optimize, param_optimize) may be quoted as validated.
-  thermal/contact/fatigue are in-house-gated but NOT registered — say so.
+  ace_buckling, ace_optimize, param_optimize, and the three pinned
+  rules/bookkeeping engines tolerance_stack / production_check /
+  production_dossier — "validated arithmetic", never "validated physics") may
+  be quoted as validated. thermal/contact/fatigue are registered at
+  Demonstrated / Demonstrated / Cataloged and in-house-gated — say so.
 - **Negative controls.** Any retention/security/"can't fail" claim needs the
   failure attitude built and measured to interfere, plus the legal-path twin
   measured to clear. A gate that cannot fail is not a gate.
