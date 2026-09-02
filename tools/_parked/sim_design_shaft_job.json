@@ -10,7 +10,7 @@
   "max_evals": 30,
   "evaluator": {
     "kind": "command",
-    "argv": ["python3", "tools/sim_design_evaluator.py", "$JOB"],
+    "argv": ["python3", "tools/_parked/sim_design_evaluator.py", "$JOB"],
     "job_template": {
       "d": "$d", "r": "$r", "D": 24.0, "l_small": 20.0, "l_large": 20.0, "load_n": 2400.0,
       "stress_margin": 0.10,
