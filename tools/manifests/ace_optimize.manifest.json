@@ -53,7 +53,7 @@
     "notes": "Stops at max_iters, change < tolerance, or 0.8x time_budget_s; stop_reason is in the receipt."
   },
   "validation": {
-    "pin_file": "tools/ace_optimize_validation.py",
+    "pin_file": "tools/validation/ace_optimize_validation.py",
     "additional_pins": [],
     "ground_truth": "No closed-form optimal topology exists; the pins are exact falsifiable properties on a cantilever whose FEA is itself pinned: (A) OC descent — compliance_last <= 0.9 x compliance_first; (B) material-removal monotonicity — the thresholded as-built part (subset of the solid domain, same grid/load) deflects >= the full solid; (C) volume honesty — achieved fraction within 0.02 of volfrac; (D) the delivered STL is watertight.",
     "error_band": {

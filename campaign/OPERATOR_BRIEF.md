@@ -77,8 +77,11 @@ not here. Repo root has a space: **always quote**
 # assembly file:
 "/Users/himanshu/Work/New-LMCAD/cad engine/target/release/kernel-api" asm a.lmcasm --out-dir out/ [--tol MM] [--voxel MM] [--window MM]
 
-# Python tools (plain python3; tools/_ace.py resolves ~/Work/ACE itself):
+# Python tools (plain python3; tools/analyzers/_ace.py resolves ~/Work/ACE itself):
 python3 "/Users/himanshu/Work/New-LMCAD/cad engine/tools/<tool>.py" job.json
+# ... which since 2026-09-02 forwards to the real file under tools/analyzers/ (solvers,
+# checkers, optimizer, materials) or tools/publish/ (renderers, dossier, docs) — same
+# argv, receipt and exit code; both spellings are valid. Map: tools/_layout.py.
 ```
 
 - Report = stdout JSON, top level `{"api_version":"cadcode.v1","ok",...}`.
@@ -167,7 +170,7 @@ More consequences to plan around:
   re-renders and rebuilt STLs must be byte-identical.
 - `production_dossier.py` / `render_sheet.py` / `assembly_doc.py` have no
   `--help` (they crash treating it as a file); read each tool's docstring.
-  The docstring at the top of each `tools/*.py` outranks any digest.
+  The docstring at the top of each `tools/{analyzers,publish}/*.py` outranks any digest.
 
 ## 4. Op-surface map — what exists, when to use which
 
@@ -244,7 +247,7 @@ Operating orders:
 
 MUST-REFUSE domains (no in-tree solver, fenced): CFD/aero, 3-D EM,
 convection/thermal-CFD, nonlinear 3-D FEA, crack growth, freeform-face field
-analysis. New physics only via `tools/derived_model.py` (citations at import,
+analysis. New physics only via `tools/analyzers/derived_model.py` (citations at import,
 gates re-run every invocation, capped at `synthesized_inloop`).
 
 Anisotropy: no solver models layers — derate the ALLOWABLE via

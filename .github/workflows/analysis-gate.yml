@@ -40,8 +40,19 @@ jobs:
       # no numpy, so the hosted job re-proves them on every PR.
       - name: Rules-engine validation pins (stdlib, hermetic)
         run: |
-          python3 tools/tolerance_stack_validation.py
-          python3 tools/production_check_validation.py
+          python3 tools/validation/tolerance_stack_validation.py
+          python3 tools/validation/production_check_validation.py
+
+      # The 2026-09-02 re-organisation left a forwarding shim at every old
+      # flat path (tools/<name>.py -> tools/{analyzers,publish,validation,tests}/).
+      # Campaign run_all.sh files and the MCP server call the OLD paths, so this
+      # proves one shim end to end: same receipt, same exit code.
+      - name: Forwarding shims keep the old tool paths working
+        run: |
+          printf '%s' '{"fit":{"bore":{"nominal":8.5,"tol":0.15},"shaft":{"nominal":8.0,"tol":0.15}}}' > /tmp/shim_job.json
+          python3 tools/tolerance_stack.py /tmp/shim_job.json --out /tmp/shim_old.json
+          python3 tools/analyzers/tolerance_stack.py /tmp/shim_job.json --out /tmp/shim_new.json
+          cmp /tmp/shim_old.json /tmp/shim_new.json
 
       - name: Every manifest validates against the schema
         run: |

@@ -3296,7 +3296,7 @@ mind:
    (steady + transient), modal, linear buckling, nonlinear/contact
    (corotational beam), and fatigue — each with a card stating its measured
    benchmark error and validity limits (§25.7). The loop closes both ways:
-   `tools/stress_to_density.py` + `kernel_implicit::grid_field` turn a real
+   `tools/analyzers/stress_to_density.py` + `kernel_implicit::grid_field` turn a real
    stress field into graded geometry, and `kernel_model::loads` turns an
    assembly load path into per-part FEA boundary conditions. What is still
    absent: FEA/CFD **ops on the JSON surface** (a load case cannot be
@@ -3385,7 +3385,7 @@ executed references for the architecture; the newer helpers named below —
 7. **Arithmetic load cases, honestly labeled.** Closed-form stress checks
    against derated allowables (state the derating chain), a hot tier when
    heat is in play, out-of-scope failure modes listed by name — and
-   `kernel_model::materials` for densities. FEA (tools/ace_fea_runner.py)
+   `kernel_model::materials` for densities. FEA (tools/analyzers/ace_fea_runner.py)
    sharpens, never replaces, the closed-form. The analysis SET itself is a
    research output: the research pass freezes a per-artifact **analysis
    plan** (governing physics + failure modes → required analyses), and
@@ -3400,7 +3400,7 @@ executed references for the architecture; the newer helpers named below —
 9. **Ship receipts.** The example writes its own outputs (the standard
    folder layout of step 1,
    ASSEMBLY.*, an analysis doc generated FROM the live numbers) so nothing
-   quotable can go stale; `tools/assembly_doc.py` renders the sheet.
+   quotable can go stale; `tools/publish/assembly_doc.py` renders the sheet.
 
 ### 25.1 The implicit toolbox — campaign-facing Rust APIs (2026-07-29 wave)
 
@@ -3411,7 +3411,7 @@ table, if they ever disagree.
 | capability | API | contract & pinned proof |
 |---|---|---|
 | strut lattices | `kernel_implicit::strut::{StrutLattice, StrutKind::{Bcc,Fcc,Octet}, graph_lattice, pipe_path}` | exactly 1-Lipschitz min-capsule field; periodic 27-image tiling with in-module equality proof (seam jump ≤ 1.2e-3, tiled meshes closed); solid fractions 19.8/22.1/39.3% @ cell 10, r 1 (`kernel-implicit/tests/strut.rs`) |
-| simulation fields | `kernel_implicit::grid_field::GridField::{from_npy_file, normalized, into_grade_law, into_scalar_field}` | NPY v1–v3, refuses NaN/Fortran/shape surprises; trilinear, border-clamped; emits the SAME closure type `offset_by`/`lerp` consume. Stress-graded gyroid pin: high-stress half 1.42× material; real RESPOOL FEA field round-tripped via `tools/stress_to_density.py` (`tests/grid_field.rs`) |
+| simulation fields | `kernel_implicit::grid_field::GridField::{from_npy_file, normalized, into_grade_law, into_scalar_field}` | NPY v1–v3, refuses NaN/Fortran/shape surprises; trilinear, border-clamped; emits the SAME closure type `offset_by`/`lerp` consume. Stress-graded gyroid pin: high-stress half 1.42× material; real RESPOOL FEA field round-tripped via `tools/analyzers/stress_to_density.py` (`tests/grid_field.rs`) |
 | surface textures | `kernel_implicit::texture::{displaced, Texture::{Knurl,Stipple,Noise}}` | displacement with DERIVED Lipschitz constants, field renormalized ÷L′ so `DistanceBound` stays sound; dense vs narrow-band volumes bit-equal (`tests/texture_text.rs`) |
 | text emboss/engrave | `kernel_implicit::text::{text_field, text_advance}` | Hershey Simplex capsule strokes (provenance + license in-module), exactly 1-Lipschitz; engrave pin 128.05 vs 128.04 mm³ analytic (0.01%) (`tests/texture_text.rs`) |
 | shell / offset | `kernel_model::shell::{offset_mesh, shell_mesh, offset_to_solid, shell_to_solid}` | voxel route, labeled honestly; −0.10…−0.19% vs exact Steiner analytics; cavity survives to B-rep (shells=2) (`kernel-model/tests/shell_offset.rs`) |

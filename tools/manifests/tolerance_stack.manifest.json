@@ -64,8 +64,8 @@
     "notes": "No iteration, no mesh, no random sampling (no Monte Carlo)."
   },
   "validation": {
-    "pin_file": "tools/tolerance_stack_validation.py",
-    "additional_pins": ["tools/test_checkers.py (gate suite: asymmetric double-count regression, one-sided closes, refusals)"],
+    "pin_file": "tools/validation/tolerance_stack_validation.py",
+    "additional_pins": ["tools/tests/test_checkers.py (gate suite: asymmetric double-count regression, one-sided closes, refusals)"],
     "ground_truth": "Hand-derived textbook stacks, arithmetic stated in the pin: 3-element chain 20.0+/-0.2 - 12.0+/-0.1 - 7.5+/-0.15 -> nominal 0.5, worst-case 0.5 +/- 0.45 = [0.05, 0.95], RSS 0.5 +/- sqrt(0.2^2+0.1^2+0.15^2) = 0.5 +/- 0.269258 = [0.230742, 0.769258]; asymmetric element 10 +0/-0.10 mid-shifts the RSS nominal by -0.05 while the worst-case band stays about the true nominal; fit 8.2+/-0.15 vs 8.0+/-0.15 -> clearance [-0.10, +0.50] (interference at extremes); the worst-case-fails-while-RSS-passes case that is the textbook reason RSS exists.",
     "error_band": {
       "chain_arithmetic": "exact to 1e-9 mm (receipt rounding) — measured 0.0",

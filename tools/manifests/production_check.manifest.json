@@ -66,8 +66,8 @@
     "notes": "No iteration. Deterministic: no clock, no RNG; the receipt is byte-identical across runs; receipts that never asked for interpolation are byte-identical to those before the option existed."
   },
   "validation": {
-    "pin_file": "tools/production_check_validation.py",
-    "additional_pins": ["tools/production_check.py --selftest (the pinned PETG gate + the PLA creep-table contract + the interpolation opt-in)", "tools/materials_crosslang_test.py (540-probe Python/Rust creep-cell pin of the DEFAULT reader)"],
+    "pin_file": "tools/validation/production_check_validation.py",
+    "additional_pins": ["tools/analyzers/production_check.py --selftest (the pinned PETG gate + the PLA creep-table contract + the interpolation opt-in)", "tools/tests/materials_crosslang_test.py (540-probe Python/Rust creep-cell pin of the DEFAULT reader)"],
     "ground_truth": "Hand-derived from the material tables, arithmetic stated in the pin: PLA static SF = 55/10 = 5.5; PLA creep 23 C / 1 y = table cell 2.5 MPa (SF 2.5 at 1 MPa), 23 C / 24 h = 5.0 MPa, 25 C rounds UP to the 55 C row (0.5 MPa at 30 d); across-layer 55 x 0.55 = 30.25 MPa static and 2.5 x 0.55 = 1.375 MPa creep; fatigue 60 x 0.3 = 18 MPa; temperature 60 C > 55 C fails with SF 55/60; refusals: sustained without duration_h -> refusal.creep_duration_required, 70 C sustained -> refusal.creep_temp_above_tabulated, PETG sustained -> refusal.creep_no_table (each ok:false, allowable 0.0, exit 2); an unknown material exits 1; opt-in interpolation at 30 C / 24 h = 5.0 + (30-23)/(55-23) x (1.5-5.0) = 4.234375 MPa with basis 'interpolated' and both cells named while the default still reads 1.5 MPa, 23 C / 12 h = 7.5 + ln12/ln24 x (5.0-7.5) = 5.545261 MPa (log-linear), and the flag still refuses at 70 C.",
     "error_band": {
       "rule_arithmetic": "exact to 1e-9 MPa (receipt rounds to 4 decimals; the pin compares at 1e-4) — measured 0.0",

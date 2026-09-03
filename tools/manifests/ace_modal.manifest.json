@@ -46,7 +46,7 @@
     "notes": "One-voxel clamp layer adds a little artificial stiffness; frequencies come out slightly high and refine downward."
   },
   "validation": {
-    "pin_file": "tools/ace_modal_validation.py",
+    "pin_file": "tools/validation/ace_modal_validation.py",
     "additional_pins": [],
     "ground_truth": "Euler-Bernoulli clamped-free first bending frequency f1 = (1.875104^2 / 2 pi) sqrt(E I / (rho A)) / L^2 = 1063.06 Hz for L=40, b=h=8 mm, E=2.2 GPa, rho=1270 kg/m^3.",
     "error_band": {"coarse_voxel_1.0": "0..+10%", "fine_voxel_0.5": "0..+5%"},

@@ -1,6 +1,6 @@
 # contact — geometrically-nonlinear beam + rigid-obstacle contact (snap-fits, latches, hinges)
 
-- **Runner**: `tools/ace_contact_runner.py` · **Gates**: `tools/test_ace_contact_fatigue.py` · in-house (NumPy only, no ACE dependency)
+- **Runner**: `tools/analyzers/ace_contact_runner.py` · **Gates**: `tools/tests/test_ace_contact_fatigue.py` · in-house (NumPy only, no ACE dependency)
 - **Why not ace_fea**: `ace_fea` is LINEAR (small strain AND small displacement, no contact). A snap-fit arm deflecting 1-5 mm on a 15 mm arm is 10-30% of span at 10-30 deg tip rotation — linear FEA over-predicts stiffness there because it never shortens the moment arm (gate 2: linear says delta/L = 1.00, truth is 0.603). This is a **different discretization for a different job**: a planar corotational BEAM, <300 DOF, with an exact closed-form benchmark (the elastica). Use `ace_fea` for 3-D stress fields; use this for load PATHS with large rotation and/or contact.
 - **Physics**: planar corotational Euler-Bernoulli beam — exact for arbitrarily large RIGID-BODY rotation with small LOCAL strain (the printed-polymer snap-fit regime). Local `N = EA/L0 (Ln-L0)`, `M1,M2 = EI/L0 (4,2 / 2,4)(theta_i - alpha, theta_j - alpha)`, `alpha = beta - beta0`; `f_int = B^T q`, `K_t = B^T k_l B + (N/Ln) zz zz^T + ((M1+M2)/Ln^2)(r zz^T + zz r^T)` (Crisfield). The geometric group is what makes the answer STIFFER than linear.
 - **Contact**: node-to-analytic-rigid-surface PENALTY — `plane`, `cylinder` (in/out), `profile` (piecewise-linear rigid terrain, the snap-fit catch), each optionally TRANSLATING with the load parameter (that is what produces an insertion curve). Normal `p_n = kappa max(0,-gap)`; optional regularized Coulomb friction (elastic slip, approximate slipping tangent). Penetration `= p_n/kappa` is reported every step, never hidden.
@@ -50,4 +50,4 @@ Outputs: `curve.npy` — float64 `(n_steps+1, 16)` C-order, columns in receipt `
 ## When to use
 Any printed feature whose whole point is large elastic deflection against something rigid: snap-fit / cantilever latches (insertion force, retention force, peak strain), living hinges, press-fit lips and spring clips, a spool pawl riding a ratchet. The receipt's `insertion_force_n` curve is the number a designer actually specifies ("assembles under 15 N by hand, retains above 40 N"), and `path_max.strain` is what decides whether the arm survives the first click. Pair with `tools/solvers/fatigue.md` for repeated actuation, and with `ace_fea` when you need the 3-D stress field at the root fillet.
 
-Run: `python3 tools/ace_contact_runner.py job.json` · prove: `python3 tools/test_ace_contact_fatigue.py`
+Run: `python3 tools/analyzers/ace_contact_runner.py job.json` · prove: `python3 tools/tests/test_ace_contact_fatigue.py`

@@ -1,6 +1,6 @@
 # buckling — hex8 linear (eigenvalue) buckling, critical load factor
 
-- **Runner**: `tools/ace_buckling_runner.py` (bridge to ACE `engine.verify.reference_buckling`, plus a prestress receipt pass through `engine.verify.reference_fea` — the exact function behind ace_fea) · **Gates**: `tools/test_ace_modal_buckling.py` · legacy pin `tools/ace_buckling_validation.py` · manifest `tools/manifests/ace_buckling.manifest.json`
+- **Runner**: `tools/analyzers/ace_buckling_runner.py` (bridge to ACE `engine.verify.reference_buckling`, plus a prestress receipt pass through `engine.verify.reference_fea` — the exact function behind ace_fea) · **Gates**: `tools/tests/test_ace_modal_buckling.py` · legacy pin `tools/validation/ace_buckling_validation.py` · manifest `tools/manifests/ace_buckling.manifest.json`
 - **Physics**: classical linearised pre-buckling (bifurcation) analysis. Two passes: (1) static `K u = F` under the manifest's reference load; (2) geometric stiffness from the recovered 2x2x2 Gauss-point Cauchy stresses, `K_g = integral G^T diag(S,S,S) G dV`, then `K phi = -lambda K_g phi` for the smallest POSITIVE factor; `critical_load = lambda x applied reference load`.
 - **THE CAVEAT (first field of every receipt)**: this is a bifurcation estimate on the PERFECT geometry — no imperfections, no plasticity, no large-displacement path. Real structures buckle EARLIER; lambda is an UPPER bound and a DESIGN-LOOP number.
 - **Knockdown (recommended, cited)**: receipts carry `knockdown.recommended_factor = 0.5` -> `design_critical_load_n = 0.5 x critical_load_N`. Basis: AISC 360 §E3 keeps only 0.877 x the elastic critical stress for straight steel columns (crookedness ~L/1000 + residual stress); EN 1993-1-1 §6.3.1.2 buckling curves knock intermediate slenderness down by imperfection factors alpha = 0.13-0.76; NASA SP-8007-2020/REV 2 gives 0.32-0.65 for thin-walled cylinders. FDM parts are more imperfect than any of those calibration sets, hence flat 0.5 — and for SHELL-LIKE modes (inspect the mode) even 0.5 can be unconservative: use SP-8007-class knockdowns there.
@@ -9,7 +9,7 @@
 ## I/O contract (JSON job -> .npy prestress fields + JSON receipt on last stdout line)
 ```
 {out_dir, voxel_mm, origin_mm?,
- ops+solid+shape[+supersample] | npy | stl+shape,    # STL parity-filled via tools/voxelize_stl.py
+ ops+solid+shape[+supersample] | npy | stl+shape,    # STL parity-filled via tools/analyzers/voxelize_stl.py
  material: "PLA" | {youngs_modulus_pa, poisson[, density_kg_m3]},   # string key also enables the yield-before-buckling note
  fixtures: [{kind, region_selector, dof_constrained?}],             # REQUIRED
  loads: [{kind: point|body|pressure, magnitude, direction?, region_selector}],   # the REFERENCE load; zero/absent load = refusal
@@ -37,4 +37,4 @@ Outputs: `prestress_disp_field.npy` / `prestress_stress_field.npy` (ace_fea layo
 ## When to use
 Compression members in campaigns: spool-holder posts, drybox roller axles under belt/band tension, thin lattice struts, long thin walls under clamp loads. Use `design_critical_load_n` (knocked down) in gates; pair every buckling gate with a strength gate; inspect `prestress_stress_field.npy` to see WHERE the compression lives.
 
-Run: `ACE_PYTHON tools/ace_buckling_runner.py job.json` · prove: `python3 tools/test_ace_modal_buckling.py`
+Run: `ACE_PYTHON tools/analyzers/ace_buckling_runner.py job.json` · prove: `python3 tools/tests/test_ace_modal_buckling.py`

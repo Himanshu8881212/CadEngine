@@ -36,12 +36,12 @@ Notes that apply across the registry:
   (`ace_thermal` Demonstrated, `ace_contact` Demonstrated, `ace_fatigue`
   Cataloged — deliberately below Demonstrated, because proving the Miner
   arithmetic is not proving the life).
-- **Materials**: `tools/materials.py` is the one source of truth for material
+- **Materials**: `tools/analyzers/materials.py` is the one source of truth for material
   records (`tools/materials/<key>.json`). `tools/materials/fatigue.json` is a
   SIDECAR table (`meta.schema_kind = "fatigue_table"`), not a record.
 - **Everything is as-designed, not as-printed**: no solver here models
   printed-layer anisotropy inside the solve. Apply
-  `tools/materials.py derated()` to the ALLOWABLE, not to `E`.
+  `tools/analyzers/materials.py derated()` to the ALLOWABLE, not to `E`.
 - **Adding a solver**: write the runner, write the gate suite, run it, freeze
   the bands from the MEASURED numbers, add a meta-negative-control that proves
   the suite can go red, then add the card and a row here.

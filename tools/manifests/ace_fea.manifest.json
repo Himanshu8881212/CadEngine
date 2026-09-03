@@ -54,8 +54,8 @@
     "notes": "Regular voxel grid at voxel_mm; supersample=2 antialiases the occupancy sample."
   },
   "validation": {
-    "pin_file": "tools/ace_fea_validation.py",
-    "additional_pins": ["tools/ace_fea_kt_validation.py (pending — parallel-owned stress-concentration Kt pin)"],
+    "pin_file": "tools/validation/ace_fea_validation.py",
+    "additional_pins": ["tools/validation/ace_fea_kt_validation.py (pending — parallel-owned stress-concentration Kt pin)"],
     "ground_truth": "Euler-Bernoulli + shear cantilever: delta = PL^3/(3EI) + 1.2 PL/(GA) = 0.2934 mm for L=40, b=h=8 mm, P=10 N, E=2.2 GPa, nu=0.37.",
     "error_band": {"coarse_voxel_1.0": "-20%..0", "fine_voxel_0.5": "-10%..0"},
     "direction": "under-predicts peak/tip response; hex8 is stiff; error converges from below toward the analytic value under refinement.",

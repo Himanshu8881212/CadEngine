@@ -1,11 +1,11 @@
 # creep — sustained-load allowable (material card, not a solver)
 
-**Runner**: `tools/production_check.py` (the `creep` rule) ·
-`tools/materials.py --creep <MAT> <TEMP_C> <HOURS>` (bare lookup + receipt) ·
+**Runner**: `tools/analyzers/production_check.py` (the `creep` rule) ·
+`tools/analyzers/materials.py --creep <MAT> <TEMP_C> <HOURS>` (bare lookup + receipt) ·
 `kernel_model::materials::pla::creep_lookup` / `creep_allowable_mpa` (Rust).
-**Gates**: `python3 tools/materials_crosslang_test.py` ·
+**Gates**: `python3 tools/tests/materials_crosslang_test.py` ·
 `cargo test -p kernel-model --release --test materials_creep --test materials_creep_crosslang` ·
-`python3 tools/production_check.py --selftest` · `python3 tools/materials.py --selftest`.
+`python3 tools/analyzers/production_check.py --selftest` · `python3 tools/analyzers/materials.py --selftest`.
 **Status**: green. **Tier**: a researched TABLE with per-cell confidence, not a
 model — there is nothing to converge and nothing to mesh.
 
@@ -111,10 +111,10 @@ has not drifted from the values the record serves.
 
 | gate | what it pins | where |
 |---|---|---|
-| 540-probe cross-language vector pin | Python and Rust return the same allowable, the same CELL and the same refusal at every tier boundary, on both sides of it, above the hot tier, beyond the last duration column, and for every non-finite/negative input | `tools/materials/creep_crosslang_vectors.json`, read by `tools/materials_crosslang_test.py` **and** `crates/kernel-model/tests/materials_creep_crosslang.rs` |
+| 540-probe cross-language vector pin | Python and Rust return the same allowable, the same CELL and the same refusal at every tier boundary, on both sides of it, above the hot tier, beyond the last duration column, and for every non-finite/negative input | `tools/materials/creep_crosslang_vectors.json`, read by `tools/tests/materials_crosslang_test.py` **and** `crates/kernel-model/tests/materials_creep_crosslang.rs` |
 | Rust table mirror | the Rust `CREEP_SIG_ALLOW_MPA` equals the researched JSON | `crates/kernel-model/tests/materials_creep.rs` |
 | monotonicity | longer is never stronger, hotter is never stronger (without which "round up" is not conservative) | `materials._validate_creep_table`, enforced at record load |
-| production_check creep rows | 23 °C/1 y = 2.5 MPa, 25 °C reads the 55 °C row, 70 °C refuses, missing duration refuses, across-layer 2.5 → 1.375 | `tools/production_check.py --selftest` |
+| production_check creep rows | 23 °C/1 y = 2.5 MPa, 25 °C reads the 55 °C row, 70 °C refuses, missing duration refuses, across-layer 2.5 → 1.375 | `tools/analyzers/production_check.py --selftest` |
 
 ## Validity limits / out of scope
 

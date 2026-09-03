@@ -13,8 +13,8 @@ Repo root (space in path — ALWAYS quote): `"/Users/himanshu/Work/New-LMCAD/cad
 "/Users/himanshu/Work/New-LMCAD/cad engine/target/release/kernel-api" run program.json --out-dir OUT
 # assemblies:
 "/Users/himanshu/Work/New-LMCAD/cad engine/target/release/kernel-api" asm a.lmcasm --out-dir OUT [--voxel MM]
-# Solver runners (plain python3 works — tools/_ace.py puts ~/Work/ACE on sys.path automatically):
-python3 tools/ace_fea_runner.py job.json        # etc.
+# Solver runners (plain python3 works — tools/analyzers/_ace.py puts ~/Work/ACE on sys.path automatically):
+python3 tools/analyzers/ace_fea_runner.py job.json        # etc.
 ```
 
 ---
@@ -64,7 +64,7 @@ object**; logs go to stderr. Exit-code split (verified):
   0 on failure and no longer do. Any nonzero: do not quote the receipt.
 
 All six are as-designed, isotropic, homogeneous: **no solver models printed-layer
-anisotropy inside the solve**. Apply `tools/materials.py derated()` to the
+anisotropy inside the solve**. Apply `tools/analyzers/materials.py derated()` to the
 ALLOWABLE, never to E.
 
 ### 2.1 ace_fea — hex8 linear-elastic voxel FEA (Validated)
@@ -210,7 +210,7 @@ runners on exported geometry.
 
 ---
 
-## 4. Physics outside the built-ins: `tools/derived_model.py`
+## 4. Physics outside the built-ins: `tools/analyzers/derived_model.py`
 
 The only honest path for a new domain (acoustics, RC thermal networks, beam
 formulas, linkages, magnetic circuits...):
@@ -225,7 +225,7 @@ formulas, linkages, magnetic circuits...):
    printing. Last stdout line = envelope JSON → `param_optimize` can drive it.
 4. Criterion for existence: **if you cannot write a gate against an independent
    closed form or known limit, the model must not run.**
-5. Start: `python3 tools/derived_model.py --new my_domain`. Commit the manifest
+5. Start: `python3 tools/analyzers/derived_model.py --new my_domain`. Commit the manifest
    to `tools/manifests/derived/` → auto-registers at Demonstrated; Validated
    only when a pin file lands.
 
@@ -234,7 +234,7 @@ self-check `{limit, expected, obtained, passed=true}`; structured residual
 (bare scalars refused by `stamp()`); sandboxed execution; pinned versions/seeds.
 
 External-solver bridge: geometry OUT via `export_stl`/`export_step` or
-`tools/voxelize_stl.py` (STL → occupancy `.npy`, same contract the ACE runners
+`tools/analyzers/voxelize_stl.py` (STL → occupancy `.npy`, same contract the ACE runners
 consume); numbers BACK only wrapped by `provenance.stamp` with an honest
 status. STL↔program relation is `derived_from` with the chord tol — not equality.
 
@@ -419,7 +419,7 @@ to prove two receipts describe the same geometry.
 
 ## 8. PLA material data and what claims it licenses
 
-Sources (all in-tree; `tools/materials.py` is the ONE source of truth, records
+Sources (all in-tree; `tools/analyzers/materials.py` is the ONE source of truth, records
 in `tools/materials/<key>.json`; `tools/material_db.json` is the legacy flat
 DB the records were migrated from — datasheet-class, "verify per filament brand"):
 
@@ -449,7 +449,7 @@ DB the records were migrated from — datasheet-class, "verify per filament bran
 
 - A part under sustained load is a CREEP case, not a static one (§25.7). Gate
   `stress <= creep_allowable_mpa(T, hours)` and state the design duration.
-- **Read it through Python `tools/materials.py`, and SHIP THE LOOKUP RECEIPT,
+- **Read it through Python `tools/analyzers/materials.py`, and SHIP THE LOOKUP RECEIPT,
   not the scalar:**
   ```python
   import sys; sys.path.insert(0, "tools"); import materials as M
@@ -516,9 +516,9 @@ creep block). PA values are DRY — moisture can halve them.
 | manifest format | docs/MANIFEST_SCHEMA.md |
 | units, tolerances, determinism, f32/f64, Lipschitz, GPU | docs/NUMERICS.md |
 | per-solver cards (bands, refusals, job schemas) | tools/solvers/{README,ace_fea,modal,buckling,thermal,contact,fatigue}.md |
-| solver gate suites (run to re-prove) | tools/ace_*_validation.py, tools/test_ace_thermal.py, tools/test_ace_modal_buckling.py, tools/test_ace_contact_fatigue.py |
-| derived-model scaffold + exemplar | tools/derived_model.py (`--selftest`, `--new`) |
+| solver gate suites (run to re-prove) | tools/ace_*_validation.py, tools/tests/test_ace_thermal.py, tools/tests/test_ace_modal_buckling.py, tools/tests/test_ace_contact_fatigue.py |
+| derived-model scaffold + exemplar | tools/analyzers/derived_model.py (`--selftest`, `--new`) |
 | provenance/envelope enforcement | tools/provenance.py |
 | analyzer ledger | `python3 tools/analyzer_registry.py` |
-| material records + derating | tools/materials.py, tools/materials/*.json, tools/material_db.json |
+| material records + derating | tools/analyzers/materials.py, tools/materials/*.json, tools/material_db.json |
 | creep allowables (Rust) | `kernel_model::materials::pla::{creep_allowable_mpa, creep_shear_allowable_mpa}` (crates/kernel-model/src/lib.rs ~4180) |

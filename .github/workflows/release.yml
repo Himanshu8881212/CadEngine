@@ -63,15 +63,15 @@ jobs:
         run: |
           python tools/analyzer_registry.py --check
           python tools/analyzer_registry.py --check-contract
-          python tools/test_checkers.py
-          python tools/test_aux_tools.py
+          python tools/tests/test_checkers.py
+          python tools/tests/test_aux_tools.py
           python docs/test_doc_contracts.py
-          python tools/materials.py --selftest
-          python tools/production_check.py --selftest
-          python tools/tolerance_stack_validation.py
-          python tools/production_check_validation.py
-          python tools/production_dossier_validation.py
-          python tools/param_optimize_drift_test.py
+          python tools/analyzers/materials.py --selftest
+          python tools/analyzers/production_check.py --selftest
+          python tools/validation/tolerance_stack_validation.py
+          python tools/validation/production_check_validation.py
+          python tools/validation/production_dossier_validation.py
+          python tools/tests/param_optimize_drift_test.py
           python tools/audit_docs.py --all-docs --fail-on warn
 
       - uses: actions/setup-node@v4

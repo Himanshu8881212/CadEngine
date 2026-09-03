@@ -24,9 +24,10 @@ import sys
 import time
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parents[2]  # tools/analyzers/_ace.py -> repo root
 ACE_ROOT = os.environ.get("ACE_ROOT", os.path.expanduser("~/Work/ACE"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, str(REPO_ROOT / "tools"))  # _receipt / provenance live at tools/ top level
 sys.path.insert(0, ACE_ROOT)
 os.environ.setdefault(
     "LMCAD_KERNEL_API", str(REPO_ROOT / "target" / "release" / "kernel-api")

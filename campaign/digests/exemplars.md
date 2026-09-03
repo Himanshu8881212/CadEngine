@@ -27,12 +27,12 @@ silently omitted.
 cd "/Users/himanshu/Work/New-LMCAD/cad engine" && cargo run -p kernel-model --release --example card_magazine
 
 # Python analysis layer — every tool takes ONE job.json as argv[1]
-python3 tools/sweep_check.py        <job.json>   # insertion/motion sweeps
-python3 tools/tolerance_stack.py    <job.json>   # 1-D stacks + fit checks (pure arithmetic)
-python3 tools/balance_check.py      <job.json>   # rotating balance via mass_properties
-python3 tools/production_dossier.py <job.json>   # BOM cost + plate packing → bom_dossier.{json,csv}
-python3 tools/render_sheet.py       <job.json>   # 12-view contact sheet PNG
-python3 tools/assembly_doc.py       <job.json>   # exploded assembly sheet PNG + instructions.md
+python3 tools/analyzers/sweep_check.py        <job.json>   # insertion/motion sweeps
+python3 tools/analyzers/tolerance_stack.py    <job.json>   # 1-D stacks + fit checks (pure arithmetic)
+python3 tools/analyzers/balance_check.py      <job.json>   # rotating balance via mass_properties
+python3 tools/publish/production_dossier.py <job.json>   # BOM cost + plate packing → bom_dossier.{json,csv}
+python3 tools/publish/render_sheet.py       <job.json>   # 12-view contact sheet PNG
+python3 tools/publish/assembly_doc.py       <job.json>   # exploded assembly sheet PNG + instructions.md
 ```
 
 Pitfalls, verified:
@@ -416,7 +416,7 @@ All paths relative to `/Users/himanshu/Work/New-LMCAD/cad engine/`.
 | Field-report schema, refusals, triage pipeline | `docs/FIELD_REPORTS.md`; `tools/field_report.py --self-test` |
 | Analysis tiering / domains / numerics / robustness | `docs/ANALYSIS_TIERS.md`, `docs/ANALYSIS_DOMAINS.md`, `docs/NUMERICS.md`, `docs/ROBUSTNESS.md` |
 | ACE solver integration (FEA/modal/thermal/fatigue/…) | `docs/ACE_INTEGRATION.md`; `tools/ace_*_runner.py` |
-| Tool job schemas (authoritative) | docstring at the top of each `tools/*.py` |
+| Tool job schemas (authoritative) | docstring at the top of each `tools/{analyzers,publish}/*.py` (the flat `tools/<name>.py` paths are forwarding shims) |
 | The JSON-style exemplar, end to end | `showcase/README.md`; `showcase/squatchee_spin/programs/*.json` |
 | The Rust-style exemplar + its 35 gates | `camera_system/card_magazine/README.md`, `analysis/*.md`; `crates/kernel-model/examples/card_magazine.rs` (gates from line ~400) |
 | Materials data | `tools/material_db.json`, `tools/materials/*.json`, `kernel_model::materials` |

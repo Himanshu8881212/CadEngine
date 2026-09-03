@@ -79,8 +79,8 @@
     "notes": "Deterministic: FFD order is (long side desc, name, instance); no clock (date is a job string), no RNG."
   },
   "validation": {
-    "pin_file": "tools/production_dossier_validation.py",
-    "additional_pins": ["tools/test_aux_tools.py (gate suite: plate STLs, staleness guards)"],
+    "pin_file": "tools/validation/production_dossier_validation.py",
+    "additional_pins": ["tools/tests/test_aux_tools.py (gate suite: plate STLs, staleness guards)"],
     "ground_truth": "Analytic boxes written as 12-triangle binary STLs, arithmetic stated in the pin: 30x20x10 mm box -> V = 6000 mm^3, A = 2(600+200+300) = 2200 mm^2, PLA rho 1240 -> solid 7.44 g; t_shell = 3x0.45 + 4x0.2/2 = 1.75 mm, V_shell = min(6000, 2200x1.75 = 3850) = 3850, printed volume 3850 + 0.2x2150 = 4280 mm^3 -> printed 5.3072 g, cost 5.3072 x 25/1000, time 5.3072/12 h + 0.25 h/plate; a 50 mm cube (V 125000, A 15000 -> printed 46000 mm^3 = 57.04 g vs solid 155 g) fires the thick-section warning; a 30x20x1 mm plate (A t_shell 2275 > V 600) is capped at its solid mass; qty 4 of the box on a 60x60 bed at 5 mm spacing packs 2 per plate -> 2 plates and 2 x 0.25 h setup; a 300 mm tall part refuses the job (exit 1).",
     "error_band": {
       "volume_and_area": "exact to 1e-6 relative (float64 on axis-aligned triangles) — measured 0.0",

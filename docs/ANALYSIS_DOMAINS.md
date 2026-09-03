@@ -8,12 +8,12 @@ an external solver?* Every claim below is checkable against a file in-tree.
 The intended loop — the reason the analysis stack has the shape it has:
 
 1. **Research** the physics (find the governing equations AND their sources).
-2. **Write the equations down** with citations — `tools/derived_model.py`
+2. **Write the equations down** with citations — `tools/analyzers/derived_model.py`
    refuses a source-less model at import time.
 3. **Implement** them as a runnable model (or pick an in-tree solver).
 4. **Validate** against closed forms / known limits — gates re-run on every
    invocation and REFUSE to evaluate if they fail ("refuse-before-run").
-5. **Optimize to targets** — `tools/param_optimize.py` drives ANY receipted
+5. **Optimize to targets** — `tools/analyzers/param_optimize.py` drives ANY receipted
    analyzer (engine programs and physics models share one optimizer) with
    first-class convergence targets, multi-start, and worst-case tolerance
    corners.
@@ -24,7 +24,7 @@ damping ratio for 10% step overshoot"* — `param_optimize` over the
 
 ```json
 {"evaluator": {"kind": "command",
-               "argv": ["python3", "tools/derived_model.py", "$JOB"],
+               "argv": ["python3", "tools/analyzers/derived_model.py", "$JOB"],
                "job_template": {"zeta": "$zeta", "omega_n_rad_s": 20.0}},
  "params":  {"zeta": {"min": 0.05, "max": 0.95, "init": 0.3}},
  "targets": [{"expr": "values.overshoot_pct", "value": 10.0, "tol": 0.1}],
@@ -57,7 +57,7 @@ voxel FEA is ±20–30%, biased HIGH, and does not converge under refinement —
 the Kt pin (`ace_fea_kt_validation.py`) makes this visible; body-fitted meshing
 would be a build, not a wiring fix.
 
-## Tier (b) — derivable domains (`tools/derived_model.py`)
+## Tier (b) — derivable domains (`tools/analyzers/derived_model.py`)
 
 Any domain where the agent can CITE ground truth is one scaffold subclass away:
 1-D / lumped / closed-form models — acoustics (transfer matrices, Helmholtz
@@ -73,7 +73,7 @@ citations required at import, gates re-run per invocation, results stamped
 Committing the model's manifest to `tools/manifests/derived/` puts it on the
 graduation ledger automatically — at Demonstrated, below the validated line,
 until a real pin lands (`docs/MANIFEST_SCHEMA.md`). Start a new one with
-`python3 tools/derived_model.py --new my_domain`.
+`python3 tools/analyzers/derived_model.py --new my_domain`.
 
 ## Tier (c) — rules and tables (Cataloged, or Validated-arithmetic)
 
@@ -87,7 +87,7 @@ them **Validated**; that word there means "the arithmetic is proven against an
 independent hand derivation with a stated error band", and their `kind` stays
 rules_engine / reporting. `joint_check` remains Cataloged (no pin).
 
-Creep-table reads (`tools/materials.py creep_lookup`) are a conservative
+Creep-table reads (`tools/analyzers/materials.py creep_lookup`) are a conservative
 STEP by default (both axes round up to the next tabulated cell). Since
 2026-09-02 an explicit opt-in — `creep_lookup(..., interpolate=True)`, or
 `"creep_interpolation": true` in a `production_check` job — interpolates
@@ -114,7 +114,7 @@ lumped estimate as a field solution is a contract violation, not a shortcut.
 Geometry OUT, numbers BACK IN — inside the same honesty envelope:
 
 **Geometry out.** `export_stl` / `export_step` ops for mesh/B-rep consumers;
-`tools/voxelize_stl.py` (STL → occupancy `.npy`) for grid solvers — the same
+`tools/analyzers/voxelize_stl.py` (STL → occupancy `.npy`) for grid solvers — the same
 `.npy` contract the ACE runners consume (`nx,ny,nz` float density, `voxel_mm`,
 `origin_mm`). Deterministic; the geometry content-hash
 (`provenance.geometry_hash`) keys the result to what was actually exported,

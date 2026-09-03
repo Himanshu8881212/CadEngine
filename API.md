@@ -2044,7 +2044,7 @@ is only `(1 + |∇field|)`-Lipschitz, so keep graded fields slowly varying
 The `field` of `offset_by` / `lerp` alternatively takes a **sampled grid**
 instead of a math expression — the simulation→geometry bridge
 (`kernel_implicit::grid_field::GridField`): an FEA stress field remapped to a
-density (`tools/stress_to_density.py`), a `sample_density_grid` output, any
+density (`tools/analyzers/stress_to_density.py`), a `sample_density_grid` output, any
 nodal scalar — loaded from a NumPy `.npy` file and evaluated by trilinear
 interpolation, **border-clamped** (outside the grid the nearest border value
 extends, so the law is total and continuous wherever the mesher samples):

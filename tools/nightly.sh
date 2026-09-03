@@ -86,24 +86,26 @@ fi
 # when a campaign tripped over it. That is the same silence this repo forbids
 # in its tools, one level up.
 #
-# DISCOVERED, not enumerated: every `tools/test_*.py` and `docs/test_*.py` is a
-# suite by naming convention, so a suite added tomorrow is watched tomorrow
-# without editing this file. The gates that need arguments are listed after.
-# Each must exit 0; anything else is a failure with its own row.
+# DISCOVERED, not enumerated: every `tools/tests/test_*.py` and `docs/test_*.py`
+# is a suite by naming convention, so a suite added tomorrow is watched tomorrow
+# without editing this file (tools/tests/ since the 2026-09-02 re-organisation;
+# the shims left at tools/test_*.py are pointers, not suites, and are not run
+# twice). The gates that need arguments are listed after. Each must exit 0;
+# anything else is a failure with its own row.
 PY_GATES=""
-for f in tools/test_*.py docs/test_*.py; do
+for f in tools/tests/test_*.py docs/test_*.py; do
 	[ -f "$f" ] && PY_GATES="$PY_GATES $f"
 done
 PY_GATES="$PY_GATES tools/audit_docs.py"
-PY_GATES="$PY_GATES tools/materials_crosslang_test.py"
+PY_GATES="$PY_GATES tools/tests/materials_crosslang_test.py"
 PY_GATES="$PY_GATES tools/analyzer_registry.py::--check"
 PY_GATES="$PY_GATES tools/analyzer_registry.py::--check-contract"
-PY_GATES="$PY_GATES tools/materials.py::--selftest"
-PY_GATES="$PY_GATES tools/production_check.py::--selftest"
+PY_GATES="$PY_GATES tools/analyzers/materials.py::--selftest"
+PY_GATES="$PY_GATES tools/analyzers/production_check.py::--selftest"
 # The hermetic (non-ACE) validation pins of the Validated rules engines.
-PY_GATES="$PY_GATES tools/tolerance_stack_validation.py"
-PY_GATES="$PY_GATES tools/production_check_validation.py"
-PY_GATES="$PY_GATES tools/production_dossier_validation.py"
+PY_GATES="$PY_GATES tools/validation/tolerance_stack_validation.py"
+PY_GATES="$PY_GATES tools/validation/production_check_validation.py"
+PY_GATES="$PY_GATES tools/validation/production_dossier_validation.py"
 
 PY_TOTAL=0
 PY_OK=0

@@ -110,6 +110,8 @@ def material_record(name):
 	key = str(name).strip().upper().replace("-", "").replace(" ", "")
 	try:
 		sys.path.insert(0, str(TOOLS_DIR))
+		import _layout  # noqa: PLC0415
+		_layout.add_import_paths()  # materials.py lives in tools/analyzers/ since 2026-09-02
 		import materials  # noqa: PLC0415 — deliberately lazy/optional
 		return materials.get(key).record, "materials.py"
 	except Exception:

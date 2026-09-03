@@ -39,15 +39,15 @@ pins.
 
 | field | type | meaning |
 |---|---|---|
-| `sources` | array of `{title, ref, used_for}` | the CITATIONS behind the equations — `ref` is a book+edition+section, DOI, standard number, or URL; `used_for` names the equation/gate it backs. **Required in practice for derived models** (`tools/derived_model.py` refuses a source-less model at import time); recommended for everything else. |
+| `sources` | array of `{title, ref, used_for}` | the CITATIONS behind the equations — `ref` is a book+edition+section, DOI, standard number, or URL; `used_for` names the equation/gate it backs. **Required in practice for derived models** (`tools/analyzers/derived_model.py` refuses a source-less model at import time); recommended for everything else. |
 | `model_file` | string | for derived-model manifests: the runnable model file the manifest describes (relative to `tools/`) |
-| `derived_model` | bool | marks a manifest produced by the `tools/derived_model.py` scaffold |
+| `derived_model` | bool | marks a manifest produced by the `tools/analyzers/derived_model.py` scaffold |
 
 ### `validation` sub-object
 
 | field | type | meaning |
 |---|---|---|
-| `pin_file` | string | path to the `*_validation.py` that runs the check (the primary pin) |
+| `pin_file` | string | path to the `*_validation.py` that runs the check (the primary pin) — `tools/validation/<analyzer>_validation.py` since the 2026-09-02 layout |
 | `additional_pins` | array of string (optional) | further pins (may be `pending` until a parallel agent lands them) |
 | `ground_truth` | string | the closed-form / measured reference the pin compares against |
 | `error_band` | object | the pinned error interval(s), e.g. `{"coarse": "-20%..0", "fine": "-10%..0"}` |
@@ -79,7 +79,7 @@ forms with a hand-derived pin; `discretization.method` is "closed form" and the
 
 ## Derived-model manifests (`tools/manifests/derived/`)
 
-Manifests written by the `tools/derived_model.py` scaffold (an agent's
+Manifests written by the `tools/analyzers/derived_model.py` scaffold (an agent's
 on-the-fly physics model — see the 5-step loop in its docstring). Same schema,
 plus `sources` (mandatory there), `model_file`, and `derived_model: true`.
 Committing one to `tools/manifests/derived/<name>.manifest.json` AUTO-REGISTERS

@@ -2,7 +2,7 @@
 
 *(Companion: [`ANALYSIS_DOMAINS.md`](ANALYSIS_DOMAINS.md) — the capability
 contract: which physics domains are pinned in-tree, which are derivable with
-citations via `tools/derived_model.py`, and how the external-solver bridge
+citations via `tools/analyzers/derived_model.py`, and how the external-solver bridge
 works.)*
 
 This is the graduation pipeline's constitution. It says what it means for an
@@ -115,6 +115,11 @@ the research status in section 4).
 
 ### The current ledger (run `python3 tools/analyzer_registry.py`)
 
+Pins live in `tools/validation/`, the analyzers they pin in `tools/analyzers/`
+(renderers/emitters in `tools/publish/`, gate suites in `tools/tests/`; the
+2026-09-02 layout, mapped by `tools/_layout.py`, with a forwarding shim at
+every old flat `tools/<name>.py` path). The table names pins by basename.
+
 | analyzer | tier | manifest | pin |
 |---|---|---|---|
 | ace_fea | Validated | yes | yes (`ace_fea_validation.py`; Kt pin `ace_fea_kt_validation.py`) |
@@ -152,7 +157,7 @@ to hand derivations — **Validated there means "the arithmetic is proven
 against an independent hand derivation", not "a physics simulation"; their
 `kind` column still reads rules_engine / reporting.** The remaining audit and
 rules surfaces are useful and deterministic but have not been graduated. Agent-derived
-physics models (`tools/derived_model.py`) enter the ledger automatically when
+physics models (`tools/analyzers/derived_model.py`) enter the ledger automatically when
 their manifest is committed under `tools/manifests/derived/` — at Demonstrated,
 BELOW the line, until someone lands a ground-truth pin (see
 `docs/MANIFEST_SCHEMA.md`). The metric is
@@ -212,7 +217,7 @@ rejects.
 
 **Graduation path:** a synthesised analysis becomes a first-class analyzer only
 by landing (a) a committed manifest in `tools/manifests/`, (b) a committed
-`*_validation.py` pin against ground truth, and (c) a registry row — at which
+`tools/validation/*_validation.py` pin against ground truth, and (c) a registry row — at which
 point the registry (and CI) can report it `Validated`. Until all three exist, it
 stays synthesised and marked.
 
