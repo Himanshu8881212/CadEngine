@@ -152,7 +152,7 @@ FAILURE_ANALYSIS = {
 			"the fit was designed against nominal or a default clearance instead of the printer's measured "
 			"compensation, or the stack-up of the mating chain was never closed."
 		),
-		"data": "profiles/<printer>.json from tools/ingest_calibration.py (measured coupons), not a default guess",
+		"data": "data/profiles/<printer>.json from tools/ingest_calibration.py (measured coupons), not a default guess",
 		"run": ["tools/tolerance_stack.py", "tools/ingest_calibration.py"],
 		"run_note": "print the calibration coupons, ingest them, then re-close the stack for the named feature at worst case",
 		"derate": "tighten the nominal clearance by the measured deviation; carry the printer tolerance as a band, not a point",
@@ -165,7 +165,7 @@ FAILURE_ANALYSIS = {
 			"the fit was designed against nominal or a default clearance; the printer's real deviation ate "
 			"the gap, or the assembly stack closed the wrong way."
 		),
-		"data": "profiles/<printer>.json from tools/ingest_calibration.py (measured coupons), not a default guess",
+		"data": "data/profiles/<printer>.json from tools/ingest_calibration.py (measured coupons), not a default guess",
 		"run": ["tools/tolerance_stack.py", "tools/ingest_calibration.py"],
 		"run_note": "print the calibration coupons, ingest them, then re-close the stack for the named feature at worst case",
 		"derate": "open the nominal clearance by the measured deviation; a press fit gets an insertion-stress check too",

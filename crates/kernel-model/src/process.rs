@@ -8,7 +8,7 @@
 //!
 //! | process | status |
 //! |---|---|
-//! | FDM | **implemented**: [`FdmProfile`] (serde JSON in `profiles/`), fit/DFM helpers, measured-coupon calibration path (the `calibrate_fdm.rs` example — removed from the tree 2026-09-03, git history at `5a70984` — prints coupons → calipers → `tools/ingest_calibration.py` → `profiles/<printer>.json`) |
+//! | FDM | **implemented**: [`FdmProfile`] (serde JSON in `data/profiles/`), fit/DFM helpers, measured-coupon calibration path (the `calibrate_fdm.rs` example — removed from the tree 2026-09-03, git history at `5a70984` — prints coupons → calipers → `tools/ingest_calibration.py` → `data/profiles/<printer>.json`) |
 //! | sheet metal | declared sibling, **NOT implemented** — no bend allowance / K-factor / min-flange model yet; every entry point refuses loudly |
 //! | casting | declared sibling, **NOT implemented** as a profile — but the core castability check already exists as [`kernel_brep::draft_analysis`] (per-face draft angles + undercut detection); the refusal message points there |
 //! | CNC | declared sibling, **NOT implemented** — no tool-access / internal-corner-radius model yet; refuses loudly |
@@ -221,7 +221,7 @@ pub struct DfmFinding {
 #[serde(deny_unknown_fields)]
 pub struct FdmProfile {
 	/// Which printer/material this profile describes (file stem in
-	/// `profiles/`). `"conservative_default"` for the research-derived fallback.
+	/// `data/profiles/`). `"conservative_default"` for the research-derived fallback.
 	pub name: String,
 	/// RADIAL clearance (mm) for a snug/press hand-fit (insertable by hand,
 	/// holds by friction). Conservative source: DRYBOX press-stub — seat
@@ -292,7 +292,7 @@ impl FdmProfile {
 	/// The research-derived conservative fallback — exactly the numbers the
 	/// shipped RESPOOL/DRYBOX campaigns froze as consts and proved in print
 	/// (per-field provenance on each field's doc). Use this when no measured
-	/// `profiles/<printer>.json` exists yet; the calibration coupons replace
+	/// `data/profiles/<printer>.json` exists yet; the calibration coupons replace
 	/// it with reality.
 	pub fn conservative_default() -> FdmProfile {
 		FdmProfile {
@@ -368,10 +368,10 @@ impl FdmProfile {
 		Ok(p)
 	}
 
-	/// The repo-convention path of a named profile: `profiles/<name>.json`
+	/// The repo-convention path of a named profile: `data/profiles/<name>.json`
 	/// (relative — campaigns run from the repo root, like their outputs).
 	pub fn profiles_path(name: &str) -> String {
-		format!("profiles/{name}.json")
+		format!("data/profiles/{name}.json")
 	}
 
 	/// Save to `path` in the canonical byte-stable form (see

@@ -70,7 +70,7 @@ fn profile_json_snapshot_byte_stable() {
 	assert_eq!(
 		p.to_json(),
 		snapshot,
-		"FdmProfile::to_json byte-format drifted — profiles/*.json are diffable deliverables and tools/ingest_calibration.py writes the same shape; a format change must be deliberate and synchronized"
+		"FdmProfile::to_json byte-format drifted — data/profiles/*.json are diffable deliverables and tools/ingest_calibration.py writes the same shape; a format change must be deliberate and synchronized"
 	);
 	let back = FdmProfile::from_json(&p.to_json()).expect("canonical JSON must reload");
 	assert_eq!(back, p, "save → load must round-trip every field bit-exactly (float_roundtrip discipline)");

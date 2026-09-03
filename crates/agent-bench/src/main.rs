@@ -1,6 +1,6 @@
 //! Runner for the CAD Code agent-surface ruler: evaluates the seed criteria against
 //! the JSON surface, prints a red/green table, and writes the versioned scorecard to
-//! `bench/scorecard.json` (run from the repo root, e.g. `cargo run -p agent-bench`).
+//! `data/bench/scorecard.json` (run from the repo root, e.g. `cargo run -p agent-bench`).
 
 use agent_bench::{run_all, score, scorecard_json};
 
@@ -22,7 +22,7 @@ fn main() {
 	);
 
 	let card = scorecard_json(&criteria, &s);
-	let out = "bench/scorecard.json";
+	let out = "data/bench/scorecard.json";
 	match std::fs::write(out, serde_json::to_string_pretty(&card).unwrap()) {
 		Ok(()) => println!("\n  wrote {out}"),
 		Err(e) => eprintln!("\n  could not write {out} (run from the repo root): {e}"),
