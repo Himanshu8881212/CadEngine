@@ -2557,7 +2557,8 @@ model of that caller-policy layer.
 The contact scan proves parts *touch*; it cannot prove they are *attached*.
 Resting a stack of parts on each other passes every clearance check and
 falls apart in your hand. The tri-benchmark
-(`crates/kernel-model/examples/tri_benchmark.rs`) encodes the lesson — steal
+(`legacy/kernel-model-examples/tri_benchmark.rs`, kept out of the build since
+2026-09) encodes the lesson — steal
 its three moves:
 
 - **Recess/spigot registration**: the B-rep base carries a 2 mm-deep recess
@@ -3344,7 +3345,9 @@ to say so in the receipt rather than degrade silently. Read the receipts.
 ## 25. Campaign cookbook — gate-driven Rust examples
 
 The shipped print campaigns (DOVESTACK `drawer_system.rs`, POOLDOCK
-`pool_*.rs`, RESPOOL `respool.rs` — all in `crates/kernel-model/examples/`)
+`pool_*.rs`, RESPOOL `respool.rs` — all parked, uncompiled, in
+`legacy/kernel-model-examples/` since 2026-09; its README says how to restore
+one)
 share one architecture that this guide's JSON surface does not cover: a flat
 Rust `main` that builds parts with the `kernel_brep` API, then **re-proves
 every claim on every run** and exits non-zero on any FAIL. If you are

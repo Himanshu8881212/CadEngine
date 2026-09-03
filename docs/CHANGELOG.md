@@ -533,7 +533,7 @@ outside the repo; the graded party must not be able to touch it), campaign tier
 per docs/META_PROOFS.md §4.
 
 **VERDICT: PASS — 10/10 required criteria, plus both probes.** It shipped
-`crates/kernel-model/examples/drill_hook.rs` → `hook_system/drill_hook/`:
+`legacy/kernel-model-examples/drill_hook.rs` (then under `crates/kernel-model/examples/`) → `hook_system/drill_hook/`:
 40 gate rows, exit 0, the full 7-folder deliverable, ANALYSIS.md generated from
 live numbers, workspace suite green, clippy clean. Unprompted it also produced
 a print-first fit coupon, negative controls, and FEA receipts.

@@ -1,6 +1,8 @@
 # Kernel Performance Baseline
 
 Measured **2026-06-10** with `cargo run --example bench_kernel -p kernel-model --release`
+(the harness now lives uncompiled in `legacy/kernel-model-examples/bench_kernel.rs`; see that
+folder's README to restore it before re-measuring)
 (`std::time::Instant`, median of 3 runs per workload, `black_box`-guarded; release profile:
 opt-level 3, thin LTO).
 
@@ -147,6 +149,8 @@ quiet medians, so treat the march wall time as an upper bound):
 ## Reproducing
 
 ```
+# bench_kernel.rs is parked in legacy/kernel-model-examples/ — restore it first
+# (legacy/kernel-model-examples/README.md), then:
 cargo run --example bench_kernel -p kernel-model --release            # the median-of-3 table
 cargo run --example bench_kernel -p kernel-model --release -- --scale # + the scale section
 ```

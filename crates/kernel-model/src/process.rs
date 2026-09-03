@@ -8,7 +8,7 @@
 //!
 //! | process | status |
 //! |---|---|
-//! | FDM | **implemented**: [`FdmProfile`] (serde JSON in `profiles/`), fit/DFM helpers, measured-coupon calibration path (`examples/calibrate_fdm.rs` prints coupons → calipers → `tools/ingest_calibration.py` → `profiles/<printer>.json`) |
+//! | FDM | **implemented**: [`FdmProfile`] (serde JSON in `profiles/`), fit/DFM helpers, measured-coupon calibration path (`legacy/kernel-model-examples/calibrate_fdm.rs` prints coupons → calipers → `tools/ingest_calibration.py` → `profiles/<printer>.json`) |
 //! | sheet metal | declared sibling, **NOT implemented** — no bend allowance / K-factor / min-flange model yet; every entry point refuses loudly |
 //! | casting | declared sibling, **NOT implemented** as a profile — but the core castability check already exists as [`kernel_brep::draft_analysis`] (per-face draft angles + undercut detection); the refusal message points there |
 //! | CNC | declared sibling, **NOT implemented** — no tool-access / internal-corner-radius model yet; refuses loudly |
@@ -20,7 +20,8 @@
 //! # Where the conservative FDM numbers come from
 //!
 //! [`FdmProfile::conservative_default`] freezes the values the shipped
-//! campaigns (`respool.rs`, `drybox_roller.rs` — the modern references) proved
+//! campaigns (`respool.rs`, `drybox_roller.rs` — the modern references, parked
+//! in `legacy/kernel-model-examples/`) proved
 //! in print, so a campaign that has no measured printer profile inherits
 //! exactly the numbers that already survived physical validation. Each field's
 //! doc comment cites its source const. A **measured** profile produced by
@@ -557,7 +558,7 @@ impl FdmProfile {
 }
 
 /// The **frozen nominal dimensions of coupon set v1** — the single source of
-/// truth shared by `examples/calibrate_fdm.rs` (which prints them into
+/// truth shared by `legacy/kernel-model-examples/calibrate_fdm.rs` (which prints them into
 /// geometry and into `coupon_nominals.json`) and `tools/ingest_calibration.py`
 /// (which embeds the same numbers and is pinned against these consts by
 /// `tests/process.rs`). Change these only together with a version bump.
