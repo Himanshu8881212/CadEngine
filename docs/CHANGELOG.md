@@ -490,7 +490,7 @@ upper bound (over-quotes, never under-quotes), costed BOM grouping.
 mode-specific evidence REQUIRED, condition violations separated from design
 failures) + `tools/field_triage.py` (mode → the analysis that would have
 caught it → the permanent change) with a **re-audit hook** that parses a
-shipped `ANALYSIS.md` and names which green claim the failure contradicts.
+shipped `<campaign>/analysis/ANALYSIS.md` and names which green claim the failure contradicts.
 Proven on the real RESPOOL analysis: 25 claims parsed, the top hit landing
 exactly on the creep sentence. `docs/field_reports.jsonl` is a permanent
 LEDGER (never truncated, unlike the friction inbox); doctrine in

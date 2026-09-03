@@ -34,7 +34,7 @@ Repo root contains a space: always quote
 
 - **Every campaign ships an `assembly/` folder — single-part campaigns
   included.** It holds the ballooned exploded diagram
-  (`tools/publish/assembly_doc.py`), `ASSEMBLY_instructions.md`, and the BOM
+  (`tools/publish/assembly_doc.py`), `<campaign>/assembly/ASSEMBLY_instructions.md`, and the BOM
   (`tools/publish/production_dossier.py` → `bom_dossier.{csv,json}`), plus
   `scene/*.stl` when the part has distinguishable bodies. Wire the
   generation into the campaign's `<campaign>/run_all.sh`. See DELIVERABLE_SPEC §1 and
