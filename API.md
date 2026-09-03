@@ -1792,6 +1792,13 @@ Read `solids[*].bbox_*` for per-part envelopes (a keep-out for a case), and
 gate on `solids_skipped` / `faces_repaired` when the exact geometry matters:
 a flat-repaired face is inside the body's envelope but not its true surface.
 
+When only the envelopes are needed, the **census** (`kernel_brep::step_census`,
+Rust surface only) produces the identical `solids` listing without
+reconstructing a single B-rep — seconds on a file the full import takes
+minutes on (measured: 168/168 solids of a 45 MB, 168-solid vendor mainboard in
+7 s in a debug build). Every record is then `"status": "skipped"` with reason
+`census only (not reconstructed)` and `bbox_source: "edges"`.
+
 ### `import_mesh`
 Import a triangle-mesh file — `.stl`, `.obj`, `.3mf` or `.ply`, sniffed by
 extension (the kernel has **no glTF reader**) — weld it (STL and many
