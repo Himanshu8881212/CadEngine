@@ -3429,7 +3429,8 @@ carriers where they fit within tol and reports the residual. Engine-wide
 riders landed 2026-07-30: intra-arrangement threading (booleans ~2× on
 heavy chains at 8 cores, byte-identical to sequential BY CONSTRUCTION,
 `LMCAD_BREP_THREADS`, parity + threaded-40× pinned — docs/NUMERICS.md) and
-GPU narrow-band extraction (`kernel_gpu::extract_narrow_band`: preview
+GPU narrow-band extraction (`extract_narrow_band` in `kernel-gpu`, a crate
+parked unbuilt in `legacy/kernel-gpu/` since 2026-09: preview
 path, domains beyond the dense 2²⁸-cell cap delivered watertight, CPU
 stays bit-authoritative). The five capabilities on this JSON surface since
 2026-07-30: `offset_solid`, `shell_solid`, `solid_from_implicit`,

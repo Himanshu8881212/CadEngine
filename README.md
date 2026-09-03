@@ -259,7 +259,7 @@ params are ignored — which is precisely why the tool descriptions tell it to c
 | [`crates/kernel-model`](crates/kernel-model) | parametric `Document`/feature tree, 2D sketch + LM constraint solver, assemblies (mates, clearance/interference), parts catalog, materials, drawings, cost, hybrid routing, campaign gates |
 | [`crates/kernel-api`](crates/kernel-api) | the JSON op surface: 161 ops, one `Report` type — the contract everything above speaks |
 | [`crates/agent-bench`](crates/agent-bench) | the 36-criterion agent-surface ruler + the ≥5-part end-to-end benchmark |
-| [`crates/kernel-gpu`](crates/kernel-gpu), [`crates/kernel-wasm`](crates/kernel-wasm) | wgpu preview/bulk field extraction (CPU stays bit-authoritative); wasm bindings |
+| [`legacy/`](legacy/) | parked, **not built**: `kernel-gpu` (wgpu preview/bulk field extraction; CPU stays bit-authoritative), `kernel-wasm` (wasm bindings) and the pre-JSON Rust example campaigns — `legacy/README.md` has the restore steps |
 
 Around the kernel:
 

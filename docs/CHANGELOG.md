@@ -250,7 +250,8 @@ build evaluations 9.75% of dense, cache error 5.06e-4 mm, mesh-through-
 cache volume delta 0.00002%, hash-identical independent builds; octree
 scoped honestly to evaluation caching (T-junction discontinuity + non-
 conservative far field stated) (tests/sparse.rs).
-(3) **GPU narrow-band extraction** — `kernel_gpu::extract_narrow_band`:
+(3) **GPU narrow-band extraction** — `extract_narrow_band` (kernel-gpu; the crate
+was parked in `legacy/` 2026-09):
 coarse Lipschitz-safe block scan → prefix-sum compaction → refine active
 blocks with the SAME cube-edge unroll as dense (shared `edge_unroll()`);
 per-block re-evaluation of identical global-index coordinates ⇒ identical

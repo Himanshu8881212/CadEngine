@@ -160,6 +160,9 @@ internals change; keep old numbers in git history rather than editing them in pl
 
 ## GPU baseline (kernel-gpu, wgpu → Metal) — measured 2026-06-10
 
+(`kernel-gpu` is parked, unbuilt, in `legacy/kernel-gpu/` since 2026-09 — restore it
+per `legacy/README.md` before re-measuring.)
+
 `cargo run --example bench_gpu -p kernel-gpu --release` — adapter **Apple M3
 (IntegratedGpu), Metal**; CPU comparisons on the same machine's 8 cores via
 rayon. Load note: measured at load ~11–19 (other agents' suites draining);
