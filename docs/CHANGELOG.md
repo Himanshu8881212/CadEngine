@@ -833,3 +833,24 @@ v4 retains by a shoulder instead, and the dependency becomes a pass/fail proof.
   calibration dependency). `CAP_PRESS_R` keeps the cap's 0.025 mm press — the
   ONE interference fit left, and the one residual calibration dependence, which
   G16n prints every run so the headline cannot imply otherwise.
+
+FIXED 2026-09-02 (friction l12_mini_case F3/F4, uphill_roller F2/F3;
+`campaign/fixlog/2026-09-02-export-demotion-wedge-thickness.md`): **export
+demotion receipt** — `export_stl` / `export_3mf` (and `asm_export` per-instance
+entries) on the `voxel_healed` route carry `demotion: {reason, boundary_edges,
+non_manifold_edges, non_orientable_edges, non_manifold_vertices,
+degenerate_triangles, self_intersections, exact_triangles, witness[≤8]}`,
+naming the first failing check of the abandoned exact tessellation and
+locating it in the body's frame; the routing decision is untouched and exact
+exports are unchanged. **`wall_thickness` sampler** — area-uniform stratified
+sampling (65 536-sample budget, deterministic `(triangle, sub-cell)` hash
+jitter, no RNG state) replaces one centroid ray per triangle, so mirror-image
+dovetail grooves read 76.6 vs 76.8 mm² (the campaign measured 19.6 vs 101);
+meshes whose triangles are all below one budget cell (fine voxel-route meshes)
+read byte-identically; per-triangle `thickness` keeps the centroid ray. New
+`exclude_wedge_deg` sets knife-edge readings (ray exits through an
+edge-adjacent face at a convex material dihedral below the threshold) aside
+under `thin_area_wedge` / `thin_area_total` / `thin_wedge_witness`;
+`thin_witness` (≤ 8 thinnest flagged samples) and `samples` are always
+reported. Tests: `kernel-core mesh::thickness`, `kernel-api
+tests/export_demotion.rs`, `tests/wall_thickness_wedge.rs`.

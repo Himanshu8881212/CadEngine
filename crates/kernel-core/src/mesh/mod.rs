@@ -7,9 +7,11 @@
 
 mod formats;
 mod measure;
+pub mod thickness;
 pub(crate) use measure::triangle_triangle_distance;
 pub use measure::SelfIntersection;
 use std::collections::HashMap;
+pub use thickness::{ThicknessOptions, ThicknessSample, THICKNESS_SAMPLE_BUDGET};
 
 use crate::math::{Aabb, DMat3, DVec3, Obb, Ray, Vec2, Vec3};
 
@@ -166,16 +168,31 @@ pub struct DraftReport {
 }
 
 /// Ray-based wall-thickness analysis of a mesh — how thick the material is under
-/// each face, and where it is thinner than a printable/moldable minimum.
+/// each face, and where it is thinner than a printable/moldable minimum. Produced
+/// by [`Mesh::wall_thickness`] / [`Mesh::wall_thickness_with`]; the sampling
+/// contract is documented on [`mesh::thickness`](crate::mesh::thickness).
 #[derive(Clone, Debug)]
 pub struct ThicknessReport {
-	/// Smallest wall thickness measured over the sampled faces.
+	/// Smallest wall thickness over the COUNTED samples (every sample when no
+	/// wedge exclusion is set; the non-wedge samples otherwise).
 	pub min_thickness: f64,
-	/// Per-triangle thickness (inward ray distance to the opposite wall), in index
-	/// order. [`f64::INFINITY`] where the inward ray found no opposite wall.
+	/// Per-triangle thickness (inward ray from the triangle's centroid to the
+	/// opposite wall), in index order. [`f64::INFINITY`] where the inward ray
+	/// found no opposite wall. Unaffected by the wedge exclusion.
 	pub thickness: Vec<f64>,
-	/// Total area of faces thinner than the queried minimum.
+	/// Total area (area-weighted stratified samples) thinner than the queried
+	/// minimum, EXCLUDING the acute-wedge readings when an exclusion is set.
 	pub thin_area: f64,
+	/// Area thinner than the queried minimum whose reading is an acute-wedge
+	/// (knife-edge) reading — the ray left through a face that meets the sample's
+	/// own face at a convex material angle below `exclude_wedge_deg`. Always `0`
+	/// when no exclusion is set (those samples then count in `thin_area`).
+	pub thin_area_wedge: f64,
+	/// Every surface sample taken, in deterministic order (triangle order, then
+	/// the triangle's stratified sub-cells).
+	pub samples: Vec<ThicknessSample>,
+	/// The wedge exclusion the report was computed with, if any.
+	pub exclude_wedge_deg: Option<f64>,
 }
 
 /// The nearest point on a mesh surface to a query point.
@@ -610,6 +627,28 @@ impl Mesh {
 	/// edges" should point at them. Deterministic: first-encounter order of the
 	/// triangle scan.
 	pub fn non_orientable_edge_witnesses(&self, cap: usize) -> Vec<[f64; 3]> {
+		self.edge_witnesses(cap, |fwd, bwd| fwd + bwd == 2 && (fwd == 2 || bwd == 2))
+	}
+
+	/// Midpoints of up to `cap` boundary (open-rim) edges — the locatable form
+	/// of [`Mesh::boundary_edge_count`]. Same traversal order as
+	/// [`Mesh::non_orientable_edge_witnesses`].
+	pub fn boundary_edge_witnesses(&self, cap: usize) -> Vec<[f64; 3]> {
+		self.edge_witnesses(cap, |fwd, bwd| fwd + bwd == 1)
+	}
+
+	/// Midpoints of up to `cap` non-manifold edges (undirected edges used by
+	/// more than two triangles — a fin or T-junction). Same traversal order as
+	/// [`Mesh::non_orientable_edge_witnesses`].
+	pub fn non_manifold_edge_witnesses(&self, cap: usize) -> Vec<[f64; 3]> {
+		self.edge_witnesses(cap, |fwd, bwd| fwd + bwd > 2)
+	}
+
+	/// Midpoints of the first `cap` undirected edges whose directed use counts
+	/// `(forward, backward)` satisfy `offending`, in first-encounter order of the
+	/// triangle scan — the one traversal behind every edge-witness list, so the
+	/// three defect kinds are located the same way.
+	fn edge_witnesses(&self, cap: usize, offending: impl Fn(u32, u32) -> bool) -> Vec<[f64; 3]> {
 		let (dir, ordered) = self.directed_edges();
 		let mut seen: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
 		let mut out = Vec::new();
@@ -620,7 +659,7 @@ impl Mesh {
 			}
 			let fwd = dir.get(&key).copied().unwrap_or(0);
 			let bwd = dir.get(&(key.1, key.0)).copied().unwrap_or(0);
-			if fwd + bwd == 2 && (fwd == 2 || bwd == 2) {
+			if offending(fwd, bwd) {
 				let (p, q) = (self.positions[a as usize], self.positions[b as usize]);
 				let m = (p.as_dvec3() + q.as_dvec3()) * 0.5;
 				out.push([m.x, m.y, m.z]);
@@ -1223,40 +1262,6 @@ impl Mesh {
 			undercut_area,
 			undercut,
 		}
-	}
-
-	/// Ray-based wall-thickness analysis: from each face, cast a ray inward (along
-	/// `−normal`) and measure the distance to the opposite wall — the local wall
-	/// thickness. Faces thinner than `flag_below` are summed into `thin_area`. Uses
-	/// the [`MeshBvh`](crate::MeshBvh) internally, so the whole pass is `O(n log n)`.
-	/// Outward winding is assumed; an inward ray that escapes (an open mesh or a
-	/// through-hole) records [`f64::INFINITY`] for that face.
-	pub fn wall_thickness(&self, flag_below: f64) -> ThicknessReport {
-		let bvh = self.build_bvh();
-		let eps = self.aabb().size().length().max(1.0) * 1e-5;
-		let mut thickness = Vec::with_capacity(self.triangle_count());
-		let mut min_thickness = f64::INFINITY;
-		let mut thin_area = 0.0f64;
-		for t in self.indices.chunks_exact(3) {
-			let a = self.positions[t[0] as usize];
-			let b = self.positions[t[1] as usize];
-			let c = self.positions[t[2] as usize];
-			let area_vec = (b - a).cross(c - a);
-			let normal = area_vec.normalize_or_zero();
-			let centroid = (a + b + c) / 3.0;
-			// Start a hair inside so the originating face is behind the ray.
-			let ray = Ray::new(centroid - normal * eps, -normal);
-			let th = match bvh.raycast(ray) {
-				Some(hit) => (hit.t + eps) as f64,
-				None => f64::INFINITY,
-			};
-			thickness.push(th);
-			min_thickness = min_thickness.min(th);
-			if th < flag_below {
-				thin_area += (area_vec.length() * 0.5) as f64;
-			}
-		}
-		ThicknessReport { min_thickness, thickness, thin_area }
 	}
 
 	/// Reduce the cross-section by the given plane to its [`SectionProperties`]
