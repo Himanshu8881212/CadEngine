@@ -19,7 +19,7 @@ and names without needing the B-rep would have saved a day.
 the mainboard. Used for renders only (`assembly/scene/board_mesh.stl`, built by
 `vendor/board_mesh.py` outside the engine).
 
-## F3 — exact-route export is facet-luck sensitive (again), now with two clean bisections
+## F3 — exact-route export is facet-luck sensitive (again), now with two clean bisections  — DIAGNOSIS FIXED 2026-09-03
 
 - Tray: the catch **ridges** on the long walls at crest bottom z ≥ 3.0 demote the export to
   `voxel_healed` *only when the plug windows in the end walls also exist* — 43 mm apart,
@@ -36,17 +36,29 @@ the mainboard. Used for renders only (`assembly/scene/board_mesh.stl`, built by
   slot counterbore box whose sides graze the round one → healed. One rectangular counterbore
   covering the whole entry circle is clean.
 
-## F4 — `wall_thickness` reads mirror-image dovetail grooves 5× apart
+**FIXED in the engine (2026-09-03, commit on `cleanup-2026-09`):** a demoted export now
+carries `demotion` in its receipt — `reason` (the first failing check: boundary_edges /
+non_manifold_edges / non_orientable_edges / non_manifold_vertices / degenerate_triangles /
+self_intersection / tessellation_failed), the counts, and up to 8 `witness` points in the
+body's frame. The bisections above would have been a single receipt read. (The demotions
+themselves are still facet luck; the receipt now says where.)
+
+## F4 — `wall_thickness` reads mirror-image dovetail grooves 5× apart  — FIXED 2026-09-03
 
 Four identical floor grooves at x ±22/±90: the whole-tray thin_area reads 19.6 mm² with the
 ±22 pair, 101 mm² with the −90 groove and 19.6 with the +90 groove alone (min 0.037 vs 1.08).
 The lip of a female dovetail is a knife-edge wedge at the bed, so *some* thin reading is
 physical; the 5× asymmetry is the sampler. Adding a 1.0-mm vertical land to the neck moved
-the reading to the male rails (343/709 mm²) and demoted the tray export. Resolution: gate
-the tray minus the lip bands (`g_walls_nolip`, 0.0 mm²) and report the whole-body number
-under a loose bound. A `wall_thickness` option to exclude wedge edges (dihedral < 90°) or
-to report the thin patches' locations would make this a one-liner. `thin_wall`'s `at` is
-dominated by edges too.
+the reading to the male rails (343/709 mm²) and demoted the tray export. Resolution at the time: gate
+the tray minus the lip bands and report the whole-body number under a loose bound.
+
+**FIXED in the engine (2026-09-03, commit on `cleanup-2026-09`).** The sampler is now
+area-uniform and deterministic (mirror images agree to ~0.25 %; the 5× was one centroid ray
+per triangle on boolean triangulations), `wall_thickness` takes `exclude_wedge_deg` (wedge
+readings go to `thin_area_wedge`), and every receipt carries `thin_witness` with the
+locations. The campaign now gates the tray, foot rail and VESA frame with
+`exclude_wedge_deg: 75` and reads `thin_area` 0.0; the hand-cut lip-band workaround is
+deleted.
 
 ## F5 — `clearance` on complex bodies: `overlap_volume` null
 

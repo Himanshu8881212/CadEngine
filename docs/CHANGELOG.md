@@ -6,6 +6,49 @@ stays short; nothing was reworded — these are the original entries).
 Current-state summary and open frontier live in CLAUDE.md; the falsifiable
 scorecard in docs/BAR.md; deep friction write-ups in docs/FRICTION.md.
 
+CLEANUP + FIXES 2026-09-03 (branch `cleanup-2026-09`, four parallel worktrees):
+the two friction items that cost a day in each of the last two campaigns are fixed at
+the source. **F3 — silent export demotion:** an `export_stl`/`export_3mf` receipt that
+falls back to the voxel heal now carries `demotion` = {reason (first failing check:
+boundary_edges / non_manifold_edges / non_orientable_edges / non_manifold_vertices /
+degenerate_triangles / self_intersection / tessellation_failed), the counts, and ≤8
+`witness` points in the body's frame}; exact exports are unchanged. **F4 —
+`wall_thickness` read mirror-image dovetail grooves 5× apart:** the sampler is now
+area-uniform, stratified and deterministic (mirror images agree to ≈0.25 %; the 5× was
+one centroid ray per triangle on boolean triangulations), every receipt carries
+`thin_witness` (≤8 thinnest flagged samples with coordinates), and the new optional
+`exclude_wedge_deg` moves acute-wedge readings (dovetail lips, cone rims) into
+`thin_area_wedge` so `thin_area` is a statement about real walls. Coarse boolean bodies
+therefore report thin bands the centroid sampler missed — a measurement improvement, not
+a geometry change (table in `campaign/fixlog/2026-09-02-export-demotion-wedge-thickness.md`).
+
+STRUCTURE 2026-09-03: 32 pre-JSON `kernel-model` examples, `kernel-wasm` and
+`kernel-gpu` (nothing in the workspace depended on either) moved to `legacy/`;
+`kernel-api` gained a default-on `catalog` feature that gates the 52 hardware-catalog
+ops no campaign uses (`--no-default-features` = 109 of 161 ops; a gated op refuses with
+`unknown_op` naming the feature). `docs/OP_USAGE.md` is the census: 161 ops dispatched,
+84 used across 23 campaign trees.
+
+ANALYSIS 2026-09-03: `tolerance_stack`, `production_check` and `production_dossier`
+graduated Cataloged → **Validated** (manifest + ground-truth pin each); they were the
+three most-used analyzers in every campaign and had no pin. `ace_contact` receipts now
+report reaction forces at prescribed-displacement nodes (`reactions`, `tip_reaction_n`);
+`materials.creep_lookup` gained opt-in temperature/time interpolation between table
+cells (`interpolate=True`, receipt states `basis` and both bracketing cells; the
+conservative bucket remains the default). `tools/` reorganised into `analyzers/`,
+`publish/`, `validation/`, `tests/` with a forwarding shim at every old flat path (the
+runner-contract gate checks each shim), six orphaned tools parked under `tools/_parked/`,
+August's round records moved to `campaign/history/`. Binding agent reading list is now
+OPERATOR_BRIEF, DELIVERABLE_SPEC, digests/, PRINTABLES_LISTING_SPEC.
+
+REGRESSION 2026-09-03: `framework_system/l12_mini_case` 65/65 green and
+`magic_system/uphill_roller` 41/41 green on the cleaned engine, every print file and
+STEP byte-identical to the pre-cleanup build. Two campaign gates were rewritten to use
+the new mechanism honestly: the Framework tray/foot rail/VESA frame now gate with
+`exclude_wedge_deg: 75` and read `thin_area` 0.0 (the hand-cut lip-band workaround is
+deleted), and the CONEJURE ramp bounds `thin_area` at 6.0 mm² with a receipt note
+naming the ~85° plate corners the 4.07 mm² comes from.
+
 FIXED 2026-06-09 (do not regress; repro tests live in-tree): **R1** revolve of
 concave/multi-segment profiles; **R2/R3** booleans on faces with inner loops and cuts
 crossing cut curved walls (loop-aware triangulation/recovery/healing in booleans.rs);
