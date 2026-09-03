@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """graded_infill_runner.py — stress-graded gyroid lattice infill on LMCAD geometry.
 
-Bridge runner spawned by the LMCAD MCP server (``lmcad-mcp`` tool
-``graded_infill``): re-skins a solid and fills its interior with a sheet-gyroid
+Stress-graded infill runner (``python3 tools/graded_infill_runner.py
+job.json``): re-skins a solid and fills its interior with a sheet-gyroid
 lattice whose wall thickness follows a prior ``ace_fea`` von Mises field —
 thicker walls where the part works hardest, thin walls where it coasts. The
 gyroid (not Voronoi) is the lattice because sheet-gyroid walls are
@@ -45,8 +45,8 @@ erosion by round(shell_mm/voxel) (scipy.ndimage.binary_erosion); interior =
 the erosion. Per-voxel wall thickness t = wall.min + (wall.max - wall.min) *
 clip((vm - P_lo)/(P_hi - P_lo), 0, 1). The graded density is 1.0 on skin,
 the gyroid-band indicator |g| <= alpha(t) on interior, 0 outside; it is
-written to graded.npy and meshed BY THE KERNEL (one-shot ``lmcad-mcp``
-``run_program`` with ``mesh_density_grid`` — dual contour + heal, watertight-
+written to graded.npy and meshed BY THE KERNEL (one-shot ``kernel-api run``
+with ``mesh_density_grid`` — dual contour + heal, watertight-
 or-fail), escalating to voxel/2 and voxel/3 with one voxel of air padding
 when thin walls pinch at native resolution (the field is re-evaluated
 analytically at each finer grid, not interpolated).
@@ -55,7 +55,7 @@ Output contract: the LAST non-empty stdout line is ONE JSON object; all
 logging goes to stderr. Success => {ok:true, volume_mm3, ...}; any failure =>
 {ok:false, error} and a NONZERO exit (see THE WIRE + EXIT CONTRACT below).
 
-Honest caveats (echoed by the MCP tool description): the wall thickness is
+Honest caveats: the wall thickness is
 VOLUME-calibrated (see GyroidCalibration) — local thickness varies ~+/-10%
 (p10-p90) over the surface and the band thins where sheets merge; walls under
 ~2 voxels only resolve on the upsampled rungs; the result is a MESH ONLY, no
@@ -96,7 +96,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True  # keep tools/ free of __pycache__ litter
 REPO_ROOT = Path(os.environ.get("LMCAD_ROOT", Path(__file__).resolve().parents[2]))  # tools/analyzers/<this> -> repo root
-ENGINE_BIN = REPO_ROOT / "target" / "release" / "lmcad-mcp"
+ENGINE_BIN = REPO_ROOT / "target" / "release" / "kernel-api"
 
 MAX_MESH_CELLS = 48_000_000  # padded-grid ceiling per rung (same as ace_optimize)
 
@@ -200,34 +200,37 @@ class GyroidCalibration:
 
 
 def call_engine(program: dict, out_dir: Path, timeout_s: float = 300.0) -> dict:
-    """One-shot ``lmcad-mcp`` run_program (the param_optimize.py exchange).
+    """One-shot ``kernel-api run`` returning the FULL report.
 
-    The child is pointed at the job's out_dir for BOTH input resolution and
-    exports (LMCAD_ROOT + CADCODE_OUT_DIR), so the program reads graded .npy
-    files from and writes meshes into out_dir with plain relative names.
+    The program is MATERIALISED INSIDE ``out_dir`` and the CLI is pointed at
+    the same directory with ``--out-dir``, so a plain relative name in the
+    program (``graded_padded.npy`` in, ``graded_infill.stl`` out) means the
+    same file on both sides — ``kernel-api`` resolves relative inputs against
+    the program file's own directory and writes exports under ``--out-dir``.
+
+    Wire note (2026-09-03): this used to speak JSON-RPC to ``lmcad-mcp``.
+    ``studio/`` (server, web IDE, TUI, MCP server) was removed; ``kernel-api``
+    is the only engine binary. The CLI is also the better wire here — the MCP
+    tool result was capped at 60 KiB, which truncates a large report.
     """
     if not ENGINE_BIN.exists():
-        raise RuntimeError(f"engine binary not found at {ENGINE_BIN} — build with `cargo build --release -p studio-mcp`")
-    lines = "\n".join([
-        json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize",
-                    "params": {"protocolVersion": "2025-06-18", "capabilities": {}}}),
-        json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}),
-        json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                    "params": {"name": "run_program", "arguments": {"program": program}}}),
-    ]) + "\n"
-    env = {**os.environ, "LMCAD_ROOT": str(out_dir), "CADCODE_OUT_DIR": str(out_dir)}
-    out = subprocess.run([str(ENGINE_BIN)], input=lines, capture_output=True,
-                         text=True, timeout=timeout_s, env=env, cwd=REPO_ROOT)
-    for line in out.stdout.splitlines():
-        if not line.strip():
-            continue
-        try:
-            m = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if m.get("id") == 2:
-            return json.loads(m["result"]["content"][0]["text"])
-    raise RuntimeError(f"engine gave no response: {out.stderr[:300]}")
+        raise RuntimeError(f"engine binary not found at {ENGINE_BIN} — build with `cargo build --release -p kernel-api`")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"_graded_infill_program_{os.getpid()}.json"
+    path.write_text(json.dumps(program))
+    try:
+        out = subprocess.run(
+            [str(ENGINE_BIN), "run", str(path), "--out-dir", str(out_dir)],
+            capture_output=True, text=True, timeout=timeout_s,
+            env={**os.environ, "LMCAD_ROOT": str(REPO_ROOT)}, cwd=REPO_ROOT)
+    finally:
+        path.unlink(missing_ok=True)
+    if not out.stdout.strip():
+        raise RuntimeError(f"engine gave no report: {out.stderr[:300]}")
+    report = json.loads(out.stdout)
+    if not isinstance(report, dict) or not isinstance(report.get("ok"), bool):
+        raise RuntimeError("engine report must be an object with boolean `ok`")
+    return report
 
 
 def write_npy_f32(path: Path, arr) -> None:

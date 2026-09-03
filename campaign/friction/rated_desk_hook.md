@@ -41,3 +41,10 @@
 - **F2**: `render_views` (studio/mcp) now resolves `stl` against the out dir
   AND the repo root (read-only), and its miss error names both roots and the
   fix. A campaign's `parts/*.stl` renders without copying.
+- **F2 SUPERSEDED (2026-09-03)**: `studio/` — the HTTP server, the web IDE,
+  `lmcad-tui` and the `lmcad-mcp` MCP server — was removed from the
+  repository. There is no MCP surface and no `studio_out/mcp` sandbox any
+  more, so the sandbox class of failure cannot recur. Render views with the
+  CLI twins, which take ordinary CWD-relative paths:
+  `python3 tools/render_views.py job.json` and
+  `python3 tools/render_sheet.py job.json`.

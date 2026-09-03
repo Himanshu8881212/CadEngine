@@ -14,7 +14,7 @@
  free_free?: true,                                   # EXPLICIT opt-in; no fixtures without it = refusal, never a silent fallback
  n_modes?: 6, regions?}
 ```
-Outputs: `mode_shape_NN.npy` per elastic mode — (nx,ny,nz) float32 C-order per-VOXEL modal displacement magnitude (unit-max, zeros in void; same layout as ace_fea `disp_field.npy`, loadable by `GridField::from_npy_file`; per-element field, so GridField origin = job origin + voxel/2). Receipt: `frequencies_hz` (elastic, ascending), `rigid_body_modes_hz`, `boundary`, per-mode `participation` (effective_mass_kg/fraction + kinetic_fraction per axis — how the gates tell bending from torsion), `total_active_mass_kg`, `eigensolve` method, fixture node-count receipts, provenance envelope. Failure = `{ok:false, error}` + **exit 0** (MCP-bridge convention).
+Outputs: `mode_shape_NN.npy` per elastic mode — (nx,ny,nz) float32 C-order per-VOXEL modal displacement magnitude (unit-max, zeros in void; same layout as ace_fea `disp_field.npy`, loadable by `GridField::from_npy_file`; per-element field, so GridField origin = job origin + voxel/2). Receipt: `frequencies_hz` (elastic, ascending), `rigid_body_modes_hz`, `boundary`, per-mode `participation` (effective_mass_kg/fraction + kinetic_fraction per axis — how the gates tell bending from torsion), `total_active_mass_kg`, `eigensolve` method, fixture node-count receipts, provenance envelope. Failure = `{ok:false, error}` + **exit 0** (the legacy bridge convention — the JSON line is the contract, not the exit code).
 
 ## Benchmark gates (measured 2026-07-30, all green; bands frozen from these numbers)
 | gate | closed form | measured | band asserted |

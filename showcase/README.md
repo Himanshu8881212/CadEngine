@@ -52,14 +52,15 @@ the retention claim falsifiable:
 - `c_release` — same lift with the windows **untwisted**: MUST clear (measured 0.1488 mm).
   If this ever interferes, the part is not serviceable.
 
-The verification job orders re-run through the MCP tools and the Python analysis layer:
+The verification job orders re-run through the `kernel-api` CLI and the Python analysis layer:
 balance (`balance_job.json`), tolerance stacks (`tol_*.json` →
 `tools/analyzers/tolerance_stack.py`), motion sweeps (`sweep_*_job.json`), production dossier
 (`dossier_job.json` → `tools/publish/production_dossier.py`), drawing sheets (`sheet_*_job.json`
 → `tools/publish/render_sheet.py`), assembly document (`asmdoc_job.json` →
-`tools/publish/assembly_doc.py`). Start the MCP server with `./target/release/lmcad-mcp`; see
-[`../API.md`](../API.md) for the op reference and [`../DESIGN_GUIDE.md`](../DESIGN_GUIDE.md)
-for the operator manual.
+`tools/publish/assembly_doc.py`). Programs run with
+`./target/release/kernel-api run <program.json> --out-dir <dir>`; analysis jobs with
+`python3 tools/<tool>.py <job.json>`. See [`../API.md`](../API.md) for the op reference
+and [`../campaign/DESIGN_GUIDE.md`](../campaign/DESIGN_GUIDE.md) for the operator manual.
 
-Source: copied (never moved) from `studio_out/mcp/capspin`. The live working directory
-remains `studio_out/` (gitignored).
+Source: copied (never moved) from the scratch out-dir the campaign ran in (`studio_out/mcp/capspin`
+at the time; the default scratch tree is now `engine_out/`, gitignored).

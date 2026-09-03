@@ -1,5 +1,10 @@
 # G — Integrator fixlog
 
+> **Structure note (2026-09-03):** the `studio/` tree — HTTP server, web IDE,
+> `lmcad-tui`, and the `lmcad-mcp` MCP server — was removed from the repository.
+> Paths under `studio/` named below are historical; the engine is reached through
+> the `kernel-api` CLI, and the analysis layer through `python3 tools/<tool>.py`.
+
 Goal: prove the tree is healthy after six parallel owners landed changes, and that
 NOTHING regressed for the 10 shipped campaigns + the showcase.
 

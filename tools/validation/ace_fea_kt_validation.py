@@ -63,7 +63,7 @@ sys.path.insert(0, os.path.join(REPO, "tools"))
 import _layout  # noqa: E402
 ENGINE = os.path.join(REPO, "target", "release", "kernel-api")
 PY = os.environ.get("ACE_PYTHON", os.path.expanduser("~/miniconda3/bin/python"))
-OUT = os.path.join(REPO, "studio_out", "mcp", "kt_validation")
+OUT = os.path.join(REPO, "engine_out", "kt_validation")
 os.makedirs(OUT, exist_ok=True)
 
 # ---------------- specimen (mm) ----------------

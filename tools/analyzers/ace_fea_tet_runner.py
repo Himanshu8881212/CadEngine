@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """ace_fea_tet_runner.py — one-shot body-fitted tet10 reference FEA.
 
-Bridge runner spawned by the LMCAD MCP server (``lmcad-mcp`` tool ``ace_fea``
-with ``mesh:"body_fitted"``) to run ACE's validated body-fitted tet10
+Standalone job runner (``python3 tools/ace_fea_tet_runner.py job.json``, i.e.
+``ace_fea`` with ``mesh:"body_fitted"``) running ACE's validated body-fitted tet10
 linear-elastic solver (``engine.verify.fea_tet.reference_fea_tet``) on a
 conforming tet10 mesh (``engine.verify.mesh_ir.MeshIR``). This is the
 CURVED-GEOMETRY twin of ``ace_fea_runner.py`` (hex8 voxel grid): a true conic

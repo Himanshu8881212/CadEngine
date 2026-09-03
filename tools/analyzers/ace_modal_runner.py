@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ace_modal_runner.py — one-shot hex8 modal analysis (frequencies + mode shapes).
 
-Bridge runner spawned by the LMCAD MCP server (``lmcad-mcp`` tool ``ace_modal``)
+Standalone job runner (``python3 tools/ace_modal_runner.py job.json``)
 — and importable as a library (:func:`run_modal_job`) — solving the undamped
 free-vibration eigenproblem  K·phi = omega^2·M·phi  on LMCAD geometry.
 

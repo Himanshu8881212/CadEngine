@@ -14,14 +14,13 @@ rocket_out/
 # print-ready STLs are the artifact of record for the front-page example
 !showcase/**/*.stl
 
-# reference-assembly run outputs (large exports/reports) — reference/assembly/run_all.sh
+# scratch run outputs (large exports/reports)
 out/
 
-# LMCAD Studio: per-session run outputs + front-end build artifacts
+# default scratch out-dir for the Python analysis layer (tools/analyzers/*)
+engine_out/
+# pre-2026-09 name of the same scratch tree (LMCAD Studio, removed 2026-09-03)
 studio_out/
-studio/web/node_modules/
-studio/web/dist/
-studio/web/*.tsbuildinfo
 __pycache__/
 
 # ---- 2026-07-28 cleanup wave additions ----------------------------------------

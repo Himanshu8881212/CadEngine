@@ -28,8 +28,8 @@ tools/ used to be one flat directory of ~70 files. It is now:
                       gen_discover, ingest_calibration, dim_suggest,
                       field_report, field_triage — plus one FORWARDING SHIM
                       per moved script, so `python3 tools/<name>.py job.json`
-                      keeps working for every campaign, CI job and the MCP
-                      server (same argv, same stdout, same exit code).
+                      keeps working for every campaign and CI job
+                      (same argv, same stdout, same exit code).
 
 This module is the ONE place that knows the map. A moved script puts tools/
 on sys.path (its grandparent directory) and calls `add_import_paths()`; a test

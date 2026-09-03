@@ -2,8 +2,8 @@
 # LMCAD forwarding shim — param_optimize_drift_test.py moved to tools/tests/param_optimize_drift_test.py on 2026-09-02 (the
 # tools/ re-organisation; the map is tools/_layout.py). Run as a script it
 # executes the real file with the same argv, stdout and exit code, so
-# `python3 tools/param_optimize_drift_test.py job.json` keeps working for every campaign run_all.sh,
-# CI job and the MCP server; imported as a module it hands back the real module.
+# `python3 tools/param_optimize_drift_test.py job.json` keeps working for every campaign run_all.sh
+# and CI job; imported as a module it hands back the real module.
 # Edit the real file, never this one.
 import os
 import sys

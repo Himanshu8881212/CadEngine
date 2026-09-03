@@ -9,7 +9,7 @@ The template is a normal LMCAD work-order whose ops contain the string "$t"
 wherever the sweep parameter goes (same substitution semantics as
 param_optimize: any string equal to "$t" — including inside coordinate arrays —
 is replaced by the numeric station value). At every station the program is run
-through the engine (lmcad-mcp one-shot) and each watched `clearance` (or
+through the engine (`kernel-api run` one-shot) and each watched `clearance` (or
 `coincident_fit`) op's measures are collected.
 
 WHAT A SWEEP CAN AND CANNOT PROVE — read this before quoting one
@@ -19,7 +19,7 @@ them interfered. It is sampled, so it can only ever support "these stations are
 clear". It can NEVER support a *must-NOT-fit* claim:
   * between two clear stations anything may happen (sampling);
   * a body that interferes at EVERY station produces no free/interfering
-    transition at all, which is the documented blind spot in `docs/FRICTION.md`
+    transition at all, which is the documented blind spot in `campaign/friction/ENGINE.md`
     #27 — the tool sees a uniformly bad sweep and a uniformly uninformative one
     the same way.
 Anything asserting that something does NOT fit belongs on the exact oracle
@@ -96,7 +96,7 @@ SWEEP_SEMANTICS = (
     "A sweep is a SAMPLED FREE-MOTION proof: ok:true means no evaluated station "
     "interfered. It cannot support a must-NOT-fit claim — between two clear "
     "stations anything may happen, and an interference present at EVERY station "
-    "produces no transition for the sweep to see (docs/FRICTION.md #27). Use "
+    "produces no transition for the sweep to see (campaign/friction/ENGINE.md #27). Use "
     "`intersection` + `exact_volume` as the exact oracle for any 'does not fit' "
     "assertion.")
 
@@ -226,7 +226,7 @@ def build(job, job_path=None):
     # A sweep in which NO watch ever saw a clear station observed no free motion
     # at all, so it proved nothing — and the shape of that receipt (ok:false,
     # every station interfering) is exactly what a reader mistakes for a proof
-    # of interference. Refuse it by name instead (docs/FRICTION.md #27).
+    # of interference. Refuse it by name instead (campaign/friction/ENGINE.md #27).
     evaluated = [w for w in watch if receipts[w]["stations"] > 0]
     if evaluated and all(receipts[w]["all_stations_interfering"] for w in evaluated):
         out["error_kind"] = "refusal.no_free_station"

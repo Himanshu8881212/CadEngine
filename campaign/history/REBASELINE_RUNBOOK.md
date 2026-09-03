@@ -42,7 +42,7 @@ while any campaign workflow is live.
 
 ## Procedure (after the assembly workflow completes)
 
-1. `cargo build -p kernel-api -p studio-mcp --release` (REAL target dir this
+1. `cargo build -p kernel-api --release` (REAL target dir this
    time) + full `cargo test --workspace --release` + clippy + audit_docs.
 2. **Census first**: re-run the 111-program regression harness EXPECTING byte
    changes; record per-part which artifacts changed and why (holed faces) in

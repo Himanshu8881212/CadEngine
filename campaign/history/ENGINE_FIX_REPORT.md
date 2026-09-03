@@ -1,5 +1,10 @@
 # ENGINE FIX REPORT — integration of the six-owner fix pass
 
+> **Structure note (2026-09-03):** the `studio/` tree — HTTP server, web IDE,
+> `lmcad-tui`, and the `lmcad-mcp` MCP server — was removed from the repository.
+> Paths under `studio/` named below are historical; the engine is reached through
+> the `kernel-api` CLI, and the analysis layer through `python3 tools/<tool>.py`.
+
 **Date:** 2026-08-08 · **Role:** integrator (owner G) · **Scope:** prove the tree is
 healthy after owners A–F landed changes in parallel, and that nothing regressed for the
 10 shipped campaigns or the showcase.

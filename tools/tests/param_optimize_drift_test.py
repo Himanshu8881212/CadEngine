@@ -14,7 +14,7 @@ reported as full success. AFTER detection the run must:
     top-front edge (drifted candidates are rejected from the search).
 
 Run:  python3 tools/param_optimize_drift_test.py   (exit 0 on pass, nonzero on fail)
-Requires the release lmcad-mcp binary (cargo build --release --bin lmcad-mcp).
+Requires the release kernel-api binary (cargo build --release -p kernel-api).
 """
 import json
 import os

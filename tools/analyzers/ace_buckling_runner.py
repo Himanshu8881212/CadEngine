@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """ace_buckling_runner.py — one-shot hex8 linear buckling on LMCAD geometry.
 
-Bridge runner spawned by the LMCAD MCP server (``lmcad-mcp`` tool
-``ace_buckling``) — and importable as a library (:func:`run_buckling_job`) —
-running ACE's independent hex8 eigenvalue-buckling solver
+Standalone job runner (``python3 tools/ace_buckling_runner.py job.json``) —
+and importable as a library (:func:`run_buckling_job`) — running ACE's independent hex8 eigenvalue-buckling solver
 (``engine.verify.reference_buckling``) on geometry built by the LMCAD kernel:
 
   1. static pre-stress solve  K u = F  under the manifest's reference load;

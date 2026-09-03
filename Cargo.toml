@@ -7,9 +7,6 @@ members = [
 	"crates/kernel-model",
 	"crates/kernel-api",
 	"crates/agent-bench",
-	"studio/server",
-	"studio/tui",
-	"studio/mcp",
 ]
 
 [workspace.package]

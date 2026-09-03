@@ -74,18 +74,6 @@ jobs:
           python tools/tests/param_optimize_drift_test.py
           python tools/audit_docs.py --all-docs --fail-on warn
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: studio/web/package-lock.json
-      - name: Web install, audit, and production build
-        working-directory: studio/web
-        run: |
-          npm ci
-          npm audit --audit-level=high
-          npm run build
-
       - name: Require the protected-main physics pin check
         if: startsWith(github.ref, 'refs/tags/')
         env:
@@ -126,21 +114,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build release executables
-        run: cargo build --release --locked --target '${{ matrix.target }}' -p kernel-api -p studio-server -p studio-tui -p studio-mcp
+        run: cargo build --release --locked --target '${{ matrix.target }}' -p kernel-api
       - name: Install smoke tests and archive
         shell: bash
         run: |
           set -euo pipefail
           root="dist/lmcad-${GITHUB_REF_NAME}-${{ matrix.target }}"
           mkdir -p "$root"
-          for bin in kernel-api studio-server lmcad-tui lmcad-mcp; do
-            src="target/${{ matrix.target }}/release/$bin"
-            test -x "$src"
-            cp "$src" "$root/"
-          done
+          src="target/${{ matrix.target }}/release/kernel-api"
+          test -x "$src"
+          cp "$src" "$root/"
           printf '%s\n' '{"ops":[{"id":"b","op":"box","min":[0,0,0],"max":[1,1,1]}]}' > "$root/smoke.json"
           "$root/kernel-api" run "$root/smoke.json" --out-dir "$root/smoke-out" >/dev/null
-          "$root/lmcad-tui" --help >/dev/null
           cp README.md SECURITY.md LICENSE "$root/"
           tar -C dist -czf "$root.tar.gz" "$(basename "$root")"
           if command -v sha256sum >/dev/null; then

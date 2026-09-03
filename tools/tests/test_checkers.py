@@ -396,7 +396,7 @@ def test_sweep_check(wd):
 	steady = os.path.join(wd, "sweep_steady")
 	r, rc = run_tool("sweep_check.py", sweep_job(steady, 2.0, 6.0), wd, "sw_steady")
 	check("an all-stations-interfering sweep is REFUSED by name, not returned as a "
-	      "tidy ok:false (docs/FRICTION.md #27)",
+	      "tidy ok:false (campaign/friction/ENGINE.md #27)",
 	      r["ok"] is False and r.get("error_kind") == "refusal.no_free_station"
 	      and r["watches"]["fit"]["all_stations_interfering"] is True
 	      and rc == EXIT_REFUSED,

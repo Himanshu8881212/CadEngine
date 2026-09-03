@@ -1,5 +1,10 @@
 # B-creep-materials — T14 fix log
 
+> **Structure note (2026-09-03):** the `studio/` tree — HTTP server, web IDE,
+> `lmcad-tui`, and the `lmcad-mcp` MCP server — was removed from the repository.
+> Paths under `studio/` named below are historical; the engine is reached through
+> the `kernel-api` CLI, and the analysis layer through `python3 tools/<tool>.py`.
+
 Owner: B-creep-materials. Files owned: `tools/materials.py`, `tools/material_db.json`,
 `tools/materials/**`, `tools/production_check.py`, `tools/field_triage.py`,
 `tools/materials_crosslang_test.py`, `tools/solvers/*.md` (material/creep cards),

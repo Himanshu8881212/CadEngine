@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """production_check.py — Layer-1 FDM production rules engine on FEA results.
 
-Bridge runner spawned by the LMCAD MCP server (``lmcad-mcp`` tool
-``production_check``): takes the peak von Mises stress of a prior ``ace_fea``
+Standalone job runner (``python3 tools/production_check.py job.json``):
+takes the peak von Mises stress of a prior ``ace_fea``
 run plus the intended material / load character / service temperature /
 print orientation, and grades the part against derated allowables from
 ``tools/material_db.json``. Pure stdlib — no ACE, no numpy.
@@ -102,7 +102,7 @@ safety_factor_required, anisotropy_derate_applied, rules: [{rule,
 allowable_mpa, demand_mpa, SF, pass, detail}], skipped: [{rule, reason}],
 notes, disclaimer}.
 
-Honest caveats (echoed by the MCP tool description): allowables are TYPICAL
+Honest caveats: allowables are TYPICAL
 desktop-FDM datasheet values (verify per filament brand — the db says so);
 creep/fatigue knockdowns are engineering rules of thumb, not measured filament
 data; the anisotropy rule is scalar-tier (direction heuristic), not a

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """ace_optimize_runner.py — SIMP topology optimization on LMCAD geometry.
 
-Bridge runner spawned by the LMCAD MCP server (``lmcad-mcp`` tool
-``ace_optimize``): the standard SIMP + density-filter + optimality-criteria
+Standalone job runner (``python3 tools/ace_optimize_runner.py job.json``):
+the standard SIMP + density-filter + optimality-criteria
 loop (top88 lineage) driven by ACE's hex8 reference FEA in SIMP mode, then an
 HONEST final check — one binary-occupancy re-analysis of the thresholded
 design (the as-built part, not the homogenized proxy) — and a watertight-or-

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """ace_fea_runner.py — one-shot hex8 reference FEA on LMCAD geometry.
 
-Bridge runner spawned by the LMCAD MCP server (``lmcad-mcp`` tool ``ace_fea``)
-to run ACE's benchmark-validated hex8 linear-elastic solver
+Standalone job runner (``python3 tools/ace_fea_runner.py job.json``)
+running ACE's benchmark-validated hex8 linear-elastic solver
 (``engine.verify.reference_fea``) on geometry built by the LMCAD kernel.
 
 Usage:  <ACE_PYTHON> ace_fea_runner.py <job.json>
@@ -44,7 +44,7 @@ selected active elements, ``selector_count_unit: "nodes"``) — plus a
 active elements (the smeared-load mistake behind an earlier 3x-wrong
 benchmark).
 
-Honest caveats (echoed by the MCP tool description): coarse hex8 grids
+Honest caveats: coarse hex8 grids
 under-predict peak bending stress by roughly 20% vs a converged mesh; in
 SIMP mode the reported stress is the homogenized rho_eff^p * D B u, not a
 solid-material stress.

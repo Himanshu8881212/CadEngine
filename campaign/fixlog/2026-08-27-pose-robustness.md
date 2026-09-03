@@ -1,5 +1,10 @@
 # Fixlog — pose/boolean/export robustness round (2026-08-27)
 
+> **Structure note (2026-09-03):** the `studio/` tree — HTTP server, web IDE,
+> `lmcad-tui`, and the `lmcad-mcp` MCP server — was removed from the repository.
+> Paths under `studio/` named below are historical; the engine is reached through
+> the `kernel-api` CLI, and the analysis layer through `python3 tools/<tool>.py`.
+
 Trigger: the Back to School 2026 campaigns' friction files
 (`rated_desk_hook.md`, `folding_book_stand.md`); fixes maintainer-directed.
 

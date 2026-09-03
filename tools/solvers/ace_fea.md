@@ -16,7 +16,7 @@
 ```
 Outputs: `stress_field.npy` (von Mises, per-ELEMENT), `disp_field.npy`. Receipt: `max_von_mises_pa`, `max_displacement_m`, `tip_displacement_m`, `n_active_elements/n_dof`, per-selector node-count receipts (loads catching > 30% of active elements are flagged "suspiciously broad"), structured convergence receipt + `lmcad.analysis.v1` provenance envelope.
 **GridField hand-off**: fields are per-element; pass `origin = origin_mm + voxel/2` per `kernel_implicit::grid_field` doc.
-Failure = `{ok:false, error}` + **exit 0** — the JSON line is the contract, not the exit code (MCP-bridge convention; the thermal runner deliberately differs).
+Failure = `{ok:false, error}` + **exit 0** — the JSON line is the contract, not the exit code (the legacy bridge convention; the thermal runner deliberately differs).
 
 ## Benchmark record (pinned validations; measured values as of their pin dates)
 | pin | closed form | measured | band asserted |

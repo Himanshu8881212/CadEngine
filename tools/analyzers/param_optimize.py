@@ -98,8 +98,7 @@ import ast, copy, json, math, operator, os, subprocess, sys
 
 REPO = os.environ.get("LMCAD_ROOT", os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))  # tools/analyzers/<this> -> repo root
 BIN = os.path.join(REPO, "target", "release", "kernel-api")
-MCP_BIN = os.path.join(REPO, "target", "release", "lmcad-mcp")
-OUT_DIR = os.environ.get("CADCODE_OUT_DIR", os.path.join(REPO, "studio_out", "mcp"))
+OUT_DIR = os.environ.get("CADCODE_OUT_DIR", os.path.join(REPO, "engine_out"))
 ANALYZER_VERSION = "param_optimize/safe-ast-nelder-mead/v3"
 
 
@@ -114,7 +113,7 @@ def station_dir(job: dict, job_path: str | None = None) -> str:
 	most explicit first:
 
 	  job["program_dir"]  ->  job["out_dir"]  ->  the JOB FILE's own directory
-	  ->  CADCODE_OUT_DIR / studio_out/mcp (only when there is no job at all)
+	  ->  CADCODE_OUT_DIR / engine_out (only when there is no job at all)
 
 	so a template's relative paths mean the same thing they mean in the job that
 	carries them, and a re-run in a fresh checkout resolves identically."""
@@ -149,67 +148,47 @@ def _materialize(program: dict, program_dir: str) -> str:
 def call_engine(program: dict, out_dir: str | None = None, program_dir: str | None = None) -> dict:
 	"""One-shot engine run returning the FULL report.
 
-	Wire choice (audit 2026-07-16): the `kernel-api` CLI, not the MCP server —
-	the MCP tool-result text is capped at 60 KiB to protect LLM contexts, which
-	silently truncated large receipts (a `list_faces` of a real part) on the
-	old wire. The CLI prints the whole report; exports land in the same
-	`studio_out/mcp` tree (override with CADCODE_OUT_DIR). Falls back to the
-	MCP one-shot when only that binary is built, with the cap caveat.
+	Wire: the `kernel-api` CLI. Chosen at the 2026-07-16 audit over the then
+	available MCP server, whose tool-result text was capped at 60 KiB to
+	protect LLM contexts and so silently truncated large receipts (a
+	`list_faces` of a real part). The CLI prints the whole report; exports
+	land in the `engine_out` tree (override with CADCODE_OUT_DIR). The MCP
+	fallback wire went away with `studio/` on 2026-09-03 — `kernel-api` is now
+	the only engine binary, and a missing one is a loud error rather than a
+	silent downgrade to a capped channel.
 
 	`program_dir` is the directory the substituted program is written to, i.e.
 	the root every relative `import_step`/`load_part` path in it resolves
 	against — see `station_dir`. Default (None) keeps the legacy system-temp
 	behaviour so no existing caller changes; every caller in this tree now
 	passes one."""
-	if os.path.exists(BIN):
-		import tempfile
+	if not os.path.exists(BIN):
+		raise RuntimeError(
+			f"engine binary not found at {BIN} — build with `cargo build --release -p kernel-api`")
+	import tempfile
 
-		if program_dir:
-			path = _materialize(program, program_dir)
-		else:
-			with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-				json.dump(program, f)
-				path = f.name
-		try:
-			out = subprocess.run(
-				[BIN, "run", path, "--out-dir", os.path.abspath(out_dir) if out_dir else OUT_DIR],
-				capture_output=True, text=True, timeout=300, env={**os.environ, "LMCAD_ROOT": REPO}, cwd=REPO,
-			)
-			if not out.stdout.strip():
-				raise RuntimeError(f"engine gave no report: {out.stderr[:300]}")
-			report = json.loads(out.stdout)
-			if not isinstance(report, dict) or not isinstance(report.get("ok"), bool):
-				raise RuntimeError("engine report must be an object with boolean `ok`")
-			_assert_finite_tree(report, "$engine_report")
-			if out.returncode != 0 and report.get("ok") is True:
-				raise RuntimeError(f"engine exited {out.returncode} despite an ok:true report")
-			return report
-		finally:
-			os.unlink(path)
-	# Fallback: the MCP one-shot (results capped at 60 KiB by design — build
-	# target/release/kernel-api for uncapped tool runs).
-	lines = "\n".join([
-		json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}}}),
-		json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}),
-		json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "run_program", "arguments": {"program": program}}}),
-	]) + "\n"
-	out = subprocess.run([MCP_BIN], input=lines, capture_output=True, text=True, timeout=300, env={**os.environ, "LMCAD_ROOT": REPO}, cwd=REPO)
-	if out.returncode != 0:
-		raise RuntimeError(f"MCP evaluator exited {out.returncode}: {out.stderr[-300:]}")
-	for line in out.stdout.splitlines():
-		if not line.strip():
-			continue
-		try:
-			m = json.loads(line)
-		except json.JSONDecodeError:
-			continue
-		if m.get("id") == 2:
-			report = json.loads(m["result"]["content"][0]["text"])
-			if not isinstance(report, dict) or not isinstance(report.get("ok"), bool):
-				raise RuntimeError("MCP engine report must be an object with boolean `ok`")
-			_assert_finite_tree(report, "$engine_report")
-			return report
-	raise RuntimeError(f"engine gave no response: {out.stderr[:300]}")
+	if program_dir:
+		path = _materialize(program, program_dir)
+	else:
+		with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+			json.dump(program, f)
+			path = f.name
+	try:
+		out = subprocess.run(
+			[BIN, "run", path, "--out-dir", os.path.abspath(out_dir) if out_dir else OUT_DIR],
+			capture_output=True, text=True, timeout=300, env={**os.environ, "LMCAD_ROOT": REPO}, cwd=REPO,
+		)
+		if not out.stdout.strip():
+			raise RuntimeError(f"engine gave no report: {out.stderr[:300]}")
+		report = json.loads(out.stdout)
+		if not isinstance(report, dict) or not isinstance(report.get("ok"), bool):
+			raise RuntimeError("engine report must be an object with boolean `ok`")
+		_assert_finite_tree(report, "$engine_report")
+		if out.returncode != 0 and report.get("ok") is True:
+			raise RuntimeError(f"engine exited {out.returncode} despite an ok:true report")
+		return report
+	finally:
+		os.unlink(path)
 
 
 def substitute(node, values):
