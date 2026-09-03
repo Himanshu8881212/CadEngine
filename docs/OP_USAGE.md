@@ -11,9 +11,12 @@ did any shipped campaign ever name it? The result drives the `catalog` cargo fea
 
 ## Method
 
-- **Op list:** every arm of the `match kind` in `exec_op` (`crates/kernel-api/src/interp.rs`),
-  i.e. every `OpKind` variant the interpreter dispatches — the dispatch code, not the docs.
-  That is 161 ops; the family is the banner comment above the arm in `exec_op`.
+- **Op list:** every `OpKind` variant named by the `match kind` in `exec_op`
+  (`crates/kernel-api/src/interp.rs`), i.e. every variant the interpreter dispatches — the
+  dispatch code, not the docs. That is 161 ops; the family is the banner comment above the
+  arm in `exec_op`. (Since 2026-09-03 `exec_op` is a routing table: one arm per family,
+  handing off to the matching `crates/kernel-api/src/ops/<family>.rs`. The banners, the
+  families and the 161 variants are unchanged — only where each op's body lives moved.)
 - **Corpus:** `*_system/*/programs/*.json`, `gearbox/**/*.json` and `showcase/**/*.json` —
   868 JSON files, 394 of them program envelopes with an `ops` array,
   spread over 23 campaign directories (21 `*_system/<part>` campaigns plus `gearbox` and

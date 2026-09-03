@@ -825,7 +825,7 @@ impl Ctx<'_> {
 			.ok_or_else(|| self.bad(path, "'path' must be a string naming a .npy file"))?;
 		let origin = self.vec3(obj, "origin", path)?;
 		let cell = self.positive(obj, "cell", path)?;
-		let resolved = crate::interp::resolve_input_path(self.op_id, self.input_base, file)?;
+		let resolved = crate::ops::meshio::resolve_input_path(self.op_id, self.input_base, file)?;
 		let bytes = std::fs::read(&resolved).map_err(|e| OpError {
 			kind: ErrorKind::Io,
 			message: format!("op '{}': at {path}: cannot read '{}': {e}", self.op_id, resolved.display()),
