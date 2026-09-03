@@ -163,8 +163,12 @@ More consequences to plan around:
   therefore not byte-comparable across machines or across two different
   `--out-dir`s. See §3 of DELIVERABLE_SPEC for what determinism actually
   guarantees.
-- Always launch Python tools **from the repo root** and give job paths relative
-  to it, so a reader can copy your "Reproducing" line verbatim.
+- Always launch Python tools **from the workspace root** (the folder holding the
+  `<domain>_system/` campaigns, which sits next to the engine checkout) and give
+  job paths relative to it, so a reader can copy your "Reproducing" line verbatim.
+  Reach the tools through `"$ENGINE"/tools/<tool>.py`, where `run_all.sh` resolved
+  and exported `LMCAD_ENGINE` — never through a hard-coded `../../..`, which lands
+  on the workspace root and finds no engine. DELIVERABLE_SPEC §1 has the snippet.
 
 - Doc/render tools take `date` as a string input, never the clock —
   re-renders and rebuilt STLs must be byte-identical.

@@ -2,50 +2,50 @@
  "format": "lmc-asm",
  "version": 1,
  "units": "mm",
- "name": "shaft_input_stack",
+ "name": "shaft_output_stack",
  "instances": [
   {
-   "name": "shaft_in",
+   "name": "shaft_out",
    "source": {
-    "path": "../parts/shaft_input.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/shaft_output.lmcpart"
    },
    "pose": {
     "translation": [
      0.0,
-     -25.0,
+     -9.0,
      0.0
     ],
     "rotation": [
-     -0.7071067811865476,
-     0.0,
-     0.0,
-     0.7071067811865476
+     -0.7070798567270163,
+     -0.006170592427165338,
+     -0.006170592427165338,
+     0.7070798567270163
     ]
    }
   },
   {
-   "name": "g1p",
+   "name": "g2w",
    "source": {
-    "path": "../parts/gear_s1_pinion.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/gear_s2_wheel.lmcpart"
    },
    "pose": {
     "translation": [
      0.0,
-     6.0,
+     18.0,
      0.0
     ],
     "rotation": [
-     -0.7071067811865476,
-     0.0,
-     0.0,
-     0.7071067811865476
+     -0.7070798567270163,
+     -0.006170592427165338,
+     -0.006170592427165338,
+     0.7070798567270163
     ]
    }
   },
   {
-   "name": "608_in_A",
+   "name": "608_out_A",
    "source": {
-    "path": "../parts/bearing_608.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/bearing_608.lmcpart"
    },
    "pose": {
     "translation": [
@@ -62,9 +62,9 @@
    }
   },
   {
-   "name": "608_in_B",
+   "name": "608_out_B",
    "source": {
-    "path": "../parts/bearing_608.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/bearing_608.lmcpart"
    },
    "pose": {
     "translation": [
@@ -81,9 +81,28 @@
    }
   },
   {
-   "name": "spacer9_0",
+   "name": "spacer11_0",
    "source": {
-    "path": "../parts/spacer_9.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/spacer_11.lmcpart"
+   },
+   "pose": {
+    "translation": [
+     0.0,
+     30.0,
+     0.0
+    ],
+    "rotation": [
+     -0.7071067811865476,
+     0.0,
+     0.0,
+     0.7071067811865476
+    ]
+   }
+  },
+  {
+   "name": "spacer21_0",
+   "source": {
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/spacer_21.lmcpart"
    },
    "pose": {
     "translation": [
@@ -100,59 +119,40 @@
    }
   },
   {
-   "name": "spacer23_0",
+   "name": "key8_1",
    "source": {
-    "path": "../parts/spacer_23.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/key_2x2_8.lmcpart"
    },
    "pose": {
     "translation": [
-     0.0,
-     18.0,
-     0.0
+     2.799573546437898,
+     53.0,
+     0.048866738024393896
     ],
     "rotation": [
-     -0.7071067811865476,
-     0.0,
-     0.0,
-     0.7071067811865476
+     0.49561769378289877,
+     0.49561769378289877,
+     0.5043442292812726,
+     0.5043442292812725
     ]
    }
   },
   {
-   "name": "key8_0",
+   "name": "key10_1",
    "source": {
-    "path": "../parts/key_2x2_8.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/key_2x2_10.lmcpart"
    },
    "pose": {
     "translation": [
-     2.8,
-     -20.0,
-     0.0
+     2.799573546437898,
+     19.0,
+     0.048866738024393896
     ],
     "rotation": [
-     0.5,
-     0.5,
-     0.5,
-     0.5
-    ]
-   }
-  },
-  {
-   "name": "key10_0",
-   "source": {
-    "path": "../parts/key_2x2_10.lmcpart"
-   },
-   "pose": {
-    "translation": [
-     2.8,
-     7.0,
-     0.0
-    ],
-    "rotation": [
-     0.5,
-     0.5,
-     0.5,
-     0.5
+     0.49561769378289877,
+     0.49561769378289877,
+     0.5043442292812726,
+     0.5043442292812725
     ]
    }
   }

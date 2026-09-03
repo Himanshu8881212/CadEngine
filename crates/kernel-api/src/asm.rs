@@ -6,7 +6,7 @@
 //! contact/clearance scan — all reported as the same machine-readable
 //! [`Report`] the `run` subcommand emits (exit 0 iff every step succeeded).
 //!
-//! This is the official replacement for the `gearbox/tools/asmcheck` workaround
+//! This is the official replacement for the retired `tools/asmcheck` workaround
 //! harness (FRICTION.md #1): everything that harness had to reach through the
 //! Rust API for is now a CLI step with structured output.
 

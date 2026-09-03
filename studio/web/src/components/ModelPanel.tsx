@@ -1,5 +1,5 @@
 // MODEL tab: open a .lmcpart by repo-relative path (with quick links to the
-// in-repo gearbox recipes), then the loaded part's header, BOM meta and
+// in-repo reference recipes), then the loaded part's header, BOM meta and
 // feature history (kind + label, suppression shown honestly).
 
 import { useState } from 'react'
@@ -11,16 +11,20 @@ interface Props {
 	busy: boolean
 }
 
+// The in-repo reference recipes: the pre-W6 back-compat corpus that also
+// backs `reference/assembly/` (see that directory's README).
+const PARTS = 'crates/kernel-model/tests/fixtures/pre_w6_parts'
+
 const QUICK = [
-	'gearbox/parts/spacer_21.lmcpart',
-	'gearbox/parts/key_2x2_8.lmcpart',
-	'gearbox/parts/shaft_input.lmcpart',
-	'gearbox/parts/gear_s1_pinion.lmcpart',
-	'gearbox/parts/housing_base.lmcpart',
+	`${PARTS}/spacer_21.lmcpart`,
+	`${PARTS}/key_2x2_8.lmcpart`,
+	`${PARTS}/shaft_input.lmcpart`,
+	`${PARTS}/gear_s1_pinion.lmcpart`,
+	`${PARTS}/housing_base.lmcpart`,
 ]
 
 export function ModelPanel({ part, onOpen, busy }: Props) {
-	const [path, setPath] = useState('gearbox/parts/spacer_21.lmcpart')
+	const [path, setPath] = useState(`${PARTS}/spacer_21.lmcpart`)
 	return (
 		<div className="panel-body">
 			<div className="section-label">OPEN RECIPE (.lmcpart)</div>
@@ -30,7 +34,7 @@ export function ModelPanel({ part, onOpen, busy }: Props) {
 					value={path}
 					onChange={(e) => setPath(e.target.value)}
 					onKeyDown={(e) => e.key === 'Enter' && onOpen(path)}
-					placeholder="repo-relative path, e.g. gearbox/parts/spacer_21.lmcpart"
+					placeholder={`repo-relative path, e.g. ${PARTS}/spacer_21.lmcpart`}
 				/>
 				<button className="tb-btn" onClick={() => onOpen(path)} disabled={busy}>OPEN</button>
 			</div>

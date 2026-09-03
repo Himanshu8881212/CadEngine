@@ -64,7 +64,7 @@ pub fn artifacts_of(report: &Report, out_dir: &std::path::Path, session: &str) -
 /// `{"program": {"ops": [...]}, "session": "name"}`. The program executes via
 /// [`kernel_api::run_program_with_input_base`] with exports landing in the
 /// session out-dir and relative *input* paths (`load_part`) resolving against
-/// the repository root, so `gearbox/parts/x.lmcpart` just works.
+/// the repository root, so `crates/kernel-model/tests/fixtures/pre_w6_parts/x.lmcpart` just works.
 pub async fn run_endpoint(State(state): State<Arc<AppState>>, Json(body): Json<Value>) -> Response {
 	let (program, session) = if body.get("ops").is_some() {
 		(body.clone(), None)

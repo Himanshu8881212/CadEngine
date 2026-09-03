@@ -1,4 +1,4 @@
-# Studio smoke — executed 2026-06-11
+# Studio smoke — executed 2026-06-11, paths re-verified 2026-09-03
 
 Every number below is from a real run on this machine (macOS, release build,
 server started fresh with `ANTHROPIC_API_KEY` **unset**). Transcript captured
@@ -7,6 +7,17 @@ to `/tmp/smoke_transcript.txt` during the run; reproduced verbatim here.
 Setup: `cd studio/web && npm ci && npm run build` (clean install: **0
 vulnerabilities, `tsc -b && vite build` ✓ built in 1.37s**), then
 `./target/release/studio-server` from the repo root.
+
+> **2026-09-03 — path move, receipts unchanged.** The demo part used to live at
+> `gearbox/parts/spacer_21.lmcpart`. The gearbox campaign was retired from this
+> repository; the part file itself moved **byte-identically** to
+> `crates/kernel-model/tests/fixtures/pre_w6_parts/spacer_21.lmcpart` (the
+> pre-W6 back-compat corpus — see the README there). §2–§4 below were re-run
+> against the new path on 2026-09-03 and every receipt reproduced exactly:
+> load volume 1211.2724635180803 / 398 tris, `set_dim` 21→30 giving
+> 2118.3130944625236 / 248 tris, mesh fetch HTTP 200 / 12484 bytes / 248
+> triangles. The numbers below are therefore both the original run and the
+> re-verified run.
 
 ## 1. Catalog
 
@@ -18,10 +29,11 @@ families: 34 | first: spur_gear
 **34 families**, schemas asserted sane in-tests (unique ops, defaults within
 bounds/options, spur_gear builds from its own defaults).
 
-## 2. Part load — `gearbox/parts/spacer_21.lmcpart`
+## 2. Part load — `crates/kernel-model/tests/fixtures/pre_w6_parts/spacer_21.lmcpart`
 
 ```
-$ curl -s -X POST .../api/part/load -d '{"path": "gearbox/parts/spacer_21.lmcpart"}'
+$ curl -s -X POST .../api/part/load \
+    -d '{"path": "crates/kernel-model/tests/fixtures/pre_w6_parts/spacer_21.lmcpart"}'
 name: spacer_8x12_21 | dims: [{'name': 'len', 'value': 21.0}]
 features: [('Cylinder', 'tube'), ('Cylinder', None), ('Boolean', 'bored')]
 receipt: volume 1211.2724635180803 exact | route exact | tris 398 | watertight True
@@ -35,7 +47,8 @@ its feature tree), so the PARAMS demo uses this spacer, which has a real Dim.)
 ## 3. set_dim — the params-panel contract (`len` 21 → 30)
 
 ```
-$ curl -s -X POST .../api/part/set_dim -d '{"path": "gearbox/parts/spacer_21.lmcpart", "dim": "len", "value": 30}'
+$ curl -s -X POST .../api/part/set_dim \
+    -d '{"path": "crates/kernel-model/tests/fixtures/pre_w6_parts/spacer_21.lmcpart", "dim": "len", "value": 30}'
 dim: len 21.0 -> 30.0
 volume_before: 1211.2724635180803 -> volume_after: 2118.3130944625236 ( exact )
 route: exact | tris: 248 | watertight: True
@@ -49,7 +62,9 @@ dims now: [{'name': 'len', 'value': 30.0}]
 ```
 
 The edit lands in the actual repo file; after the smoke it was restored with
-`git checkout -- gearbox/parts/spacer_21.lmcpart` (0 residual changes).
+`git checkout -- crates/kernel-model/tests/fixtures/pre_w6_parts/spacer_21.lmcpart` (0 residual changes). Restoring it is
+**mandatory** — that file is part of the pre-W6 back-compat corpus and must
+never be left rewritten.
 
 ## 4. Mesh fetch
 

@@ -259,7 +259,7 @@ Mate kinds: `Coincident`, `Distance`, `Parallel`, `Concentric`, `Angle`
 the gear mate), `Fixed` (grounds any instance, not just index 0).
 
 ```bash
-kernel-api asm gearbox.lmcasm [--base-dir DIR] [--out-dir DIR] \
+kernel-api asm assembly.lmcasm [--base-dir DIR] [--out-dir DIR] \
                               [--tol MM] [--voxel MM] [--window MM]
 ```
 
@@ -298,9 +298,10 @@ contacts and BOM. Include cycles are refused loudly: `sub-assembly cycle:
 Sub-assemblies are path-referenced only (no inline assembly envelope).
 
 Proving design intent on top of the scan is the caller's policy: e.g. the
-gearbox pipeline (`gearbox/run_all.sh`) pipes both the flat and the nested
-report through `gearbox/check_asm.py`, which allowlists the designed contacts
-(52 in that assembly, classified by leaf name at any nesting level), pins the
+in-tree reference assembly (`reference/assembly/`, see its README) pipes both
+the flat and the nested report through `reference/assembly/check_asm.py`, which
+allowlists the designed contacts (52 in that
+assembly, classified by leaf name at any nesting level), pins the
 nested BOM v2 tree rollup, and fails on any unexpected touching pair.
 
 ---

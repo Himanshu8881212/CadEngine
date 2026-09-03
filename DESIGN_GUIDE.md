@@ -312,17 +312,21 @@ string (existing references keep building); `rm` removes only because no
 `.lmcasm` in the directory references the entry (else `dependents_exist`,
 provoked in §19.3).
 
-### 3.5 The reference assembly — gearbox
+### 3.5 The reference assembly
 
-The in-repo 15:1 two-stage gearbox (`gearbox/`) is the worked floor-plan
-project: 20 `.lmcpart` recipes, 21 part programs (one per part, plus a
-catalog-built circlip), a 37-instance `.lmcasm`, and a design-intent contact
-allowlist. Run the official surface:
+The 15:1 two-stage gearbox is the worked floor-plan project. Its design
+campaign has been retired, but the assembly itself is kept in-tree as the
+reference `.lmcasm` example (`reference/assembly/`, see its README): 20
+`.lmcpart` recipes (now the pre-W6 back-compat corpus under
+`crates/kernel-model/tests/fixtures/pre_w6_parts/`), a 37-instance flat
+`.lmcasm` plus its nested variant, and a design-intent contact allowlist. Run
+the official surface:
 
 ```bash
-target/release/kernel-api asm gearbox/gearbox.lmcasm --out-dir out/asm > asm_report.json
-python3 gearbox/check_asm.py asm_report.json        # design-intent layer
-# or everything at once: cd gearbox && ./run_all.sh
+target/release/kernel-api asm reference/assembly/gearbox.lmcasm --out-dir out/asm > asm_report.json
+python3 reference/assembly/check_asm.py asm_report.json   # design-intent layer
+# or everything at once (flat + nested + evidence programs + the negative
+# control, which must fail): sh reference/assembly/run_all.sh
 ```
 
 Executed for this edition (pinned current-main binary): exit 0; `load` 37
@@ -333,8 +337,8 @@ export 1,010,204 triangles watertight; `contacts` 78 pairs in the 1 mm
 window, 56 touching. `check_asm.py` then proves **52/52 designed contacts, 0
 unexpected**, tightest must-clear gap 0.050 mm (the designed gear-flank
 backlash — theory says 0.051), tolerating 4 known phantom pairs that
-`gearbox/check_artifacts.json` re-proves disjoint by exact booleans every
-run (§10.3, §24).
+`reference/assembly/check_artifacts.json` re-proves disjoint by exact booleans
+every run (§10.3, §24).
 
 ---
 # Part II — The work-order language
@@ -360,8 +364,8 @@ all verified by execution:
   `"segemnts": 64` reports the 32-segment faceted volume 382.377, not the
   64-segment 384.227. Misspelling a *required* param is a loud
   `invalid_param`. When in doubt, check a measure.
-- Top-level unknown keys are tolerated too (the gearbox programs carry a
-  `"_comment"` field).
+- Top-level unknown keys are tolerated too (the reference-assembly programs
+  in `reference/assembly/` carry a `"_comment"` field).
 - An **empty boolean result is an op failure** (`invalid_param`), not an empty
   solid — a disjoint `intersection` cannot bind. To *prove* disjointness, use
   `assert_disjoint` (distance-based, tessellation-accurate) or the exact
@@ -822,9 +826,9 @@ downstream could validate against it. Prove non-overlap positively instead
 Executed: one solid, three shells, 375.000 mm³. Disjoint bodies keep their
 own shells through a union, so `shells: N` is an exact-arithmetic proof that
 N bodies do not touch — tessellation-independent, unlike `assert_disjoint`
-(which gives you the *distance*, §10.3). The gearbox uses exactly this for
-gear-mesh interleave proofs and to re-arbitrate phantom contact-scan pairs
-(`gearbox/check_artifacts.json`).
+(which gives you the *distance*, §10.3). The reference assembly uses exactly
+this for gear-mesh interleave proofs and to re-arbitrate phantom contact-scan
+pairs (`reference/assembly/check_artifacts.json`).
 
 ### 7.4 Coplanar faces — measured today, and the honest history
 
@@ -883,8 +887,8 @@ A boolean *binds* an exact B-rep — routing only happens at export/measure
 time. `export_stl`/`export_3mf` tessellate the result on the exact adaptive
 path; if that mesh is watertight it ships `"route": "exact"`, else the
 winding-number heal re-meshes at `voxel` (§21.1). Every §7 example above
-ships exact. The one in-repo part that heals is the 64-feature gearbox
-housing (§24, FRICTION #19) — valid B-rep, leaky tessellation, honest route
+ships exact. The one in-repo part that heals is the 64-feature reference
+gearbox housing (§24, FRICTION #19) — valid B-rep, leaky tessellation, honest route
 receipt.
 
 ### 7.7 Boolean hygiene — the pre-flight checklist (learned 2026-07-28)
@@ -1278,18 +1282,20 @@ exact tessellations at `tol` (default 0.01), so treat the answer as accurate
 to about `tol` and keep `min_clearance` ≳ `tol` for hard proofs. For
 tessellation-independent proofs, the exact route is `union` + `assert
 shells` (§7.3). Both patterns in the wild: §10.2's shaft clearance (3.466
-mm), §20.3's gear backlash (0.0834 mm), and the gearbox's 52-contact
-allowlist (§18.6).
+mm), §20.3's gear backlash (0.0834 mm), and the reference assembly's
+52-contact allowlist (§18.6).
 
-Two assertion patterns worth stealing from the gearbox:
+Two assertion patterns worth stealing from the reference assembly
+(`reference/assembly/`):
 
 - **Mesh-clearance proof**: pose two gears at the mounted centre distance,
   `union` them, `assert shells == 2` — teeth interleave without contact, both
-  as-assembled and half-pitch-rolled (`gearbox/programs/check_mesh_stage*.json`).
+  as-assembled and half-pitch-rolled
+  (`reference/assembly/programs/check_mesh_stage1.json`, `check_mesh_stage2.json`).
 - **Exact disjointness despite mesh artifacts**: where the contact scan reads
   a phantom touch through a known tessellation leak, re-prove the pair with
   `pose → union → assert shells == 2` — the exact boolean is the truth
-  channel (`gearbox/check_artifacts.json`).
+  channel (`reference/assembly/check_artifacts.json`).
 
 ---
 # Part III — The implicit half
@@ -1959,7 +1965,7 @@ Authoritative against `kernel_model::Feature` (lib.rs) on current main.
 | 20 | `CircularRimFillet` | B | exact-torus rim fillet; `concave: true` = bore exit lip | §16.6 |
 | 21 | `LoftSolid` | B | section-stack loft, `Dim` points | §5.4 |
 | 22 | `SweepSolid` | B | profile along path, RMF, capped | §5.4 |
-| 23 | `CatalogPart` | B | any §20 standard part as one feature | gearbox recipes (e.g. `gearbox/parts/*.lmcpart`) |
+| 23 | `CatalogPart` | B | any §20 standard part as one feature | the reference-assembly recipes (e.g. `crates/kernel-model/tests/fixtures/pre_w6_parts/bearing_608.lmcpart`) |
 | 24 | `ORingGroove` | B | AS568 shaft gland cut | cut twin tabled §20.3 (runnable example in API.md; same kernel function) |
 | 25 | `CirclipGroove` | B | DIN 471/472 groove, `internal` flag | cut twins tabled §20.3 (API.md examples) |
 | 26 | `HeatsetBoss` | B | insert boss + undersized pocket | op twin executed §20.3 |
@@ -2537,7 +2543,7 @@ exact route's job (`union` + `shells`, §10.3) or the design-intent layer's
 `bom.json` groups by `(part name, parameter values)`: the §3.3 spacer's line
 carries `"params": "h=8"`; instantiate the same recipe at h=10 elsewhere and
 it becomes a second line. Suppressed instances are excluded (absent
-material). The 37-instance gearbox groups to 20 lines (§18.6). Since BOM v2
+material). The 37-instance reference assembly groups to 20 lines (§18.6). Since BOM v2
 the file is `{"schema": "bom/2", "flat": […], "tree": […]}` — `flat` is this
 grouping (plus the optional engineering columns of §18.7), `tree` mirrors
 the assembly structure, and a fixed-column `bom.csv` lands alongside.
@@ -2549,8 +2555,8 @@ above 1e-6), per-export `route` and `watertight`, `contacts.touching`. Note
 (measured, §16.8): a non-watertight *instance export* does not fail the asm
 run — the receipt says `"watertight": false` and the exit stays 0, unlike
 program-level `export_stl` which fails (`invalid_geometry`) if even the heal
-stays leaky. Your pipeline decides; the gearbox's `check_asm.py` is the
-model of that caller-policy layer.
+stays leaky. Your pipeline decides; the reference assembly's
+`reference/assembly/check_asm.py` is the model of that caller-policy layer.
 
 ### 18.6 The joinery doctrine: contacts ≠ connections
 
@@ -2573,8 +2579,8 @@ its three moves:
   "what holds this together?".
 
 Then *assert the design intent*: the tri-benchmark requires exactly 2
-designed contacts; the gearbox allowlists all 52 designed contacts and fails
-on any unexpected touch (`check_asm.py`), with `MUST_CLEAR` pairs (gear
+designed contacts; the reference assembly allowlists all 52 designed contacts
+and fails on any unexpected touch (`reference/assembly/check_asm.py`), with `MUST_CLEAR` pairs (gear
 flanks at the designed backlash) proven positive-distance. Joinery on the
 parts, intent in the checks.
 
@@ -2588,9 +2594,10 @@ resolves its own part sources against its own directory:
  "pose": [1,0,0, 0,1,0, 0,0,1, -41,0,38]}
 ```
 
-The worked artifact is the gearbox's nested variant
-(`gearbox/gearbox_nested.lmcasm` regrouping the three shaft stacks; run by
-`run_all.sh`). All receipts below are measured from that run.
+The worked artifact is the reference assembly's nested variant
+(`reference/assembly/gearbox_nested.lmcasm`, regrouping the three shaft stacks
+into `reference/assembly/asm/shaft_*.lmcasm`). All receipts below are measured
+from that run.
 
 **Semantics** — a sub-assembly solves its *own* mates at its own load, then
 enters the parent as **one rigid unit** at the instance pose. Parent-level
@@ -2599,7 +2606,7 @@ sub-assembly's internal member, no un-suppressing members suppressed inside
 the sub's own file). The reported `mates` residual is the max across all
 levels (measured 1.27e-12). Leaf parts get hierarchical names everywhere —
 contacts report pairs like `base ↔ stack_in/spacer9_0`, instance exports
-write `parts/02_stack_in_shaft_in.stl` — and the nested gearbox is held to
+write `parts/02_stack_in_shaft_in.stl` — and the nested variant is held to
 the *identical* 52-designed-contact allowlist as the flat one (measured:
 52/52, tightest must-clear gap 0.050 mm). Suppressing a sub-assembly
 instance drops its entire branch from geometry, contacts and BOM. An include
@@ -2643,8 +2650,8 @@ The `tree` view mirrors the structure with rollup counts — measured: 15
 top-level nodes, branches `stack_in: 8, stack_mid: 9, stack_out: 8`, tree
 total **37 = flat total 37** (20 flat lines) — and `bom.csv` (fixed column
 order, one header row) is the ERP hand-off. Both files are byte-identical
-across independent runs (asserted in-tree and re-pinned by the gearbox
-check).
+across independent runs (asserted in-tree and re-pinned by
+`reference/assembly/check_asm.py`).
 
 **What BOM v2 is not** (scope, on purpose): no revisions/ECO/release states,
 no suppliers or cost — part lifecycle lives in PLM-land (or your git
@@ -3179,7 +3186,7 @@ method it encodes, distilled:
    z_min == bed plane) — the stand shipped only after a standalone bed-planarity
    assertion, because receipts alone smiled through a 0.46 mm pillow.
 6. **Fits**: FDM at 0.4 mm nozzle wants ~0.2–0.3 mm designed radial
-   clearance on push fits (the gearbox prints at 0.2–0.25 design gaps);
+   clearance on push fits (the reference gearbox prints at 0.2–0.25 design gaps);
    resin holds the §17.4 fine band — and *measure* every fit you care about
    with `assert_disjoint`/`contacts` instead of trusting the slicer.
 
@@ -3249,7 +3256,7 @@ mind:
    closed ISLAND crossing in the patch chart, needing inner-ring chart
    trimming (the plane case is guaranteed boundary-to-boundary).
 2. **FRICTION #19 — housing-tessellation leak.** The exact adaptive
-   tessellation of one 64-feature gearbox housing goes leaky (post-Wave-5
+   tessellation of one 64-feature reference-gearbox housing goes leaky (post-Wave-5
    triangulator), so its STL ships `voxel_healed` (measured in §3.5's run:
    971,736 triangles, watertight) and the mesh-distance contact scan reads 4
    phantom touching pairs — each re-proven disjoint by exact booleans every

@@ -7,7 +7,7 @@
   {
    "name": "base",
    "source": {
-    "path": "parts/housing_base.lmcpart"
+    "path": "../../crates/kernel-model/tests/fixtures/pre_w6_parts/housing_base.lmcpart"
    },
    "pose": {
     "translation": [
@@ -20,7 +20,7 @@
   {
    "name": "lid",
    "source": {
-    "path": "parts/housing_lid.lmcpart"
+    "path": "../../crates/kernel-model/tests/fixtures/pre_w6_parts/housing_lid.lmcpart"
    },
    "pose": {
     "translation": [
@@ -72,7 +72,7 @@
   {
    "name": "bolt_0",
    "source": {
-    "path": "parts/screw_m4x12.lmcpart"
+    "path": "../../crates/kernel-model/tests/fixtures/pre_w6_parts/screw_m4x12.lmcpart"
    },
    "pose": {
     "translation": [
@@ -85,7 +85,7 @@
   {
    "name": "bolt_1",
    "source": {
-    "path": "parts/screw_m4x12.lmcpart"
+    "path": "../../crates/kernel-model/tests/fixtures/pre_w6_parts/screw_m4x12.lmcpart"
    },
    "pose": {
     "translation": [
@@ -98,7 +98,7 @@
   {
    "name": "bolt_2",
    "source": {
-    "path": "parts/screw_m4x12.lmcpart"
+    "path": "../../crates/kernel-model/tests/fixtures/pre_w6_parts/screw_m4x12.lmcpart"
    },
    "pose": {
     "translation": [
@@ -111,7 +111,7 @@
   {
    "name": "bolt_3",
    "source": {
-    "path": "parts/screw_m4x12.lmcpart"
+    "path": "../../crates/kernel-model/tests/fixtures/pre_w6_parts/screw_m4x12.lmcpart"
    },
    "pose": {
     "translation": [
@@ -124,7 +124,7 @@
   {
    "name": "bolt_4",
    "source": {
-    "path": "parts/screw_m4x12.lmcpart"
+    "path": "../../crates/kernel-model/tests/fixtures/pre_w6_parts/screw_m4x12.lmcpart"
    },
    "pose": {
     "translation": [
@@ -137,7 +137,7 @@
   {
    "name": "bolt_5",
    "source": {
-    "path": "parts/screw_m4x12.lmcpart"
+    "path": "../../crates/kernel-model/tests/fixtures/pre_w6_parts/screw_m4x12.lmcpart"
    },
    "pose": {
     "translation": [
@@ -150,7 +150,7 @@
   {
    "name": "bolt_6",
    "source": {
-    "path": "parts/screw_m4x12.lmcpart"
+    "path": "../../crates/kernel-model/tests/fixtures/pre_w6_parts/screw_m4x12.lmcpart"
    },
    "pose": {
     "translation": [
@@ -163,7 +163,7 @@
   {
    "name": "bolt_7",
    "source": {
-    "path": "parts/screw_m4x12.lmcpart"
+    "path": "../../crates/kernel-model/tests/fixtures/pre_w6_parts/screw_m4x12.lmcpart"
    },
    "pose": {
     "translation": [
@@ -176,7 +176,7 @@
   {
    "name": "dowel_0",
    "source": {
-    "path": "parts/dowel_4x12.lmcpart"
+    "path": "../../crates/kernel-model/tests/fixtures/pre_w6_parts/dowel_4x12.lmcpart"
    },
    "pose": {
     "translation": [
@@ -189,7 +189,7 @@
   {
    "name": "dowel_1",
    "source": {
-    "path": "parts/dowel_4x12.lmcpart"
+    "path": "../../crates/kernel-model/tests/fixtures/pre_w6_parts/dowel_4x12.lmcpart"
    },
    "pose": {
     "translation": [

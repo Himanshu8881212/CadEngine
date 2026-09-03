@@ -7,7 +7,14 @@ is logged here with severity and the exact JSON/evidence. Severities: **blocker*
 through this surface; workaround required), **major** (wrong/silent/missing behavior that
 cost real time or risks a bad part), **minor** (papercut/doc gap).
 
-Where a workaround exists it is named; the programs/files mentioned live in `gearbox/`.
+Where a workaround exists it is named. The `gearbox/` campaign directory this log was
+written against was **retired from the repository on 2026-09-03** (design campaigns now
+live outside this checkout). Nothing it proved was lost: the 20 `.lmcpart` recipes are
+kept as the pre-W6 backward-compatibility corpus in `crates/kernel-model/tests/fixtures/pre_w6_parts/`, and the assembly files, the
+design-intent allowlist and the evidence programs are kept as the reference example in
+`reference/assembly/` (which has its own README and `run_all.sh`). Paths below have been repointed at
+those homes; a path still written as `gearbox/…` names a file that went with the
+campaign and is called out as such.
 
 ## Disposition after the w6 friction pass (2026-06-11)
 
@@ -45,9 +52,10 @@ Where a workaround exists it is named; the programs/files mentioned live in `gea
 > per instance (route named per part), the merged assembled STL, every named
 > state's STL, and runs the B-rep-aware contact scan — all as one `run`-shaped
 > JSON report with the exit-0 contract (see API.md "The assembly surface").
-> `gearbox/tools/asmcheck` and `examples/gearbox_stl.rs` are retired, fully
-> replaced; `gearbox/run_all.sh` now drives `kernel-api asm` + `check_asm.py`
-> (the design-intent allowlist, the only gearbox-specific remainder).
+> the `asmcheck` and gearbox-STL example workaround harnesses are retired, fully
+> replaced; the pipeline (now `reference/assembly/run_all.sh`) drives `kernel-api asm` +
+> `check_asm.py` (the design-intent allowlist, the only assembly-specific
+> remainder).
 > On the gearbox: 37 instances, residual ~1e-12, 52 designed contacts found,
 > tightest must-clear gap 0.050 mm — identical to the retired harness.
 
@@ -79,7 +87,7 @@ Suggestion: `kernel-api check-asm <file.lmcasm>` (load + residual + BOM + report
 > bridge B-rep-only documents through the winding-number `MeshSdf` instead of an
 > empty mesh. Regression: `assembly_checks_see_brep_only_parts` (kernel-model).
 > The gearbox's 52-contact class is discoverable through `kernel-api asm`
-> (see #1); `gearbox/run_all.sh` asserts it.
+> (see #1); `reference/assembly/run_all.sh` asserts it.
 
 `Assembly::clearance` / `interferences` / `interference_volume` mesh each instance through
 the **implicit half** (`Instance::mesh` → `Document::evaluate` → SDF dual-contour). Every
@@ -112,7 +120,7 @@ document is B-rep-only), or at minimum return an error/flag instead of an empty 
 > — rotation about any axis through any point, then translation (exactly the
 > `.lmcasm` instance pose form; chain two poses for composed rotations). The
 > gearbox's `Rx(−90°)`-posed parts are now writable as programs:
-> `gearbox/check_artifacts.json` poses the real spacers/bolts verbatim from the
+> `reference/assembly/check_artifacts.json` poses the real spacers/bolts verbatim from the
 > assembly file and proves them disjoint from the housing.
 
 A gearbox's gears/shafts lie along Y; their assembly pose is `Rx(-90°)·Rz(phase)`. No op
@@ -140,7 +148,7 @@ feature already uses.
 > proofs the exact route is now also assertable in-program:
 > `union` + `assert {"shells": 2}`. Empty booleans remain loud failures by
 > design — the assertion ops are the intended way to state emptiness intent.
-> `gearbox/programs/check_clash_expected_fail.json` stays in-tree as the
+> `reference/assembly/programs/check_clash_expected_fail.json` stays in-tree as the
 > documented historical evidence.
 
 The natural check "these two posed gears must NOT intersect" is an `intersection` whose
@@ -148,7 +156,7 @@ EMPTY result is the pass condition — but an empty boolean is a loud `invalid_p
 **failure**, and "execution stops at the first failing op", so the check program exits 1
 on success-of-intent and there is no way to continue past it.
 
-Evidence — `gearbox/programs/check_clash_expected_fail.json` (kept in-tree as the
+Evidence — `reference/assembly/programs/check_clash_expected_fail.json` (kept in-tree as the
 documented expected-fail program; exits 1 with):
 
 ```json
@@ -172,7 +180,7 @@ binding an explicit empty + `"empty": true` measure.
 > present checks evaluated, every failure named with measured vs expected in
 > one message, measured values echoed as measures on pass. The gearbox
 > acceptance-style "shells == 2" greps are now in-program assertions
-> (`gearbox/check_artifacts.json`).
+> (`reference/assembly/check_artifacts.json`).
 
 Programs can *measure* (`validate`, `volume`, `wall_thickness`…) but cannot *assert*. The
 gearbox acceptance ("genus == 6", "shells == 2", "volume within x%") lives in my runner
@@ -198,7 +206,7 @@ should be a few thousand), with flank fidelity bounded by the voxel, not the inv
 Honest routing and honestly reported — but the flagship catalog part shouldn't need the
 fallback for a plain polygon extrusion.
 
-Evidence: `gearbox/out/report_p_gear_s1_wheel.txt`:
+Evidence — the run report for `p_gear_s1_wheel.json` (a campaign output, not committed):
 
 ```json
 {"id": "stl", "measures": {"route": "voxel_healed", "triangles": 331624, "watertight": true}}
@@ -237,7 +245,7 @@ One engine, two public grammars — and capabilities don't line up. Hit while bu
   (segments as `{"a": i, "b": j}`) are different schemas for the same concept; only the
   op one is documented in API.md — the Document one I had to read out of `sketch.rs`.
 
-Evidence: compare `gearbox/parts/shaft_input.lmcpart` (Box keyway cuts) with the one-line
+Evidence: compare `crates/kernel-model/tests/fixtures/pre_w6_parts/shaft_input.lmcpart` (Box keyway cuts) with the one-line
 op form `{"op": "shaft", "d": 8, "length": 73, "keyway": {...}}`.
 
 ## 8. [MAJOR] `bearing_seat` and `bolt_circle` exist in the kernel but on no public surface
@@ -291,7 +299,7 @@ far below a ~150 mm housing perimeter; metric cord is not supported. The lid fac
 to be a hand-built racetrack groove (two rounded-rect prisms differenced, 2.7 × 1.5 for a
 Ø2 cord at ~25 % squeeze) — Parker chart numbers hand-copied, not table-driven.
 
-Evidence: `gearbox/parts/housing_lid.lmcpart` features "groove ring outer/inner".
+Evidence: `crates/kernel-model/tests/fixtures/pre_w6_parts/housing_lid.lmcpart` features "groove ring outer/inner".
 
 ## 11. [MINOR] Heat-set inserts: boss-only, no pocket-only variant
 
@@ -423,8 +431,8 @@ M4-insert pockets and three web bores, so any mesh-distance contact scan
 (official or the retired harness) reads a phantom `0.0 mm` for
 `base↔bolt_0/bolt_3/spacer9_0/spacer10_0/spacer21_0` while the EXACT boolean
 proves clear air (bolt↔pilot 0.8 mm radial, spacer↔web 2 mm; probe: bolt-shank
-∩ base = empty). Handling: `gearbox/check_asm.py` tolerates exactly these five
-pairs as named artifacts, and `gearbox/check_artifacts.json` re-proves each
+∩ base = empty). Handling: `reference/assembly/check_asm.py` tolerates exactly these five
+pairs as named artifacts, and `reference/assembly/check_artifacts.json` re-proves each
 disjoint EVERY pipeline run through the exact layer (`pose` + `union` +
 `assert shells == 2`) — if one ever truly touches, the pipeline fails.
 

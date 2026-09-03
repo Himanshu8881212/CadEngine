@@ -8,9 +8,28 @@ first. Repo root (quote it): `"/Users/himanshu/Work/New-LMCAD/cad engine"`.
 
 ## 1. Naming and directory layout
 
-Campaigns live at `<domain>_system/<part_name>/` under the repo root
-(e.g. `camera_system/card_magazine/`, `printer_system/spool_hub/`).
-Names: lowercase snake_case; the part directory is the campaign unit.
+Campaigns live at `<domain>_system/<part_name>/` inside the **workspace**, a
+folder that sits NEXT TO the engine checkout, not inside it (e.g.
+`Workspace/camera_system/card_magazine/`). Names: lowercase snake_case; the part
+directory is the campaign unit.
+
+**The workspace rule.** The working directory of every campaign command is the
+**workspace root**, so the `<domain>_system/<part>/…` paths baked into programs and
+job files resolve unchanged. Only the ENGINE is elsewhere, and nothing may assume
+it is two levels up. `run_all.sh` resolves it once and exports it:
+
+```sh
+cd "$(dirname "$0")/../.." || exit 2          # the workspace root
+ENGINE="${LMCAD_ENGINE:-$(find_engine "$(pwd)")}"   # searches up, then siblings,
+export LMCAD_ENGINE="$ENGINE"                       # for Cargo.toml + tools/
+K="$ENGINE/target/release/kernel-api"
+python3 "$ENGINE"/tools/<tool>.py "$D/programs/<job>.json"
+```
+
+Any helper the campaign ships itself (a custom evaluator, a listing checker) must
+read `LMCAD_ENGINE` rather than computing `../../..`; that guess lands on the
+workspace root and finds no engine. Copy `find_engine` from an existing
+`run_all.sh`.
 
 Required layout (card_magazine convention):
 
@@ -452,8 +471,8 @@ When you hit an engine bug, tool crash, doc drift, or surprising refusal:
 Run through in order; any "no" means not done:
 
 1. Fresh-shell rebuild: every command in README "Reproducing" runs from the
-   repo root and exits per its contract; rebuilt STLs byte-identical to
-   `parts/` (`cmp`).
+   workspace root (with the engine found via `LMCAD_ENGINE`, not assumed) and
+   exits per its contract; rebuilt STLs byte-identical to `parts/` (`cmp`).
 2. All programs exit 0 and every gate in §2 is present, asserted, and its
    receipt is in `receipts/`.
 3. Negative controls executed THIS run: failure attitude interferes

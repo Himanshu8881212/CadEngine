@@ -14,8 +14,8 @@ rocket_out/
 # print-ready STLs are the artifact of record for the front-page example
 !showcase/**/*.stl
 
-# w5 dogfood outputs (large exports/reports)
-gearbox/out/
+# reference-assembly run outputs (large exports/reports) — reference/assembly/run_all.sh
+out/
 
 # LMCAD Studio: per-session run outputs + front-end build artifacts
 studio_out/

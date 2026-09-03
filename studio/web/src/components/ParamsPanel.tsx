@@ -70,7 +70,7 @@ export function ParamsPanel({ part, receipt, onSetDim, busy }: Props) {
 			{part.dims.length === 0 ? (
 				<div className="empty-note">
 					This recipe has no named parameters — every dimension is a literal in its feature tree
-					(true of several gearbox parts, e.g. the shafts). Open a parametric one such as
+					(true of several reference recipes, e.g. the shafts). Open a parametric one such as
 					spacer_21 or key_2x2_8, or ask Claude to parameterize it.
 				</div>
 			) : (

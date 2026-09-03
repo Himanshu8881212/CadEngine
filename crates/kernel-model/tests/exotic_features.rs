@@ -349,12 +349,14 @@ fn beam_lattice_fill_guards_fail_loud_and_old_documents_still_load() {
 		"an ungraded GyroidLattice must omit the grade key and reload evaluable:\n{saved_g}"
 	);
 
-	// And the real pre-W6 artifacts in the repo: every gearbox `.lmcpart` (written
-	// by the W5 dogfood, before the exotic variants existed) must still parse
-	// through `load_part`, and a known-cheap one must still rebuild a solid.
-	let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../gearbox/parts");
+	// And the real pre-W6 artifacts in the repo: every `.lmcpart` of the W5
+	// dogfood corpus (written before the exotic variants existed — see
+	// tests/fixtures/pre_w6_parts/README.md; these files must never be
+	// regenerated) must still parse through `load_part`, and a known-cheap one
+	// must still rebuild a solid.
+	let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/pre_w6_parts");
 	let mut parts: Vec<String> = std::fs::read_dir(&dir)
-		.expect("gearbox/parts exists")
+		.expect("tests/fixtures/pre_w6_parts exists")
 		.filter_map(|e| e.ok().map(|e| e.path()))
 		.filter(|p| p.extension().is_some_and(|x| x == "lmcpart"))
 		.map(|p| p.display().to_string())
@@ -371,7 +373,7 @@ fn beam_lattice_fill_guards_fail_loud_and_old_documents_still_load() {
 	}
 	assert!(
 		parts.len() == 20 && spacer_rebuilds,
-		"all 20 pre-W6 gearbox fixtures must load and the spacer must rebuild: found {} ({:?}…), spacer_ok={spacer_rebuilds}",
+		"all 20 pre-W6 fixtures must load and the spacer must rebuild: found {} ({:?}…), spacer_ok={spacer_rebuilds}",
 		parts.len(),
 		parts.first()
 	);

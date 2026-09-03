@@ -137,7 +137,10 @@ def _materialize(program: dict, program_dir: str) -> str:
 	by the caller."""
 	os.makedirs(program_dir, exist_ok=True)
 	_STATION_SEQ[0] += 1
-	path = os.path.join(program_dir, f"_lmcad_station_{os.getpid()}_{_STATION_SEQ[0]}.json")
+	# Absolute: the engine is invoked with cwd=REPO, and campaigns may live OUTSIDE
+	# the checkout (the workspace layout), where a caller-relative path resolves to
+	# nothing. The program's own directory still anchors its relative asset paths.
+	path = os.path.abspath(os.path.join(program_dir, f"_lmcad_station_{os.getpid()}_{_STATION_SEQ[0]}.json"))
 	with open(path, "w") as f:
 		json.dump(program, f)
 	return path
@@ -169,7 +172,7 @@ def call_engine(program: dict, out_dir: str | None = None, program_dir: str | No
 				path = f.name
 		try:
 			out = subprocess.run(
-				[BIN, "run", path, "--out-dir", out_dir or OUT_DIR],
+				[BIN, "run", path, "--out-dir", os.path.abspath(out_dir) if out_dir else OUT_DIR],
 				capture_output=True, text=True, timeout=300, env={**os.environ, "LMCAD_ROOT": REPO}, cwd=REPO,
 			)
 			if not out.stdout.strip():

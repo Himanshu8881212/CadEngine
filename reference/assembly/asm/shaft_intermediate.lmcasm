@@ -7,7 +7,7 @@
   {
    "name": "shaft_mid",
    "source": {
-    "path": "../parts/shaft_intermediate.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/shaft_intermediate.lmcpart"
    },
    "pose": {
     "translation": [
@@ -26,7 +26,7 @@
   {
    "name": "g1w",
    "source": {
-    "path": "../parts/gear_s1_wheel.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/gear_s1_wheel.lmcpart"
    },
    "pose": {
     "translation": [
@@ -45,7 +45,7 @@
   {
    "name": "g2p",
    "source": {
-    "path": "../parts/gear_s2_pinion.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/gear_s2_pinion.lmcpart"
    },
    "pose": {
     "translation": [
@@ -64,7 +64,7 @@
   {
    "name": "608_mid_A",
    "source": {
-    "path": "../parts/bearing_608.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/bearing_608.lmcpart"
    },
    "pose": {
     "translation": [
@@ -83,7 +83,7 @@
   {
    "name": "608_mid_B",
    "source": {
-    "path": "../parts/bearing_608.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/bearing_608.lmcpart"
    },
    "pose": {
     "translation": [
@@ -102,7 +102,7 @@
   {
    "name": "spacer10_0",
    "source": {
-    "path": "../parts/spacer_10.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/spacer_10.lmcpart"
    },
    "pose": {
     "translation": [
@@ -121,7 +121,7 @@
   {
    "name": "spacer10_1",
    "source": {
-    "path": "../parts/spacer_10.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/spacer_10.lmcpart"
    },
    "pose": {
     "translation": [
@@ -140,7 +140,7 @@
   {
    "name": "key8_2",
    "source": {
-    "path": "../parts/key_2x2_8.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/key_2x2_8.lmcpart"
    },
    "pose": {
     "translation": [
@@ -159,7 +159,7 @@
   {
    "name": "key12_0",
    "source": {
-    "path": "../parts/key_2x2_12.lmcpart"
+    "path": "../../../crates/kernel-model/tests/fixtures/pre_w6_parts/key_2x2_12.lmcpart"
    },
    "pose": {
     "translation": [

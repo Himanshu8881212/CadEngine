@@ -174,7 +174,8 @@ fn stem_of(path: &str) -> String {
 /// Request of `/api/part/load`.
 #[derive(Deserialize)]
 pub struct LoadRequest {
-	/// Repo-relative `.lmcpart` path (e.g. `gearbox/parts/spacer_21.lmcpart`).
+	/// Repo-relative `.lmcpart` path
+	/// (e.g. `crates/kernel-model/tests/fixtures/pre_w6_parts/spacer_21.lmcpart`).
 	pub path: String,
 	/// Session whose out-dir receives the viewport mesh (default `default`).
 	pub session: Option<String>,
