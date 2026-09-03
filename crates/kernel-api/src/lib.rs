@@ -58,7 +58,7 @@
 //! runnable example per op lives in `API.md` at the repo root.
 //!
 //! The second subcommand is the **`.lmcasm` executable surface** (BAR.md I3b /
-//! FRICTION.md #1): `kernel-api asm assembly.lmcasm [--base-dir DIR]
+//! campaign/friction/ENGINE.md #1): `kernel-api asm assembly.lmcasm [--base-dir DIR]
 //! [--out-dir DIR] [--tol MM] [--voxel MM] [--window MM]` loads an assembly
 //! file, re-solves its mates (gated residual), writes the merged / per-instance
 //! / per-named-state STLs and the BOM, and runs the contact scan — same report

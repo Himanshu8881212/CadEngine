@@ -3,7 +3,7 @@
 These 20 `.lmcpart` documents are **real pre-Wave-6 artifacts**. They were
 written by the W5 dogfood campaign (the 15:1 two-stage reference gearbox,
 built by a design engineer through public surfaces only — see
-`docs/FRICTION.md`) **before** the exotic `Feature` variants, the
+`campaign/friction/ENGINE.md`) **before** the exotic `Feature` variants, the
 `GyroidLattice` `grade` key, the `Tpms` family and the rest of the W6 schema
 work existed. That is the whole point of them: they are the only documents in
 the tree that were serialized by an older kernel, so they are the only honest
@@ -31,10 +31,12 @@ in the consuming test). Deleting one is not.
 - `spacer_10.lmcpart` still rebuilds an exact B-rep with positive volume and
   meta name `spacer_8x12_10`.
 
-They are also the part library behind the preserved reference assembly in
-`reference/assembly/` (the `.lmcasm` files there resolve their instance sources
-into this directory) and the path used by the studio walkthrough in
-`studio/SMOKE.md`.
+They were also the part library the retired reference `.lmcasm` gearbox
+resolved its instance sources into (that worked example was removed from the
+tree on 2026-09-03; it survives in git history). The live gate on the `.lmcasm`
+surface is `crates/kernel-api/tests/asm.rs`, which writes its own assembly
+documents and drives them through `run_assembly` — the same entry point the
+`kernel-api asm` CLI uses.
 
-`spacer_21.lmcpart` in particular carries a real `Dim` (`len`), which is why
-it is the part the studio params/`set_dim` demo drives.
+`spacer_21.lmcpart` in particular carries a real `Dim` (`len`), which makes it
+the one part in the corpus that carries a parametric dimension at all.

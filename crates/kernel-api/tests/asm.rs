@@ -1,10 +1,10 @@
 // Copyright (c) LMCAD. Licensed under the MIT License.
 
 //! End-to-end tests of the `.lmcasm` executable surface (`kernel-api asm`,
-//! FRICTION.md #1): a fixture assembly written through the public format API is
+//! campaign/friction/ENGINE.md #1): a fixture assembly written through the public format API is
 //! loaded, mate-checked, BOM'd, exported (merged / per-instance / per-state)
 //! and contact-scanned, all through [`run_assembly`] and the CLI binary — and
-//! the contact scan must SEE B-rep-only parts (FRICTION.md #2).
+//! the contact scan must SEE B-rep-only parts (campaign/friction/ENGINE.md #2).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

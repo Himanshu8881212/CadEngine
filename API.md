@@ -297,12 +297,13 @@ contacts and BOM. Include cycles are refused loudly: `sub-assembly cycle:
 '…/a.lmcasm' is already being loaded by this include chain (… -> …)`.
 Sub-assemblies are path-referenced only (no inline assembly envelope).
 
-Proving design intent on top of the scan is the caller's policy: e.g. the
-in-tree reference assembly (`reference/assembly/`, see its README) pipes both
-the flat and the nested report through `reference/assembly/check_asm.py`, which
-allowlists the designed contacts (52 in that
-assembly, classified by leaf name at any nesting level), pins the
-nested BOM v2 tree rollup, and fails on any unexpected touching pair.
+Proving design intent on top of the scan is the caller's policy. The pattern:
+pipe the `contacts` block of the asm report through a checker of your own that
+allowlists the *designed* fits, seats and butts by pair name, pins the BOM tree
+rollup, and exits nonzero on any unexpected touching pair. The retired
+reference gearbox did exactly this for both its flat and its nested report —
+52 designed contacts, classified by leaf name at any nesting level (see
+`campaign/DESIGN_GUIDE.md` §18.5–§18.6 for the method, §3.5 for the artifact).
 
 ---
 
@@ -1161,7 +1162,7 @@ Measures: `min_draft_deg`, `low_draft_area`, `undercut_area`.
 ### `mesh_components`
 Connected-body count of the tessellated solid — the **single-body oracle** the
 other gates cannot give. `shells` counts B-rep shell *records*, which can still
-read 1 on a part severed into floating lumps (docs/FRICTION.md #24: a tapered
+read 1 on a part severed into floating lumps (campaign/friction/ENGINE.md #24: a tapered
 cutter's apex run out through a wall leaves a free-floating panel that passes
 `validate`, watertightness, volume, sweeps and STEP round-trip). This measure
 tessellates the exact surfaces, position-welds vertices at `weld_tol` (so
