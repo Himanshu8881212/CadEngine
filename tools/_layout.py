@@ -1,5 +1,15 @@
 """_layout.py — the map of tools/ after the 2026-09-02 re-organisation.
 
+RETIREMENT DATE FOR THE FORWARDING SHIMS: **2027-03-02** (six months).
+The 46 shims at the old flat `tools/<name>.py` paths exist so that campaigns
+already written, and any CI job or command line quoting the old path, keep
+working across the move. They are debt with an end date, not a permanent layer.
+Before that date: regenerate the campaigns in the workspace against the real
+paths (`tools/analyzers/…`, `tools/publish/…`), then delete the shims and drop
+the "old path is a forwarding shim" checks from the runner-contract gate in
+tools/analyzer_registry.py. `python3 tools/_layout.py --shims` lists what is
+still standing.
+
 tools/ used to be one flat directory of ~70 files. It is now:
 
     tools/

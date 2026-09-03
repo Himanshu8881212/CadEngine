@@ -76,7 +76,7 @@ Everything it shipped — programs, receipts, drawings, listing — is in
 | [`crates/kernel-model`](crates/kernel-model) | feature tree, sketch solver, assemblies and mates, parts catalog, materials, drawings, campaign gates |
 | [`crates/kernel-api`](crates/kernel-api) | the JSON op surface and the one `Report` type everything speaks |
 | [`crates/agent-bench`](crates/agent-bench) | the agent-surface ruler and end-to-end benchmark |
-| [`tools/`](tools/) | the Python analysis layer: [`analyzers/`](tools/analyzers/), [`publish/`](tools/publish/), [`validation/`](tools/validation/) ground-truth pins, [`tests/`](tools/tests/). Old flat paths still work via shims |
+| [`tools/`](tools/) | the Python analysis layer: [`analyzers/`](tools/analyzers/), [`publish/`](tools/publish/), [`validation/`](tools/validation/) ground-truth pins, [`tests/`](tools/tests/). Old flat paths still work via shims (debt with an end date: 2027-03-02, see `tools/_layout.py`) |
 | [`campaign/`](campaign/) | **how a model must work**: [operator brief](campaign/OPERATOR_BRIEF.md), [deliverable spec](campaign/DELIVERABLE_SPEC.md), [operator manual](campaign/DESIGN_GUIDE.md), [op digests](campaign/digests/), [publishing spec](campaign/PRINTABLES_LISTING_SPEC.md), [friction logs](campaign/friction/) — see [`campaign/README.md`](campaign/README.md) |
 | [`docs/`](docs/) | **what the engine is and how far it can be trusted**: robustness floors, numeric contracts, analysis tiers, benchmarks, the changelog — see [`docs/README.md`](docs/README.md) |
 
