@@ -134,6 +134,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use kernel_core::math::{Affine3A, Quat, Vec3};
+use kernel_core::mesh::Mesh;
 use kernel_core::mesher::Resolution;
 use serde::{Deserialize, Serialize};
 
@@ -1134,7 +1135,7 @@ enum UnitKind {
 	/// [`Instance::from_mesh`]; BOM volume comes from the voxel fallback
 	/// (`volume_source: "mesh"`, honest).
 	MeshPart {
-		mesh: crate::Mesh,
+		mesh: Mesh,
 		part_name: String,
 	},
 }
@@ -1211,10 +1212,10 @@ fn load_assembly_nested(json: &str, base_dir: &Path, loading: &mut Vec<PathBuf>)
 				let path = base_dir.join(&rel);
 				let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
 				let read = match ext.as_str() {
-					"stl" => crate::Mesh::read_stl(&path),
-					"obj" => crate::Mesh::read_obj(&path),
-					"3mf" => crate::Mesh::read_3mf(&path),
-					"ply" => crate::Mesh::read_ply(&path),
+					"stl" => Mesh::read_stl(&path),
+					"obj" => Mesh::read_obj(&path),
+					"3mf" => Mesh::read_3mf(&path),
+					"ply" => Mesh::read_ply(&path),
 					other => Err(std::io::Error::new(
 						std::io::ErrorKind::InvalidInput,
 						format!("mesh source needs .stl/.obj/.3mf/.ply, got '.{other}'"),
