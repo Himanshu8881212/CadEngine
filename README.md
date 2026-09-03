@@ -21,9 +21,12 @@ because it was designed from the start to be *operated by a language model* unde
 rule:
 
 > **Receipts, not claims.** Every measure carries its `provenance`. Every export names
-> its `route` (`exact` vs `voxel_healed`) and whether it came out `watertight`. A model
-> driving this engine may not claim anything the report does not say — and when the
-> kernel cannot do something exactly, it **refuses** instead of quietly degrading.
+> its `route` (`exact` vs `voxel_healed`), whether it came out `watertight`, and — when
+> it *did* fall back — a `demotion` block naming the first failing check and up to eight
+> witness points on the offending edges. A model driving this engine may not claim
+> anything the report does not say, and when the kernel cannot do something exactly it
+> **refuses** instead of quietly degrading. A receipt that only says "it degraded" is
+> half a receipt; the engine is expected to say *where*.
 
 That rule is why this repo can show you a finished, printable, physically-checked object,
 let you re-derive every number in it from source in under a minute — and then point you
@@ -278,6 +281,16 @@ Around the kernel:
   registry: one card per solver stating its physics, contract, measured benchmarks and
   **validity limits** — a case outside those limits is a new solver or a declared gap,
   never a shrug.
+- [`campaign/`](campaign/) — the operating contract an agent works under, so two
+  campaigns are comparable and neither can grade its own homework:
+  [`OPERATOR_BRIEF.md`](campaign/OPERATOR_BRIEF.md) (engine mental model, failure
+  playbook), [`DELIVERABLE_SPEC.md`](campaign/DELIVERABLE_SPEC.md) (what every campaign
+  must ship: gates, negative controls, the `assembly/` folder, honesty rules),
+  [`digests/`](campaign/digests/) (exact op and tool JSON shapes),
+  [`PRINTABLES_LISTING_SPEC.md`](campaign/PRINTABLES_LISTING_SPEC.md) + `listing_lint.py`
+  (the publishing contract, field limits and the mandatory AI declaration),
+  [`friction/`](campaign/friction/) (what fought back, per campaign — the queue engine
+  fixes come from) and [`history/`](campaign/history/) (closed rounds).
 - **The 10 MCP tools**: `run_program`, `describe_api`, `run_assembly`, `ace_fea`,
   `ace_optimize`, `ace_modal`, `ace_buckling`, `graded_infill`, `production_check`,
   `render_views` (a 12-view contact sheet returned as an image — vision in the loop; it
@@ -304,6 +317,17 @@ still match the source:
   curved wall (and some parallel-flank sliver overlaps) is *refused* by the `try_*` path
   rather than mis-stitched; the refusal now names the remedy. Pinned repros in
   [`docs/BAR.md`](docs/BAR.md) and [`docs/ROBUSTNESS.md`](docs/ROBUSTNESS.md).
+- **Vendor STEP is a graded capability, not a yes.** `import_step` has a `tolerant`
+  mode: per-face failures are repaired or skipped instead of aborting the file, and the
+  receipt lists **every** solid with its name, envelope and `imported`/`skipped` status,
+  so a real vendor assembly at least yields a trustworthy envelope. Framework's Expansion
+  Card and battery import completely (strict mode included). Their 45 MB, 168-solid
+  mainboard is **census only** — names and envelopes in ~7 s; its full reconstruction is
+  not verified and must not be assumed.
+- **Half the analysis surface is below the validated line.** 9 of 18 registered analyzers
+  are **Validated** (manifest + ground-truth pin), 7 Demonstrated, 2 Cataloged —
+  `python3 tools/analyzer_registry.py` prints the ledger and refuses to let a tier be
+  claimed without its pin. Tier is evidence, not vibes: read it before quoting a number.
 - **Fillets: convex rims only** (`fillet_circular_rim`, exact-torus rims); NURBS faces
   don't survive booleans (they tessellate at the cut); STEP still lacks trimmed-NURBS
   faces and sphere poles.
@@ -324,6 +348,11 @@ still match the source:
   `tests/determinism.rs`.
 - **Grade:** v1.0 sits at **9.5/10** on the falsifiable ladder in
   [`docs/BAR.md`](docs/BAR.md) — a ladder written to be *failed*, not passed.
+- **Measurement changes are treated as regressions too.** When the wall-thickness
+  sampler became area-uniform (it had read mirror-image dovetail grooves 5× apart), the
+  two live campaigns were re-run and their gates rewritten to the new mechanism rather
+  than re-tuned to hide the difference — geometry byte-identical, every gate green, and
+  the readings the old sampler had *missed* now visible with witness coordinates.
 - **The docs are falsifiable too:** `tools/audit_docs.py` mechanically checks every op
   count, path, cross-reference, symbol and proof-claim in the doc corpus against source,
   and CI gates on it — a doc that drifts from the code fails the build.
