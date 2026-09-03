@@ -1,0 +1,22 @@
+Third-party fixtures in this directory
+=======================================
+
+fw_expansion_card.step
+----------------------
+Framework Expansion Card enclosure ("FW_EXC_3PARTY_WO_LID_ASM_ST2", Creo
+Parametric STEP AP203 export, 2021-04-08), an assembly of 3 solids (one of
+them instanced twice) with 107 cylindrical, 12 spherical, 12 toroidal and 8
+conical faces plus 64 B-spline edge curves.
+
+  Copyright (c) Framework Computer Inc.
+  Licensed under the Creative Commons Attribution 4.0 International License
+  (CC BY 4.0) — https://creativecommons.org/licenses/by/4.0/
+  Source repository: https://github.com/FrameworkComputer/ExpansionCards
+
+The file is redistributed here unmodified as a test fixture for the STEP
+importer (`tests/step_tolerant.rs`): it is the real vendor file that the
+tolerant import mode, holes on curved analytic faces and the general
+periodic-region parameterisation were built against.
+
+Every other fixture in this directory is hand-authored for this repository
+and carries its license.

@@ -344,7 +344,9 @@ fn run_one(
 		Ok(k) => k,
 		// serde reports an unrecognized tag as "unknown variant `...`"; the
 		// error-paths test pins this mapping so a serde message change is caught.
-		Err(e) if e.to_string().starts_with("unknown variant") => {
+		// The SAME message names an unrecognised enum VALUE of a known op's param
+		// (`"mode": "lenient"`), which is a bad param, not an unknown op.
+		Err(e) if e.to_string().starts_with("unknown variant") && crate::discover::op_params(op_name).is_none() => {
 			return (
 				id.clone(),
 				warnings,
@@ -553,6 +555,86 @@ fn bind_solid(op_id: &str, what: &str, solid: Solid) -> Result<Outcome, OpError>
 		));
 	}
 	Ok(Outcome { value: Some(EnvValue::Solid(solid)), measures: None, file: None })
+}
+
+/// `import_step` in `tolerant` mode: the kernel's tolerant importer, whose
+/// receipt — every solid of the file with its product name, status and placed
+/// envelope; every skip and repair with the entity id and verbatim reason —
+/// becomes the measures, and the compound of the imported solids binds. Nothing
+/// imported is a loud `invalid_geometry` whose message carries the counts and
+/// the first reasons (a bound solid is what the op promises; the envelope census
+/// is a measure of a *successful* import, never a substitute for one).
+fn import_step_tolerant_op(op_id: &str, path: &Path, text: &str) -> Result<Outcome, OpError> {
+	use kernel_brep::{ImportEvent, SolidStatus};
+	let imp = kernel_brep::import_step_tolerant(text).map_err(|e| {
+		let kind = match &e {
+			StepError::Topology(_) => ErrorKind::InvalidGeometry,
+			_ => ErrorKind::InvalidParam,
+		};
+		err(kind, format!("op '{op_id}': import_step '{}' (tolerant): {e}", path.display()))
+	})?;
+	let v3 = |v: kernel_core::math::DVec3| json!([v.x, v.y, v.z]);
+	let event = |e: &ImportEvent| json!({ "entity": e.entity, "kind": e.kind, "solid": e.solid, "reason": e.reason });
+	let solids: Vec<Value> = imp
+		.solids
+		.iter()
+		.map(|s| {
+			let mut o = json!({
+				"name": s.name,
+				"path": s.path,
+				"entity": s.entity,
+				"status": s.status.as_str(),
+				"bbox_min": v3(s.bbox_min),
+				"bbox_max": v3(s.bbox_max),
+				"bbox_source": s.bbox_source,
+				"faces": s.faces,
+				"faces_repaired": s.faces_repaired,
+				"faces_skipped": s.faces_skipped,
+			});
+			if let Some(reason) = &s.reason {
+				o["reason"] = json!(reason);
+			}
+			o
+		})
+		.collect();
+	let total = imp.solids.len();
+	let imported = imp.solids.iter().filter(|s| s.status == SolidStatus::Imported).count();
+	let faces_skipped = imp.skipped.iter().filter(|e| e.kind == "ADVANCED_FACE").count();
+	let faces_repaired = imp.repaired.iter().filter(|e| e.kind == "ADVANCED_FACE").count();
+	let Some(solid) = imp.solid else {
+		let first: Vec<String> =
+			imp.skipped.iter().take(5).map(|e| format!("#{} {} ({}): {}", e.entity, e.kind, e.solid, e.reason)).collect();
+		return Err(err(
+			ErrorKind::InvalidGeometry,
+			format!(
+				"op '{op_id}': import_step '{}' (tolerant): none of the {total} solid(s) could be imported — {} skip(s), {} repair(s); first skips: {}",
+				path.display(),
+				imp.skipped.len(),
+				imp.repaired.len(),
+				first.join(" | ")
+			),
+		));
+	};
+	let v = kernel_brep::validate(&solid);
+	let measures = json!({
+		"source": "step",
+		"mode": "tolerant",
+		"shells": v.shells,
+		"genus": v.genus,
+		"faces": solid.face_count(),
+		"volume": kernel_brep::volume(&solid),
+		"freeform_faces": imp.freeform.len(),
+		"uncertainty_mm": imp.uncertainty,
+		"solids_total": total,
+		"solids_imported": imported,
+		"solids_skipped": total - imported,
+		"faces_skipped": faces_skipped,
+		"faces_repaired": faces_repaired,
+		"solids": solids,
+		"skipped": imp.skipped.iter().map(event).collect::<Vec<Value>>(),
+		"repaired": imp.repaired.iter().map(event).collect::<Vec<Value>>(),
+	});
+	Ok(Outcome { measures: Some(measures), ..bind_solid(op_id, "import_step", solid)? })
 }
 
 /// Gate a pattern op's instance count: 2..=[`MAX_PATTERN_COUNT`] (the structural
@@ -3214,7 +3296,7 @@ fn exec_op(
 		}
 
 		// --- Imports -----------------------------------------------------------------------------
-		OpKind::ImportStep { file } => {
+		OpKind::ImportStep { file, mode } => {
 			// STEP → exact B-rep, through the kernel's analytic importer. A multi-solid
 			// file merges into ONE multi-shell solid (each MANIFOLD_SOLID_BREP keeps its
 			// own shell — `shells` in the measures is the honest count). Trimmed-NURBS
@@ -3223,6 +3305,9 @@ fn exec_op(
 			let path = resolve_input_or_out(op_id, input_base, out_dir, &file)?;
 			let text = std::fs::read_to_string(&path)
 				.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot read '{}': {e}", path.display())))?;
+			if mode == crate::program::StepImportMode::Tolerant {
+				return import_step_tolerant_op(op_id, &path, &text);
+			}
 			let (solid, freeform) = kernel_brep::import_step_freeform(&text).map_err(|e| {
 				// Parse/Reference/Unsupported are input problems (the message carries the
 				// kernel's verbatim reason); Topology means the faces don't form a solid.

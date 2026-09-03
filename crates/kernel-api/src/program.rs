@@ -377,6 +377,20 @@ impl ConstraintSpec {
 	}
 }
 
+/// How `import_step` treats faces its exact routes cannot read.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StepImportMode {
+	/// The first unreadable face fails the op with the kernel's verbatim reason.
+	#[default]
+	Strict,
+	/// Per-face failures are repaired or skipped and reported in the measures
+	/// (`skipped`, `repaired`); every solid of the file is listed (`solids`) with
+	/// its product name and placed envelope; the bound body is the compound of
+	/// the solids that imported.
+	Tolerant,
+}
+
 /// Every operation the binding executes, tagged by the JSON `op` field.
 ///
 /// Snake-case op names (`"op": "fillet_edge_near"`). The `in` JSON field maps to
@@ -1093,7 +1107,15 @@ pub enum OpKind {
 	/// keep their exact analytic surface tags; trimmed-NURBS faces are counted in
 	/// the measures (`freeform_faces`). A multi-solid file merges into ONE
 	/// multi-shell solid (`shells` in the measures says how many).
-	ImportStep { file: String },
+	ImportStep {
+		file: String,
+		/// `strict` (default): the first unreadable face fails the op. `tolerant`:
+		/// per-face failures are repaired or skipped and reported; every solid of
+		/// the file is listed with its name and placed envelope; the bound body is
+		/// the compound of the solids that imported.
+		#[serde(default)]
+		mode: StepImportMode,
+	},
 	/// Import a triangle-mesh file (`.stl` / `.obj` / `.3mf` / `.ply` — sniffed
 	/// by extension; the kernel has no glTF reader), weld it, and report the full
 	/// `check_mesh` receipt. Binds NOTHING — meshes never enter the solid

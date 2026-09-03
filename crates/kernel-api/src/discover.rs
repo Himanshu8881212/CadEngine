@@ -689,6 +689,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 	]),
 	("import_step", &[
 		ParamSpec { name: "file", ty: "string", required: true, doc: "", aliases: &[] },
+		ParamSpec { name: "mode", ty: "string", required: false, doc: "`strict` (default): the first unreadable face fails the op. `tolerant`: per-face failures are repaired or skipped and listed in the measures (`skipped`, `repaired`); EVERY solid of the file is listed in `solids` with its product name, status and placed envelope; the bound body is the compound of the solids that imported (assembly placements applied).", aliases: &[] },
 	]),
 	("import_mesh", &[
 		ParamSpec { name: "file", ty: "string", required: true, doc: "", aliases: &[] },
