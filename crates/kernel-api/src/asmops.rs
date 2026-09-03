@@ -28,10 +28,9 @@ use kernel_model::kinematics::EpicyclicTrain;
 use kernel_model::{Constraint, ConstraintSystem};
 use serde_json::{json, Value};
 
-use crate::interp::{
-	err, fetch_solid, polygon_centroid, read_mesh_file, resolve_path, solid_mesh, solid_mesh_routed, v3a, write_mesh_auto, EnvValue,
-	Outcome,
-};
+use crate::interp::{err, fetch_solid, EnvValue, Outcome};
+use crate::ops::meshio::{read_mesh_file, resolve_path, solid_mesh, solid_mesh_routed, write_mesh_auto, write_mesh_scene};
+use crate::ops::support::{polygon_centroid, v3a};
 use crate::program::{MaterialSpec, RotateSpec};
 use crate::report::{ErrorKind, OpError};
 
@@ -770,7 +769,7 @@ pub(crate) fn export(
 	// scene write skips the manufacturing refusal and instead puts the quality
 	// counters on the record here, so a self-intersecting fail pose exports
 	// with its interference VISIBLE in the receipt rather than failing the run.
-	let written = crate::interp::write_mesh_scene(op_id, out_dir, file, &merged)?;
+	let written = write_mesh_scene(op_id, out_dir, file, &merged)?;
 	let scene_crossings = merged.self_intersection_witness().map_or(0, |w| w.pairs);
 	Ok(Outcome {
 		value: None,
@@ -904,7 +903,7 @@ pub(crate) fn save(
 		if src["source"] == "path" {
 			if let InstanceGeom::Solid { source_path: Some(original), .. } = &inst.geom {
 				let dest = asm_parent.join(src["file"].as_str().expect("path source has a file"));
-				let from = crate::interp::resolve_input_path(op_id, out_dir, original)
+				let from = crate::ops::meshio::resolve_input_path(op_id, out_dir, original)
 					.or_else(|_| Ok::<_, OpError>(std::path::PathBuf::from(original)))?;
 				std::fs::copy(&from, &dest)
 					.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot copy '{}' → '{}': {e}", from.display(), dest.display())))?;

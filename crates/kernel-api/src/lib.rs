@@ -70,6 +70,7 @@ pub mod bridge;
 mod discover;
 mod implicit;
 mod interp;
+mod ops;
 mod program;
 mod report;
 mod require;

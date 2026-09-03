@@ -7,6 +7,29 @@ Current-state summary and open frontier live in CLAUDE.md; the falsifiable
 scorecard in docs/BAR.md; deep friction write-ups in campaign/friction/ENGINE.md
 (moved there from docs/FRICTION.md on 2026-09-03).
 
+STRUCTURE 2026-09-03 (`interp.rs` split — pure refactor, zero behaviour change).
+`crates/kernel-api/src/interp.rs` was 4,912 lines: the program loop, the environment,
+every shared helper and all 161 op bodies in one file — the file an agent reads most
+often when authoring or extending an op. It is now 576 lines and keeps only what is
+genuinely interpreter state: the doc header, `EnvValue` / `Outcome` / `Measurable`, the
+`fetch*` accessors, `run_program*` / `run_one`, the pre-dispatch allocation caps
+(`check_limits`), and `exec_op` — which became a routing table, one arm per op FAMILY
+naming its variants and handing the whole `OpKind` to `crate::ops`. The match is still
+exhaustive over `OpKind`, so an unrouted variant is still a compile error. The bodies
+moved verbatim into `crates/kernel-api/src/ops/`: two shared halves (`support` — the
+geometry conversions, the `bind_solid` validity gate, the witness→edge resolver, the
+kernel-error mappers, the catalog size tables; `meshio` — path confinement and the mesh
+in/out plumbing) plus one module per family (`assemblies`, `primitives`, `sketch`,
+`booleans`, `features`, `measure`, `io`, `hybrid`, `library`, `catalog`, `cuts`,
+`designmath`, `holes`, `threads`). Largest file is now `ops/measure.rs` at 694 lines;
+nothing is over 700. No op name, parameter, receipt field, error kind or evaluation
+order changed, `discover.rs` is untouched (`gen_discover.py` reads `program.rs` only,
+and re-running it reproduces the committed file byte-for-byte), and the op counts stay
+161 / 109 under `--no-default-features`. Proof: all 161 arm bodies and all 73 moved
+helper bodies compare byte-identical to the pre-split file, and re-running
+`framework_system/l12_mini_case/run_all.sh` reproduces all 12 shipped `parts/*.stl` +
+`cad/*.step` with unchanged md5s and still ends ALL GREEN.
+
 CLEANUP + FIXES 2026-09-03 (branch `cleanup-2026-09`, four parallel worktrees):
 the two friction items that cost a day in each of the last two campaigns are fixed at
 the source. **F3 — silent export demotion:** an `export_stl`/`export_3mf` receipt that
