@@ -73,7 +73,7 @@ digest preparation.
 | kind | when | what to do |
 |---|---|---|
 | `parse` | not JSON / not `{"ops": [...]}` (id `$program`) | fix envelope |
-| `unknown_op` | op name not in catalogue | check spelling; run `describe` |
+| `unknown_op` | op name not in catalogue — or compiled out (see the `catalog` note below) | check spelling; run `describe` |
 | `duplicate_id` | reused id | rename |
 | `missing_ref` | ref names nothing, or names a non-binding op | reference a binding op |
 | `wrong_type` | e.g. sketch where solid needed | `sketch_extrude` first |
@@ -86,6 +86,16 @@ digest preparation.
 | `assert_failed` | declared expectation unmet — measured vs expected in message | fix geometry or wrong expectation; never delete the gate |
 | `io` | unreadable/unwritable path | check paths |
 | `internal` | caught kernel panic | report as engine bug |
+
+**`unknown_op` and the `catalog` build feature.** 52 hardware-catalog ops (the
+standard parts no campaign has used, their catalog feature cuts, `library_*`,
+`gyroid_block` / `tpms`, `sketch_extrude` — the exact list and the per-op
+campaign census are in `docs/OP_USAGE.md`) sit behind kernel-api's `catalog`
+cargo feature, which is **on by default**: the release binary and every
+`cargo build -p kernel-api` without `--no-default-features` has all 161 ops.
+A build without the feature refuses those ops with `unknown_op` and a message
+saying "behind the `catalog` cargo feature" — that means a trimmed build, not a
+typo: rebuild with default features rather than renaming the op.
 
 **Empty-boolean doctrine (VERIFIED):** a disjoint `intersection` or a
 `difference` that consumes everything is an **op failure** (`invalid_param`,

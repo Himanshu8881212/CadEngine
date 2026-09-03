@@ -3,6 +3,10 @@
 //! (adding a variant without regenerating fails to compile), [`OP_NAMES`]/[`OP_PARAMS`] as
 //! generated tables pinned to it by `tests/describe.rs`. Regenerate this WHOLE file with
 //! `python3 tools/gen_discover.py` whenever `program.rs`'s `OpKind` changes — never hand-edit.
+//!
+//! Variants gated `#[cfg(feature = "catalog")]` in `program.rs` carry the same gate here (arm,
+//! name, params row), so `--no-default-features` shrinks every table together; [`OP_COUNT`] is
+//! emitted per build and [`CATALOG_OP_NAMES`] always lists the gated tags.
 
 use crate::program::OpKind;
 
@@ -23,6 +27,7 @@ pub fn op_tag(op: &OpKind) -> &'static str {
 		OpKind::Loft { .. } => "loft",
 		OpKind::Sweep { .. } => "sweep",
 		OpKind::Sketch { .. } => "sketch",
+		#[cfg(feature = "catalog")]
 		OpKind::SketchExtrude { .. } => "sketch_extrude",
 		OpKind::SketchRevolve { .. } => "sketch_revolve",
 		OpKind::Union { .. } => "union",
@@ -59,8 +64,10 @@ pub fn op_tag(op: &OpKind) -> &'static str {
 		OpKind::ExportStl { .. } => "export_stl",
 		OpKind::ExportStep { .. } => "export_step",
 		OpKind::Export3mf { .. } => "export_3mf",
+		#[cfg(feature = "catalog")]
 		OpKind::GyroidBlock { .. } => "gyroid_block",
 		OpKind::MeasureDimension { .. } => "measure_dimension",
+		#[cfg(feature = "catalog")]
 		OpKind::Tpms { .. } => "tpms",
 		OpKind::HybridBoolean { .. } => "hybrid_boolean",
 		OpKind::Implicit { .. } => "implicit",
@@ -76,68 +83,114 @@ pub fn op_tag(op: &OpKind) -> &'static str {
 		OpKind::ImportStep { .. } => "import_step",
 		OpKind::ImportMesh { .. } => "import_mesh",
 		OpKind::MeshCarve { .. } => "mesh_carve",
+		#[cfg(feature = "catalog")]
 		OpKind::LibraryAdd { .. } => "library_add",
+		#[cfg(feature = "catalog")]
 		OpKind::LibrarySearch { .. } => "library_search",
+		#[cfg(feature = "catalog")]
 		OpKind::LibraryInstantiate { .. } => "library_instantiate",
+		#[cfg(feature = "catalog")]
 		OpKind::LibraryDeprecate { .. } => "library_deprecate",
+		#[cfg(feature = "catalog")]
 		OpKind::LibraryRemove { .. } => "library_remove",
 		OpKind::SpurGear { .. } => "spur_gear",
+		#[cfg(feature = "catalog")]
 		OpKind::HexBolt { .. } => "hex_bolt",
 		OpKind::HexNut { .. } => "hex_nut",
 		OpKind::Washer { .. } => "washer",
 		OpKind::SocketHeadCapScrew { .. } => "socket_head_cap_screw",
+		#[cfg(feature = "catalog")]
 		OpKind::Gt2Pulley { .. } => "gt2_pulley",
+		#[cfg(feature = "catalog")]
 		OpKind::ChainSprocket { .. } => "chain_sprocket",
+		#[cfg(feature = "catalog")]
 		OpKind::Shaft { .. } => "shaft",
+		#[cfg(feature = "catalog")]
 		OpKind::ParallelKey { .. } => "parallel_key",
 		OpKind::DowelPin { .. } => "dowel_pin",
 		OpKind::CirclipExternal { .. } => "circlip_external",
+		#[cfg(feature = "catalog")]
 		OpKind::CirclipInternal { .. } => "circlip_internal",
 		OpKind::FlatHeadScrew { .. } => "flat_head_screw",
 		OpKind::ButtonHeadScrew { .. } => "button_head_screw",
 		OpKind::SetScrew { .. } => "set_screw",
 		OpKind::LockNut { .. } => "lock_nut",
+		#[cfg(feature = "catalog")]
 		OpKind::ThreadedRod { .. } => "threaded_rod",
+		#[cfg(feature = "catalog")]
 		OpKind::Standoff { .. } => "standoff",
 		OpKind::CompressionSpring { .. } => "compression_spring",
+		#[cfg(feature = "catalog")]
 		OpKind::Extrusion2020 { .. } => "extrusion_2020",
+		#[cfg(feature = "catalog")]
 		OpKind::Extrusion3030 { .. } => "extrusion_3030",
+		#[cfg(feature = "catalog")]
 		OpKind::Tnut2020 { .. } => "tnut_2020",
 		OpKind::ORing { .. } => "o_ring",
 		OpKind::ORingCord { .. } => "o_ring_cord",
+		#[cfg(feature = "catalog")]
 		OpKind::JawCouplingHub { .. } => "jaw_coupling_hub",
+		#[cfg(feature = "catalog")]
 		OpKind::JawCouplingSpider { .. } => "jaw_coupling_spider",
+		#[cfg(feature = "catalog")]
 		OpKind::SetScrewCoupling { .. } => "set_screw_coupling",
+		#[cfg(feature = "catalog")]
 		OpKind::ClampCoupling { .. } => "clamp_coupling",
+		#[cfg(feature = "catalog")]
 		OpKind::NemaMotor { .. } => "nema_motor",
+		#[cfg(feature = "catalog")]
 		OpKind::NemaMountPlate { .. } => "nema_mount_plate",
+		#[cfg(feature = "catalog")]
 		OpKind::LinearBearingLmuu { .. } => "linear_bearing_lmuu",
+		#[cfg(feature = "catalog")]
 		OpKind::Sc8uuBlock { .. } => "sc8uu_block",
+		#[cfg(feature = "catalog")]
 		OpKind::ShaftSupportSk8 { .. } => "shaft_support_sk8",
+		#[cfg(feature = "catalog")]
 		OpKind::ShaftSupportShf8 { .. } => "shaft_support_shf8",
+		#[cfg(feature = "catalog")]
 		OpKind::Mgn12Rail { .. } => "mgn12_rail",
+		#[cfg(feature = "catalog")]
 		OpKind::Mgn12Carriage { .. } => "mgn12_carriage",
 		OpKind::DeepGrooveBearing { .. } => "deep_groove_bearing",
 		OpKind::FlangedBearing { .. } => "flanged_bearing",
+		#[cfg(feature = "catalog")]
 		OpKind::ThrustBearing { .. } => "thrust_bearing",
+		#[cfg(feature = "catalog")]
 		OpKind::Kp08PillowBlock { .. } => "kp08_pillow_block",
+		#[cfg(feature = "catalog")]
 		OpKind::PipeBossG { .. } => "pipe_boss_g",
+		#[cfg(feature = "catalog")]
 		OpKind::HoseBarb { .. } => "hose_barb",
+		#[cfg(feature = "catalog")]
 		OpKind::ShoulderBolt { .. } => "shoulder_bolt",
+		#[cfg(feature = "catalog")]
 		OpKind::SpringWasher { .. } => "spring_washer",
+		#[cfg(feature = "catalog")]
 		OpKind::LeadScrewTr8 { .. } => "lead_screw_tr8",
+		#[cfg(feature = "catalog")]
 		OpKind::LeadScrewNutTr8 { .. } => "lead_screw_nut_tr8",
+		#[cfg(feature = "catalog")]
 		OpKind::GearRack { .. } => "gear_rack",
+		#[cfg(feature = "catalog")]
 		OpKind::InternalGear { .. } => "internal_gear",
 		OpKind::HeatsetInsertBoss { .. } => "heatset_insert_boss",
+		#[cfg(feature = "catalog")]
 		OpKind::CirclipGrooveExternal { .. } => "circlip_groove_external",
+		#[cfg(feature = "catalog")]
 		OpKind::CirclipGrooveInternal { .. } => "circlip_groove_internal",
+		#[cfg(feature = "catalog")]
 		OpKind::ORingGroove { .. } => "o_ring_groove",
 		OpKind::ORingFaceGland { .. } => "o_ring_face_gland",
+		#[cfg(feature = "catalog")]
 		OpKind::ORingFaceGlandRacetrack { .. } => "o_ring_face_gland_racetrack",
+		#[cfg(feature = "catalog")]
 		OpKind::NemaMountCut { .. } => "nema_mount_cut",
+		#[cfg(feature = "catalog")]
 		OpKind::ServoPocket { .. } => "servo_pocket",
+		#[cfg(feature = "catalog")]
 		OpKind::Tr8NutTrap { .. } => "tr8_nut_trap",
+		#[cfg(feature = "catalog")]
 		OpKind::Pc4Port { .. } => "pc4_port",
 		OpKind::TeardropHole { .. } => "teardrop_hole",
 		OpKind::BoardMount { .. } => "board_mount",
@@ -155,12 +208,15 @@ pub fn op_tag(op: &OpKind) -> &'static str {
 		OpKind::AsmExportStep { .. } => "asm_export_step",
 		OpKind::AsmSave { .. } => "asm_save",
 		OpKind::GearTrainPoses { .. } => "gear_train_poses",
+		#[cfg(feature = "catalog")]
 		OpKind::Gt2Belt { .. } => "gt2_belt",
+		#[cfg(feature = "catalog")]
 		OpKind::Gt2CenterDistance { .. } => "gt2_center_distance",
 		OpKind::Iso286Fit { .. } => "iso286_fit",
 		OpKind::HeatsetSpec { .. } => "heatset_spec",
 		OpKind::MetricCordGland { .. } => "metric_cord_gland",
 		OpKind::RacetrackCordLength { .. } => "racetrack_cord_length",
+		#[cfg(feature = "catalog")]
 		OpKind::PipeThreadG { .. } => "pipe_thread_g",
 		OpKind::Drill { .. } => "drill",
 		OpKind::ClearanceHole { .. } => "clearance_hole",
@@ -191,6 +247,7 @@ pub const OP_NAMES: &[&str] = &[
 	"loft",
 	"sweep",
 	"sketch",
+	#[cfg(feature = "catalog")]
 	"sketch_extrude",
 	"sketch_revolve",
 	"union",
@@ -227,8 +284,10 @@ pub const OP_NAMES: &[&str] = &[
 	"export_stl",
 	"export_step",
 	"export_3mf",
+	#[cfg(feature = "catalog")]
 	"gyroid_block",
 	"measure_dimension",
+	#[cfg(feature = "catalog")]
 	"tpms",
 	"hybrid_boolean",
 	"implicit",
@@ -244,68 +303,114 @@ pub const OP_NAMES: &[&str] = &[
 	"import_step",
 	"import_mesh",
 	"mesh_carve",
+	#[cfg(feature = "catalog")]
 	"library_add",
+	#[cfg(feature = "catalog")]
 	"library_search",
+	#[cfg(feature = "catalog")]
 	"library_instantiate",
+	#[cfg(feature = "catalog")]
 	"library_deprecate",
+	#[cfg(feature = "catalog")]
 	"library_remove",
 	"spur_gear",
+	#[cfg(feature = "catalog")]
 	"hex_bolt",
 	"hex_nut",
 	"washer",
 	"socket_head_cap_screw",
+	#[cfg(feature = "catalog")]
 	"gt2_pulley",
+	#[cfg(feature = "catalog")]
 	"chain_sprocket",
+	#[cfg(feature = "catalog")]
 	"shaft",
+	#[cfg(feature = "catalog")]
 	"parallel_key",
 	"dowel_pin",
 	"circlip_external",
+	#[cfg(feature = "catalog")]
 	"circlip_internal",
 	"flat_head_screw",
 	"button_head_screw",
 	"set_screw",
 	"lock_nut",
+	#[cfg(feature = "catalog")]
 	"threaded_rod",
+	#[cfg(feature = "catalog")]
 	"standoff",
 	"compression_spring",
+	#[cfg(feature = "catalog")]
 	"extrusion_2020",
+	#[cfg(feature = "catalog")]
 	"extrusion_3030",
+	#[cfg(feature = "catalog")]
 	"tnut_2020",
 	"o_ring",
 	"o_ring_cord",
+	#[cfg(feature = "catalog")]
 	"jaw_coupling_hub",
+	#[cfg(feature = "catalog")]
 	"jaw_coupling_spider",
+	#[cfg(feature = "catalog")]
 	"set_screw_coupling",
+	#[cfg(feature = "catalog")]
 	"clamp_coupling",
+	#[cfg(feature = "catalog")]
 	"nema_motor",
+	#[cfg(feature = "catalog")]
 	"nema_mount_plate",
+	#[cfg(feature = "catalog")]
 	"linear_bearing_lmuu",
+	#[cfg(feature = "catalog")]
 	"sc8uu_block",
+	#[cfg(feature = "catalog")]
 	"shaft_support_sk8",
+	#[cfg(feature = "catalog")]
 	"shaft_support_shf8",
+	#[cfg(feature = "catalog")]
 	"mgn12_rail",
+	#[cfg(feature = "catalog")]
 	"mgn12_carriage",
 	"deep_groove_bearing",
 	"flanged_bearing",
+	#[cfg(feature = "catalog")]
 	"thrust_bearing",
+	#[cfg(feature = "catalog")]
 	"kp08_pillow_block",
+	#[cfg(feature = "catalog")]
 	"pipe_boss_g",
+	#[cfg(feature = "catalog")]
 	"hose_barb",
+	#[cfg(feature = "catalog")]
 	"shoulder_bolt",
+	#[cfg(feature = "catalog")]
 	"spring_washer",
+	#[cfg(feature = "catalog")]
 	"lead_screw_tr8",
+	#[cfg(feature = "catalog")]
 	"lead_screw_nut_tr8",
+	#[cfg(feature = "catalog")]
 	"gear_rack",
+	#[cfg(feature = "catalog")]
 	"internal_gear",
 	"heatset_insert_boss",
+	#[cfg(feature = "catalog")]
 	"circlip_groove_external",
+	#[cfg(feature = "catalog")]
 	"circlip_groove_internal",
+	#[cfg(feature = "catalog")]
 	"o_ring_groove",
 	"o_ring_face_gland",
+	#[cfg(feature = "catalog")]
 	"o_ring_face_gland_racetrack",
+	#[cfg(feature = "catalog")]
 	"nema_mount_cut",
+	#[cfg(feature = "catalog")]
 	"servo_pocket",
+	#[cfg(feature = "catalog")]
 	"tr8_nut_trap",
+	#[cfg(feature = "catalog")]
 	"pc4_port",
 	"teardrop_hole",
 	"board_mount",
@@ -323,12 +428,15 @@ pub const OP_NAMES: &[&str] = &[
 	"asm_export_step",
 	"asm_save",
 	"gear_train_poses",
+	#[cfg(feature = "catalog")]
 	"gt2_belt",
+	#[cfg(feature = "catalog")]
 	"gt2_center_distance",
 	"iso286_fit",
 	"heatset_spec",
 	"metric_cord_gland",
 	"racetrack_cord_length",
+	#[cfg(feature = "catalog")]
 	"pipe_thread_g",
 	"drill",
 	"clearance_hole",
@@ -342,8 +450,72 @@ pub const OP_NAMES: &[&str] = &[
 	"export_threaded",
 ];
 
-/// Number of supported ops. Kept in lockstep with the `OpKind` variant count via [`op_tag`].
+/// Number of supported ops in a default build (`catalog` feature on). Kept in lockstep with
+/// the `OpKind` variant count via [`op_tag`].
+#[cfg(feature = "catalog")]
 pub const OP_COUNT: usize = 161;
+
+/// Number of supported ops with the `catalog` feature compiled out (`--no-default-features`).
+#[cfg(not(feature = "catalog"))]
+pub const OP_COUNT: usize = 109;
+
+/// Wire tags of the ops behind the `catalog` cargo feature. Always compiled — even when the
+/// feature is off — so the interpreter can name the feature in its `unknown_op` refusal
+/// instead of calling the op a typo.
+pub const CATALOG_OP_NAMES: &[&str] = &[
+	"sketch_extrude",
+	"gyroid_block",
+	"tpms",
+	"library_add",
+	"library_search",
+	"library_instantiate",
+	"library_deprecate",
+	"library_remove",
+	"hex_bolt",
+	"gt2_pulley",
+	"chain_sprocket",
+	"shaft",
+	"parallel_key",
+	"circlip_internal",
+	"threaded_rod",
+	"standoff",
+	"extrusion_2020",
+	"extrusion_3030",
+	"tnut_2020",
+	"jaw_coupling_hub",
+	"jaw_coupling_spider",
+	"set_screw_coupling",
+	"clamp_coupling",
+	"nema_motor",
+	"nema_mount_plate",
+	"linear_bearing_lmuu",
+	"sc8uu_block",
+	"shaft_support_sk8",
+	"shaft_support_shf8",
+	"mgn12_rail",
+	"mgn12_carriage",
+	"thrust_bearing",
+	"kp08_pillow_block",
+	"pipe_boss_g",
+	"hose_barb",
+	"shoulder_bolt",
+	"spring_washer",
+	"lead_screw_tr8",
+	"lead_screw_nut_tr8",
+	"gear_rack",
+	"internal_gear",
+	"circlip_groove_external",
+	"circlip_groove_internal",
+	"o_ring_groove",
+	"o_ring_face_gland_racetrack",
+	"nema_mount_cut",
+	"servo_pocket",
+	"tr8_nut_trap",
+	"pc4_port",
+	"gt2_belt",
+	"gt2_center_distance",
+	"pipe_thread_g",
+];
 
 /// One parameter of an op, as served by `describe {name}`: the JSON wire name (post
 /// `#[serde(rename)]` — e.g. `in`), a friendly type string (`number` / `int` / `string` /
@@ -428,6 +600,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "circles", ty: "[object...]", required: false, doc: "", aliases: &[] },
 		ParamSpec { name: "constraints", ty: "[object...]", required: false, doc: "", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("sketch_extrude", &[
 		ParamSpec { name: "sketch", ty: "id-ref", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "height", ty: "number", required: true, doc: "", aliases: &[] },
@@ -594,6 +767,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "tol", ty: "number", required: false, doc: "", aliases: &[] },
 		ParamSpec { name: "voxel", ty: "number", required: false, doc: "Voxel size for the heal fallback (default 0.3 mm).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("gyroid_block", &[
 		ParamSpec { name: "center", ty: "[x,y,z]", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "half", ty: "number", required: true, doc: "", aliases: &[] },
@@ -609,6 +783,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "b", ty: "[x,y,z]", required: false, doc: "`point_point`: second point.", aliases: &[] },
 		ParamSpec { name: "near", ty: "[x,y,z]", required: false, doc: "`diameter`: witness selecting the measured cylinder/sphere face.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("tpms", &[
 		ParamSpec { name: "kind", ty: "string", required: true, doc: "Family: `gyroid` / `schwarz_p` / `diamond` / `neovius` / `schoen_iwp` / `fischer_koch_s`.", aliases: &[] },
 		ParamSpec { name: "min", ty: "[x,y,z]", required: true, doc: "Lattice block corner (mm).", aliases: &[] },
@@ -702,27 +877,32 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "voxel", ty: "number", required: false, doc: "Voxel size (mm) of the resampling lattice (default 0.3).", aliases: &[] },
 		ParamSpec { name: "out", ty: "string", required: true, doc: "Output mesh path — the extension picks the format (`.stl` / `.3mf`).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("library_add", &[
 		ParamSpec { name: "dir", ty: "string", required: true, doc: "Library directory (relative joins `--out-dir`; created on demand).", aliases: &[] },
 		ParamSpec { name: "part", ty: "object", required: false, doc: "The candidate part envelope INLINE (exclusive with `part_file`).", aliases: &[] },
 		ParamSpec { name: "part_file", ty: "string", required: false, doc: "Path to the candidate `.lmcpart` (exclusive with `part`).", aliases: &[] },
 		ParamSpec { name: "meta", ty: "object", required: true, doc: "Identity, provenance (caller-supplied date) and parameter interface.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("library_search", &[
 		ParamSpec { name: "dir", ty: "string", required: true, doc: "Library directory.", aliases: &[] },
 		ParamSpec { name: "text", ty: "string", required: false, doc: "Case-insensitive substring over name/category/description/tags (empty matches all).", aliases: &[] },
 		ParamSpec { name: "tags", ty: "[string...]", required: false, doc: "Tags the entry must all carry (case-insensitive).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("library_instantiate", &[
 		ParamSpec { name: "dir", ty: "string", required: true, doc: "Library directory.", aliases: &[] },
 		ParamSpec { name: "name", ty: "string", required: true, doc: "Entry name.", aliases: &[] },
 		ParamSpec { name: "version", ty: "int", required: false, doc: "Entry version (default: the highest admitted version).", aliases: &[] },
 		ParamSpec { name: "params", ty: "object", required: false, doc: "Parameter values; unset parameters take their declared defaults.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("library_deprecate", &[
 		ParamSpec { name: "dir", ty: "string", required: true, doc: "Library directory.", aliases: &[] },
 		ParamSpec { name: "name", ty: "string", required: true, doc: "Entry name.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("library_remove", &[
 		ParamSpec { name: "dir", ty: "string", required: true, doc: "Library directory.", aliases: &[] },
 		ParamSpec { name: "name", ty: "string", required: true, doc: "Entry name.", aliases: &[] },
@@ -736,6 +916,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "pressure_angle_deg", ty: "number", required: false, doc: "", aliases: &[] },
 		ParamSpec { name: "keyway", ty: "bool", required: false, doc: "Cut the DIN 6885-1 hub keyway sized for `bore` (default false).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("hex_bolt", &[
 		ParamSpec { name: "m", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "length", ty: "number", required: true, doc: "", aliases: &[] },
@@ -750,23 +931,27 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "m", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "length", ty: "number", required: true, doc: "", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("gt2_pulley", &[
 		ParamSpec { name: "teeth", ty: "int", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "belt_width", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "bore", ty: "number", required: true, doc: "Bore **diameter** (mm); `bore_d` (the Document field name) is an alias.", aliases: &["bore_d"] },
 		ParamSpec { name: "flanged", ty: "bool", required: false, doc: "Add a retaining flange on each end (default false).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("chain_sprocket", &[
 		ParamSpec { name: "pitch", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "roller_d", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "teeth", ty: "int", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "bore", ty: "number", required: true, doc: "Bore **diameter** (mm); `bore_d` (the Document field name) is an alias.", aliases: &["bore_d"] },
 	]),
+	#[cfg(feature = "catalog")]
 	("shaft", &[
 		ParamSpec { name: "d", ty: "number", required: true, doc: "Shaft **diameter** (mm).", aliases: &[] },
 		ParamSpec { name: "length", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "keyway", ty: "object", required: false, doc: "Optional keyway slot; its width/depth auto-size from the DIN 6885-1 table for `d`.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("parallel_key", &[
 		ParamSpec { name: "b", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "h", ty: "number", required: true, doc: "", aliases: &[] },
@@ -779,6 +964,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 	("circlip_external", &[
 		ParamSpec { name: "shaft_d", ty: "number", required: true, doc: "", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("circlip_internal", &[
 		ParamSpec { name: "bore_d", ty: "number", required: true, doc: "", aliases: &[] },
 	]),
@@ -797,10 +983,12 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 	("lock_nut", &[
 		ParamSpec { name: "m", ty: "number", required: true, doc: "", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("threaded_rod", &[
 		ParamSpec { name: "m", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "length", ty: "number", required: true, doc: "", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("standoff", &[
 		ParamSpec { name: "m", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "length", ty: "number", required: true, doc: "", aliases: &[] },
@@ -811,12 +999,15 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "pitch", ty: "number", required: true, doc: "Axial advance per turn (mm), must exceed `wire_d`.", aliases: &[] },
 		ParamSpec { name: "turns", ty: "number", required: true, doc: "Active turns (may be fractional).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("extrusion_2020", &[
 		ParamSpec { name: "length", ty: "number", required: true, doc: "", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("extrusion_3030", &[
 		ParamSpec { name: "length", ty: "number", required: true, doc: "", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("tnut_2020", &[]),
 	("o_ring", &[
 		ParamSpec { name: "dash", ty: "int", required: true, doc: "AS568 dash number (e.g. `214`).", aliases: &[] },
@@ -825,39 +1016,51 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "ring_id", ty: "number", required: true, doc: "Ring inside **diameter** (mm) — free, unlike the AS568 dash table.", aliases: &[] },
 		ParamSpec { name: "cord_d", ty: "number", required: true, doc: "Cord cross-section **diameter** (mm), a stocked metric size.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("jaw_coupling_hub", &[
 		ParamSpec { name: "od", ty: "number", required: true, doc: "Body outer **diameter** (a table size: 20, 25, 30, 40).", aliases: &[] },
 		ParamSpec { name: "bore", ty: "number", required: true, doc: "Bore **diameter** (mm), within the size row's range.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("jaw_coupling_spider", &[
 		ParamSpec { name: "od", ty: "number", required: true, doc: "Body outer **diameter** (a table size: 20, 25, 30, 40).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("set_screw_coupling", &[
 		ParamSpec { name: "bore1", ty: "number", required: true, doc: "Bore at z = 0 (a stocked size).", aliases: &[] },
 		ParamSpec { name: "bore2", ty: "number", required: true, doc: "Bore at z = L (a stocked size).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("clamp_coupling", &[
 		ParamSpec { name: "bore1", ty: "number", required: true, doc: "Bore at z = 0 (a stocked size).", aliases: &[] },
 		ParamSpec { name: "bore2", ty: "number", required: true, doc: "Bore at z = L (a stocked size).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("nema_motor", &[
 		ParamSpec { name: "frame", ty: "int", required: true, doc: "NEMA frame number (17 or 23).", aliases: &[] },
 		ParamSpec { name: "body_len", ty: "number", required: true, doc: "Body length below the faceplate, mm.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("nema_mount_plate", &[
 		ParamSpec { name: "frame", ty: "int", required: true, doc: "NEMA frame number (17 or 23).", aliases: &[] },
 		ParamSpec { name: "thickness", ty: "number", required: true, doc: "Plate thickness, mm.", aliases: &[] },
 		ParamSpec { name: "margin", ty: "number", required: true, doc: "Extra plate width beyond the motor face, per side (≥ 0).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("linear_bearing_lmuu", &[
 		ParamSpec { name: "bore", ty: "number", required: true, doc: "Shaft bore **diameter**: 8 (LM8UU) or 12 (LM12UU).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("sc8uu_block", &[]),
+	#[cfg(feature = "catalog")]
 	("shaft_support_sk8", &[]),
+	#[cfg(feature = "catalog")]
 	("shaft_support_shf8", &[]),
+	#[cfg(feature = "catalog")]
 	("mgn12_rail", &[
 		ParamSpec { name: "length", ty: "number", required: true, doc: "Rail length, mm (≥ one 25 mm pitch).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("mgn12_carriage", &[]),
 	("deep_groove_bearing", &[
 		ParamSpec { name: "designation", ty: "string", required: true, doc: "Seat-table designation: \"603\", \"608\", \"625\", \"688\", \"6000\", \"6001\", \"6804\".", aliases: &[] },
@@ -865,37 +1068,47 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 	("flanged_bearing", &[
 		ParamSpec { name: "designation", ty: "string", required: true, doc: "\"F608\" (8 × 22 × 7, flange Ø25 × 1.5) or \"F623\" (3 × 10 × 4, Ø11.5 × 0.6).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("thrust_bearing", &[
 		ParamSpec { name: "designation", ty: "string", required: true, doc: "\"51100\" (10 × 24 × 9) or \"51101\" (12 × 26 × 9).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("kp08_pillow_block", &[]),
+	#[cfg(feature = "catalog")]
 	("pipe_boss_g", &[
 		ParamSpec { name: "designation", ty: "string", required: true, doc: "\"G1/8\", \"G1/4\", \"G3/8\" or \"G1/2\".", aliases: &[] },
 		ParamSpec { name: "wall", ty: "number", required: true, doc: "Radial wall beyond the thread major Ø, mm (≥ 1).", aliases: &[] },
 		ParamSpec { name: "length", ty: "number", required: true, doc: "Boss length along +Z, mm (must contain chamfer + one pitch).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("hose_barb", &[
 		ParamSpec { name: "hose_id", ty: "number", required: true, doc: "Hose inner **diameter**, mm.", aliases: &[] },
 		ParamSpec { name: "barbs", ty: "int", required: true, doc: "Number of sawtooth teeth (≥ 1).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("shoulder_bolt", &[
 		ParamSpec { name: "shoulder_d", ty: "number", required: true, doc: "Shoulder **diameter**: 6.5, 8, 10, 13 or 16 (the ISO 7379 sizes).", aliases: &[] },
 		ParamSpec { name: "shoulder_len", ty: "number", required: true, doc: "Ground-shoulder length, mm (the ordering length).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("spring_washer", &[
 		ParamSpec { name: "m", ty: "number", required: true, doc: "Nominal thread size: 3, 4, 5, 6, 8, 10 or 12.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("lead_screw_tr8", &[
 		ParamSpec { name: "length", ty: "number", required: true, doc: "Screw length, mm.", aliases: &[] },
 		ParamSpec { name: "lead", ty: "number", required: true, doc: "Lead: 2 (1-start), 4 (2-start) or 8 (4-start), all pitch 2.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("lead_screw_nut_tr8", &[]),
+	#[cfg(feature = "catalog")]
 	("gear_rack", &[
 		ParamSpec { name: "module", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "length", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "width", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "pressure_angle_deg", ty: "number", required: false, doc: "", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("internal_gear", &[
 		ParamSpec { name: "module", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "teeth", ty: "int", required: true, doc: "", aliases: &[] },
@@ -909,18 +1122,21 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "axis", ty: "[x,y,z]", required: true, doc: "Outward face normal.", aliases: &[] },
 		ParamSpec { name: "m", ty: "number", required: true, doc: "", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("circlip_groove_external", &[
 		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "at", ty: "[x,y,z]", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "axis", ty: "[x,y,z]", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "shaft_d", ty: "number", required: true, doc: "", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("circlip_groove_internal", &[
 		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "at", ty: "[x,y,z]", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "axis", ty: "[x,y,z]", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "bore_d", ty: "number", required: true, doc: "", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("o_ring_groove", &[
 		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "at", ty: "[x,y,z]", required: true, doc: "", aliases: &[] },
@@ -934,6 +1150,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "gland_center_d", ty: "number", required: true, doc: "Channel centreline **diameter** (mm).", aliases: &[] },
 		ParamSpec { name: "cord_d", ty: "number", required: true, doc: "Cord cross-section **diameter** (mm), a stocked metric size.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("o_ring_face_gland_racetrack", &[
 		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "at", ty: "[x,y,z]", required: true, doc: "Racetrack centre **on the face**.", aliases: &[] },
@@ -943,6 +1160,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "corner_r", ty: "number", required: true, doc: "Centreline corner radius (mm), at least half the groove width.", aliases: &[] },
 		ParamSpec { name: "cord_d", ty: "number", required: true, doc: "Cord cross-section **diameter** (mm), a stocked metric size.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("nema_mount_cut", &[
 		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "at", ty: "[x,y,z]", required: true, doc: "Motor axis position on the face.", aliases: &[] },
@@ -950,6 +1168,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "frame", ty: "int", required: true, doc: "NEMA frame number (17 or 23).", aliases: &[] },
 		ParamSpec { name: "through", ty: "number", required: true, doc: "Material span the holes cut through, mm.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("servo_pocket", &[
 		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "at", ty: "[x,y,z]", required: true, doc: "Pocket centre on the face.", aliases: &[] },
@@ -957,12 +1176,14 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "model", ty: "string", required: true, doc: "Servo model name (\"sg90\" or \"mg996r\").", aliases: &[] },
 		ParamSpec { name: "through", ty: "number", required: true, doc: "Material span the pocket cuts through, mm.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("tr8_nut_trap", &[
 		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "at", ty: "[x,y,z]", required: true, doc: "Screw axis position on the face.", aliases: &[] },
 		ParamSpec { name: "axis", ty: "[x,y,z]", required: true, doc: "Outward face normal.", aliases: &[] },
 		ParamSpec { name: "through", ty: "number", required: true, doc: "Material span the bore/holes cut through, mm (> 3.7 recess depth).", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("pc4_port", &[
 		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "at", ty: "[x,y,z]", required: true, doc: "Port centre on the face.", aliases: &[] },
@@ -1074,11 +1295,13 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "module", ty: "number", required: true, doc: "Gear module (mm) — scales tooth counts into radii.", aliases: &[] },
 		ParamSpec { name: "theta_deg", ty: "number", required: true, doc: "Input (sun) angle in degrees.", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("gt2_belt", &[
 		ParamSpec { name: "center_distance", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "t1", ty: "int", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "t2", ty: "int", required: true, doc: "", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("gt2_center_distance", &[
 		ParamSpec { name: "belt_teeth", ty: "int", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "t1", ty: "int", required: true, doc: "", aliases: &[] },
@@ -1099,6 +1322,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "y_len", ty: "number", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "corner_r", ty: "number", required: true, doc: "", aliases: &[] },
 	]),
+	#[cfg(feature = "catalog")]
 	("pipe_thread_g", &[
 		ParamSpec { name: "designation", ty: "string", required: true, doc: "\"G1/8\", \"G1/4\", \"G3/8\" or \"G1/2\".", aliases: &[] },
 	]),

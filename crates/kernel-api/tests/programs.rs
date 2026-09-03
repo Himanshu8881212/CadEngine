@@ -90,6 +90,7 @@ fn flange_program_end_to_end() {
 /// rectangle by constraints (well-constrained, converged), extruded to height 10
 /// — the volume must be 24000 mm³ to solver precision (planar faces are exact).
 #[test]
+#[cfg(feature = "catalog")]
 fn sketch_program_constrained_rectangle() {
 	let dir = out_dir("sketch");
 	let program = json!({"ops": [
@@ -240,6 +241,7 @@ fn report_roundtrips_serde() {
 /// green in ONE program — features by witness, transforms, all measures, all
 /// exports, the gyroid lattice — proving each API.md example family executes.
 #[test]
+#[cfg(feature = "catalog")]
 fn breadth_program_covers_remaining_ops() {
 	let dir = out_dir("breadth");
 	let program = json!({"ops": [
@@ -337,6 +339,7 @@ fn load_part_and_hole_wizard_program() {
 /// build, validate (expected genus where it is structural), measure and export
 /// in ONE program — an AI can request standard components by dimension.
 #[test]
+#[cfg(feature = "catalog")]
 fn catalog_parts_program() {
 	let dir = out_dir("catalog");
 	let program = json!({"ops": [
@@ -378,6 +381,7 @@ fn catalog_parts_program() {
 /// depth mode, an out-of-table keyway, and an unreadable part file each carry a
 /// machine-matchable kind plus a message naming the offender.
 #[test]
+#[cfg(feature = "catalog")]
 fn catalog_and_hole_error_paths_are_structured() {
 	let dir = out_dir("hole_errors");
 
@@ -464,6 +468,7 @@ fn catalog_and_hole_error_paths_are_structured() {
 /// (extrusions, tee nut, heat-set boss), rack-and-ring gearing, and the
 /// belt/fit lookups, with spot-checked measures.
 #[test]
+#[cfg(feature = "catalog")]
 fn wave2_catalog_program_end_to_end() {
 	let dir = out_dir("wave2");
 	let program = json!({"ops": [
@@ -556,6 +561,7 @@ fn wave2_catalog_program_end_to_end() {
 /// the z=60 gearbox wheel that used to fall back to `voxel_healed` must now export
 /// STL via the `exact` route with an analytic (π-exact) bore.
 #[test]
+#[cfg(feature = "catalog")]
 fn wave3_face_seals_and_exact_gear_route() {
 	let dir = out_dir("wave3_seals");
 	let program = json!({"ops": [

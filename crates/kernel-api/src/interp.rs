@@ -22,9 +22,10 @@ use kernel_brep::math::{DAffine3, DVec2, DVec3};
 use kernel_brep::{FilletError, Solid, StepError};
 use kernel_core::math::Vec3;
 use kernel_core::{check_mesh, make_manifold, Aabb, Mesh, MeshReport, Resolution, Sdf};
-use kernel_implicit::{
-	dual_contour_narrowband, manifold_dual_contour, mesh_boolean_implicit, BoolOp, Cuboid as ImplicitCuboid, Gyroid, MeshSdf, Node,
-};
+#[cfg(feature = "catalog")]
+use kernel_implicit::{Cuboid as ImplicitCuboid, Gyroid};
+use kernel_implicit::{dual_contour_narrowband, manifold_dual_contour, mesh_boolean_implicit, BoolOp, MeshSdf, Node};
+#[cfg(feature = "catalog")]
 use kernel_model::library::{AddOptions, AdmissionError, EntryMeta, Library, LibraryError, ParamSpec, Provenance};
 use kernel_model::{
 	format, hybrid_boolean, parts, watertight_mesh, watertight_mesh_of, BooleanOp, ConstraintState, HybridError, HybridOperand,
@@ -33,7 +34,9 @@ use kernel_model::{
 use serde_json::{json, Value};
 
 use crate::implicit;
-use crate::program::{BoltHoleSpec, BoolOpSpec, ConstraintSpec, FitSpec, LibraryMetaSpec, MesherSpec, OpKind};
+#[cfg(feature = "catalog")]
+use crate::program::LibraryMetaSpec;
+use crate::program::{BoltHoleSpec, BoolOpSpec, ConstraintSpec, FitSpec, MesherSpec, OpKind};
 use crate::report::{ErrorKind, OpError, OpReport, Report};
 
 /// A named value in the program environment.
@@ -345,11 +348,14 @@ fn run_one(
 		// serde reports an unrecognized tag as "unknown variant `...`"; the
 		// error-paths test pins this mapping so a serde message change is caught.
 		Err(e) if e.to_string().starts_with("unknown variant") => {
-			return (
-				id.clone(),
-				warnings,
-				Err(err(ErrorKind::UnknownOp, format!("op '{id}': unknown op '{op_name}' — not one of the {} supported ops; call the `describe` op to enumerate them", crate::discover::OP_COUNT))),
-			);
+			// A tag that exists only behind the `catalog` cargo feature is refused by name, so a
+			// `--no-default-features` build says "compiled out", not "typo".
+			let message = if crate::discover::CATALOG_OP_NAMES.contains(&op_name) {
+				format!("op '{id}': op '{op_name}' is behind the `catalog` cargo feature, which this build of kernel-api was compiled without — rebuild with default features (or `--features catalog`) to use it")
+			} else {
+				format!("op '{id}': unknown op '{op_name}' — not one of the {} supported ops; call the `describe` op to enumerate them", crate::discover::OP_COUNT)
+			};
+			return (id.clone(), warnings, Err(err(ErrorKind::UnknownOp, message)));
 		}
 		Err(e) => {
 			return (id.clone(), warnings, Err(err(ErrorKind::InvalidParam, format!("op '{id}' ('{op_name}'): bad params: {e}"))));
@@ -739,6 +745,7 @@ fn map_hole_error(op_id: &str, what: &str, e: HoleError) -> OpError {
 /// (build / validity / determinism at a sample) are `admission_rejected`, file
 /// writes are `io`, and meta/format problems are `invalid_param` — each with
 /// the kernel's precise message (gate messages name the failing sample).
+#[cfg(feature = "catalog")]
 fn map_admission_error(op_id: &str, e: AdmissionError) -> OpError {
 	let kind = match &e {
 		AdmissionError::GateBuildFailed { .. } | AdmissionError::GateInvalid { .. } | AdmissionError::GateNondeterministic { .. } => {
@@ -754,6 +761,7 @@ fn map_admission_error(op_id: &str, e: AdmissionError) -> OpError {
 /// refusal keeps its own machine-matchable kind, I/O stays `io`, and the rest
 /// (unknown name/version/parameter, out-of-range value, corrupt index/part)
 /// is `invalid_param` with the kernel's precise message.
+#[cfg(feature = "catalog")]
 fn map_library_error(op_id: &str, what: &str, e: LibraryError) -> OpError {
 	let kind = match &e {
 		LibraryError::DependentsExist { .. } => ErrorKind::DependentsExist,
@@ -765,11 +773,13 @@ fn map_library_error(op_id: &str, what: &str, e: LibraryError) -> OpError {
 
 /// Open (creating on demand) the library at `dir`, resolved like input paths
 /// (confined under `--out-dir` — absolute paths and `..` are refused).
+#[cfg(feature = "catalog")]
 fn open_library(op_id: &str, out_dir: &Path, dir: &str) -> Result<Library, OpError> {
 	Library::open(resolve_input_path(op_id, out_dir, dir)?).map_err(|e| map_library_error(op_id, "library", e))
 }
 
 /// Translate the JSON `meta` of `library_add` into the kernel's [`EntryMeta`].
+#[cfg(feature = "catalog")]
 fn to_kernel_meta(meta: LibraryMetaSpec) -> EntryMeta {
 	EntryMeta {
 		name: meta.name,
@@ -863,6 +873,7 @@ const SMALL_SIZES_M2_M6: &str = "M2, M2.5, M3, M4, M5, M6";
 const DIN471_SIZES: &str = "Ø8, 10, 12, 15, 20, 25, 30";
 
 /// DIN 472 internal circlip bore diameters.
+#[cfg(feature = "catalog")]
 const DIN472_SIZES: &str = "Ø16, 20, 22, 26, 32, 35, 42, 47";
 
 /// The supported AS568 dash numbers (see `kernel_model::parts::as568_spec`).
@@ -872,18 +883,23 @@ const AS568_DASHES: &str = "10, 12, 14, 16, 18, 20, 110, 112, 115, 120, 210, 214
 const METRIC_CORD_SIZES: &str = "Ø1, 1.5, 1.78, 2, 2.5, 2.62, 3, 3.53, 4, 5, 5.33, 6, 7";
 
 /// Jaw-coupling body sizes (see `kernel_model::parts::jaw_coupling_spec`).
+#[cfg(feature = "catalog")]
 const JAW_COUPLING_SIZES: &str = "20 (L25), 25 (L30), 30 (L35), 40 (L50)";
 
 /// Stocked set-screw rigid-coupling bores.
+#[cfg(feature = "catalog")]
 const SET_SCREW_COUPLING_BORES: &str = "Ø4, 5, 6, 6.35, 8, 10, 12";
 
 /// Stocked clamp-coupling bores.
+#[cfg(feature = "catalog")]
 const CLAMP_COUPLING_BORES: &str = "Ø4, 5, 6, 8, 10, 12";
 
 /// NEMA stepper frames in the table (see `kernel_model::parts::nema_spec`).
+#[cfg(feature = "catalog")]
 const NEMA_FRAMES: &str = "17, 23";
 
 /// Hobby-servo models in the table (see `kernel_model::parts::servo_spec`).
+#[cfg(feature = "catalog")]
 const SERVO_MODELS: &str = "sg90, mg996r";
 
 
@@ -1863,6 +1879,7 @@ fn exec_op(
 		OpKind::Sketch { points, segments, arcs, circles, constraints } => {
 			build_sketch(op_id, &points, &segments, &arcs, &circles, &constraints)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::SketchExtrude { sketch, height } => {
 			let sk = fetch_sketch(env, all_ids, op_id, "sketch", &sketch)?;
 			let solid = sk.extrude(height).map_err(|e| map_sketch_error(op_id, "sketch_extrude", e))?;
@@ -2625,6 +2642,7 @@ fn exec_op(
 		}
 
 		// --- Implicit / hybrid ------------------------------------------------------------------
+		#[cfg(feature = "catalog")]
 		OpKind::GyroidBlock { center, half, scale, thickness, voxel, file } => {
 			for (name, value) in [("half", half), ("scale", scale), ("thickness", thickness), ("voxel", voxel)] {
 				if !(value.is_finite() && value > 0.0) {
@@ -3455,6 +3473,7 @@ fn exec_op(
 			}
 		}
 
+		#[cfg(feature = "catalog")]
 		OpKind::Tpms { kind, min, max, cell, mode, level, voxel, file } => {
 			// One vocabulary: build the `implicit` tree's `tpms` leaf verbatim and
 			// run it through the SAME parser — kind strings, mode/level semantics,
@@ -3638,6 +3657,7 @@ fn exec_op(
 		}
 
 		// --- Parts library (curated, admission-gated; BAR.md I7) -------------------------------
+		#[cfg(feature = "catalog")]
 		OpKind::LibraryAdd { dir, part, part_file, meta } => {
 			let part_json = match (part, part_file) {
 				// An inline envelope object; a JSON string is accepted too and
@@ -3670,6 +3690,7 @@ fn exec_op(
 				"volume_at_defaults": entry.admitted.samples.first().map(|s| s.volume),
 			})))
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::LibrarySearch { dir, text, tags } => {
 			let library = open_library(op_id, out_dir, &dir)?;
 			let matches: Vec<Value> = library
@@ -3692,6 +3713,7 @@ fn exec_op(
 				.collect();
 			Ok(Outcome::measures(json!({ "matches": matches })))
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::LibraryInstantiate { dir, name, version, params } => {
 			let library = open_library(op_id, out_dir, &dir)?;
 			let built = library
@@ -3719,11 +3741,13 @@ fn exec_op(
 			}
 			Ok(Outcome { measures: Some(measures), ..outcome })
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::LibraryDeprecate { dir, name } => {
 			let mut library = open_library(op_id, out_dir, &dir)?;
 			let count = library.deprecate(&name).map_err(|e| map_library_error(op_id, "library_deprecate", e))?;
 			Ok(Outcome::measures(json!({ "name": name, "deprecated_versions": count })))
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::LibraryRemove { dir, name, force } => {
 			let mut library = open_library(op_id, out_dir, &dir)?;
 			let removed = library.remove(&name, force).map_err(|e| map_library_error(op_id, "library_remove", e))?;
@@ -3744,6 +3768,7 @@ fn exec_op(
 			};
 			bind_solid(op_id, "spur_gear", parts::spur_gear(module, teeth, face_width, bore, pressure_angle_deg, key))
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::HexBolt { m, length } => {
 			let solid = parts::hex_bolt_iso4017(m, length).ok_or_else(|| size_err(op_id, "hex_bolt", "ISO 4017", m, FASTENER_SIZES))?;
 			bind_solid(op_id, "hex_bolt", solid)
@@ -3761,12 +3786,15 @@ fn exec_op(
 				.ok_or_else(|| size_err(op_id, "socket_head_cap_screw", "DIN 912", m, FASTENER_SIZES))?;
 			bind_solid(op_id, "socket_head_cap_screw", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::Gt2Pulley { teeth, belt_width, bore, flanged } => {
 			bind_solid(op_id, "gt2_pulley", parts::gt2_pulley(teeth, belt_width, bore, flanged))
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::ChainSprocket { pitch, roller_d, teeth, bore } => {
 			bind_solid(op_id, "chain_sprocket", parts::chain_sprocket(pitch, roller_d, teeth, bore))
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::Shaft { d, length, keyway } => {
 			let keyway = match keyway {
 				None => None,
@@ -3783,6 +3811,7 @@ fn exec_op(
 			bind_solid(op_id, "shaft", parts::shaft(d, length, keyway))
 		}
 
+		#[cfg(feature = "catalog")]
 		OpKind::ParallelKey { b, h, l } => bind_solid(op_id, "parallel_key", parts::parallel_key(b, h, l)),
 		OpKind::DowelPin { d, length } => {
 			let solid = parts::dowel_pin(d, length).ok_or_else(|| {
@@ -3802,6 +3831,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "circlip_external", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::CirclipInternal { bore_d } => {
 			let solid = parts::circlip_internal(bore_d).ok_or_else(|| {
 				err(
@@ -3842,6 +3872,7 @@ fn exec_op(
 			let solid = parts::lock_nut(m).ok_or_else(|| size_err(op_id, "lock_nut", "DIN 985", m, FASTENER_SIZES))?;
 			bind_solid(op_id, "lock_nut", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::ThreadedRod { m, length } => {
 			let solid = parts::threaded_rod(m, length).ok_or_else(|| {
 				err(
@@ -3851,6 +3882,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "threaded_rod", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::Standoff { m, length } => {
 			let solid = parts::standoff(m, length).ok_or_else(|| {
 				err(
@@ -3869,8 +3901,11 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "compression_spring", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::Extrusion2020 { length } => bind_solid(op_id, "extrusion_2020", parts::extrusion_2020(length)),
+		#[cfg(feature = "catalog")]
 		OpKind::Extrusion3030 { length } => bind_solid(op_id, "extrusion_3030", parts::extrusion_3030(length)),
+		#[cfg(feature = "catalog")]
 		OpKind::Tnut2020 {} => bind_solid(op_id, "tnut_2020", parts::tnut_2020()),
 		OpKind::ORing { dash } => {
 			let solid = parts::o_ring(dash).ok_or_else(|| {
@@ -3890,6 +3925,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "o_ring_cord", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::JawCouplingHub { od, bore } => {
 			let solid = parts::jaw_coupling_hub(od, bore).ok_or_else(|| {
 				err(
@@ -3899,6 +3935,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "jaw_coupling_hub", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::JawCouplingSpider { od } => {
 			let solid = parts::jaw_coupling_spider(od).ok_or_else(|| {
 				err(
@@ -3908,6 +3945,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "jaw_coupling_spider", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::SetScrewCoupling { bore1, bore2 } => {
 			let solid = parts::set_screw_coupling(bore1, bore2).ok_or_else(|| {
 				err(
@@ -3917,6 +3955,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "set_screw_coupling", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::ClampCoupling { bore1, bore2 } => {
 			let solid = parts::clamp_coupling(bore1, bore2).ok_or_else(|| {
 				err(
@@ -3926,6 +3965,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "clamp_coupling", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::LinearBearingLmuu { bore } => {
 			let solid = parts::linear_bearing_lmuu(bore).ok_or_else(|| {
 				err(
@@ -3935,9 +3975,13 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "linear_bearing_lmuu", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::Sc8uuBlock {} => bind_solid(op_id, "sc8uu_block", parts::sc8uu_block()),
+		#[cfg(feature = "catalog")]
 		OpKind::ShaftSupportSk8 {} => bind_solid(op_id, "shaft_support_sk8", parts::shaft_support_sk8()),
+		#[cfg(feature = "catalog")]
 		OpKind::ShaftSupportShf8 {} => bind_solid(op_id, "shaft_support_shf8", parts::shaft_support_shf8()),
+		#[cfg(feature = "catalog")]
 		OpKind::Mgn12Rail { length } => {
 			let solid = parts::mgn12_rail(length).ok_or_else(|| {
 				err(
@@ -3947,6 +3991,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "mgn12_rail", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::Mgn12Carriage {} => bind_solid(op_id, "mgn12_carriage", parts::mgn12_carriage()),
 		OpKind::DeepGrooveBearing { designation } => {
 			let solid = parts::deep_groove_bearing(&designation).ok_or_else(|| {
@@ -3966,6 +4011,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "flanged_bearing", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::ThrustBearing { designation } => {
 			let solid = parts::thrust_bearing(&designation).ok_or_else(|| {
 				err(
@@ -3975,7 +4021,9 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "thrust_bearing", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::Kp08PillowBlock {} => bind_solid(op_id, "kp08_pillow_block", parts::kp08_pillow_block()),
+		#[cfg(feature = "catalog")]
 		OpKind::PipeBossG { designation, wall, length } => {
 			let solid = parts::pipe_boss_g(&designation, wall, length).ok_or_else(|| {
 				err(
@@ -3985,6 +4033,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "pipe_boss_g", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::HoseBarb { hose_id, barbs } => {
 			let solid = parts::hose_barb(hose_id, barbs).ok_or_else(|| {
 				err(
@@ -3994,6 +4043,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "hose_barb", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::ShoulderBolt { shoulder_d, shoulder_len } => {
 			let solid = parts::shoulder_bolt(shoulder_d, shoulder_len).ok_or_else(|| {
 				err(
@@ -4003,6 +4053,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "shoulder_bolt", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::SpringWasher { m } => {
 			let solid = parts::spring_washer(m).ok_or_else(|| {
 				err(
@@ -4012,6 +4063,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "spring_washer", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::LeadScrewTr8 { length, lead } => {
 			let solid = parts::lead_screw_tr8(length, lead).ok_or_else(|| {
 				err(
@@ -4021,7 +4073,9 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "lead_screw_tr8", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::LeadScrewNutTr8 {} => bind_solid(op_id, "lead_screw_nut_tr8", parts::lead_screw_nut_tr8()),
+		#[cfg(feature = "catalog")]
 		OpKind::NemaMotor { frame, body_len } => {
 			let solid = parts::nema_motor(frame, body_len).ok_or_else(|| {
 				err(
@@ -4031,6 +4085,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "nema_motor", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::NemaMountPlate { frame, thickness, margin } => {
 			let solid = parts::nema_mount_plate(frame, thickness, margin).ok_or_else(|| {
 				err(
@@ -4040,6 +4095,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "nema_mount_plate", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::GearRack { module, length, width, pressure_angle_deg } => {
 			let solid = parts::gear_rack(module, length, width, pressure_angle_deg).ok_or_else(|| {
 				err(
@@ -4049,6 +4105,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "gear_rack", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::InternalGear { module, teeth, face_width, rim_od, pressure_angle_deg } => {
 			let solid = parts::internal_gear(module, teeth, face_width, rim_od, pressure_angle_deg).ok_or_else(|| {
 				err(
@@ -4070,6 +4127,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "heatset_insert_boss", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::CirclipGrooveExternal { input, at, axis, shaft_d } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
 			let solid = parts::circlip_groove_external(s, dv3(at), dv3(axis), shaft_d).ok_or_else(|| {
@@ -4080,6 +4138,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "circlip_groove_external", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::CirclipGrooveInternal { input, at, axis, bore_d } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
 			let solid = parts::circlip_groove_internal(s, dv3(at), dv3(axis), bore_d).ok_or_else(|| {
@@ -4090,6 +4149,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "circlip_groove_internal", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::ORingGroove { input, at, axis, dash } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
 			let solid = parts::o_ring_groove(s, dv3(at), dv3(axis), dash).ok_or_else(|| {
@@ -4124,6 +4184,7 @@ fn exec_op(
 				..outcome
 			})
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::ORingFaceGlandRacetrack { input, at, axis, x_len, y_len, corner_r, cord_d } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
 			let solid = parts::o_ring_face_gland_racetrack(s, dv3(at), dv3(axis), x_len, y_len, corner_r, cord_d).ok_or_else(|| {
@@ -4147,6 +4208,7 @@ fn exec_op(
 			})
 		}
 
+		#[cfg(feature = "catalog")]
 		OpKind::Pc4Port { input, at, axis, m, through } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
 			let solid = parts::pc4_port_cut(s, dv3(at), dv3(axis), m, through).ok_or_else(|| {
@@ -4187,6 +4249,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "board_mount", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::Tr8NutTrap { input, at, axis, through } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
 			let solid = parts::tr8_nut_trap(s, dv3(at), dv3(axis), through).ok_or_else(|| {
@@ -4197,6 +4260,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "tr8_nut_trap", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::NemaMountCut { input, at, axis, frame, through } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
 			let solid = parts::nema_mount_cut(s, dv3(at), dv3(axis), frame, through).ok_or_else(|| {
@@ -4207,6 +4271,7 @@ fn exec_op(
 			})?;
 			bind_solid(op_id, "nema_mount_cut", solid)
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::ServoPocket { input, at, axis, model, through } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
 			let solid = parts::servo_pocket(s, dv3(at), dv3(axis), &model, through).ok_or_else(|| {
@@ -4219,6 +4284,7 @@ fn exec_op(
 		}
 
 		// --- Design-math lookups ----------------------------------------------------------------------
+		#[cfg(feature = "catalog")]
 		OpKind::Gt2Belt { center_distance, t1, t2 } => {
 			let (pitch_length, belt_teeth) = parts::gt2_belt(center_distance, t1, t2).ok_or_else(|| {
 				err(
@@ -4228,6 +4294,7 @@ fn exec_op(
 			})?;
 			Ok(Outcome::measures(json!({ "pitch_length": pitch_length, "belt_teeth": belt_teeth })))
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::Gt2CenterDistance { belt_teeth, t1, t2 } => {
 			let center_distance = parts::gt2_center_distance(belt_teeth, t1, t2).ok_or_else(|| {
 				err(
@@ -4290,6 +4357,7 @@ fn exec_op(
 			})?;
 			Ok(Outcome::measures(json!({ "cord_length": cord_length })))
 		}
+		#[cfg(feature = "catalog")]
 		OpKind::PipeThreadG { designation } => {
 			let g = parts::g_thread_spec(&designation).ok_or_else(|| {
 				err(

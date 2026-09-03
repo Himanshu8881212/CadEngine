@@ -10,6 +10,13 @@ twice produces byte-identical output, and running it against an unchanged
 program.rs reproduces the committed discover.rs exactly (CI-checkable with
 `git diff --exit-code crates/kernel-api/src/discover.rs`).
 
+Variants carrying `#[cfg(feature = "catalog")]` in program.rs (the hardware-catalog
+families no campaign uses — docs/OP_USAGE.md) get the same gate on their `op_tag`
+arm and on their OP_NAMES / OP_PARAMS rows, so a `--no-default-features` build
+of kernel-api drops them from the whole `describe` surface at once. OP_COUNT is
+emitted for both builds; CATALOG_OP_NAMES (always compiled) lists the gated tags
+so the interpreter can name the feature in its `unknown_op` refusal.
+
 Per-field extraction:
   name      wire name after `#[serde(rename = "...")]` (`in`, `bool`, ...)
   ty        a friendly type string: number / int / string / bool / id-ref /
@@ -39,6 +46,8 @@ ID_REF_NAMES = {"in", "a", "b", "sketch"}
 STRING_ENUMS = {"MesherSpec", "FitSpec", "BoolOpSpec"}
 # Sentence-boundary suppression: tokens whose trailing '.' is an abbreviation.
 ABBREVS = {"e.g", "i.e", "etc", "vs", "cf"}
+# The one cfg attribute the generator understands, verbatim (program.rs and discover.rs).
+CATALOG_CFG = '#[cfg(feature = "catalog")]'
 
 
 def snake(name: str) -> str:
@@ -176,6 +185,7 @@ def parse_opkind() -> list[dict]:
 
     variants: list[dict] = []
     pending_rename: str | None = None
+    pending_catalog = False
     i, depth = start + 1, 0
     while i < len(lines):
         line = lines[i]
@@ -191,15 +201,20 @@ def parse_opkind() -> list[dict]:
                 pending_rename = am.group(1)
                 i += 1
                 continue
+            if s == CATALOG_CFG:
+                pending_catalog = True
+                i += 1
+                continue
             vm = re.match(r"([A-Z][A-Za-z0-9]*)\s*(\{|\(|,)", s)
             if vm:
                 name, delim = vm.group(1), vm.group(2)
                 tag = pending_rename if pending_rename else snake(name)
                 pending_rename = None
+                catalog, pending_catalog = pending_catalog, False
                 if delim == ",":
-                    variants.append({"name": name, "tag": tag, "shape": "unit", "fields": []})
+                    variants.append({"name": name, "tag": tag, "shape": "unit", "fields": [], "catalog": catalog})
                 elif delim == "(":
-                    variants.append({"name": name, "tag": tag, "shape": "tuple", "fields": []})
+                    variants.append({"name": name, "tag": tag, "shape": "tuple", "fields": [], "catalog": catalog})
                 else:
                     # Struct variant: capture the brace-balanced body (inline or multi-line).
                     chunk = [line[line.index("{") + 1:]]
@@ -211,7 +226,7 @@ def parse_opkind() -> list[dict]:
                         chunk.append(lines[j])
                     body = "\n".join(chunk)
                     body = body[: body.rindex("}")]  # drop the closing brace (+ trailing `,`)
-                    variants.append({"name": name, "tag": tag, "shape": "struct", "fields": parse_fields(body)})
+                    variants.append({"name": name, "tag": tag, "shape": "struct", "fields": parse_fields(body), "catalog": catalog})
                     depth = 0
                     i = j + 1
                     continue
@@ -230,14 +245,20 @@ def emit(variants: list[dict]) -> str:
         "tuple": '\t\tOpKind::{n}(..) => "{t}",',
         "unit": '\t\tOpKind::{n} => "{t}",',
     }
-    arms = "\n".join(arm_pat[v["shape"]].format(n=v["name"], t=v["tag"]) for v in variants)
-    names = ",\n".join(f'\t"{v["tag"]}"' for v in variants)
+    def gated(v: dict, indent: str) -> str:
+        return f"{indent}{CATALOG_CFG}\n" if v["catalog"] else ""
+
+    arms = "\n".join(gated(v, "\t\t") + arm_pat[v["shape"]].format(n=v["name"], t=v["tag"]) for v in variants)
+    names = ",\n".join(gated(v, "\t") + f'\t"{v["tag"]}"' for v in variants)
     count = len(variants)
+    core_count = sum(1 for v in variants if not v["catalog"])
+    catalog_names = ",\n".join(f'\t"{v["tag"]}"' for v in variants if v["catalog"])
+    catalog_table = f"&[\n{catalog_names},\n]" if catalog_names else "&[]"
 
     param_rows = []
     for v in variants:
         if not v["fields"]:
-            param_rows.append(f'\t({rs_str(v["tag"])}, &[]),')
+            param_rows.append(gated(v, "\t") + f'\t({rs_str(v["tag"])}, &[]),')
             continue
         specs = "\n".join(
             "\t\tParamSpec { name: %s, ty: %s, required: %s, doc: %s, aliases: &[%s] },"
@@ -245,7 +266,7 @@ def emit(variants: list[dict]) -> str:
                ", ".join(rs_str(a) for a in f.get("aliases", [])))
             for f in v["fields"]
         )
-        param_rows.append(f'\t({rs_str(v["tag"])}, &[\n{specs}\n\t]),')
+        param_rows.append(gated(v, "\t") + f'\t({rs_str(v["tag"])}, &[\n{specs}\n\t]),')
     params_table = "\n".join(param_rows)
 
     return f'''//! Self-describing op surface (M3 Discovery). The op catalogue AND the per-op parameter table
@@ -253,6 +274,10 @@ def emit(variants: list[dict]) -> str:
 //! (adding a variant without regenerating fails to compile), [`OP_NAMES`]/[`OP_PARAMS`] as
 //! generated tables pinned to it by `tests/describe.rs`. Regenerate this WHOLE file with
 //! `python3 tools/gen_discover.py` whenever `program.rs`'s `OpKind` changes — never hand-edit.
+//!
+//! Variants gated `#[cfg(feature = "catalog")]` in `program.rs` carry the same gate here (arm,
+//! name, params row), so `--no-default-features` shrinks every table together; [`OP_COUNT`] is
+//! emitted per build and [`CATALOG_OP_NAMES`] always lists the gated tags.
 
 use crate::program::OpKind;
 
@@ -272,8 +297,19 @@ pub const OP_NAMES: &[&str] = &[
 {names},
 ];
 
-/// Number of supported ops. Kept in lockstep with the `OpKind` variant count via [`op_tag`].
+/// Number of supported ops in a default build (`catalog` feature on). Kept in lockstep with
+/// the `OpKind` variant count via [`op_tag`].
+#[cfg(feature = "catalog")]
 pub const OP_COUNT: usize = {count};
+
+/// Number of supported ops with the `catalog` feature compiled out (`--no-default-features`).
+#[cfg(not(feature = "catalog"))]
+pub const OP_COUNT: usize = {core_count};
+
+/// Wire tags of the ops behind the `catalog` cargo feature. Always compiled — even when the
+/// feature is off — so the interpreter can name the feature in its `unknown_op` refusal
+/// instead of calling the op a typo.
+pub const CATALOG_OP_NAMES: &[&str] = {catalog_table};
 
 /// One parameter of an op, as served by `describe {{name}}`: the JSON wire name (post
 /// `#[serde(rename)]` — e.g. `in`), a friendly type string (`number` / `int` / `string` /
@@ -309,7 +345,8 @@ def main() -> None:
     out = emit(variants)
     n_fields = sum(len(v["fields"]) for v in variants)
     DISCOVER_RS.write_text(out, encoding="utf-8")
-    print(f"wrote {DISCOVER_RS.relative_to(REPO)}: {len(variants)} ops, {n_fields} param specs")
+    n_catalog = sum(1 for v in variants if v["catalog"])
+    print(f"wrote {DISCOVER_RS.relative_to(REPO)}: {len(variants)} ops ({n_catalog} behind `catalog`), {n_fields} param specs")
 
 
 if __name__ == "__main__":
