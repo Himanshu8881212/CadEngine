@@ -340,3 +340,62 @@ fn bare_program_filename_empty_input_base_still_resolves() {
 	);
 	let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// `import_step` in `"mode": "tolerant"` on a real vendor assembly (the
+/// Framework Expansion Card enclosure, CC BY 4.0 — `kernel-brep/tests/fixtures`):
+/// the op binds the placed compound, and its measures carry the per-solid
+/// census (four instances, product names, placed envelopes, statuses) plus
+/// the `skipped` / `repaired` lists — and an unknown `mode` value is refused.
+#[test]
+fn step_tolerant_mode_lists_every_solid_and_binds_the_compound() {
+	let dir = out_dir("step_tolerant");
+	let fixture = concat!(env!("CARGO_MANIFEST_DIR"), "/../kernel-brep/tests/fixtures/fw_expansion_card.step");
+	std::fs::copy(fixture, dir.join("card.step")).expect("copy the fixture into the sandbox");
+	let r = run(
+		&dir,
+		json!([
+			{"id": "card", "op": "import_step", "file": "card.step", "mode": "tolerant"},
+			{"id": "check", "op": "assert", "in": "card", "valid": true},
+		]),
+	);
+	assert!(r.ok, "tolerant import of the Expansion Card must succeed: {r:#?}");
+	let m = entry(&r, "card").measures.as_ref().expect("measures");
+	let solids = m["solids"].as_array().expect("solids array");
+	let names: Vec<&str> = solids.iter().filter_map(|s| s["name"].as_str()).collect();
+	let statuses: Vec<&str> = solids.iter().filter_map(|s| s["status"].as_str()).collect();
+	assert!(
+		m["mode"] == json!("tolerant")
+			&& m["source"] == json!("step")
+			&& m["solids_total"] == json!(4)
+			&& m["solids_imported"] == json!(4)
+			&& m["solids_skipped"] == json!(0)
+			&& names.iter().filter(|n| **n == "STAR_SCREW_M2X3L_298_1").count() == 2
+			&& names.contains(&"COMPOUND_1")
+			&& names.contains(&"FW_EXP_1USBC_FRAME_CLIP_BC_229_")
+			&& statuses.iter().all(|s| *s == "imported")
+			&& m["skipped"].as_array().map(Vec::len) == Some(0)
+			&& m["repaired"].is_array()
+			&& m["uncertainty_mm"].as_f64().is_some()
+			&& num(&r, "card", "shells") >= 4.0,
+		"tolerant receipt: {m:#}"
+	);
+	// Every record carries a placed envelope and the per-face counters.
+	for s in solids {
+		let (lo, hi) = (s["bbox_min"].as_array().expect("bbox_min"), s["bbox_max"].as_array().expect("bbox_max"));
+		assert!(
+			lo.len() == 3
+				&& hi.len() == 3
+				&& (0..3).all(|k| lo[k].as_f64().unwrap() <= hi[k].as_f64().unwrap())
+				&& s["bbox_source"] == json!("brep")
+				&& s["faces"].as_u64().unwrap_or(0) > 0
+				&& s["entity"].as_u64().is_some()
+				&& s["path"].as_str().is_some(),
+			"solid record: {s:#}"
+		);
+	}
+	// The strict default still refuses an unknown mode loudly.
+	let bad = run(&dir, json!([{"id": "card", "op": "import_step", "file": "card.step", "mode": "lenient"}]));
+	let e = entry(&bad, "card").error.as_ref().expect("must fail");
+	assert_eq!(e.kind, ErrorKind::InvalidParam, "unknown mode must be invalid_param: {bad:#?}");
+	let _ = std::fs::remove_dir_all(&dir);
+}

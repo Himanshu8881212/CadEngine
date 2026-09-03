@@ -668,14 +668,35 @@ fn unsupported_periodic_and_revolved_faces_stay_loud() {
 #24=PLANE('',#4);\n\
 #25=ADVANCED_FACE('',(#23),#24,.T.);\n"
 		.to_string();
-	let results: Vec<bool> = [&half_torus, &rev, &parabola]
+	let results: Vec<bool> = [&rev, &parabola]
 		.iter()
 		.map(|s| matches!(import_step(s), Err(StepError::Unsupported(_))))
 		.collect();
 	assert_eq!(
 		results,
-		vec![true, true, true],
-		"a partial-turn (half-torus) periodic wall, SURFACE_OF_REVOLUTION and PARABOLA edges must each be a loud StepError::Unsupported"
+		vec![true, true],
+		"SURFACE_OF_REVOLUTION and PARABOLA edges must each be a loud StepError::Unsupported"
+	);
+	// (a) used to be a documented refusal; since the parameter-patch fallback it
+	// imports as facets ON the exact torus: an open shell (the wall alone) whose
+	// area is half the torus' 4π²Rr within 1%, every vertex on the surface.
+	let wall = import_step(&half_torus).expect("a half-torus wall must import through the parameter-patch fallback");
+	let v = validate(&wall);
+	let (r_major, r_minor) = (8.0_f64, 2.5_f64);
+	let max_off = (0..wall.vertex_count())
+		.map(|i| {
+			let p = wall.position(kernel_brep::VertexId(i as u32));
+			let rho = (p.x * p.x + p.y * p.y).sqrt();
+			(((rho - r_major).powi(2) + p.z * p.z).sqrt() - r_minor).abs()
+		})
+		.fold(0.0_f64, f64::max);
+	let area = kernel_brep::area(&wall);
+	let want = 0.5 * 4.0 * std::f64::consts::PI * std::f64::consts::PI * r_major * r_minor;
+	assert!(
+		!v.closed && wall.face_count() > 200 && max_off < 1e-9 && (area - want).abs() / want < 0.01,
+		"half-torus wall: closed={} faces={} max torus deviation={max_off:.2e} area={area:.3} (want ≈{want:.3})",
+		v.closed,
+		wall.face_count()
 	);
 }
 

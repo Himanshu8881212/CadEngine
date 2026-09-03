@@ -1789,9 +1789,10 @@ reason; faces that do not form a usable solid are `invalid_geometry`.
 | param | type | required | meaning |
 |---|---|---|---|
 | `file` | string | yes | path to a STEP file (confined to the input base) |
+| `mode` | string | no | `"strict"` (default) or `"tolerant"` — see below |
 
-Measures: `source` (`"step"`), `shells`, `genus`, `faces`, `volume`
-(faceted), `freeform_faces`.
+Measures (both modes): `source` (`"step"`), `shells`, `genus`, `faces`,
+`volume` (faceted), `freeform_faces`.
 
 ```json
 {"ops": [
@@ -1800,6 +1801,76 @@ Measures: `source` (`"step"`), `shells`, `genus`, `faces`, `volume`
   {"id": "out", "op": "export_stl", "in": "housing", "file": "housing.stl"}
 ]}
 ```
+
+Every trim vertex of a B-spline face is projected onto its patch within the
+file's own asserted `UNCERTAINTY_MEASURE_WITH_UNIT` (typically 4–50 µm from
+Creo/SolidWorks/Onshape) — a vertex the producer itself declares "on" the
+patch is accepted, not refused. Holes on curved analytic faces (a bore
+through a cylinder wall, a pocket in a spherical dome) and periodic
+sphere/torus regions the ring-grid resampler cannot phase (a corner ball
+bounded by three arcs, a torus band whose rims start at different
+longitudes, a half-torus wall) are tessellated on their exact surface through
+the parameter-patch path.
+
+#### `"mode": "tolerant"` — real vendor files
+
+Strict mode refuses the whole file on the first face it cannot read, and
+imports every `MANIFOLD_SOLID_BREP` in its LOCAL frame (assembly placements
+are ignored). Tolerant mode is the read path for a vendor assembly (a
+mainboard, a battery pack) where one odd face must not cost the other 167
+solids and where the campaign needs the parts' *placed* envelopes:
+
+- **per-face containment**: a face the exact routes refuse is rolled back and
+  **flat-repaired** (its loops ear-clipped on their own Newell plane — the
+  boundary chords stay verbatim, so the shell stays welded and closed; only
+  that face's interior geometry is approximated). A face that cannot even be
+  repaired is **skipped**, which skips its whole solid (an open shell can
+  never bind);
+- **per-solid census with placements**: EVERY solid of the file is listed,
+  one record per assembly **instance** (the NAUO tree is walked with its
+  `ITEM_DEFINED_TRANSFORMATION` placements — the count OpenCascade's XCAF
+  reader gives), named by its `PRODUCT`, with a world-space envelope from the
+  entity geometry (vertices, exact conic-arc extremes, B-spline control
+  points) — so a solid whose B-rep could not be built still reports its
+  envelope; an imported solid's envelope also folds in its reconstructed
+  vertices;
+- **a looser trim-vertex snap**: 10× the file's uncertainty (strict: 1×);
+  every vertex accepted beyond the uncertainty is reported.
+
+The bound body is the **compound** of every imported instance, placed
+(mirrored placements rebuild the instance outward-wound), a valid multi-shell
+solid. If NO solid imports the op fails `invalid_geometry` with the counts and
+the first skip reasons in the message.
+
+Additional measures in tolerant mode:
+
+| measure | meaning |
+|---|---|
+| `mode` | `"tolerant"` |
+| `uncertainty_mm` | the file's asserted uncertainty (`null` when it states none) |
+| `solids_total` / `solids_imported` / `solids_skipped` | instance counts |
+| `faces_skipped` / `faces_repaired` | face-level counts across all breps |
+| `solids` | one record per instance: `name` (PRODUCT name), `path` (product names root → instance, `/`-joined), `entity` (the brep id), `status` (`"imported"` \| `"skipped"`), `bbox_min` / `bbox_max` (placed, mm), `bbox_source` (`"brep"`: reconstructed vertices folded in; `"edges"`: entity geometry only), `faces`, `faces_repaired`, `faces_skipped`, `reason` (skipped solids only, verbatim) |
+| `skipped` | `[{entity, kind, solid, reason}]` — faces (`ADVANCED_FACE`) that could not be read even flat, and solids (`MANIFOLD_SOLID_BREP` / `BREP_WITH_VOIDS`) that were skipped as a consequence or failed validation |
+| `repaired` | `[{entity, kind, solid, reason}]` — flat-repaired faces (reason ends `…repaired: <surface type> face approximated by N flat facets…`), trim vertices projected onto their patch beyond the uncertainty, unparseable statements skipped (`kind: "statement"`), an unreadable assembly structure (`kind: "assembly"`) |
+
+```json
+{"ops": [
+  {"id": "board", "op": "import_step", "file": "vendor/mainboard.step", "mode": "tolerant"},
+  {"id": "env", "op": "bounding_box", "in": "board"}
+]}
+```
+
+Read `solids[*].bbox_*` for per-part envelopes (a keep-out for a case), and
+gate on `solids_skipped` / `faces_repaired` when the exact geometry matters:
+a flat-repaired face is inside the body's envelope but not its true surface.
+
+When only the envelopes are needed, the **census** (`kernel_brep::step_census`,
+Rust surface only) produces the identical `solids` listing without
+reconstructing a single B-rep — seconds on a file the full import takes
+minutes on (measured: 168/168 solids of a 45 MB, 168-solid vendor mainboard in
+7 s in a debug build). Every record is then `"status": "skipped"` with reason
+`census only (not reconstructed)` and `bbox_source: "edges"`.
 
 ### `import_mesh`
 Import a triangle-mesh file — `.stl`, `.obj`, `.3mf` or `.ply`, sniffed by

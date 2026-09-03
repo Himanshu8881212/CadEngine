@@ -27,6 +27,7 @@ pub mod policy;
 pub mod ssi;
 pub mod step_export;
 pub mod step_import;
+pub mod step_tolerant;
 pub mod tessellate;
 pub(crate) mod tol;
 pub mod tessellate_adaptive;
@@ -73,6 +74,7 @@ pub use ssi::{
 };
 pub use step_export::{export_step, export_step_ap242, export_step_assembly, export_step_freeform};
 pub use step_import::{import_bspline_curve, import_bspline_mesh, import_bspline_surface, import_step, import_step_assembly, import_step_freeform, StepError};
+pub use step_tolerant::{import_step_tolerant, step_census, ImportEvent, SolidRecord, SolidStatus, TolerantImport};
 pub use tessellate::{tessellate, tessellate_default, TessOptions};
 pub use tessellate_adaptive::{tessellate_adaptive, tessellate_adaptive_tol};
 pub use topo::{

@@ -865,6 +865,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 	]),
 	("import_step", &[
 		ParamSpec { name: "file", ty: "string", required: true, doc: "", aliases: &[] },
+		ParamSpec { name: "mode", ty: "object", required: false, doc: "`strict` (default): the first unreadable face fails the op.", aliases: &[] },
 	]),
 	("import_mesh", &[
 		ParamSpec { name: "file", ty: "string", required: true, doc: "", aliases: &[] },

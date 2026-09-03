@@ -16,10 +16,10 @@
 //! |---|---|
 //! | `PLANE`, `CYLINDRICAL/SPHERICAL/CONICAL/TOROIDAL_SURFACE` | exact analytic [`Surface`] tag |
 //! | trimmed `B_SPLINE_SURFACE_WITH_KNOTS` face (incl. rational `_COMPLEX`) | tessellated **on the exact patch**: trim-loop vertices are Newton-projected into parameter space, the loops are triangulated there (monotone sweep for single rings, hole-bridging ear clip otherwise) and the interior is refined to the `PATCH_SAG_TOL` relative chordal tolerance — subject to the `PATCH_MIN_PITCH` area floor that pins the strip against an unsplittable trim chord (bounded residual sag there; the refinement's termination device) — with every interior vertex evaluated via [`NurbsSurface::point_at`]; trim chords are never split, so the weld with neighbour faces stays watertight. Facets carry their own exact `Plane` tags — the analytic [`Surface`] enum has no freeform variant, so the patch's NURBS identity is not on the [`Solid`] (it IS preserved by the [`import_step_freeform`] sidecar; exact patch reads also via [`import_bspline_surface`]) |
-//! | **closed/periodic** B-spline face (`S` periodic across a domain end, verified by evaluation): a trim loop crossing the patch seam, a seam edge traversed twice (a real exporter's closed tube wall), or an untrimmed band bounded only by its two full-period rims | unwrapped into the **universal cover** (`unwrap_ring`, mirroring the analytic periodic-wall split): seam-crossing chords continue into the neighbouring period, slit traversals land one period apart and weld back on interning, two opposite full-period rims are bridged by a synthetic seam (`bridge_band_rings`); then the standard ear-clip + on-patch refinement. Caveat: each chord is unwrapped the SHORT way around, so a single trim chord deliberately spanning > half a period reads as a seam crossing |
-//! | closed B-spline face whose loops wind the patch in any other combination (one winding rim, same-sense rims, winding holes), trim vertex off the patch | loud [`StepError::Unsupported`] |
+//! | **closed/periodic** B-spline face (`S` periodic across a domain end, verified by evaluation): a trim loop crossing the patch seam, a seam edge traversed twice (a real exporter's closed tube wall), or an untrimmed band bounded only by its two full-period rims | unwrapped into the **universal cover** (`unwrap_ring_defined`, mirroring the analytic periodic-wall split): seam-crossing chords continue into the neighbouring period, slit traversals land one period apart and weld back on interning, two opposite full-period rims are bridged by a synthetic seam (`bridge_band_rings`); then the standard ear-clip + on-patch refinement. Caveat: each chord is unwrapped the SHORT way around, so a single trim chord deliberately spanning > half a period reads as a seam crossing |
+//! | closed B-spline face whose loops wind the patch in any other combination (same-sense rims, winding holes) | loud [`StepError::Unsupported`]. A trim vertex OFF the patch is accepted within the file's asserted `UNCERTAINTY_MEASURE_WITH_UNIT` (10× that in tolerant mode, reported as a repair); farther off is a loud refusal |
 //! | other surfaces (`SURFACE_OF_REVOLUTION`, offset, swept, …) | loud [`StepError::Unsupported`] |
-//! | `FACE_OUTER_BOUND` + `FACE_BOUND` | multi-loop faces: planar and B-spline faces keep their inner (hole) loops; a curved ANALYTIC face with holes is refused loudly |
+//! | `FACE_OUTER_BOUND` + `FACE_BOUND` | multi-loop faces: planar and B-spline faces keep their inner (hole) loops; a curved ANALYTIC face with holes is tessellated on its exact surface through the parameter-patch path (`add_patch_face` on an `AnalyticPatch`: the loops unwrapped in the surface's periodic chart, hole-bridging ear clip, batched on-surface refinement) |
 //! | `LINE` edges (or absent edge geometry) | the exact two-vertex chord |
 //! | `CIRCLE` / `ELLIPSE` edges | sweep ≤ 90°: kept as the producer's chord (re-imports of this kernel's own faceted exports stay bit-exact); sweep > 90° through full rings: sampled at the `FULL_TURN_SEGMENTS` pitch (a one-edge full-circle cap becomes a closed 48-segment ring); segments carry the analytic [`Curve`] |
 //! | `B_SPLINE_CURVE_WITH_KNOTS` edges (incl. rational `_COMPLEX`) | sampled over the knot domain at a curvature-adaptive pitch: `BSPLINE_EDGE_SEGMENTS` doubled (≤ `MAX_BSPLINE_EDGE_SEGMENTS`) while consecutive chords turn more than the conic ring pitch — so a closed full-circle B-spline rim gets 64 chords, a gentle freeform trim edge keeps 8 |
@@ -28,8 +28,9 @@
 //! | periodic cylinder/cone face (seam edge + full-circle rims, e.g. a real exporter's cylinder wall) | split into chord-triangle facets on the exact surface via monotone parameter-strip triangulation — these are ruled in the axial direction, so the chords lie on the inscribed prism/frustum |
 //! | periodic / pole-spanning sphere and torus regions (full sphere as one face, caps with or without a seam/pole vertex, bands between rims, full torus, torus bands) | resampled into a ring grid of chord facets ON the exact surface: boundary rings are reused verbatim (the weld), interior rings/pole fans are synthesized at the ring pitch (see `resample_periodic_region`) |
 //! | general sub-periodic sphere/torus regions (≤ ~137° span, e.g. the recover pass's cubemap/quadrant chart faces) | triangulated on the exact surface: boundary verbatim, interior chord facets refined via the parameter chart (see `general_curved_region`) |
-//! | partial-turn PERIODIC sphere/torus regions (a half-torus wall's full-turn tube rims, a pole-to-pole lune), rings off the grid phase, seam-free winding loops | loud [`StepError::Unsupported`] |
+//! | every other sphere/torus region the ring grid refuses (a corner ball bounded by three arcs, a torus band whose rims start at different longitudes, a half-torus wall bounded by two tube circles and an equator seam, a pole-to-pole lune) and every cylinder/cone region the strip splitter refuses | the **parameter-patch fallback**: the loop unwrapped in the surface's normalised periodic chart (`u` = angle / 2π, `v` = latitude, tube angle or scaled axial distance; poles/apex interpolated), a one-rim cap closed through the pole row, a two-rim band bridged by a synthetic seam sampled ON the surface, then triangulated and refined on the exact surface. Loops that wind the chart in any other combination stay a loud [`StepError::Unsupported`] |
 //! | `NEXT_ASSEMBLY_USAGE_OCCURRENCE` / `MAPPED_ITEM` assemblies | flattened component instances via [`import_step_assembly`] (names, per-part solids, accumulated placements) |
+//! | any face outside the matrix, in **tolerant** mode ([`crate::step_tolerant::import_step_tolerant`]) | flat-repaired or skipped and REPORTED per face and per solid; every solid of the file listed with its product name and placed envelope |
 //!
 //! Curved-face routing detail: a curved-tagged face whose tessellated boundary has
 //! ≤ 4 vertices, or is planar **and** chord-close to its surface, imports as a single
@@ -76,7 +77,7 @@ impl std::error::Error for StepError {}
 
 /// A parsed STEP parameter value.
 #[derive(Debug, Clone, PartialEq)]
-enum Value {
+pub(crate) enum Value {
 	Real(f64),
 	Int(i64),
 	Str(String),
@@ -92,37 +93,43 @@ enum Value {
 }
 
 impl Value {
-	fn as_ref(&self) -> Option<u32> {
+	pub(crate) fn as_ref(&self) -> Option<u32> {
 		match self {
 			Value::Ref(r) => Some(*r),
 			_ => None,
 		}
 	}
-	fn as_list(&self) -> Option<&[Value]> {
+	pub(crate) fn as_list(&self) -> Option<&[Value]> {
 		match self {
 			Value::List(v) => Some(v),
 			_ => None,
 		}
 	}
-	fn as_real(&self) -> Option<f64> {
+	pub(crate) fn as_real(&self) -> Option<f64> {
 		match self {
 			Value::Real(r) => Some(*r),
 			Value::Int(i) => Some(*i as f64),
 			_ => None,
 		}
 	}
-	fn as_int(&self) -> Option<i64> {
+	pub(crate) fn as_int(&self) -> Option<i64> {
 		match self {
 			Value::Int(i) => Some(*i),
+			_ => None,
+		}
+	}
+	pub(crate) fn as_str(&self) -> Option<&str> {
+		match self {
+			Value::Str(s) => Some(s),
 			_ => None,
 		}
 	}
 }
 
 /// One `#N = NAME(args);` instance.
-struct Entity {
-	name: String,
-	args: Vec<Value>,
+pub(crate) struct Entity {
+	pub(crate) name: String,
+	pub(crate) args: Vec<Value>,
 }
 
 // --- Parser ------------------------------------------------------------------
@@ -348,20 +355,52 @@ fn statements(text: &str) -> Vec<String> {
 	out
 }
 
-/// Parse the whole file into an instance map (`#N → Entity`).
-fn parse(text: &str) -> Result<HashMap<u32, Entity>, StepError> {
+/// Parse the whole file into an instance map (`#N → Entity`). Strict: the first
+/// malformed instance statement fails the parse.
+pub(crate) fn parse(text: &str) -> Result<HashMap<u32, Entity>, StepError> {
+	parse_with(text, false).map(|(map, _)| map)
+}
+
+/// [`parse`] with an optional **lenient** mode for the tolerant importer: a
+/// malformed instance statement is skipped and reported as `(statement head,
+/// reason)` instead of failing the whole file. Strict mode (`lenient = false`)
+/// returns the first malformed statement as the error and an empty issue list.
+/// A parsed entity graph plus the `(statement head, reason)` of every statement
+/// the lenient parse skipped.
+pub(crate) type ParsedFile = (HashMap<u32, Entity>, Vec<(String, String)>);
+
+pub(crate) fn parse_with(text: &str, lenient: bool) -> Result<ParsedFile, StepError> {
 	let mut map = HashMap::new();
+	let mut issues: Vec<(String, String)> = Vec::new();
 	for stmt in statements(text) {
 		// Only `#N = …` instance statements carry geometry.
 		let Some(rest) = stmt.strip_prefix('#') else { continue };
 		let Some(eq) = rest.find('=') else { continue };
-		let id: u32 = rest[..eq].trim().parse().map_err(|_| StepError::Parse(format!("bad id in '{stmt}'")))?;
+		let head: String = stmt.chars().take(40).collect();
+		let id: u32 = match rest[..eq].trim().parse() {
+			Ok(id) => id,
+			Err(_) if lenient => {
+				issues.push((head, "bad entity id".into()));
+				continue;
+			}
+			Err(_) => return Err(StepError::Parse(format!("bad id in '{stmt}'"))),
+		};
 		let body = rest[eq + 1..].trim();
 		let mut cur = Cursor::new(body);
-		let parsed = cur.value().map_err(|e| match e {
-			StepError::Parse(m) => StepError::Parse(format!("{m} in `{body}`")),
-			other => other,
-		})?;
+		let parsed = match cur.value() {
+			Ok(v) => v,
+			Err(e) => {
+				let e = match e {
+					StepError::Parse(m) => StepError::Parse(format!("{m} in `{body}`")),
+					other => other,
+				};
+				if lenient {
+					issues.push((head, e.to_string()));
+					continue;
+				}
+				return Err(e);
+			}
+		};
 		match parsed {
 			Value::Typed(name, args) => {
 				map.insert(id, Entity { name, args });
@@ -374,22 +413,64 @@ fn parse(text: &str) -> Result<HashMap<u32, Entity>, StepError> {
 			_ => {} // non-entity assignment — ignore
 		}
 	}
-	Ok(map)
+	Ok((map, issues))
+}
+
+/// The file's asserted geometric **uncertainty** (mm): the largest
+/// `UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(x), …)` in the entity graph —
+/// the "maximum model space distance between geometric entities at asserted
+/// connectivities" every AP203/AP214 producer writes into its representation
+/// context. `None` when the file states none (a bare fragment).
+pub(crate) fn file_uncertainty(ents: &HashMap<u32, Entity>) -> Option<f64> {
+	ents.values()
+		.filter(|e| e.name == "UNCERTAINTY_MEASURE_WITH_UNIT")
+		.filter_map(|e| {
+			e.args.iter().find_map(|v| match v {
+				Value::Typed(n, a) if n == "LENGTH_MEASURE" => a.first().and_then(Value::as_real),
+				_ => None,
+			})
+		})
+		.filter(|u| u.is_finite() && *u > 0.0)
+		.fold(None, |acc: Option<f64>, u| Some(acc.map_or(u, |a| a.max(u))))
 }
 
 // --- Reconstruction ----------------------------------------------------------
 
-struct Importer<'a> {
-	ents: &'a HashMap<u32, Entity>,
+pub(crate) struct Importer<'a> {
+	pub(crate) ents: &'a HashMap<u32, Entity>,
+	/// The file's asserted uncertainty (mm, [`file_uncertainty`]), `0` when absent
+	/// — the allowance within which a trim vertex may sit off its B-spline patch
+	/// and still be projected onto it (root cause (a) of the vendor refusals).
+	pub(crate) uncertainty: f64,
+	/// Tolerant-mode allowance multiplier on `uncertainty` for the trim-vertex
+	/// snap: `1` in strict mode (the file's own assertion is the limit),
+	/// [`TOLERANT_SNAP_FACTOR`] in tolerant mode.
+	pub(crate) snap_factor: f64,
 }
 
+/// How many times the file's asserted uncertainty a trim vertex may sit off its
+/// B-spline patch in **tolerant** mode before the face is refused (strict mode
+/// allows exactly the uncertainty). Each such acceptance is a reported repair.
+pub(crate) const TOLERANT_SNAP_FACTOR: f64 = 10.0;
+
 impl<'a> Importer<'a> {
-	fn get(&self, id: u32) -> Result<&Entity, StepError> {
+	/// Strict importer over a parsed entity graph.
+	pub(crate) fn new(ents: &'a HashMap<u32, Entity>) -> Self {
+		Importer { ents, uncertainty: file_uncertainty(ents).unwrap_or(0.0), snap_factor: 1.0 }
+	}
+
+	/// The absolute distance (mm) a trim vertex may sit off its patch and still be
+	/// projected onto it: the file's uncertainty times the mode's factor.
+	pub(crate) fn snap_allowance(&self) -> f64 {
+		self.uncertainty * self.snap_factor
+	}
+
+	pub(crate) fn get(&self, id: u32) -> Result<&Entity, StepError> {
 		self.ents.get(&id).ok_or_else(|| StepError::Reference(format!("missing entity #{id}")))
 	}
 
 	/// Resolve a `CARTESIAN_POINT` reference to a 3-D position.
-	fn point(&self, id: u32) -> Result<DVec3, StepError> {
+	pub(crate) fn point(&self, id: u32) -> Result<DVec3, StepError> {
 		let e = self.get(id)?;
 		if e.name != "CARTESIAN_POINT" {
 			return Err(StepError::Reference(format!("#{id} is {}, expected CARTESIAN_POINT", e.name)));
@@ -425,7 +506,7 @@ impl<'a> Importer<'a> {
 	}
 
 	/// Resolve a `VERTEX_POINT` reference to its position.
-	fn vertex(&self, id: u32) -> Result<DVec3, StepError> {
+	pub(crate) fn vertex(&self, id: u32) -> Result<DVec3, StepError> {
 		let e = self.get(id)?;
 		if e.name != "VERTEX_POINT" {
 			return Err(StepError::Reference(format!("#{id} is {}, expected VERTEX_POINT", e.name)));
@@ -435,7 +516,7 @@ impl<'a> Importer<'a> {
 	}
 
 	/// Resolve a face's supporting [`Surface`] (plane and the four analytic quadrics).
-	fn surface(&self, id: u32) -> Result<Surface, StepError> {
+	pub(crate) fn surface(&self, id: u32) -> Result<Surface, StepError> {
 		let e = self.get(id)?;
 		let placement = || {
 			e.args.iter().find_map(Value::as_ref).ok_or_else(|| StepError::Parse(format!("#{id} {} has no placement", e.name)))
@@ -477,7 +558,7 @@ impl<'a> Importer<'a> {
 	/// `CARTESIAN_POINT` grid, and the full knot vectors are reconstructed from the
 	/// distinct-knot + multiplicity lists. Evaluation and tessellation are then
 	/// provided by [`NurbsSurface`] — the reading half of NURBS interchange.
-	fn bspline_surface(&self, id: u32) -> Result<NurbsSurface, StepError> {
+	pub(crate) fn bspline_surface(&self, id: u32) -> Result<NurbsSurface, StepError> {
 		let e = self.get(id)?;
 		// Accept a plain B_SPLINE_SURFACE_WITH_KNOTS entity OR a _COMPLEX (rational) instance, which
 		// splits its data across B_SPLINE_SURFACE (degrees + control grid), B_SPLINE_SURFACE_WITH_KNOTS
@@ -566,7 +647,7 @@ impl<'a> Importer<'a> {
 	/// Parse a `B_SPLINE_CURVE_WITH_KNOTS` entity into a [`NurbsCurve`] (non-rational;
 	/// unit weights). The control points are a flat `CARTESIAN_POINT` reference list and
 	/// the full knot vector is reconstructed from the distinct-knot + multiplicity lists.
-	fn bspline_curve(&self, id: u32) -> Result<NurbsCurve, StepError> {
+	pub(crate) fn bspline_curve(&self, id: u32) -> Result<NurbsCurve, StepError> {
 		let e = self.get(id)?;
 		// Accept a plain B_SPLINE_CURVE_WITH_KNOTS entity OR a _COMPLEX (rational) instance, which
 		// splits its data across B_SPLINE_CURVE (degree + control points), B_SPLINE_CURVE_WITH_KNOTS
@@ -629,7 +710,7 @@ impl<'a> Importer<'a> {
 	}
 
 	/// `AXIS2_PLACEMENT_3D` → (location, axis/normal, ref direction).
-	fn placement(&self, id: u32) -> Result<(DVec3, DVec3, DVec3), StepError> {
+	pub(crate) fn placement(&self, id: u32) -> Result<(DVec3, DVec3, DVec3), StepError> {
 		let e = self.get(id)?;
 		if e.name != "AXIS2_PLACEMENT_3D" {
 			return Err(StepError::Reference(format!("#{id} is {}, expected AXIS2_PLACEMENT_3D", e.name)));
@@ -648,7 +729,7 @@ impl<'a> Importer<'a> {
 	/// Orthonormal frame of an `AXIS2_PLACEMENT_3D`: `(location, unit axis, unit x, unit y)`
 	/// with `x` the reference direction re-orthogonalised against the axis (per ISO
 	/// 10303-42) and `y = axis × x` — the frame conic parameter angles are measured in.
-	fn frame(&self, id: u32) -> Result<(DVec3, DVec3, DVec3, DVec3), StepError> {
+	pub(crate) fn frame(&self, id: u32) -> Result<(DVec3, DVec3, DVec3, DVec3), StepError> {
 		let (origin, axis, refdir) = self.placement(id)?;
 		let axis = if axis.length_squared() > 1e-20 { axis } else { DVec3::Z };
 		let r = refdir - axis * refdir.dot(axis);
@@ -666,7 +747,7 @@ impl<'a> Importer<'a> {
 	/// knot domain; `SURFACE_CURVE`/`SEAM_CURVE` wrappers are unwrapped to their 3-D
 	/// curve. Anything else is a loud [`StepError::Unsupported`]. Endpoints are always
 	/// the exact `VERTEX_POINT` positions so shared edges intern identically.
-	fn edge_polyline(&self, ec_id: u32) -> Result<(Vec<DVec3>, Option<Curve>), StepError> {
+	pub(crate) fn edge_polyline(&self, ec_id: u32) -> Result<(Vec<DVec3>, Option<Curve>), StepError> {
 		let ec = self.get(ec_id)?;
 		if ec.name != "EDGE_CURVE" {
 			return Err(StepError::Reference(format!("#{ec_id} is {}, expected EDGE_CURVE", ec.name)));
@@ -768,7 +849,7 @@ impl<'a> Importer<'a> {
 	/// parallel to them, the analytic [`Curve`] each segment `points[i] → points[i+1 mod n]`
 	/// lies on. Polylines are cached per `EDGE_CURVE` id, so the two faces sharing an
 	/// edge get bit-identical points — the twin-pairing prerequisite.
-	fn loop_boundary(
+	pub(crate) fn loop_boundary(
 		&self,
 		edge_loop: u32,
 		cache: &mut HashMap<u32, (Vec<DVec3>, Option<Curve>)>,
@@ -805,7 +886,7 @@ impl<'a> Importer<'a> {
 	/// The placement axis (local +Z `DIRECTION`) of an analytic surface entity — the
 	/// datum a periodic sphere face is unwrapped about. The placement is the surface's
 	/// first reference; a missing axis defaults to +Z per the schema.
-	fn surface_axis(&self, id: u32) -> Result<DVec3, StepError> {
+	pub(crate) fn surface_axis(&self, id: u32) -> Result<DVec3, StepError> {
 		let e = self.get(id)?;
 		let placement = e
 			.args
@@ -820,7 +901,7 @@ impl<'a> Importer<'a> {
 	/// wrappers: a `.F.` wrapper logically reverses every contained face's loops (real
 	/// exporters use it for the void shells of a `BREP_WITH_VOIDS` and for mirrored
 	/// instances). Faces keep the shell's stored order.
-	fn shell_faces(&self, shell_id: u32, flip: bool) -> Result<ShellFaces, StepError> {
+	pub(crate) fn shell_faces(&self, shell_id: u32, flip: bool) -> Result<ShellFaces, StepError> {
 		let e = self.get(shell_id)?;
 		match e.name.as_str() {
 			"CLOSED_SHELL" | "OPEN_SHELL" => {
@@ -853,13 +934,9 @@ impl<'a> Importer<'a> {
 	/// The `(face id, reversed)` sets of every `MANIFOLD_SOLID_BREP` / `BREP_WITH_VOIDS`
 	/// in ascending entity-id order (deterministic across runs), keyed by the brep id.
 	/// Empty when the file carries no solid-model entities (a bare-face fragment).
-	fn brep_face_sets(&self) -> Result<Vec<(u32, ShellFaces)>, StepError> {
-		let mut brep_ids: Vec<u32> = self
-			.ents
-			.iter()
-			.filter(|(_, e)| e.name == "MANIFOLD_SOLID_BREP" || e.name == "BREP_WITH_VOIDS")
-			.map(|(&id, _)| id)
-			.collect();
+	pub(crate) fn brep_face_sets(&self) -> Result<Vec<(u32, ShellFaces)>, StepError> {
+		let mut brep_ids: Vec<u32> =
+			self.ents.iter().filter(|(_, e)| e.name == "MANIFOLD_SOLID_BREP" || e.name == "BREP_WITH_VOIDS").map(|(&id, _)| id).collect();
 		brep_ids.sort_unstable();
 		let mut out = Vec::with_capacity(brep_ids.len());
 		for id in brep_ids {
@@ -891,13 +968,8 @@ impl<'a> Importer<'a> {
 
 	/// Every `ADVANCED_FACE` id in ascending order — the fallback face set for files
 	/// (e.g. snippets) that carry bare faces without `MANIFOLD_SOLID_BREP` structure.
-	fn all_face_ids(&self) -> ShellFaces {
-		let mut ids: Vec<u32> = self
-			.ents
-			.iter()
-			.filter(|(_, e)| e.name == "ADVANCED_FACE")
-			.map(|(&id, _)| id)
-			.collect();
+	pub(crate) fn all_face_ids(&self) -> ShellFaces {
+		let mut ids: Vec<u32> = self.ents.iter().filter(|(_, e)| e.name == "ADVANCED_FACE").map(|(&id, _)| id).collect();
 		ids.sort_unstable();
 		ids.into_iter().map(|id| (id, false)).collect()
 	}
@@ -948,7 +1020,7 @@ fn max_chord_turn(c: &NurbsCurve, n: usize) -> f64 {
 /// follows the curve's parameterisation (`same_sense`), in `[−2π, 0)` against it.
 /// Identical endpoint angles mean a FULL ring (sweep ±2π), per the STEP convention
 /// that a closed edge reuses one vertex.
-fn edge_sweep(t0: f64, t1: f64, same_sense: bool, ec_id: u32) -> Result<f64, StepError> {
+pub(crate) fn edge_sweep(t0: f64, t1: f64, same_sense: bool, ec_id: u32) -> Result<f64, StepError> {
 	use std::f64::consts::TAU;
 	if !t0.is_finite() || !t1.is_finite() {
 		return Err(StepError::Parse(format!("edge #{ec_id} has non-finite arc endpoint angles")));
@@ -987,7 +1059,7 @@ fn sample_arc(start: DVec3, end: DVec3, t0: f64, sweep: f64, eval: impl Fn(f64) 
 }
 
 /// Last enumeration argument of an entity (the trailing `.T./.F.` flag).
-fn last_enum(e: &Entity) -> Option<String> {
+pub(crate) fn last_enum(e: &Entity) -> Option<String> {
 	e.args.iter().rev().find_map(|v| match v {
 		Value::Enum(s) => Some(s.clone()),
 		_ => None,
@@ -995,15 +1067,15 @@ fn last_enum(e: &Entity) -> Option<String> {
 }
 
 /// Bit-exact key for de-duplicating coincident vertex positions.
-type PosKey = (u64, u64, u64);
+pub(crate) type PosKey = (u64, u64, u64);
 
 /// Bit-exact key for de-duplicating coincident vertex positions.
-fn pos_key(p: DVec3) -> PosKey {
+pub(crate) fn pos_key(p: DVec3) -> PosKey {
 	(p.x.to_bits(), p.y.to_bits(), p.z.to_bits())
 }
 
 /// `(face id, loop-reversal flag)` pairs of one shell.
-type ShellFaces = Vec<(u32, bool)>;
+pub(crate) type ShellFaces = Vec<(u32, bool)>;
 
 /// Expand a STEP `(distinct knots, multiplicities)` pair into a full knot vector,
 /// repeating each distinct knot by its multiplicity.
@@ -1019,7 +1091,7 @@ fn expand_knots(distinct: &[f64], mults: &[i64]) -> Vec<f64> {
 
 /// The argument list of the named sub-record inside a `_COMPLEX` instance's args, if present
 /// (e.g. the `RATIONAL_B_SPLINE_CURVE` weights record within a rational B-spline complex).
-fn complex_part<'a>(args: &'a [Value], name: &str) -> Option<&'a [Value]> {
+pub(crate) fn complex_part<'a>(args: &'a [Value], name: &str) -> Option<&'a [Value]> {
 	args.iter().find_map(|v| match v {
 		Value::Typed(n, a) if n == name => Some(a.as_slice()),
 		_ => None,
@@ -1033,7 +1105,7 @@ fn complex_part<'a>(args: &'a [Value], name: &str) -> Option<&'a [Value]> {
 /// has no such entity.
 pub fn import_bspline_surface(text: &str) -> Result<NurbsSurface, StepError> {
 	let ents = parse(text)?;
-	let imp = Importer { ents: &ents };
+	let imp = Importer::new(&ents);
 	let id = ents
 		.iter()
 		.find(|(_, e)| {
@@ -1050,7 +1122,7 @@ pub fn import_bspline_surface(text: &str) -> Result<NurbsSurface, StepError> {
 /// curves. Returns [`StepError::Unsupported`] if the file has no such entity.
 pub fn import_bspline_curve(text: &str) -> Result<NurbsCurve, StepError> {
 	let ents = parse(text)?;
-	let imp = Importer { ents: &ents };
+	let imp = Importer::new(&ents);
 	let id = ents
 		.iter()
 		.find(|(_, e)| {
@@ -1072,7 +1144,7 @@ pub fn import_bspline_mesh(text: &str, nu: usize, nv: usize) -> Result<Mesh, Ste
 
 /// Remove consecutive duplicate positions (and a duplicated wrap-around point) from a
 /// boundary ring — zero-length segments from degenerate edges in the input.
-fn dedup_ring(pts: &mut Vec<DVec3>) {
+pub(crate) fn dedup_ring(pts: &mut Vec<DVec3>) {
 	pts.dedup_by(|a, b| pos_key(*a) == pos_key(*b));
 	while pts.len() > 1 && pos_key(pts[0]) == pos_key(pts[pts.len() - 1]) {
 		pts.pop();
@@ -1081,7 +1153,7 @@ fn dedup_ring(pts: &mut Vec<DVec3>) {
 
 /// Newell area vector of a polygon (winding-following, UNnormalised — its length is
 /// twice the enclosed area, so a periodic slit loop yields a near-zero vector).
-fn newell_vector(pts: &[DVec3]) -> DVec3 {
+pub(crate) fn newell_vector(pts: &[DVec3]) -> DVec3 {
 	let mut nv = DVec3::ZERO;
 	let len = pts.len();
 	for i in 0..len {
@@ -2011,13 +2083,6 @@ fn patch_seed_grid(surf: &NurbsSurface) -> Vec<(DVec2, DVec3)> {
 	surf.projection_seeds(PATCH_SEED_GRID)
 }
 
-/// Invert the patch at `p`: the normalised `(u, v) ∈ [0,1]²` whose surface point is
-/// `p` ([`NurbsSurface::project`]). `None` when the converged point is farther than
-/// [`PATCH_PROJECT_TOL`] — i.e. `p` is not on the patch.
-fn uv_on_patch(surf: &NurbsSurface, grid: &[(DVec2, DVec3)], p: DVec3) -> Option<DVec2> {
-	surf.project(grid, p, PATCH_PROJECT_TOL)
-}
-
 /// Undirected edge key.
 fn edge_key(a: usize, b: usize) -> (usize, usize) {
 	(a.min(b), a.max(b))
@@ -2043,31 +2108,6 @@ fn patch_closed(surf: &NurbsSurface, in_u: bool) -> bool {
 		};
 		(a - b).length() <= 1e-9 * (1.0 + a.length().max(b.length()))
 	})
-}
-
-/// Unwrap one trim ring's normalised `uv` into the universal cover of a closed
-/// patch: every step is taken the short way around (within half a period — the same
-/// half-turn convention as the analytic periodic wall), so a chord crossing the
-/// parameter seam continues into the neighbouring period instead of jumping back
-/// across the domain, and a seam edge's two traversals land one period apart (the
-/// duplicated seam parameters; their identical 3-D positions weld on interning).
-/// Returns the loop's net winding in whole periods per direction — `0` for every
-/// disk-bounding loop. The closing chord back to the first vertex is also a
-/// short-way step, so the winding is `round(last − first)` exactly.
-fn unwrap_ring(uv: &mut [DVec2], ring: &[usize], closed_u: bool, closed_v: bool) -> (i64, i64) {
-	let wrap = |d: f64| d - d.round();
-	for k in 1..ring.len() {
-		let (prev, cur) = (uv[ring[k - 1]], uv[ring[k]]);
-		if closed_u {
-			uv[ring[k]].x = prev.x + wrap(cur.x - prev.x);
-		}
-		if closed_v {
-			uv[ring[k]].y = prev.y + wrap(cur.y - prev.y);
-		}
-	}
-	let (first, last) = (uv[ring[0]], uv[ring[ring.len() - 1]]);
-	let winding = |closed: bool, f: f64, l: f64| if closed { (l - f).round() as i64 } else { 0 };
-	(winding(closed_u, first.x, last.x), winding(closed_v, first.y, last.y))
 }
 
 /// Bridge the two full-period rim rings of an *untrimmed* closed patch (a band
@@ -2142,7 +2182,7 @@ fn bridge_band_rings(
 /// clipped with exact orientation tests — the same construction the planar
 /// tessellator uses, but index-returning so boundary handles survive for the
 /// watertight weld. Degenerate or self-crossing trim loops error with a reason.
-fn triangulate_trim_rings(uv: &[DVec2], rings: &[Vec<usize>]) -> Result<Vec<[usize; 3]>, String> {
+pub(crate) fn triangulate_trim_rings(uv: &[DVec2], rings: &[Vec<usize>]) -> Result<Vec<[usize; 3]>, String> {
 	let signed_area = |ring: &[usize]| -> f64 {
 		let n = ring.len();
 		(0..n)
@@ -2434,96 +2474,896 @@ fn refine_param_facets(
 	}
 }
 
-/// Import one trimmed `B_SPLINE_SURFACE_WITH_KNOTS` face by tessellating it **on the
-/// exact patch**: every trim-loop vertex is Newton-projected into the patch's
-/// parameter space ([`uv_on_patch`] — a vertex off the surface is a loud refusal);
-/// on a CLOSED (periodic) patch the loops are unwrapped into the universal cover
-/// ([`unwrap_ring`], [`bridge_band_rings`]) so seam-crossing/slit loops and
-/// two-rim bands import instead of refusing; the loops are then triangulated in
-/// parameter space (monotone sweep for a single ring, hole-bridging ear clip via
-/// [`triangulate_trim_rings`] otherwise) and the interior is refined to the
-/// [`PATCH_SAG_TOL`] relative chordal tolerance with every new vertex EVALUATED on
-/// the exact surface via [`NurbsSurface::point_at`]. Trim-loop chords are never
-/// subdivided, so the boundary stays bit-identical with the neighbouring faces'
-/// edges and the weld is watertight.
+/// A boundary vertex located on a parameter patch ([`ParamPatch::locate`]).
+struct Located {
+	/// Normalised patch coordinates: `[0,1]²` on a B-spline patch; one period = 1
+	/// along a closed analytic direction.
+	uv: DVec2,
+	/// Whether `uv.x` is meaningful — `false` at a sphere pole / cone apex, where
+	/// the angle is undefined and is interpolated from the loop neighbours.
+	u_defined: bool,
+	/// The distance (mm) the vertex sat off the patch when it was accepted only
+	/// under the file's uncertainty allowance — a snap the tolerant receipt
+	/// reports as a repair. `None` when it lay on the patch to the strict
+	/// tolerance.
+	snapped: Option<f64>,
+}
+
+/// A face's supporting surface seen as a **normalised parameter patch** — the
+/// abstraction the trimmed-face tessellation ([`add_patch_face`]) works on, so a
+/// trimmed B-spline patch ([`NurbsPatch`]) and a trimmed analytic quadric
+/// ([`AnalyticPatch`]) share ONE loop-unwrapping, hole-bridging, triangulation
+/// and on-surface refinement path: holes on curved faces, seam crossings, slit
+/// seams, two-rim bands and one-rim caps.
+trait ParamPatch {
+	/// Locate a boundary vertex on the patch; `Err(reason)` when it is not on it.
+	fn locate(&self, p: DVec3) -> Result<Located, String>;
+	/// The exact surface point at normalised `uv` (closed directions wrap).
+	fn point(&self, uv: DVec2) -> DVec3;
+	/// The surface's own unit normal at `uv` (its natural orientation, NOT the
+	/// face's `same_sense`-adjusted one).
+	fn normal(&self, uv: DVec2) -> DVec3;
+	/// Which normalised directions are closed (periodic with period 1).
+	fn closed(&self) -> (bool, bool);
+	/// The `v` of the degenerate pole row that closes a one-rim cap on the `north`
+	/// (`+v`) or south side, for surfaces that have poles (a sphere); `None` else.
+	fn pole_v(&self, north: bool) -> Option<f64>;
+	/// Absolute chordal tolerance (mm) for the interior refinement.
+	fn sag_tol(&self, boundary: &[DVec3]) -> f64;
+	/// Millimetres per normalised chart unit, per direction — the metric the
+	/// batched refinement measures edge lengths and Delaunay quality in.
+	fn chart_scale(&self) -> DVec2;
+	/// The [`Surface`] tag a chord facet with this centroid/normal carries.
+	fn facet_surface(&self, centroid: DVec3, normal: DVec3) -> Surface;
+	/// The exact NURBS identity to keep in the freeform sidecar, if any.
+	fn nurbs(&self) -> Option<&NurbsSurface>;
+	/// Human label for error messages.
+	fn label(&self) -> String;
+}
+
+/// Wrap a normalised coordinate into `[0, 1)` when its direction is closed.
+fn wrap01(x: f64, closed: bool) -> f64 {
+	if closed {
+		x - x.floor()
+	} else {
+		x
+	}
+}
+
+/// A trimmed `B_SPLINE_SURFACE_WITH_KNOTS` patch as a [`ParamPatch`].
+struct NurbsPatch {
+	surf: NurbsSurface,
+	grid: Vec<(DVec2, DVec3)>,
+	id: u32,
+	closed_u: bool,
+	closed_v: bool,
+	/// Absolute distance (mm) a trim vertex may sit off the patch and still be
+	/// projected onto it — the file's asserted uncertainty times the mode's
+	/// factor ([`Importer::snap_allowance`]).
+	allow: f64,
+	/// Distance (mm) beyond which an accepted vertex is REPORTED as a snap: the
+	/// file's own uncertainty — a vertex within it is what the producer asserted,
+	/// not a repair.
+	report_above: f64,
+}
+
+impl NurbsPatch {
+	fn new(surf: NurbsSurface, id: u32, allow: f64, report_above: f64) -> Self {
+		let grid = patch_seed_grid(&surf);
+		let (closed_u, closed_v) = (patch_closed(&surf, true), patch_closed(&surf, false));
+		NurbsPatch { surf, grid, id, closed_u, closed_v, allow, report_above }
+	}
+
+	/// Surface point at normalised `[0,1]²` coordinates (no wrapping).
+	fn at(&self, uv: DVec2) -> DVec3 {
+		let ((u_lo, u_hi), (v_lo, v_hi)) = self.surf.domain();
+		self.surf.point_at(u_lo + (u_hi - u_lo) * uv.x, v_lo + (v_hi - v_lo) * uv.y)
+	}
+
+	fn domain_uv(&self, uv: DVec2) -> (f64, f64) {
+		let ((u_lo, u_hi), (v_lo, v_hi)) = self.surf.domain();
+		(u_lo + (u_hi - u_lo) * wrap01(uv.x, self.closed_u), v_lo + (v_hi - v_lo) * wrap01(uv.y, self.closed_v))
+	}
+}
+
+impl ParamPatch for NurbsPatch {
+	fn locate(&self, p: DVec3) -> Result<Located, String> {
+		let scale = 1.0 + p.length();
+		let strict = PATCH_PROJECT_TOL * scale;
+		// The projection tolerance is relative (× `1 + |p|`); the uncertainty
+		// allowance is absolute — take the looser of the two.
+		let tol_rel = PATCH_PROJECT_TOL.max(self.allow / scale);
+		let uv = match self.surf.project(&self.grid, p, tol_rel) {
+			Some(uv) => uv,
+			None => {
+				// Retry from a denser seed grid: Newton from the six nearest coarse
+				// seeds can miss a vertex on a tightly curled patch.
+				let dense = self.surf.projection_seeds(3 * PATCH_SEED_GRID);
+				self.surf.project(&dense, p, tol_rel).ok_or_else(|| {
+					format!(
+						"trim vertex ({:.4}, {:.4}, {:.4}) does not lie on B-spline patch #{} (allowance {:.3e} mm)",
+						p.x,
+						p.y,
+						p.z,
+						self.id,
+						self.allow.max(strict)
+					)
+				})?
+			}
+		};
+		let d = (self.at(uv) - p).length();
+		Ok(Located { uv, u_defined: true, snapped: (d > strict.max(self.report_above)).then_some(d) })
+	}
+	fn point(&self, uv: DVec2) -> DVec3 {
+		let (u, v) = self.domain_uv(uv);
+		self.surf.point_at(u, v)
+	}
+	fn normal(&self, uv: DVec2) -> DVec3 {
+		let (u, v) = self.domain_uv(uv);
+		self.surf.normal_at(u, v)
+	}
+	fn closed(&self) -> (bool, bool) {
+		(self.closed_u, self.closed_v)
+	}
+	fn pole_v(&self, _north: bool) -> Option<f64> {
+		None
+	}
+	fn sag_tol(&self, boundary: &[DVec3]) -> f64 {
+		PATCH_SAG_TOL * (1.0 + boundary.iter().map(|p| p.length()).fold(0.0_f64, f64::max))
+	}
+	fn chart_scale(&self) -> DVec2 {
+		DVec2::ONE
+	}
+	fn facet_surface(&self, centroid: DVec3, normal: DVec3) -> Surface {
+		// The analytic [`Surface`] enum has no freeform variant: a triangle IS its
+		// plane, so each chord facet carries its own exact plane tag.
+		Surface::Plane { origin: centroid, normal }
+	}
+	fn nurbs(&self) -> Option<&NurbsSurface> {
+		Some(&self.surf)
+	}
+	fn label(&self) -> String {
+		format!("B-spline patch #{}", self.id)
+	}
+}
+
+/// The quadric family of an [`AnalyticPatch`].
+#[derive(Clone, Copy)]
+enum AnalyticKind {
+	Cylinder { radius: f64 },
+	Cone { half_angle: f64 },
+	Sphere { radius: f64 },
+	Torus { major: f64, minor: f64 },
+}
+
+/// A trimmed analytic quadric face as a [`ParamPatch`] in its natural periodic
+/// chart, normalised so one period is `1`:
 ///
-/// Tagging design (least-invasive, by ownership): the analytic [`Surface`] enum has
-/// no freeform variant, so each emitted chord facet carries its own exact
-/// `Surface::Plane` tag (a triangle IS its plane — the tag is geometrically true).
-/// The patch's NURBS identity is therefore not carried on the [`Solid`] itself; it
-/// IS preserved in the [`FreeformFace`] sidecar ([`import_step_freeform`]), and
-/// exact patch reads stay available via [`import_bspline_surface`].
-fn add_bspline_face(
-	imp: &Importer,
+/// - **cylinder / cone**: `u` = angle about the axis / 2π (closed), `v` = axial
+///   distance from the origin/apex over `2π·r_char` (open; the apex has no `u`);
+/// - **sphere**: `u` = longitude about the placement axis / 2π (closed), `v` =
+///   latitude / 2π ∈ [−¼, ¼] (open; the poles have no `u`);
+/// - **torus**: `u` = azimuth / 2π, `v` = tube angle / 2π (both closed).
+///
+/// `r_char` (the radius; the boundary's largest radius on a cone; `R + r` on a
+/// torus) scales the open direction so the chart is near-isometric and sets the
+/// refinement's chordal tolerance to the imported-conic contract.
+struct AnalyticPatch {
+	surface: Surface,
+	kind: AnalyticKind,
+	origin: DVec3,
+	axis: DVec3,
+	e1: DVec3,
+	e2: DVec3,
+	v_scale: f64,
+	r_char: f64,
+	/// Distance (mm) beyond which a boundary vertex off the surface is reported
+	/// (the file's own uncertainty); it is kept verbatim either way.
+	report_above: f64,
+}
+
+impl AnalyticPatch {
+	/// `None` for a degenerate surface (zero axis or radius).
+	fn new(surface: &Surface, axis: DVec3, boundary: &[DVec3], report_above: f64) -> Option<Self> {
+		use std::f64::consts::TAU;
+		let axis = axis.normalize_or_zero();
+		if axis.length_squared() < 0.5 {
+			return None;
+		}
+		let (e1, e2) = perp_basis(axis);
+		let finite_pos = |r: f64| r.is_finite() && r > 0.0;
+		let (kind, origin, r_char) = match *surface {
+			Surface::Cylinder { origin, radius, .. } => {
+				if !finite_pos(radius) {
+					return None;
+				}
+				(AnalyticKind::Cylinder { radius }, origin, radius)
+			}
+			Surface::Cone { apex, half_angle, .. } => {
+				if !(half_angle > 0.0 && half_angle < std::f64::consts::FRAC_PI_2) {
+					return None;
+				}
+				let r = boundary
+					.iter()
+					.map(|&p| {
+						let d = p - apex;
+						(d - axis * d.dot(axis)).length()
+					})
+					.fold(0.0_f64, f64::max);
+				if !finite_pos(r) {
+					return None;
+				}
+				(AnalyticKind::Cone { half_angle }, apex, r)
+			}
+			Surface::Sphere { center, radius } => {
+				if !finite_pos(radius) {
+					return None;
+				}
+				(AnalyticKind::Sphere { radius }, center, radius)
+			}
+			Surface::Torus { center, major, minor, .. } => {
+				if !(finite_pos(major) && finite_pos(minor)) {
+					return None;
+				}
+				(AnalyticKind::Torus { major, minor }, center, major + minor)
+			}
+			Surface::Plane { .. } => return None,
+		};
+		Some(AnalyticPatch { surface: *surface, kind, origin, axis, e1, e2, v_scale: TAU * r_char, r_char, report_above })
+	}
+}
+
+impl ParamPatch for AnalyticPatch {
+	fn locate(&self, p: DVec3) -> Result<Located, String> {
+		use std::f64::consts::TAU;
+		let d = p - self.origin;
+		let h = d.dot(self.axis);
+		let radial = d - self.axis * h;
+		let rho = radial.length();
+		let u_defined = rho > 1e-9 * (1.0 + d.length());
+		let u = if u_defined { radial.dot(self.e2).atan2(radial.dot(self.e1)) / TAU } else { 0.0 };
+		let v = match self.kind {
+			AnalyticKind::Cylinder { .. } | AnalyticKind::Cone { .. } => h / self.v_scale,
+			AnalyticKind::Sphere { .. } => h.atan2(rho) / TAU,
+			AnalyticKind::Torus { major, .. } => h.atan2(rho - major) / TAU,
+		};
+		// A boundary vertex off its analytic surface is kept verbatim (the weld
+		// with the neighbouring faces needs the exact position) and reported when
+		// it exceeds the allowance — the chart still locates it.
+		let off = (self.surface.project(p) - p).length();
+		let strict = self.report_above.max(1e-9 * (1.0 + p.length()));
+		Ok(Located { uv: DVec2::new(u, v), u_defined, snapped: (off > strict).then_some(off) })
+	}
+	fn point(&self, uv: DVec2) -> DVec3 {
+		use std::f64::consts::TAU;
+		let (_, closed_v) = self.closed();
+		let phi = wrap01(uv.x, true) * TAU;
+		let v = wrap01(uv.y, closed_v);
+		let dir = self.e1 * phi.cos() + self.e2 * phi.sin();
+		match self.kind {
+			AnalyticKind::Cylinder { radius } => self.origin + self.axis * (v * self.v_scale) + dir * radius,
+			AnalyticKind::Cone { half_angle } => {
+				let h = v * self.v_scale;
+				self.origin + self.axis * h + dir * (h * half_angle.tan())
+			}
+			AnalyticKind::Sphere { radius } => {
+				let lat = v * TAU;
+				self.origin + (dir * lat.cos() + self.axis * lat.sin()) * radius
+			}
+			AnalyticKind::Torus { major, minor } => {
+				let psi = v * TAU;
+				self.origin + dir * (major + minor * psi.cos()) + self.axis * (minor * psi.sin())
+			}
+		}
+	}
+	fn normal(&self, uv: DVec2) -> DVec3 {
+		self.surface.normal_at(self.point(uv))
+	}
+	fn closed(&self) -> (bool, bool) {
+		(true, matches!(self.kind, AnalyticKind::Torus { .. }))
+	}
+	fn pole_v(&self, north: bool) -> Option<f64> {
+		match self.kind {
+			AnalyticKind::Sphere { .. } => Some(if north { 0.25 } else { -0.25 }),
+			_ => None,
+		}
+	}
+	fn sag_tol(&self, _boundary: &[DVec3]) -> f64 {
+		// The imported-conic fidelity contract: a 48-segment ring's chord sagitta.
+		((1.0 - (std::f64::consts::PI / FULL_TURN_SEGMENTS as f64).cos()) * self.r_char).max(1e-9)
+	}
+	fn chart_scale(&self) -> DVec2 {
+		use std::f64::consts::TAU;
+		match self.kind {
+			AnalyticKind::Torus { major, minor } => DVec2::new(TAU * major, TAU * minor),
+			_ => DVec2::new(TAU * self.r_char, self.v_scale),
+		}
+	}
+	fn facet_surface(&self, _centroid: DVec3, _normal: DVec3) -> Surface {
+		self.surface
+	}
+	fn nurbs(&self) -> Option<&NurbsSurface> {
+		None
+	}
+	fn label(&self) -> String {
+		match self.kind {
+			AnalyticKind::Cylinder { radius } => format!("cylinder r={radius}"),
+			AnalyticKind::Cone { half_angle } => format!("cone half-angle={half_angle}"),
+			AnalyticKind::Sphere { radius } => format!("sphere r={radius}"),
+			AnalyticKind::Torus { major, minor } => format!("torus R={major} r={minor}"),
+		}
+	}
+}
+
+/// Unwrap one trim ring's normalised `uv` into the universal cover of a closed
+/// patch: every step is taken the short way around (within half a period — the
+/// same half-turn convention as the analytic periodic wall), so a chord crossing
+/// the parameter seam continues into the neighbouring period instead of jumping
+/// back across the domain, and a seam edge's two traversals land one period
+/// apart (the duplicated seam parameters; their identical 3-D positions weld on
+/// interning). Returns the loop's net winding in whole periods per direction —
+/// `0` for every disk-bounding loop; the closing chord back to the first vertex
+/// is also a short-way step, so the winding is `round(last − first)` exactly.
+///
+/// The ring may contain vertices WITHOUT a defined `u` (a sphere pole, a cone
+/// apex): the defined vertices are chained as above, then each undefined vertex takes the `u`
+/// interpolated between its flanking defined neighbours (continuing across the
+/// loop start, like the analytic wall splitter's apex rule). A pole is where the
+/// loop may legitimately jump a whole period (both seam traversals meet there),
+/// which the short-way chain cannot see: when the ring closes with a net
+/// winding although it contains such a vertex, the part after the first one is
+/// shifted back by that winding so the loop bounds a disk in the cover.
+/// `defined` is indexed by VERTEX index (parallel to `uv`).
+fn unwrap_ring_defined(uv: &mut [DVec2], defined: &[bool], ring: &[usize], closed_u: bool, closed_v: bool) -> (i64, i64) {
+	let wrap = |d: f64| d - d.round();
+	let n = ring.len();
+	if closed_v {
+		for k in 1..n {
+			let (prev, cur) = (uv[ring[k - 1]], uv[ring[k]]);
+			uv[ring[k]].y = prev.y + wrap(cur.y - prev.y);
+		}
+	}
+	let mut winding_u = 0i64;
+	if closed_u {
+		let def: Vec<usize> = (0..n).filter(|&k| defined[ring[k]]).collect();
+		if !def.is_empty() {
+			for w in def.windows(2) {
+				let (a, b) = (ring[w[0]], ring[w[1]]);
+				uv[b].x = uv[a].x + wrap(uv[b].x - uv[a].x);
+			}
+			let (f, l) = (ring[def[0]], ring[def[def.len() - 1]]);
+			winding_u = (uv[l].x - uv[f].x).round() as i64;
+			if def.len() < n && winding_u != 0 {
+				// Undo the net winding at the first undefined vertex.
+				let first_undef = (0..n).find(|&k| !defined[ring[k]]).expect("def.len() < n");
+				for &k in ring.iter().skip(first_undef + 1) {
+					uv[k].x -= winding_u as f64;
+				}
+				winding_u = 0;
+			}
+			for k in 0..n {
+				if defined[ring[k]] {
+					continue;
+				}
+				let (mut a, mut da) = ((k + n - 1) % n, 1usize);
+				while !defined[ring[a]] {
+					a = (a + n - 1) % n;
+					da += 1;
+				}
+				let (mut b, mut db) = ((k + 1) % n, 1usize);
+				while !defined[ring[b]] {
+					b = (b + 1) % n;
+					db += 1;
+				}
+				let ua = uv[ring[a]].x;
+				// The neighbour across the loop start continues the chain by a
+				// short-way step, not by its own unwrapped value.
+				let ub = if b > k { uv[ring[b]].x } else { ua + wrap(uv[ring[b]].x - ua) };
+				uv[ring[k]].x = ua + (ub - ua) * da as f64 / (da + db) as f64;
+			}
+		}
+	}
+	let winding_v = if closed_v { (uv[ring[n - 1]].y - uv[ring[0]].y).round() as i64 } else { 0 };
+	(winding_u, winding_v)
+}
+
+/// Which side of a one-rim cap's rim the face region lies on: `true` toward
+/// increasing `v` (the north pole). From the rim's first step `d`, the face's
+/// material normal `n` (`same_sense` selects the surface's own orientation or
+/// its opposite) and the direction `t` of increasing `v`: the region is to the
+/// LEFT of the walk, `(n × d) · t > 0`.
+fn cap_faces_north(patch: &dyn ParamPatch, uv: &[DVec2], pts3: &[DVec3], rim: &[usize], same_sense: bool) -> bool {
+	let n_rim = rim.len();
+	for k in 0..n_rim {
+		let (i, j) = (rim[k], rim[(k + 1) % n_rim]);
+		let d = pts3[j] - pts3[i];
+		if d.length_squared() < 1e-24 {
+			continue;
+		}
+		let n = patch.normal(uv[i]) * if same_sense { 1.0 } else { -1.0 };
+		let t = (patch.point(uv[i] + DVec2::new(0.0, 1e-4)) - patch.point(uv[i])).normalize_or_zero();
+		let s = n.cross(d).dot(t);
+		if s.abs() > 1e-12 {
+			return s > 0.0;
+		}
+	}
+	true
+}
+
+/// Close a one-rim cap in the universal cover (mirroring [`bridge_band_rings`]):
+/// the rim is extended with a duplicate of its first vertex one period along its
+/// travel, then joined to the pole row — two copies of the pole point at the two
+/// ends of the period, both the same 3-D position. The two meridian chords
+/// (rim start → pole) are one period apart in the cover but bit-identical in
+/// 3-D — a synthetic seam whose copies intern to the same vertices and pair as
+/// twins — and the pole segment is zero-length in 3-D (its facets degenerate and
+/// are dropped on emission, leaving a clean fan around the pole vertex).
+fn close_cap_ring(uv: &mut Vec<DVec2>, pts3: &mut Vec<DVec3>, patch: &dyn ParamPatch, rim: &[usize], v_pole: f64) -> Vec<usize> {
+	let dir = (uv[*rim.last().expect("rims are non-empty")].x - uv[rim[0]].x).signum();
+	let u0 = uv[rim[0]].x;
+	let a_dup = uv.len();
+	uv.push(DVec2::new(u0 + dir, uv[rim[0]].y));
+	pts3.push(pts3[rim[0]]);
+	let pole = patch.point(DVec2::new(u0, v_pole));
+	let p1 = uv.len();
+	uv.push(DVec2::new(u0 + dir, v_pole));
+	pts3.push(pole);
+	let p2 = uv.len();
+	uv.push(DVec2::new(u0, v_pole));
+	pts3.push(pole);
+	let mut merged = rim.to_vec();
+	merged.extend([a_dup, p1, p2]);
+	merged
+}
+
+/// Hard cap on facets per analytic patch face under the batched refinement (a
+/// 48-pitch grid over the largest quadric face a vendor part carries is a few
+/// thousand; the cap is a loud refusal on a pathological chart).
+const ANALYTIC_FACET_BUDGET: usize = 60_000;
+
+/// Shortest interior edge (mm, in the metric-scaled chart) the batched
+/// refinement still splits — `2π·r_char / 2048` is ~0.18° of arc, far under
+/// any chordal target, expressed per patch through [`ParamPatch::chart_scale`].
+const ANALYTIC_MIN_EDGE_FRACTION: f64 = 1.0 / 2048.0;
+
+/// Minimum facet pitch (fraction of the larger chart scale) behind the batched
+/// refinement's **area floor** — the analytic counterpart of
+/// [`PATCH_MIN_PITCH`]: an edge all of whose owners have (twice-)area at or
+/// below `pitch²/2` is never split. This is the termination device against an
+/// unsplittable trim chord (a 90° arc imported as ONE chord, the importer's
+/// own-export contract): the strip hugging it can only be "refined" by driving
+/// its apex onto the chord — infinitely many splits with the edge lengths never
+/// shrinking (measured: a corner ball's octant cycled for 40 rounds). Pinned at
+/// the floor, the strip keeps a bounded residual sag.
+const ANALYTIC_MIN_PITCH: f64 = 1.0 / 256.0;
+
+/// Lawson edge flips towards the Delaunay triangulation of `tris` in the
+/// metric-scaled chart (`uv ∘ scale`): an interior edge whose two owners fail
+/// the in-circle test is flipped when the quad is strictly convex. Boundary
+/// (trim-loop) edges are never flipped. Windings are preserved (every triangle
+/// keeps the input orientation). Returns the number of flips.
+fn lawson_flips(
+	uv: &[DVec2],
+	tris: &mut [[usize; 3]],
+	boundary: &std::collections::HashSet<(usize, usize)>,
+	scale: DVec2,
+	sag: &dyn Fn(usize, usize) -> f64,
+	sag_tol: f64,
+) -> usize {
+	let at = |i: usize| DVec2::new(uv[i].x * scale.x, uv[i].y * scale.y);
+	let orient = |a: DVec2, b: DVec2, c: DVec2| orient2d([a.x, a.y], [b.x, b.y], [c.x, c.y]);
+	// In-circle of `d` against the CCW triangle (a, b, c): > 0 inside.
+	let in_circle = |a: DVec2, b: DVec2, c: DVec2, d: DVec2| -> f64 {
+		let (ax, ay) = (a.x - d.x, a.y - d.y);
+		let (bx, by) = (b.x - d.x, b.y - d.y);
+		let (cx, cy) = (c.x - d.x, c.y - d.y);
+		(ax * ax + ay * ay) * (bx * cy - cx * by) - (bx * bx + by * by) * (ax * cy - cx * ay) + (cx * cx + cy * cy) * (ax * by - bx * ay)
+	};
+	let mut flips = 0usize;
+	for _pass in 0..12 {
+		// Directed half-edge → owning triangle index.
+		let mut owner: HashMap<(usize, usize), usize> = HashMap::with_capacity(tris.len() * 3);
+		for (ti, t) in tris.iter().enumerate() {
+			for k in 0..3 {
+				owner.insert((t[k], t[(k + 1) % 3]), ti);
+			}
+		}
+		let mut flipped_this_pass = 0usize;
+		let mut touched = vec![false; tris.len()];
+		for ti in 0..tris.len() {
+			if touched[ti] {
+				continue;
+			}
+			let t = tris[ti];
+			for k in 0..3 {
+				let (a, b, c) = (t[k], t[(k + 1) % 3], t[(k + 2) % 3]);
+				if boundary.contains(&edge_key(a, b)) {
+					continue;
+				}
+				let Some(&tj) = owner.get(&(b, a)) else { continue };
+				if tj == ti || touched[tj] {
+					continue;
+				}
+				let u = tris[tj];
+				let Some(kd) = (0..3).find(|&m| u[m] == b && u[(m + 1) % 3] == a) else { continue };
+				let d = u[(kd + 2) % 3];
+				if d == c {
+					continue;
+				}
+				let (pa, pb, pc, pd) = (at(a), at(b), at(c), at(d));
+				// Both triangles must be positively oriented for the test to apply.
+				let sign = orient(pa, pb, pc);
+				if sign == 0.0 || orient(pb, pa, pd).signum() != sign.signum() {
+					continue;
+				}
+				let inside = if sign > 0.0 { in_circle(pa, pb, pc, pd) } else { -in_circle(pa, pb, pc, pd) };
+				if inside <= 0.0 {
+					continue;
+				}
+				// Flip a–b → c–d: (a, d, c) and (d, b, c), both strictly oriented like the input.
+				let o1 = orient(pa, pd, pc);
+				let o2 = orient(pd, pb, pc);
+				if o1.signum() != sign.signum() || o2.signum() != sign.signum() {
+					continue; // non-convex quad
+				}
+				// Never trade for an ABOVE-tolerance diagonal that sags more off the
+				// surface than the one it replaces: the chart is not isometric (a
+				// sphere chart near its pole), and a flip that is Delaunay there can
+				// re-create the very chord the previous round split — the refinement
+				// would then never converge. A diagonal already within tolerance
+				// needs no split, so it can never cycle and is always allowed (that
+				// is what lets the flips remove the zig-zag slivers whose chords
+				// over-read a curved face's area).
+				let s_new = sag(c, d);
+				if s_new > sag_tol && s_new > sag(a, b) {
+					continue;
+				}
+				tris[ti] = [a, d, c];
+				tris[tj] = [d, b, c];
+				touched[ti] = true;
+				touched[tj] = true;
+				flipped_this_pass += 1;
+				break;
+			}
+		}
+		flips += flipped_this_pass;
+		if flipped_this_pass == 0 {
+			break;
+		}
+	}
+	flips
+}
+
+/// **Batched** conforming chordal refinement of a parameter-space
+/// triangulation — the analytic-patch counterpart of [`refine_param_facets`].
+/// Where that routine splits ONE edge per round (Rivara's longest-edge walk,
+/// chosen for sliver control on freeform patches) and is therefore quadratic in
+/// the facet count, this one splits EVERY qualifying interior edge of a round
+/// at once — the standard 1→2 / 1→3 / 1→4 patterns per triangle, both owners
+/// of an edge sharing its one midpoint, so the mesh never grows a T-junction —
+/// and restores triangle quality after each round with Lawson flips in the
+/// metric-scaled chart ([`lawson_flips`]): without them the long fan slivers
+/// the monotone sweep seeds across a strip survive every split and, being
+/// zig-zag chords on a curved surface, over-read its area (Schwarz's lantern —
+/// measured +1.2% on a half-torus wall at 20 k facets). An edge qualifies while
+/// its straight chord sags more than `sag_tol` from the exact surface at its
+/// chart midpoint and it is longer than the [`ANALYTIC_MIN_EDGE_FRACTION`]
+/// floor; boundary (trim-loop) edges are never split. Every midpoint is
+/// evaluated on the exact surface through `eval`. Facet windings follow the
+/// parent's.
+fn refine_param_facets_batched(
+	uv: &mut Vec<DVec2>,
+	pos: &mut Vec<DVec3>,
+	tris: &mut Vec<[usize; 3]>,
+	boundary: &std::collections::HashSet<(usize, usize)>,
+	eval: impl Fn(DVec2) -> DVec3,
+	sag_tol: f64,
+	scale: DVec2,
+) -> Result<(), String> {
+	let uv_key = |q: DVec2| (q.x.to_bits(), q.y.to_bits());
+	let mut by_uv: HashMap<(u64, u64), usize> = uv.iter().enumerate().map(|(i, &q)| (uv_key(q), i)).collect();
+	let min_len = ANALYTIC_MIN_EDGE_FRACTION * scale.x.max(scale.y);
+	let min_len2 = min_len * min_len;
+	let pitch = ANALYTIC_MIN_PITCH * scale.x.max(scale.y);
+	let floor2 = pitch * pitch / 2.0;
+	// Twice the scaled chart area of a facet.
+	let area2 = |uv: &[DVec2], t: &[usize; 3]| {
+		let s = |i: usize| DVec2::new(uv[i].x * scale.x, uv[i].y * scale.y);
+		(s(t[1]) - s(t[0])).perp_dot(s(t[2]) - s(t[0])).abs()
+	};
+	let sag_of = |uv: &[DVec2], pos: &[DVec3], a: usize, b: usize| (eval((uv[a] + uv[b]) * 0.5) - (pos[a] + pos[b]) * 0.5).length();
+	{
+		let s = |a: usize, b: usize| sag_of(uv, pos, a, b);
+		lawson_flips(uv, tris, boundary, scale, &s, sag_tol);
+	}
+	for _round in 0..40 {
+		if tris.len() > ANALYTIC_FACET_BUDGET {
+			return Err(format!("patch refinement exceeded the {ANALYTIC_FACET_BUDGET}-facet budget"));
+		}
+		// Edges with at least one owner above the area floor are the live ones.
+		let mut live: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
+		for t in tris.iter() {
+			if area2(uv, t) > floor2 {
+				for k in 0..3 {
+					live.insert(edge_key(t[k], t[(k + 1) % 3]));
+				}
+			}
+		}
+		// Mark every qualifying edge with its (interned) midpoint.
+		let mut marks: HashMap<(usize, usize), usize> = HashMap::new();
+		let mut considered: std::collections::HashSet<(usize, usize)> = std::collections::HashSet::new();
+		for t in tris.iter() {
+			for k in 0..3 {
+				let (a, b) = (t[k], t[(k + 1) % 3]);
+				let key = edge_key(a, b);
+				if boundary.contains(&key) || !live.contains(&key) || !considered.insert(key) {
+					continue;
+				}
+				let d = uv[a] - uv[b];
+				if (d.x * scale.x).powi(2) + (d.y * scale.y).powi(2) < min_len2 {
+					continue;
+				}
+				let mid = (uv[a] + uv[b]) * 0.5;
+				let s = (eval(mid) - (pos[a] + pos[b]) * 0.5).length();
+				if s > sag_tol {
+					let m = *by_uv.entry(uv_key(mid)).or_insert_with(|| {
+						uv.push(mid);
+						pos.push(eval(mid));
+						uv.len() - 1
+					});
+					marks.insert(key, m);
+				}
+			}
+		}
+		if marks.is_empty() {
+			return Ok(());
+		}
+		// Longest-edge propagation (Rivara): a triangle with a marked edge also
+		// splits its LONGEST splittable edge (3-D chord length), to closure. A
+		// non-longest split alone leaves the big triangle in place, and its new
+		// midpoint edges converge on a fixed point round after round (measured: a
+		// corner ball never converged in 40 rounds); bisecting the longest edge
+		// shrinks every owner geometrically, which is what guarantees termination.
+		loop {
+			let mut added = 0usize;
+			for t in tris.iter() {
+				let keys = [edge_key(t[0], t[1]), edge_key(t[1], t[2]), edge_key(t[2], t[0])];
+				if area2(uv, t) <= floor2 || !keys.iter().any(|k| marks.contains_key(k)) {
+					continue;
+				}
+				let mut longest: Option<((usize, usize), f64)> = None;
+				for &k in &keys {
+					if boundary.contains(&k) {
+						continue;
+					}
+					let l = (pos[k.0] - pos[k.1]).length_squared();
+					if longest.is_none_or(|(_, bl)| l > bl) {
+						longest = Some((k, l));
+					}
+				}
+				if let Some((k, _)) = longest {
+					if let std::collections::hash_map::Entry::Vacant(slot) = marks.entry(k) {
+						let mid = (uv[k.0] + uv[k.1]) * 0.5;
+						let m = *by_uv.entry(uv_key(mid)).or_insert_with(|| {
+							uv.push(mid);
+							pos.push(eval(mid));
+							uv.len() - 1
+						});
+						slot.insert(m);
+						added += 1;
+					}
+				}
+			}
+			if added == 0 {
+				break;
+			}
+		}
+		let mut next: Vec<[usize; 3]> = Vec::with_capacity(tris.len() * 2);
+		let len2 = |x: usize, y: usize| {
+			let d = uv[x] - uv[y];
+			(d.x * scale.x).powi(2) + (d.y * scale.y).powi(2)
+		};
+		for &[a, b, c] in tris.iter() {
+			let mab = marks.get(&edge_key(a, b)).copied();
+			let mbc = marks.get(&edge_key(b, c)).copied();
+			let mca = marks.get(&edge_key(c, a)).copied();
+			match (mab, mbc, mca) {
+				(None, None, None) => next.push([a, b, c]),
+				(Some(m), None, None) => next.extend([[a, m, c], [m, b, c]]),
+				(None, Some(m), None) => next.extend([[a, b, m], [a, m, c]]),
+				(None, None, Some(m)) => next.extend([[a, b, m], [m, b, c]]),
+				(Some(m1), Some(m2), None) => {
+					next.push([m1, b, m2]);
+					if len2(a, m2) <= len2(m1, c) {
+						next.extend([[a, m1, m2], [a, m2, c]]);
+					} else {
+						next.extend([[a, m1, c], [m1, m2, c]]);
+					}
+				}
+				(Some(m1), None, Some(m3)) => {
+					next.push([a, m1, m3]);
+					if len2(m1, c) <= len2(b, m3) {
+						next.extend([[m1, b, c], [m1, c, m3]]);
+					} else {
+						next.extend([[m1, b, m3], [b, c, m3]]);
+					}
+				}
+				(None, Some(m2), Some(m3)) => {
+					next.push([m2, c, m3]);
+					if len2(a, m2) <= len2(b, m3) {
+						next.extend([[a, b, m2], [a, m2, m3]]);
+					} else {
+						next.extend([[a, b, m3], [b, m2, m3]]);
+					}
+				}
+				(Some(m1), Some(m2), Some(m3)) => next.extend([[a, m1, m3], [m1, b, m2], [m3, m2, c], [m1, m2, m3]]),
+			}
+		}
+		*tris = next;
+		let s = |a: usize, b: usize| sag_of(uv, pos, a, b);
+		lawson_flips(uv, tris, boundary, scale, &s, sag_tol);
+	}
+	Err("patch refinement failed to converge within 40 rounds".into())
+}
+
+/// Replace the two synthetic seam chords of a bridged band / closed cap ring
+/// — chord A `ring[k] → ring[k+1]` and its mirror chord B `ring[n−1] → ring[0]`
+/// one period over — by polylines **sampled on the exact surface** at the
+/// patch's ring pitch (both copies bit-identical in 3-D, so they still intern
+/// to one chain of twins). A straight rim-to-rim chord is only on the surface
+/// when it runs along a ruling (a NURBS tube's seam); on a torus band it cuts
+/// straight through the tube (sag = the tube radius) and the facets beside it
+/// fill two half-discs — measured +4% area on an off-phase torus band, and the
+/// same wedge, smaller, beside a sphere cap's rim-to-pole chord.
+fn sample_synthetic_seams(uv: &mut Vec<DVec2>, pts3: &mut Vec<DVec3>, ring: &[usize], k: usize, patch: &dyn ParamPatch) -> Vec<usize> {
+	let n = ring.len();
+	let (a_from, a_to) = (ring[k], ring[k + 1]);
+	let (b_from, b_to) = (ring[n - 1], ring[0]);
+	let scale = patch.chart_scale();
+	let d = uv[a_to] - uv[a_from];
+	let len = ((d.x * scale.x).powi(2) + (d.y * scale.y).powi(2)).sqrt();
+	let pitch = scale.x.min(scale.y) / FULL_TURN_SEGMENTS as f64;
+	let samples = ((len / pitch).ceil() as usize).saturating_sub(1).min(4 * FULL_TURN_SEGMENTS);
+	if samples == 0 {
+		return ring.to_vec();
+	}
+	let mut chain_a: Vec<usize> = Vec::with_capacity(samples);
+	let mut chain_b: Vec<usize> = Vec::with_capacity(samples);
+	for j in 1..=samples {
+		let f = j as f64 / (samples + 1) as f64;
+		let q = uv[a_from].lerp(uv[a_to], f);
+		let p = patch.point(q);
+		chain_a.push(uv.len());
+		uv.push(q);
+		pts3.push(p);
+	}
+	// The mirror chain, traversed the other way, at the mirror chord's own
+	// cover coordinates but with chain A's exact positions.
+	for j in 1..=samples {
+		let f = j as f64 / (samples + 1) as f64;
+		let q = uv[b_from].lerp(uv[b_to], f);
+		chain_b.push(uv.len());
+		uv.push(q);
+		pts3.push(pts3[chain_a[samples - j]]);
+	}
+	let mut out: Vec<usize> = Vec::with_capacity(n + 2 * samples);
+	out.extend_from_slice(&ring[..=k]);
+	out.extend(chain_a);
+	out.extend_from_slice(&ring[k + 1..]);
+	out.extend(chain_b);
+	out
+}
+
+/// Tessellate one trimmed face **on its exact parameter patch** — the shared
+/// read path of trimmed B-spline faces and of analytic quadric faces the
+/// seam-aware splitters cannot read (holes on a curved face, a corner ball
+/// bounded by three arcs, rims off the grid phase, a half-torus wall):
+///
+/// 1. every trim-loop vertex is located in normalised parameter space
+///    ([`ParamPatch::locate`] — a vertex off the patch beyond the file's
+///    uncertainty allowance is a loud refusal; one accepted only under the
+///    allowance is a reported snap);
+/// 2. on a CLOSED (periodic) direction the loops are unwrapped into the
+///    universal cover ([`unwrap_ring_defined`]): seam-crossing chords continue
+///    into the neighbouring period, a slit seam's two traversals land one period
+///    apart, a two-rim band is bridged into one ring ([`bridge_band_rings`]),
+///    a one-rim cap is closed through the pole row ([`close_cap_ring`]), and hole
+///    rings are translated by whole periods onto the outer ring's window;
+/// 3. the rings are triangulated in parameter space (monotone sweep for a single
+///    ring, hole-bridging ear clip via [`triangulate_trim_rings`] otherwise);
+/// 4. the interior is refined to the patch's chordal tolerance
+///    ([`refine_param_facets`]) with every new vertex EVALUATED on the exact
+///    surface. Trim-loop chords are never subdivided, so the boundary stays
+///    bit-identical with the neighbouring faces' edges and the weld is watertight.
+///
+/// Facets carry [`ParamPatch::facet_surface`]'s tag: the analytic surface for a
+/// quadric, a per-facet exact plane for a B-spline patch (whose NURBS identity is
+/// preserved in the [`FreeformFace`] sidecar instead). A facet whose three
+/// vertices intern to fewer than three distinct positions (a pole-row or
+/// synthetic-seam sliver) is zero-area in 3-D and dropped — its two real edges
+/// are each other's twins, so the surface stays closed.
+fn add_patch_face(
 	fid: u32,
-	surface_ref: u32,
+	patch: &dyn ParamPatch,
 	outer_pts: &[DVec3],
 	inner_loops: &[Vec<DVec3>],
+	face_same_sense: bool,
 	acc: &mut FaceAccum,
 ) -> Result<(), StepError> {
-	let surf = imp.bspline_surface(surface_ref)?;
-	let ((u_lo, u_hi), (v_lo, v_hi)) = surf.domain();
-	if !(u_hi > u_lo && v_lo < v_hi) {
-		return Err(StepError::Unsupported(format!(
-			"ADVANCED_FACE #{fid}: B-spline patch #{surface_ref} has a degenerate parameter domain"
-		)));
-	}
-	let grid = patch_seed_grid(&surf);
-	// Project every trim-loop vertex into normalised parameter space.
+	let unsupported = |m: String| StepError::Unsupported(format!("ADVANCED_FACE #{fid}: {m}"));
 	let mut pts3: Vec<DVec3> = Vec::new();
 	let mut uv: Vec<DVec2> = Vec::new();
+	let mut u_defined: Vec<bool> = Vec::new();
 	let mut rings: Vec<Vec<usize>> = Vec::new();
 	for lp in std::iter::once(outer_pts).chain(inner_loops.iter().map(Vec::as_slice)) {
 		let base = pts3.len();
 		for &p in lp {
-			let Some(q) = uv_on_patch(&surf, &grid, p) else {
-				return Err(StepError::Unsupported(format!(
-					"ADVANCED_FACE #{fid}: trim vertex ({:.4}, {:.4}, {:.4}) does not lie on B-spline patch #{surface_ref}",
-					p.x, p.y, p.z
-				)));
-			};
+			let loc = patch.locate(p).map_err(&unsupported)?;
+			if let Some(d) = loc.snapped {
+				acc.repairs.push((
+					fid,
+					format!(
+						"trim vertex ({:.4}, {:.4}, {:.4}) sat {:.3e} mm off {} and was projected onto it",
+						p.x,
+						p.y,
+						p.z,
+						d,
+						patch.label()
+					),
+				));
+			}
 			pts3.push(p);
-			uv.push(q);
+			uv.push(loc.uv);
+			u_defined.push(loc.u_defined);
 		}
 		rings.push((base..pts3.len()).collect());
 	}
-	// Closed (periodic) patch directions: a trim loop may legitimately cross the
-	// parameter seam (a pocket milled across it) or traverse it as a doubled slit
-	// (a real exporter's closed tube wall). Unwrap every ring into the universal
-	// cover ([`unwrap_ring`]): seam-crossing chords continue into the neighbouring
-	// period and a seam edge's two traversals land one period apart, welding back
-	// in 3-D on interning. Each per-direction step is taken the SHORT way around —
-	// a single trim chord deliberately spanning more than half a period of a closed
-	// direction is indistinguishable from a seam crossing and is read as one.
-	let (closed_u, closed_v) = (patch_closed(&surf, true), patch_closed(&surf, false));
+	let (closed_u, closed_v) = patch.closed();
 	if closed_u || closed_v {
-		let windings: Vec<(i64, i64)> = rings.iter().map(|r| unwrap_ring(&mut uv, r, closed_u, closed_v)).collect();
+		let windings: Vec<(i64, i64)> = rings.iter().map(|r| unwrap_ring_defined(&mut uv, &u_defined, r, closed_u, closed_v)).collect();
 		let wound: Vec<usize> = (0..rings.len()).filter(|&i| windings[i] != (0, 0)).collect();
+		let unit = |w: (i64, i64)| (w.0.abs() <= 1 && w.1.abs() <= 1) && (w.0 == 0) != (w.1 == 0);
+		let refuse = || {
+			unsupported(format!(
+				"trimming loops wind {windings:?} periods around closed {} — only seam-crossing disk loops, a one-rim cap and a band between two opposite full-period rims are importable",
+				patch.label()
+			))
+		};
 		match wound.len() {
 			// Every loop bounds a disk in the cover (seam-crossing/slit loops).
 			0 => {}
+			// A one-rim CAP on a surface with poles: the outer rim winds the closed
+			// direction once and the region runs from it to the pole on the loop's
+			// material side — closed like a band whose second rim is the pole row.
+			1 if wound[0] == 0 && windings[0].1 == 0 && windings[0].0.abs() == 1 && patch.pole_v(true).is_some() => {
+				let north = cap_faces_north(patch, &uv, &pts3, &rings[0], face_same_sense);
+				let v_pole = patch.pole_v(north).expect("pole_v(true) is Some");
+				let rim = rings.remove(0);
+				let merged = close_cap_ring(&mut uv, &mut pts3, patch, &rim, v_pole);
+				// Chord A: rim duplicate → pole copy (position rim.len()); B: pole → rim start.
+				let merged =
+					if patch.nurbs().is_none() { sample_synthetic_seams(&mut uv, &mut pts3, &merged, rim.len(), patch) } else { merged };
+				rings.insert(0, merged);
+			}
 			// A full-period band: exactly two rims wind ONE closed direction once,
 			// in opposite senses, the outer bound being one of them (the untrimmed
-			// closed patch, e.g. a NURBS tube wall bounded only by its two rims).
+			// closed patch, e.g. a NURBS tube wall bounded only by its two rims, a
+			// torus band between two rims off the grid phase).
 			2 if wound[0] == 0 => {
 				let (wa, wb) = (windings[wound[0]], windings[wound[1]]);
 				let in_u = wa.0 != 0;
-				let unit = |w: (i64, i64)| (w.0.abs() <= 1 && w.1.abs() <= 1) && (w.0 == 0) != (w.1 == 0);
 				if !(unit(wa) && unit(wb) && wa.0 + wb.0 == 0 && wa.1 + wb.1 == 0) {
-					return Err(StepError::Unsupported(format!(
-						"ADVANCED_FACE #{fid}: trimming loops wind {windings:?} periods around closed B-spline patch #{surface_ref} — only seam-crossing disk loops and a band between two opposite full-period rims are importable"
-					)));
+					return Err(refuse());
 				}
 				let rim_b = rings.remove(wound[1]);
 				let rim_a = rings.remove(0);
 				let merged = bridge_band_rings(&mut uv, &mut pts3, &rim_a, &rim_b, in_u);
+				// Chord A: rim-a duplicate → rim b start (position rim_a.len()); B: rim-b duplicate → rim a start.
+				let merged =
+					if patch.nurbs().is_none() { sample_synthetic_seams(&mut uv, &mut pts3, &merged, rim_a.len(), patch) } else { merged };
 				rings.insert(0, merged);
 			}
-			_ => {
-				return Err(StepError::Unsupported(format!(
-					"ADVANCED_FACE #{fid}: trimming loops wind {windings:?} periods around closed B-spline patch #{surface_ref} — only seam-crossing disk loops and a band between two opposite full-period rims are importable"
-				)));
-			}
+			_ => return Err(refuse()),
 		}
 		// Each ring was unwrapped from its own first vertex, so hole rings may sit
 		// whole periods away from the outer ring's cover window: translate them onto
@@ -2567,7 +3407,7 @@ fn add_bspline_face(
 	});
 	let mut tris = match monotone {
 		Some(Ok(ts)) => ts,
-		_ => triangulate_trim_rings(&uv, &rings).map_err(|m| StepError::Unsupported(format!("ADVANCED_FACE #{fid}: {m}")))?,
+		_ => triangulate_trim_rings(&uv, &rings).map_err(unsupported)?,
 	};
 	// Trim-loop segments are the watertight boundary: never split.
 	let boundary: std::collections::HashSet<(usize, usize)> = rings
@@ -2577,60 +3417,100 @@ fn add_bspline_face(
 			(0..n).map(move |i| edge_key(r[i], r[(i + 1) % n]))
 		})
 		.collect();
-	// Interior refinement to the relative chordal tolerance: facet chords stay
-	// within `PATCH_SAG_TOL` of the face's own scale from the exact surface — at
-	// 1e-3 that matches the imported-conic fidelity contract (a 48-gon ring's
-	// sagitta is 2.1e-3·r). Cover coordinates of a closed direction wrap back into
-	// the fundamental domain for evaluation (`S` is periodic there by `patch_closed`).
-	let wrap01 = |x: f64, closed: bool| if closed { x - x.floor() } else { x };
-	let at = |q: DVec2| {
-		(
-			u_lo + (u_hi - u_lo) * wrap01(q.x, closed_u),
-			v_lo + (v_hi - v_lo) * wrap01(q.y, closed_v),
-		)
-	};
-	let eval = |q: DVec2| {
-		let (u, v) = at(q);
-		surf.point_at(u, v)
-	};
-	let scale = 1.0 + pts3.iter().map(|p| p.length()).fold(0.0_f64, f64::max);
+	// Interior refinement to the patch's chordal tolerance; cover coordinates of
+	// a closed direction wrap back into the fundamental domain for evaluation.
+	let eval = |q: DVec2| patch.point(q);
+	let sag = patch.sag_tol(&pts3);
 	// Boundary handles keep their exact input positions (the weld); interior
 	// handles are evaluated on the exact patch as refinement creates them.
 	let mut pos3 = pts3.clone();
-	refine_param_facets(&mut uv, &mut pos3, &mut tris, &boundary, eval, PATCH_SAG_TOL * scale)
-		.map_err(|m| StepError::Unsupported(format!("ADVANCED_FACE #{fid}: {m}")))?;
-	let pos = |h: usize| pos3[h];
+	// A B-spline patch keeps the single-split Rivara refinement (its sliver control
+	// on freeform patches, and the byte-identical results of every existing
+	// round trip); an analytic patch — smooth, near-isometric chart, faces of
+	// thousands of facets — takes the linear batched refinement.
+	let refined = if patch.nurbs().is_some() {
+		refine_param_facets(&mut uv, &mut pos3, &mut tris, &boundary, eval, sag)
+	} else {
+		refine_param_facets_batched(&mut uv, &mut pos3, &mut tris, &boundary, eval, sag, patch.chart_scale())
+	};
+	refined.map_err(|m| StepError::Unsupported(format!("ADVANCED_FACE #{fid}: {m}")))?;
+	let mut emitted = 0usize;
 	for t in &tris {
-		let (pa, pb, pc) = (pos(t[0]), pos(t[1]), pos(t[2]));
-		let (a, b, c) = (acc.intern(pa), acc.intern(pb), acc.intern(pc));
-		if a == b || b == c || c == a {
-			return Err(StepError::Topology(format!(
-				"ADVANCED_FACE #{fid}: a patch facet degenerated to coincident vertices"
-			)));
+		let (pa, pb, pc) = (pos3[t[0]], pos3[t[1]], pos3[t[2]]);
+		if pos_key(pa) == pos_key(pb) || pos_key(pb) == pos_key(pc) || pos_key(pc) == pos_key(pa) {
+			continue; // a pole-row / synthetic-seam sliver: zero 3-D area, twins outside
 		}
+		let (a, b, c) = (acc.intern(pa), acc.intern(pb), acc.intern(pc));
 		let centroid = (pa + pb + pc) / 3.0;
 		let mut normal = (pb - pa).cross(pc - pa).normalize_or_zero();
 		if normal.length_squared() < 0.5 {
-			let (u, v) = at((uv[t[0]] + uv[t[1]] + uv[t[2]]) / 3.0);
-			normal = surf.normal_at(u, v);
+			normal = patch.normal((uv[t[0]] + uv[t[1]] + uv[t[2]]) / 3.0);
 		}
 		if normal.length_squared() < 0.5 {
 			return Err(StepError::Topology(format!(
 				"ADVANCED_FACE #{fid}: a patch facet has no usable normal (degenerate surface region)"
 			)));
 		}
-		acc.faces.push(FaceLoops { loops: vec![vec![a, b, c]], surface: Surface::Plane { origin: centroid, normal } });
+		acc.faces.push(FaceLoops { loops: vec![vec![a, b, c]], surface: patch.facet_surface(centroid, normal) });
+		emitted += 1;
 	}
-	// Preserve the patch's NURBS identity alongside its chord facets (the analytic
-	// [`Surface`] enum has no freeform variant): the exact rational surface plus the
-	// verbatim trim rings — the sidecar [`import_step_freeform`] returns and
+	if emitted == 0 {
+		return Err(StepError::Topology(format!("ADVANCED_FACE #{fid}: every patch facet degenerated")));
+	}
+	// Preserve a B-spline patch's NURBS identity alongside its chord facets (the
+	// analytic [`Surface`] enum has no freeform variant): the exact rational surface
+	// plus the verbatim trim rings — the sidecar [`import_step_freeform`] returns and
 	// [`crate::step_export::export_step_freeform`] writes back out as a true
 	// `B_SPLINE_SURFACE_WITH_KNOTS` face.
-	acc.freeform.push(FreeformFace {
-		surface: surf,
-		rings: std::iter::once(outer_pts.to_vec()).chain(inner_loops.iter().cloned()).collect(),
-	});
+	if let Some(surf) = patch.nurbs() {
+		acc.freeform.push(FreeformFace {
+			surface: surf.clone(),
+			rings: std::iter::once(outer_pts.to_vec()).chain(inner_loops.iter().cloned()).collect(),
+		});
+	}
 	Ok(())
+}
+
+/// Import one trimmed `B_SPLINE_SURFACE_WITH_KNOTS` face through
+/// [`add_patch_face`] on a [`NurbsPatch`].
+fn add_bspline_face(
+	imp: &Importer,
+	fid: u32,
+	surface_ref: u32,
+	outer_pts: &[DVec3],
+	inner_loops: &[Vec<DVec3>],
+	face_same_sense: bool,
+	acc: &mut FaceAccum,
+) -> Result<(), StepError> {
+	let surf = imp.bspline_surface(surface_ref)?;
+	let ((u_lo, u_hi), (v_lo, v_hi)) = surf.domain();
+	if !(u_hi > u_lo && v_lo < v_hi) {
+		return Err(StepError::Unsupported(format!(
+			"ADVANCED_FACE #{fid}: B-spline patch #{surface_ref} has a degenerate parameter domain"
+		)));
+	}
+	let patch = NurbsPatch::new(surf, surface_ref, imp.snap_allowance(), imp.uncertainty);
+	add_patch_face(fid, &patch, outer_pts, inner_loops, face_same_sense, acc)
+}
+
+/// Import one trimmed analytic quadric face through [`add_patch_face`] on an
+/// [`AnalyticPatch`] — the read path for holes on curved faces and for the
+/// periodic regions the seam-aware splitters refuse.
+#[allow(clippy::too_many_arguments)]
+fn add_analytic_patch_face(
+	imp: &Importer,
+	fid: u32,
+	surface: &Surface,
+	axis: DVec3,
+	outer_pts: &[DVec3],
+	inner_loops: &[Vec<DVec3>],
+	face_same_sense: bool,
+	acc: &mut FaceAccum,
+) -> Result<(), StepError> {
+	let Some(patch) = AnalyticPatch::new(surface, axis, outer_pts, imp.uncertainty) else {
+		return Err(StepError::Topology(format!("ADVANCED_FACE #{fid}: degenerate analytic surface (zero axis or radius)")));
+	};
+	add_patch_face(fid, &patch, outer_pts, inner_loops, face_same_sense, acc)
 }
 
 /// Ear-clip a SIMPLE (non-self-intersecting) uv polygon into index triangles
@@ -2639,7 +3519,7 @@ fn add_bspline_face(
 /// unwrapped, that rim dips in v and is not u-monotone). Diagonals of a simple
 /// polygon stay inside it, so the periodic-seam guarantee of the sweep is
 /// preserved: no triangle can jump the seam gap.
-fn triangulate_earclip(uv: &[DVec2]) -> Result<Vec<[usize; 3]>, String> {
+pub(crate) fn triangulate_earclip(uv: &[DVec2]) -> Result<Vec<[usize; 3]>, String> {
 	let n = uv.len();
 	if n < 3 {
 		return Err("fewer than three boundary points".into());
@@ -2837,7 +3717,7 @@ fn triangulate_monotone(uv: &[DVec2]) -> Result<Vec<[usize; 3]>, String> {
 /// orientation flag says so) and whether it carried any conic segments. Conic segments
 /// are recorded by their (direction-independent) endpoint pair *before* any flip, for
 /// analytic edge tagging after the solid is built.
-fn read_bound_loop(
+pub(crate) fn read_bound_loop(
 	imp: &Importer,
 	loop_ref: u32,
 	rev: bool,
@@ -2865,29 +3745,70 @@ fn read_bound_loop(
 /// (a whole file, or one `MANIFOLD_SOLID_BREP` of an assembly part) goes through
 /// identical reconstruction.
 #[derive(Default)]
-struct FaceAccum {
-	positions: Vec<DVec3>,
-	index: HashMap<(u64, u64, u64), u32>,
-	faces: Vec<FaceLoops>,
-	conic_segments: Vec<(DVec3, DVec3, Curve)>,
-	edge_cache: HashMap<u32, (Vec<DVec3>, Option<Curve>)>,
+pub(crate) struct FaceAccum {
+	pub(crate) positions: Vec<DVec3>,
+	pub(crate) index: HashMap<(u64, u64, u64), u32>,
+	pub(crate) faces: Vec<FaceLoops>,
+	pub(crate) conic_segments: Vec<(DVec3, DVec3, Curve)>,
+	pub(crate) edge_cache: HashMap<u32, (Vec<DVec3>, Option<Curve>)>,
 	/// The NURBS identity of every trimmed B-spline face reconstructed into `faces`
 	/// (which carries chord facets only) — the sidecar [`import_step_freeform`] returns.
-	freeform: Vec<FreeformFace>,
+	pub(crate) freeform: Vec<FreeformFace>,
+	/// `(face id, what was done)` for every silent-in-strict-mode repair the
+	/// reconstruction applied (a trim vertex projected onto its patch under the
+	/// file's uncertainty allowance) — the tolerant receipt's `repaired` list.
+	pub(crate) repairs: Vec<(u32, String)>,
+}
+
+/// A snapshot of a [`FaceAccum`]'s lengths, to undo a face's partial output
+/// ([`FaceAccum::rollback`]) before retrying it another way. Edge polylines
+/// (`edge_cache`) are pure and are kept.
+#[derive(Clone, Copy)]
+pub(crate) struct AccumCheckpoint {
+	positions: usize,
+	faces: usize,
+	conic_segments: usize,
+	freeform: usize,
+	repairs: usize,
 }
 
 impl FaceAccum {
-	fn intern(&mut self, p: DVec3) -> u32 {
+	pub(crate) fn intern(&mut self, p: DVec3) -> u32 {
 		*self.index.entry(pos_key(p)).or_insert_with(|| {
 			self.positions.push(p);
 			(self.positions.len() - 1) as u32
 		})
 	}
 
+	pub(crate) fn checkpoint(&self) -> AccumCheckpoint {
+		AccumCheckpoint {
+			positions: self.positions.len(),
+			faces: self.faces.len(),
+			conic_segments: self.conic_segments.len(),
+			freeform: self.freeform.len(),
+			repairs: self.repairs.len(),
+		}
+	}
+
+	/// Undo everything accumulated since `cp` — including interned positions no
+	/// surviving face references (an interned-but-unused position would become an
+	/// isolated vertex and corrupt the Euler characteristic).
+	pub(crate) fn rollback(&mut self, cp: AccumCheckpoint) {
+		if self.positions.len() > cp.positions {
+			self.positions.truncate(cp.positions);
+			let keep = cp.positions as u32;
+			self.index.retain(|_, &mut i| i < keep);
+		}
+		self.faces.truncate(cp.faces);
+		self.conic_segments.truncate(cp.conic_segments);
+		self.freeform.truncate(cp.freeform);
+		self.repairs.truncate(cp.repairs);
+	}
+
 	/// Build the solid from everything accumulated. Faces carry the producer's loop
 	/// winding (outward CCW for a well-formed file), so `from_faces_multiloop` pairs
 	/// the shared edges into a consistent 2-manifold directly — hole loops included.
-	fn finish(self) -> Result<Solid, StepError> {
+	pub(crate) fn finish(self) -> Result<Solid, StepError> {
 		if self.faces.is_empty() {
 			return Err(StepError::Topology("no ADVANCED_FACE entities found".into()));
 		}
@@ -2903,10 +3824,39 @@ impl FaceAccum {
 	}
 }
 
-/// Reconstruct one `ADVANCED_FACE` into `acc` — one input face, or, for a periodic
-/// wall / curved region / B-spline patch, a set of facets on its exact surface.
-/// `flip` reverses every loop (an `ORIENTED_CLOSED_SHELL` `.F.` wrapper).
-fn add_face(imp: &Importer, fid: u32, flip: bool, acc: &mut FaceAccum) -> Result<(), StepError> {
+/// The inner message of a [`StepError`] (without the variant prefix), for
+/// composing a fallback's reason onto the first attempt's.
+fn inner_msg(e: &StepError) -> &str {
+	match e {
+		StepError::Parse(m) | StepError::Reference(m) | StepError::Unsupported(m) | StepError::Topology(m) => m,
+	}
+}
+
+/// One `ADVANCED_FACE`'s bounds, read and tessellated: the surface (`None` for a
+/// B-spline patch), its entity id, the face's material orientation, the outer
+/// loop and the inner (hole) loops — the input every reconstruction route
+/// shares ([`read_face_loops`]).
+pub(crate) struct FaceRead {
+	pub(crate) surface_ref: u32,
+	pub(crate) surface: FaceSurface,
+	pub(crate) same_sense: bool,
+	pub(crate) outer: Vec<DVec3>,
+	pub(crate) inner: Vec<Vec<DVec3>>,
+}
+
+/// What a face's surface entity resolved to. An unsupported surface type keeps
+/// its error here (rather than failing the read outright) so the tolerant
+/// importer's flat repair can still consume the face's loops.
+pub(crate) enum FaceSurface {
+	Analytic(Surface),
+	BSpline,
+	Unsupported(StepError),
+}
+
+/// Read one `ADVANCED_FACE`'s surface and loops. `flip` reverses every loop (an
+/// `ORIENTED_CLOSED_SHELL` `.F.` wrapper). `Ok(None)` for a genuinely degenerate
+/// (zero-length) planar outer loop, which is skipped as exporters do.
+pub(crate) fn read_face_loops(imp: &Importer, fid: u32, flip: bool, acc: &mut FaceAccum) -> Result<Option<FaceRead>, StepError> {
 	let e = imp.get(fid)?;
 	if e.name != "ADVANCED_FACE" {
 		return Err(StepError::Reference(format!("#{fid} is {}, expected ADVANCED_FACE", e.name)));
@@ -2923,11 +3873,12 @@ fn add_face(imp: &Importer, fid: u32, flip: bool, acc: &mut FaceAccum) -> Result
 	// The face's same-sense flag (used to orient slit-bounded full-periodic regions,
 	// where the boundary loop itself encloses no signed area). `flip` inverts it.
 	let face_same_sense = last_enum(e).map(|s| s == "T").unwrap_or(true) ^ flip;
-	// A B-spline surface face is tessellated on the exact patch (see below); other
+	// A B-spline surface face is tessellated on the exact patch; other
 	// unsupported surfaces stay loud.
 	let surface = match imp.surface(surface_ref) {
-		Ok(s) => Some(s),
-		Err(StepError::Unsupported(_)) if is_bspline_surface(imp.get(surface_ref)?) => None,
+		Ok(s) => FaceSurface::Analytic(s),
+		Err(StepError::Unsupported(_)) if is_bspline_surface(imp.get(surface_ref)?) => FaceSurface::BSpline,
+		Err(e @ StepError::Unsupported(_)) => FaceSurface::Unsupported(e),
 		Err(err) => return Err(err),
 	};
 
@@ -2971,7 +3922,7 @@ fn add_face(imp: &Importer, fid: u32, flip: bool, acc: &mut FaceAccum) -> Result
 				"ADVANCED_FACE #{fid}: an arc-bounded loop collapsed to fewer than 3 boundary points"
 			)));
 		}
-		return Ok(()); // genuinely degenerate (zero-length) planar loop — skip, as exporters do
+		return Ok(None); // genuinely degenerate (zero-length) planar loop — skip, as exporters do
 	}
 	let mut inner_loops: Vec<Vec<DVec3>> = Vec::new();
 	for (loop_ref, rev) in inner {
@@ -2986,10 +3937,31 @@ fn add_face(imp: &Importer, fid: u32, flip: bool, acc: &mut FaceAccum) -> Result
 		}
 		inner_loops.push(pts);
 	}
+	Ok(Some(FaceRead { surface_ref, surface, same_sense: face_same_sense, outer: outer_pts, inner: inner_loops }))
+}
 
-	let Some(surface) = surface else {
+/// Reconstruct one `ADVANCED_FACE` into `acc` — one input face, or, for a periodic
+/// wall / curved region / B-spline patch, a set of facets on its exact surface.
+/// `flip` reverses every loop (an `ORIENTED_CLOSED_SHELL` `.F.` wrapper).
+///
+/// Routing: planar faces keep their loops verbatim; a B-spline face takes the
+/// parameter-patch path; a curved analytic face with holes takes it too; a
+/// hole-free curved face that is a single chord facet stays one face, otherwise
+/// the seam-aware splitters (periodic wall strip, sphere/torus ring grid) read
+/// it, and whatever THEY refuse falls back to the parameter-patch path — so the
+/// shapes those splitters were measured on keep their exact reconstruction, and
+/// the rest (a corner ball bounded by three arcs, rims off the grid phase, a
+/// half-torus wall) imports instead of refusing. Any partial output of a failed
+/// attempt is rolled back before the next.
+pub(crate) fn add_face(imp: &Importer, fid: u32, flip: bool, acc: &mut FaceAccum) -> Result<(), StepError> {
+	let Some(face) = read_face_loops(imp, fid, flip, acc)? else { return Ok(()) };
+	let FaceRead { surface_ref, surface, same_sense: face_same_sense, outer: outer_pts, inner: inner_loops } = face;
+
+	let surface = match surface {
+		FaceSurface::Analytic(s) => s,
 		// A trimmed B_SPLINE_SURFACE face: tessellated on the exact patch.
-		return add_bspline_face(imp, fid, surface_ref, &outer_pts, &inner_loops, acc);
+		FaceSurface::BSpline => return add_bspline_face(imp, fid, surface_ref, &outer_pts, &inner_loops, face_same_sense, acc),
+		FaceSurface::Unsupported(e) => return Err(e),
 	};
 
 	match surface {
@@ -3002,12 +3974,21 @@ fn add_face(imp: &Importer, fid: u32, flip: bool, acc: &mut FaceAccum) -> Result
 				loops.push(lp.iter().map(|&p| acc.intern(p)).collect());
 			}
 			acc.faces.push(FaceLoops { loops, surface });
+			Ok(())
 		}
 		curved => {
+			// The unwrap axis: a sphere region unwraps about its placement axis, the
+			// other quadrics carry their own.
+			let axis = match curved {
+				Surface::Cylinder { axis, .. } | Surface::Cone { axis, .. } | Surface::Torus { axis, .. } => axis,
+				Surface::Sphere { .. } => imp.surface_axis(surface_ref)?,
+				Surface::Plane { .. } => unreachable!("planar faces are handled above"),
+			};
 			if !inner_loops.is_empty() {
-				return Err(StepError::Unsupported(format!(
-					"ADVANCED_FACE #{fid}: inner loops on a curved analytic face are not importable yet — only planar and B-spline faces may carry holes"
-				)));
+				// Holes on a curved analytic face: the parameter-patch path (the same
+				// loop-unwrapping / hole-bridging tessellation trimmed B-spline faces
+				// take), facets ON the exact surface carrying its analytic tag.
+				return add_analytic_patch_face(imp, fid, &curved, axis, &outer_pts, &inner_loops, face_same_sense, acc);
 			}
 			if outer_pts.len() <= 4 || is_chord_facet(&outer_pts, &curved) {
 				// A native chord facet — ≤4 vertices (this kernel's own cylinder/
@@ -3017,107 +3998,194 @@ fn add_face(imp: &Importer, fid: u32, flip: bool, acc: &mut FaceAccum) -> Result
 				// round-trips exact.
 				let idx: Vec<u32> = outer_pts.iter().map(|&p| acc.intern(p)).collect();
 				acc.faces.push(FaceLoops { loops: vec![idx], surface: curved });
-			} else {
-				match curved {
-					Surface::Cylinder { .. } | Surface::Cone { .. } => {
-						// The seam-aware unwrap first, then VERIFY it against the parameter
-						// chart. The oracle is FLUX, not area: two triangulations of the
-						// SAME boundary ring differ in flux by exactly the volume enclosed
-						// between them (divergence theorem), so a strip that folds back on
-						// itself — what a mesher-jagged merged face's non-monotone unwrap
-						// produces — is caught even when its total area looks right.
-						// Measured: a recovered implicit cylinder's wall re-imported 37.6%
-						// light through the unverified strip. An ordinary chord band (what
-						// the exporter coalesces a builder wall into) matches the chart to
-						// well under the bar and keeps its exact reconstruction.
-						let charted = general_curved_region(&outer_pts, &curved);
-						let strip = split_periodic_face(&outer_pts, &curved, fid);
-						let strip_ok = match (&strip, &charted) {
-							(Ok(tris), Some((extras, ctris))) => {
-								let pos = |h: usize| if h < outer_pts.len() { outer_pts[h] } else { extras[h - outer_pts.len()] };
-								// Flux about a local anchor (the surface's own origin) keeps
-								// the terms at model scale.
-								let anchor = match curved {
-									Surface::Cylinder { origin, .. } => origin,
-									Surface::Cone { apex, .. } => apex,
-									_ => DVec3::ZERO,
-								};
-								let flux = |ts: &[[usize; 3]], p: &dyn Fn(usize) -> DVec3| -> f64 {
-									ts.iter()
-										.map(|t| {
-											let (a, b, c) = (p(t[0]) - anchor, p(t[1]) - anchor, p(t[2]) - anchor);
-											a.dot(b.cross(c)) / 6.0
-										})
-										.sum()
-								};
-								let scale = outer_pts.iter().map(|p| (*p - anchor).length()).fold(0.0_f64, f64::max).max(1e-9);
-								let (fs, fc) = (flux(tris, &|h| outer_pts[h]), flux(ctris, &pos));
-								// Both windings follow the same input ring, so a healthy
-								// strip agrees with the chart to a chord sagitta.
-								(fs - fc).abs() <= 0.02 * fc.abs().max(scale.powi(3) * 1e-3)
-							}
-							(Ok(_), None) => true,
-							(Err(_), _) => false,
-						};
-						if !strip_ok {
-							let (extras, tris) = charted.expect("a failed strip check implies a chart triangulation exists");
-							let pos = |h: usize| if h < outer_pts.len() { outer_pts[h] } else { extras[h - outer_pts.len()] };
-							for t in tris {
-								let (a, b, c) = (acc.intern(pos(t[0])), acc.intern(pos(t[1])), acc.intern(pos(t[2])));
-								if a == b || b == c || c == a {
-									return Err(StepError::Topology(format!(
-										"ADVANCED_FACE #{fid}: a charted facet degenerated onto a repeated boundary point"
-									)));
-								}
-								acc.faces.push(FaceLoops { loops: vec![vec![a, b, c]], surface: curved });
-							}
-							return Ok(());
-						}
-						let tris = strip?;
-						let idx: Vec<u32> = outer_pts.iter().map(|&p| acc.intern(p)).collect();
-						for t in tris {
-							let (a, b, c) = (idx[t[0]], idx[t[1]], idx[t[2]]);
-							if a == b || b == c || c == a {
-								// A facet joining both copies of the seam vertex would be a
-								// zero-width sliver; monotone sweep cannot produce one unless
-								// the input was degenerate.
-								return Err(StepError::Topology(format!(
-									"ADVANCED_FACE #{fid}: a split facet degenerated onto the seam"
-								)));
-							}
-							acc.faces.push(FaceLoops { loops: vec![vec![a, b, c]], surface: curved });
-						}
-					}
-					Surface::Sphere { .. } | Surface::Torus { .. } => {
-						// A periodic / pole-spanning sphere or torus region: resampled into a
-						// ring grid on the exact surface (see `resample_periodic_region`).
-						// Sub-periodic regions took the chart path above.
-						let axis = match curved {
-							Surface::Torus { axis, .. } => axis,
-							_ => imp.surface_axis(surface_ref)?,
-						};
-						let (extras, tris) = resample_periodic_region(&outer_pts, &curved, axis, face_same_sense, fid)?;
-						// Intern lazily, per referenced handle: seam (slit) boundary points
-						// are interior to the face and may legitimately go unused — an
-						// eagerly interned copy would become an isolated vertex and corrupt
-						// the Euler characteristic.
-						let pos = |h: usize| if h < outer_pts.len() { outer_pts[h] } else { extras[h - outer_pts.len()] };
-						for t in tris {
-							let (a, b, c) = (acc.intern(pos(t[0])), acc.intern(pos(t[1])), acc.intern(pos(t[2])));
-							if a == b || b == c || c == a {
-								return Err(StepError::Topology(format!(
-									"ADVANCED_FACE #{fid}: a resampled facet degenerated onto the seam"
-								)));
-							}
-							acc.faces.push(FaceLoops { loops: vec![vec![a, b, c]], surface: curved });
-						}
-					}
-					Surface::Plane { .. } => unreachable!("planar faces are handled above"),
+				return Ok(());
+			}
+			let cp = acc.checkpoint();
+			let first = match curved {
+				Surface::Cylinder { .. } | Surface::Cone { .. } => add_periodic_wall(fid, &curved, &outer_pts, acc),
+				Surface::Sphere { .. } | Surface::Torus { .. } => add_periodic_region(fid, &curved, axis, face_same_sense, &outer_pts, acc),
+				Surface::Plane { .. } => unreachable!("planar faces are handled above"),
+			};
+			let Err(e) = first else { return Ok(()) };
+			acc.rollback(cp);
+			let fallback = add_analytic_patch_face(imp, fid, &curved, axis, &outer_pts, &inner_loops, face_same_sense, acc);
+			match fallback {
+				Ok(()) => Ok(()),
+				Err(e2) => {
+					acc.rollback(cp);
+					Err(StepError::Unsupported(format!("{}; parameter-patch fallback: {}", inner_msg(&e), inner_msg(&e2))))
 				}
 			}
 		}
 	}
+}
+
+/// A periodic cylinder/cone wall (full-circle rims + a seam edge): the seam-aware
+/// unwrap first, then VERIFIED against the parameter chart. The oracle is FLUX,
+/// not area: two triangulations of the SAME boundary ring differ in flux by
+/// exactly the volume enclosed between them (divergence theorem), so a strip
+/// that folds back on itself — what a mesher-jagged merged face's non-monotone
+/// unwrap produces — is caught even when its total area looks right. Measured: a
+/// recovered implicit cylinder's wall re-imported 37.6% light through the
+/// unverified strip. An ordinary chord band (what the exporter coalesces a
+/// builder wall into) matches the chart to well under the bar and keeps its
+/// exact reconstruction.
+fn add_periodic_wall(fid: u32, curved: &Surface, outer_pts: &[DVec3], acc: &mut FaceAccum) -> Result<(), StepError> {
+	let charted = general_curved_region(outer_pts, curved);
+	let strip = split_periodic_face(outer_pts, curved, fid);
+	let strip_ok = match (&strip, &charted) {
+		(Ok(tris), Some((extras, ctris))) => {
+			let pos = |h: usize| if h < outer_pts.len() { outer_pts[h] } else { extras[h - outer_pts.len()] };
+			// Flux about a local anchor (the surface's own origin) keeps the terms
+			// at model scale.
+			let anchor = match *curved {
+				Surface::Cylinder { origin, .. } => origin,
+				Surface::Cone { apex, .. } => apex,
+				_ => DVec3::ZERO,
+			};
+			let flux = |ts: &[[usize; 3]], p: &dyn Fn(usize) -> DVec3| -> f64 {
+				ts.iter()
+					.map(|t| {
+						let (a, b, c) = (p(t[0]) - anchor, p(t[1]) - anchor, p(t[2]) - anchor);
+						a.dot(b.cross(c)) / 6.0
+					})
+					.sum()
+			};
+			let scale = outer_pts.iter().map(|p| (*p - anchor).length()).fold(0.0_f64, f64::max).max(1e-9);
+			let (fs, fc) = (flux(tris, &|h| outer_pts[h]), flux(ctris, &pos));
+			// Both windings follow the same input ring, so a healthy strip agrees
+			// with the chart to a chord sagitta.
+			(fs - fc).abs() <= 0.02 * fc.abs().max(scale.powi(3) * 1e-3)
+		}
+		(Ok(_), None) => true,
+		(Err(_), _) => false,
+	};
+	if !strip_ok {
+		let (extras, tris) = charted.expect("a failed strip check implies a chart triangulation exists");
+		let pos = |h: usize| if h < outer_pts.len() { outer_pts[h] } else { extras[h - outer_pts.len()] };
+		for t in tris {
+			let (a, b, c) = (acc.intern(pos(t[0])), acc.intern(pos(t[1])), acc.intern(pos(t[2])));
+			if a == b || b == c || c == a {
+				return Err(StepError::Topology(format!(
+					"ADVANCED_FACE #{fid}: a charted facet degenerated onto a repeated boundary point"
+				)));
+			}
+			acc.faces.push(FaceLoops { loops: vec![vec![a, b, c]], surface: *curved });
+		}
+		return Ok(());
+	}
+	let tris = strip?;
+	let idx: Vec<u32> = outer_pts.iter().map(|&p| acc.intern(p)).collect();
+	for t in tris {
+		let (a, b, c) = (idx[t[0]], idx[t[1]], idx[t[2]]);
+		if a == b || b == c || c == a {
+			// A facet joining both copies of the seam vertex would be a zero-width
+			// sliver; monotone sweep cannot produce one unless the input was
+			// degenerate.
+			return Err(StepError::Topology(format!("ADVANCED_FACE #{fid}: a split facet degenerated onto the seam")));
+		}
+		acc.faces.push(FaceLoops { loops: vec![vec![a, b, c]], surface: *curved });
+	}
 	Ok(())
+}
+
+/// A periodic / pole-spanning sphere or torus region: resampled into a ring grid
+/// on the exact surface (see [`resample_periodic_region`]). (The cylinder/cone
+/// chart of [`general_curved_region`] is NOT tried here: it is not injective on
+/// a torus band and read one vendor screw head as overlapping facets.)
+fn add_periodic_region(
+	fid: u32,
+	curved: &Surface,
+	axis: DVec3,
+	face_same_sense: bool,
+	outer_pts: &[DVec3],
+	acc: &mut FaceAccum,
+) -> Result<(), StepError> {
+	let (extras, tris) = resample_periodic_region(outer_pts, curved, axis, face_same_sense, fid)?;
+	// Intern lazily, per referenced handle: seam (slit) boundary points are
+	// interior to the face and may legitimately go unused — an eagerly interned
+	// copy would become an isolated vertex and corrupt the Euler characteristic.
+	let pos = |h: usize| if h < outer_pts.len() { outer_pts[h] } else { extras[h - outer_pts.len()] };
+	for t in tris {
+		let (a, b, c) = (acc.intern(pos(t[0])), acc.intern(pos(t[1])), acc.intern(pos(t[2])));
+		if a == b || b == c || c == a {
+			return Err(StepError::Topology(format!("ADVANCED_FACE #{fid}: a resampled facet degenerated onto the seam")));
+		}
+		acc.faces.push(FaceLoops { loops: vec![vec![a, b, c]], surface: *curved });
+	}
+	Ok(())
+}
+
+/// The tolerant importer's last-resort **flat repair** of a face no exact route
+/// could read (an unsupported surface type such as `SURFACE_OF_LINEAR_EXTRUSION`,
+/// a loop that cannot be charted): its loops are projected onto the outer loop's
+/// Newell plane and ear-clipped there (holes bridged), each facet carrying its
+/// own exact plane tag. The boundary chords are consumed verbatim, so the shell
+/// stays welded and closed; only the face's interior geometry is approximated —
+/// which is exactly what the receipt records for it. Refuses (`Err`) when the
+/// loop encloses no projected area (a periodic slit loop) or does not bound a
+/// simple region there.
+pub(crate) fn add_face_flat(imp: &Importer, fid: u32, flip: bool, acc: &mut FaceAccum) -> Result<String, StepError> {
+	let cp = acc.checkpoint();
+	let Some(face) = read_face_loops(imp, fid, flip, acc)? else {
+		return Ok("degenerate zero-length loop skipped".into());
+	};
+	let surface_name = imp.get(face.surface_ref).map(|e| e.name.clone()).unwrap_or_else(|_| "?".into());
+	let nv = newell_vector(&face.outer);
+	let scale = face.outer.iter().map(|p| p.length()).fold(0.0_f64, f64::max) + 1.0;
+	if nv.length() < 1e-12 * scale * scale {
+		acc.rollback(cp);
+		return Err(StepError::Unsupported(format!(
+			"ADVANCED_FACE #{fid}: the outer loop encloses no projected area (a periodic slit loop) — no flat repair possible"
+		)));
+	}
+	let n = nv.normalize();
+	let (e1, e2) = perp_basis(n);
+	let mut pts3: Vec<DVec3> = Vec::new();
+	let mut uv: Vec<DVec2> = Vec::new();
+	let mut rings: Vec<Vec<usize>> = Vec::new();
+	for lp in std::iter::once(&face.outer).chain(face.inner.iter()) {
+		let base = pts3.len();
+		for &p in lp {
+			pts3.push(p);
+			uv.push(DVec2::new(p.dot(e1), p.dot(e2)));
+		}
+		rings.push((base..pts3.len()).collect());
+	}
+	let tris = if rings.len() == 1 {
+		triangulate_earclip(&uv).map(|ts| ts.into_iter().map(|t| [rings[0][t[0]], rings[0][t[1]], rings[0][t[2]]]).collect::<Vec<_>>())
+	} else {
+		triangulate_trim_rings(&uv, &rings)
+	};
+	let tris = match tris {
+		Ok(t) => t,
+		Err(m) => {
+			acc.rollback(cp);
+			return Err(StepError::Unsupported(format!("ADVANCED_FACE #{fid}: flat repair failed — {m}")));
+		}
+	};
+	let mut emitted = 0usize;
+	for t in &tris {
+		let (pa, pb, pc) = (pts3[t[0]], pts3[t[1]], pts3[t[2]]);
+		if pos_key(pa) == pos_key(pb) || pos_key(pb) == pos_key(pc) || pos_key(pc) == pos_key(pa) {
+			continue;
+		}
+		let normal = (pb - pa).cross(pc - pa).normalize_or_zero();
+		if normal.length_squared() < 0.5 {
+			continue; // collinear sliver in 3-D: zero area, its edges pair outside
+		}
+		let (a, b, c) = (acc.intern(pa), acc.intern(pb), acc.intern(pc));
+		acc.faces.push(FaceLoops { loops: vec![vec![a, b, c]], surface: Surface::Plane { origin: (pa + pb + pc) / 3.0, normal } });
+		emitted += 1;
+	}
+	if emitted == 0 {
+		acc.rollback(cp);
+		return Err(StepError::Unsupported(format!("ADVANCED_FACE #{fid}: flat repair produced no facet")));
+	}
+	Ok(format!(
+		"{surface_name} face approximated by {emitted} flat facets of its boundary loop{} (interior geometry NOT exact)",
+		if face.inner.is_empty() { String::new() } else { format!(" and {} hole loop(s)", face.inner.len()) }
+	))
 }
 
 /// Import a STEP physical-file string and reconstruct a B-rep [`Solid`].
@@ -3154,7 +4222,7 @@ pub fn import_step(text: &str) -> Result<Solid, StepError> {
 /// of NURBS interchange. Files without B-spline faces return an empty sidecar.
 pub fn import_step_freeform(text: &str) -> Result<(Solid, Vec<FreeformFace>), StepError> {
 	let ents = parse(text)?;
-	let imp = Importer { ents: &ents };
+	let imp = Importer::new(&ents);
 
 	// Deterministic face collection: solid-model shells first, bare faces as fallback.
 	let mut face_list: Vec<(u32, bool)> = Vec::new();
@@ -3182,23 +4250,76 @@ const ASSEMBLY_MAX_DEPTH: usize = 64;
 /// Assembly-structure resolver layered over the entity graph: product names,
 /// product-definition → shape-representation links, NAUO child relations with their
 /// `ITEM_DEFINED_TRANSFORMATION` placements, and `MAPPED_ITEM` instancing.
-struct AssemblyGraph<'a> {
-	imp: &'a Importer<'a>,
+pub(crate) struct AssemblyGraph<'a> {
+	pub(crate) imp: &'a Importer<'a>,
 	/// `PRODUCT_DEFINITION` id → `SHAPE_REPRESENTATION`-family id (via
 	/// `PRODUCT_DEFINITION_SHAPE` + `SHAPE_DEFINITION_REPRESENTATION`).
-	shape_rep: HashMap<u32, u32>,
+	pub(crate) shape_rep: HashMap<u32, u32>,
 	/// NAUO id → `(parent PRODUCT_DEFINITION, child PRODUCT_DEFINITION)`.
-	nauo: Vec<(u32, (u32, u32))>,
+	pub(crate) nauo: Vec<(u32, (u32, u32))>,
 	/// NAUO id → child→parent placement, from the `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION`.
-	nauo_transform: HashMap<u32, DAffine3>,
+	pub(crate) nauo_transform: HashMap<u32, DAffine3>,
 	/// Solids already reconstructed, keyed by their representation id (instances share).
-	solid_cache: HashMap<u32, Solid>,
+	pub(crate) solid_cache: HashMap<u32, Solid>,
 }
 
 impl<'a> AssemblyGraph<'a> {
+	/// Resolve the product tree of a parsed file: representation links, NAUO
+	/// relations (entity-id order) and their placements. Shared by
+	/// [`import_step_assembly`] and the tolerant importer's solid census.
+	pub(crate) fn resolve(imp: &'a Importer<'a>) -> Result<Self, StepError> {
+		let ents = imp.ents;
+		// PRODUCT_DEFINITION → representation links (SHAPE_DEFINITION_REPRESENTATION over
+		// PRODUCT_DEFINITION_SHAPE), skipping shape aspects that describe NAUOs. The scan
+		// runs in ascending-id order so duplicate links resolve deterministically.
+		let mut sdr_ids: Vec<u32> = ents.iter().filter(|(_, e)| e.name == "SHAPE_DEFINITION_REPRESENTATION").map(|(&id, _)| id).collect();
+		sdr_ids.sort_unstable();
+		let mut shape_rep: HashMap<u32, u32> = HashMap::new();
+		for id in sdr_ids {
+			let e = &ents[&id];
+			let refs: Vec<u32> = e.args.iter().filter_map(Value::as_ref).collect();
+			if refs.len() < 2 {
+				continue;
+			}
+			let (pds, rep) = (refs[0], refs[1]);
+			let Ok(pds_ent) = imp.get(pds) else { continue };
+			if pds_ent.name != "PRODUCT_DEFINITION_SHAPE" {
+				continue;
+			}
+			if let Some(target) = pds_ent.args.iter().find_map(Value::as_ref) {
+				if imp.get(target).map(|t| t.name == "PRODUCT_DEFINITION").unwrap_or(false) {
+					shape_rep.insert(target, rep);
+				}
+			}
+		}
+
+		// NAUO relations, in entity-id order for determinism.
+		let mut nauo: Vec<(u32, (u32, u32))> = Vec::new();
+		for (&id, e) in ents.iter() {
+			if e.name == "NEXT_ASSEMBLY_USAGE_OCCURRENCE" {
+				let refs: Vec<u32> = e.args.iter().filter_map(Value::as_ref).collect();
+				if refs.len() < 2 {
+					return Err(StepError::Parse(format!("#{id} NEXT_ASSEMBLY_USAGE_OCCURRENCE needs parent and child")));
+				}
+				nauo.push((id, (refs[0], refs[1])));
+			}
+		}
+		nauo.sort_unstable_by_key(|&(id, _)| id);
+
+		let mut graph = AssemblyGraph { imp, shape_rep, nauo, nauo_transform: HashMap::new(), solid_cache: HashMap::new() };
+		let index = NauoIndex::build(imp);
+		for (id, (_, child)) in graph.nauo.clone() {
+			let child_rep = graph.shape_rep.get(&child).copied();
+			if let Some(t) = nauo_placement(imp, &index, id, child_rep)? {
+				graph.nauo_transform.insert(id, t);
+			}
+		}
+		Ok(graph)
+	}
+
 	/// The product name of a `PRODUCT_DEFINITION`: its formation's product's name
 	/// (the first string argument of the `PRODUCT`).
-	fn product_name(&self, pd: u32) -> Result<String, StepError> {
+	pub(crate) fn product_name(&self, pd: u32) -> Result<String, StepError> {
 		let pd_ent = self.imp.get(pd)?;
 		let formation = pd_ent
 			.args
@@ -3223,7 +4344,7 @@ impl<'a> AssemblyGraph<'a> {
 	/// `MANIFOLD_SOLID_BREP`/`BREP_WITH_VOIDS` in its item list, rebuilt through the
 	/// same face accumulator as [`import_step`]. `None` when the representation
 	/// carries no breps (a pure-placement assembly root).
-	fn rep_solid(&mut self, rep: u32) -> Result<Option<Solid>, StepError> {
+	pub(crate) fn rep_solid(&mut self, rep: u32) -> Result<Option<Solid>, StepError> {
 		if let Some(s) = self.solid_cache.get(&rep) {
 			return Ok(Some(s.clone()));
 		}
@@ -3272,7 +4393,7 @@ impl<'a> AssemblyGraph<'a> {
 
 	/// The item-reference list of a representation entity (the second list argument,
 	/// after the name).
-	fn rep_items(&self, rep: u32) -> Result<Vec<u32>, StepError> {
+	pub(crate) fn rep_items(&self, rep: u32) -> Result<Vec<u32>, StepError> {
 		let e = self.imp.get(rep)?;
 		Ok(e.args
 			.iter()
@@ -3286,7 +4407,7 @@ impl<'a> AssemblyGraph<'a> {
 	/// The `MAPPED_ITEM`s of a representation: `(source representation, placement)`
 	/// pairs, each placing the source's geometry at the mapped target frame relative
 	/// to the map's origin frame.
-	fn mapped_items(&self, rep: u32) -> Result<Vec<(u32, DAffine3)>, StepError> {
+	pub(crate) fn mapped_items(&self, rep: u32) -> Result<Vec<(u32, DAffine3)>, StepError> {
 		let mut out = Vec::new();
 		for id in self.rep_items(rep)? {
 			let e = self.imp.get(id)?;
@@ -3378,7 +4499,7 @@ impl<'a> AssemblyGraph<'a> {
 /// The affine frame of an `AXIS2_PLACEMENT_3D`: columns `(x, y = axis × x, axis)`
 /// with the translation at the placement location — the map from the local frame
 /// into world coordinates.
-fn placement_affine(imp: &Importer, id: u32) -> Result<DAffine3, StepError> {
+pub(crate) fn placement_affine(imp: &Importer, id: u32) -> Result<DAffine3, StepError> {
 	let (origin, axis, x, y) = imp.frame(id)?;
 	Ok(DAffine3::from_mat3_translation(DMat3::from_cols(x, y, axis), origin))
 }
@@ -3389,21 +4510,42 @@ fn placement_affine(imp: &Importer, id: u32) -> Result<DAffine3, StepError> {
 /// When `rep_1` is the CHILD's representation the placement is `frame2 ∘ frame1⁻¹`;
 /// writers that store the pair reversed get the inverse. A NAUO with no CDSR places
 /// its child at the identity.
-fn nauo_placement(imp: &Importer, nauo: u32, child_rep: Option<u32>) -> Result<Option<DAffine3>, StepError> {
-	// Entity scans run in ascending-id order so a (malformed) file with duplicate
-	// records still resolves deterministically across runs.
-	let ids_of = |name: &str| -> Vec<u32> {
-		let mut ids: Vec<u32> = imp.ents.iter().filter(|(_, e)| e.name == name).map(|(&id, _)| id).collect();
-		ids.sort_unstable();
-		ids
-	};
+/// Sorted entity-id lists the NAUO placement lookup scans — built ONCE per file
+/// ([`NauoIndex::build`]) instead of once per NAUO, which on a 45 MB vendor
+/// assembly (600 k entities, 219 NAUOs) is the difference between a few
+/// hundred milliseconds and a full re-scan of the entity map per relation.
+pub(crate) struct NauoIndex {
+	/// Every `PRODUCT_DEFINITION_SHAPE` id, ascending.
+	pds: Vec<u32>,
+	/// Every `CONTEXT_DEPENDENT_SHAPE_REPRESENTATION` id, ascending.
+	cdsr: Vec<u32>,
+}
+
+impl NauoIndex {
+	pub(crate) fn build(imp: &Importer) -> Self {
+		let mut pds = Vec::new();
+		let mut cdsr = Vec::new();
+		for (&id, e) in imp.ents.iter() {
+			match e.name.as_str() {
+				"PRODUCT_DEFINITION_SHAPE" => pds.push(id),
+				"CONTEXT_DEPENDENT_SHAPE_REPRESENTATION" => cdsr.push(id),
+				_ => {}
+			}
+		}
+		// Ascending-id order so a (malformed) file with duplicate records still
+		// resolves deterministically across runs.
+		pds.sort_unstable();
+		cdsr.sort_unstable();
+		NauoIndex { pds, cdsr }
+	}
+}
+
+pub(crate) fn nauo_placement(imp: &Importer, index: &NauoIndex, nauo: u32, child_rep: Option<u32>) -> Result<Option<DAffine3>, StepError> {
 	// Find the PRODUCT_DEFINITION_SHAPE that describes this NAUO…
-	let pds_of_nauo = ids_of("PRODUCT_DEFINITION_SHAPE").into_iter().find(|&id| {
-		imp.ents[&id].args.iter().filter_map(Value::as_ref).any(|r| r == nauo)
-	});
+	let pds_of_nauo = index.pds.iter().copied().find(|&id| imp.ents[&id].args.iter().filter_map(Value::as_ref).any(|r| r == nauo));
 	let Some(pds) = pds_of_nauo else { return Ok(None) };
 	// …then the CONTEXT_DEPENDENT_SHAPE_REPRESENTATION pointing at that shape aspect.
-	for id in ids_of("CONTEXT_DEPENDENT_SHAPE_REPRESENTATION") {
+	for &id in &index.cdsr {
 		let e = &imp.ents[&id];
 		let refs: Vec<u32> = e.args.iter().filter_map(Value::as_ref).collect();
 		if refs.len() < 2 || refs[1] != pds {
@@ -3476,56 +4618,8 @@ fn nauo_placement(imp: &Importer, nauo: u32, child_rep: Option<u32>) -> Result<O
 /// space; `placement.transform_point3(p)` places a local point.
 pub fn import_step_assembly(text: &str) -> Result<Vec<(String, Solid, DAffine3)>, StepError> {
 	let ents = parse(text)?;
-	let imp = Importer { ents: &ents };
-
-	// PRODUCT_DEFINITION → representation links (SHAPE_DEFINITION_REPRESENTATION over
-	// PRODUCT_DEFINITION_SHAPE), skipping shape aspects that describe NAUOs. The scan
-	// runs in ascending-id order so duplicate links resolve deterministically.
-	let mut sdr_ids: Vec<u32> = ents
-		.iter()
-		.filter(|(_, e)| e.name == "SHAPE_DEFINITION_REPRESENTATION")
-		.map(|(&id, _)| id)
-		.collect();
-	sdr_ids.sort_unstable();
-	let mut shape_rep: HashMap<u32, u32> = HashMap::new();
-	for id in sdr_ids {
-		let e = &ents[&id];
-		let refs: Vec<u32> = e.args.iter().filter_map(Value::as_ref).collect();
-		if refs.len() < 2 {
-			continue;
-		}
-		let (pds, rep) = (refs[0], refs[1]);
-		let Ok(pds_ent) = imp.get(pds) else { continue };
-		if pds_ent.name != "PRODUCT_DEFINITION_SHAPE" {
-			continue;
-		}
-		if let Some(target) = pds_ent.args.iter().find_map(Value::as_ref) {
-			if imp.get(target).map(|t| t.name == "PRODUCT_DEFINITION").unwrap_or(false) {
-				shape_rep.insert(target, rep);
-			}
-		}
-	}
-
-	// NAUO relations, in entity-id order for determinism.
-	let mut nauo: Vec<(u32, (u32, u32))> = Vec::new();
-	for (&id, e) in ents.iter() {
-		if e.name == "NEXT_ASSEMBLY_USAGE_OCCURRENCE" {
-			let refs: Vec<u32> = e.args.iter().filter_map(Value::as_ref).collect();
-			if refs.len() < 2 {
-				return Err(StepError::Parse(format!("#{id} NEXT_ASSEMBLY_USAGE_OCCURRENCE needs parent and child")));
-			}
-			nauo.push((id, (refs[0], refs[1])));
-		}
-	}
-	nauo.sort_unstable_by_key(|&(id, _)| id);
-
-	let mut graph = AssemblyGraph { imp: &imp, shape_rep, nauo, nauo_transform: HashMap::new(), solid_cache: HashMap::new() };
-	for (id, (_, child)) in graph.nauo.clone() {
-		let child_rep = graph.shape_rep.get(&child).copied();
-		if let Some(t) = nauo_placement(&imp, id, child_rep)? {
-			graph.nauo_transform.insert(id, t);
-		}
-	}
+	let imp = Importer::new(&ents);
+	let mut graph = AssemblyGraph::resolve(&imp)?;
 
 	let mut out: Vec<(String, Solid, DAffine3)> = Vec::new();
 	if graph.nauo.is_empty() {
