@@ -277,3 +277,125 @@ fn mesh_carve_empty_intersection_refuses() {
 	);
 	let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// T4 (path-root asymmetry, 7/10 campaigns): `export_step` writes under
+/// `--out-dir`, but `import_step` used to resolve ONLY against the program's
+/// directory — so a write-then-read-back program failed with `io` unless the
+/// two roots happened to coincide. The read now falls back to `--out-dir`
+/// when the file is not beside the program; a total miss names both roots.
+#[test]
+fn step_round_trip_resolves_across_the_out_dir_root() {
+	let dir = std::env::temp_dir().join(format!("cadcode_t4_out_{}", std::process::id()));
+	let out = dir.join("out"); // deliberately NOT the program's directory
+	std::fs::create_dir_all(&out).unwrap();
+
+	let program = serde_json::json!({"ops": [
+		{"id": "p", "op": "box", "min": [0, 0, 0], "max": [12, 8, 4]},
+		{"id": "w", "op": "export_step", "in": "p", "file": "rt/probe.step"},
+		{"id": "r", "op": "import_step", "file": "rt/probe.step"},
+		{"id": "g", "op": "assert", "in": "r", "exact_volume_within": {"target": 384.0, "percent": 0.5}}
+	]});
+	// input base = `dir` (where the "program" lives), out dir = `dir/out`.
+	let report = kernel_api::run_program_with_input_base(&program.to_string(), &out, &dir);
+	assert!(
+		report.ok,
+		"write-then-import must resolve across roots (write lands under --out-dir): {report:#?}"
+	);
+
+	// A total miss still refuses loudly, naming BOTH roots it tried.
+	let missing = serde_json::json!({"ops": [
+		{"id": "r", "op": "import_step", "file": "rt/nope.step"}
+	]});
+	let report = kernel_api::run_program_with_input_base(&missing.to_string(), &out, &dir);
+	let e = report.ops[0].error.as_ref().expect("io error");
+	assert!(
+		e.message.contains("beside the program") && e.message.contains("--out-dir"),
+		"the miss must name both tried roots: {}",
+		e.message
+	);
+	let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn bare_program_filename_empty_input_base_still_resolves() {
+	// `Path::parent()` of a bare program filename ("part.json") is the EMPTY
+	// path. The sandbox join used to canonicalize "" and fail with "cannot
+	// canonicalize sandbox ''" BEFORE the out-dir fallback could run — which
+	// broke every campaign whose Reproducing invokes `run <prog>.json` from
+	// inside programs/ (the cleat's README does exactly that). Empty base
+	// means the current directory; this pins the fix.
+	let dir = std::env::temp_dir().join(format!("lmcad_bare_base_{}", std::process::id()));
+	let out = dir.join("out");
+	std::fs::create_dir_all(&out).unwrap();
+	let program = serde_json::json!({"ops": [
+		{"id": "p", "op": "box", "min": [0, 0, 0], "max": [10, 6, 3]},
+		{"id": "w", "op": "export_step", "in": "p", "file": "rt/bare.step"},
+		{"id": "r", "op": "import_step", "file": "rt/bare.step"},
+		{"id": "g", "op": "assert", "in": "r", "exact_volume_within": {"target": 180.0, "percent": 0.5}}
+	]});
+	let report = kernel_api::run_program_with_input_base(&program.to_string(), &out, std::path::Path::new(""));
+	assert!(
+		report.ok,
+		"an empty input base (bare program filename) must behave as the current directory, not refuse on canonicalize: {report:#?}"
+	);
+	let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `import_step` in `"mode": "tolerant"` on a real vendor assembly (the
+/// Framework Expansion Card enclosure, CC BY 4.0 — `kernel-brep/tests/fixtures`):
+/// the op binds the placed compound, and its measures carry the per-solid
+/// census (four instances, product names, placed envelopes, statuses) plus
+/// the `skipped` / `repaired` lists — and an unknown `mode` value is refused.
+#[test]
+fn step_tolerant_mode_lists_every_solid_and_binds_the_compound() {
+	let dir = out_dir("step_tolerant");
+	let fixture = concat!(env!("CARGO_MANIFEST_DIR"), "/../kernel-brep/tests/fixtures/fw_expansion_card.step");
+	std::fs::copy(fixture, dir.join("card.step")).expect("copy the fixture into the sandbox");
+	let r = run(
+		&dir,
+		json!([
+			{"id": "card", "op": "import_step", "file": "card.step", "mode": "tolerant"},
+			{"id": "check", "op": "assert", "in": "card", "valid": true},
+		]),
+	);
+	assert!(r.ok, "tolerant import of the Expansion Card must succeed: {r:#?}");
+	let m = entry(&r, "card").measures.as_ref().expect("measures");
+	let solids = m["solids"].as_array().expect("solids array");
+	let names: Vec<&str> = solids.iter().filter_map(|s| s["name"].as_str()).collect();
+	let statuses: Vec<&str> = solids.iter().filter_map(|s| s["status"].as_str()).collect();
+	assert!(
+		m["mode"] == json!("tolerant")
+			&& m["source"] == json!("step")
+			&& m["solids_total"] == json!(4)
+			&& m["solids_imported"] == json!(4)
+			&& m["solids_skipped"] == json!(0)
+			&& names.iter().filter(|n| **n == "STAR_SCREW_M2X3L_298_1").count() == 2
+			&& names.contains(&"COMPOUND_1")
+			&& names.contains(&"FW_EXP_1USBC_FRAME_CLIP_BC_229_")
+			&& statuses.iter().all(|s| *s == "imported")
+			&& m["skipped"].as_array().map(Vec::len) == Some(0)
+			&& m["repaired"].is_array()
+			&& m["uncertainty_mm"].as_f64().is_some()
+			&& num(&r, "card", "shells") >= 4.0,
+		"tolerant receipt: {m:#}"
+	);
+	// Every record carries a placed envelope and the per-face counters.
+	for s in solids {
+		let (lo, hi) = (s["bbox_min"].as_array().expect("bbox_min"), s["bbox_max"].as_array().expect("bbox_max"));
+		assert!(
+			lo.len() == 3
+				&& hi.len() == 3
+				&& (0..3).all(|k| lo[k].as_f64().unwrap() <= hi[k].as_f64().unwrap())
+				&& s["bbox_source"] == json!("brep")
+				&& s["faces"].as_u64().unwrap_or(0) > 0
+				&& s["entity"].as_u64().is_some()
+				&& s["path"].as_str().is_some(),
+			"solid record: {s:#}"
+		);
+	}
+	// The strict default still refuses an unknown mode loudly.
+	let bad = run(&dir, json!([{"id": "card", "op": "import_step", "file": "card.step", "mode": "lenient"}]));
+	let e = entry(&bad, "card").error.as_ref().expect("must fail");
+	assert_eq!(e.kind, ErrorKind::InvalidParam, "unknown mode must be invalid_param: {bad:#?}");
+	let _ = std::fs::remove_dir_all(&dir);
+}

@@ -249,3 +249,39 @@ fn mate_face_seats_clean_faces_at_the_declared_offset() {
 	);
 	let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The merged `asm_export` file is a diagnostic SCENE, not a print file: a
+/// negative-control failure attitude interpenetrates BY DESIGN, and refusing it
+/// would make every fail-pose program exit 1 at the export op (campaign
+/// friction SLAS F9, introduced by an unlogged 2026-08-10 guard change). The
+/// scene write must succeed, put the crossing count ON THE RECORD, and keep the
+/// per-instance part files on the strict manufacturing path.
+#[test]
+fn merged_scene_export_reports_designed_interference_instead_of_refusing() {
+	let dir = test_dir("scene_policy");
+	let program = r#"{"ops": [
+		{"id": "a", "op": "box", "min": [0, 0, 0], "max": [10, 10, 10]},
+		{"id": "b", "op": "cylinder", "base": [0, 0, 0], "axis": [0, 0, 1], "radius": 3.0, "height": 20.0},
+		{"id": "ia", "op": "asm_instance", "solid": "a"},
+		{"id": "ib", "op": "asm_instance", "solid": "b",
+		 "translate": [5, 5, -3], "rotate": {"axis": [0, 1, 0], "degrees": 25}},
+		{"id": "iv", "op": "asm_interference_volume", "a": "ia", "b": "ib", "voxel": 0.5},
+		{"id": "scene", "op": "asm_export", "file": "asm/fail_pose.stl", "parts_dir": "asm/parts"}
+	]}"#;
+	let report = run_program(program, &dir);
+	assert!(report.ok, "a designed-interference scene must export, not refuse: {report:#?}");
+
+	let iv = entry(&report, "iv").measures.as_ref().expect("interference measures");
+	assert!(iv["overlap_volume"].as_f64().unwrap() > 100.0, "the overlap is real: {iv}");
+
+	let scene = entry(&report, "scene").measures.as_ref().expect("scene measures");
+	assert_eq!(scene["scene"], serde_json::json!(true), "the export declares itself a scene");
+	assert!(
+		scene["cross_instance_self_intersections"].as_u64().unwrap() > 0,
+		"the designed interpenetration is ON THE RECORD in the scene receipt: {scene}"
+	);
+	// The per-instance part files stay strict — both boxes are clean solids and
+	// must have been written and individually validated.
+	let inst = scene["instances"].as_array().expect("instances");
+	assert!(inst.iter().all(|e| e.get("file").is_some()), "per-instance strict part files written: {scene}");
+}

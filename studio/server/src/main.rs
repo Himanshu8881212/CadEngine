@@ -8,6 +8,8 @@
 //! - `STUDIO_ADDR` — listen address (default `127.0.0.1:7878`).
 //! - `LMCAD_ROOT` — repository root for resolving part paths (default: the
 //!   current working directory, which is the workspace root under `cargo run`).
+//! - `CADCODE_ALLOW_REMOTE=1` plus `CADCODE_API_TOKEN` — explicit opt-in for a
+//!   non-loopback bind. Remote exposure is refused by default.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -24,15 +26,26 @@ async fn main() {
 	let chat = if api_key.is_some() { "enabled" } else { "disabled (set ANTHROPIC_API_KEY)" };
 	let web_dist = repo_root.join("studio/web/dist");
 	let api_token = std::env::var("CADCODE_API_TOKEN").ok().filter(|t| !t.trim().is_empty());
-	let state = Arc::new(AppState { repo_root: repo_root.clone(), out_root, api_key, sessions: Default::default() });
+	let compute_concurrency = std::env::var("CADCODE_COMPUTE_CONCURRENCY")
+		.ok().and_then(|v| v.parse::<usize>().ok()).filter(|v| *v > 0)
+		.unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).max(2));
+	let state = Arc::new(AppState {
+		repo_root: repo_root.clone(), out_root, api_key, sessions: Default::default(),
+		compute_slots: Arc::new(tokio::sync::Semaphore::new(compute_concurrency)),
+	});
 	let app = router(state, &web_dist, api_token.clone());
 
 	let addr = std::env::var("STUDIO_ADDR").unwrap_or_else(|_| "127.0.0.1:7878".to_string());
 	let listener = tokio::net::TcpListener::bind(&addr).await.unwrap_or_else(|e| panic!("cannot bind {addr}: {e}"));
-	// V6: never serve the API open on a public interface. A non-loopback bind requires a token.
+	// V6: remote exposure is an explicit two-factor configuration decision: an
+	// opt-in flag and a bearer token. A typo in STUDIO_ADDR cannot publish an
+	// unauthenticated or accidentally exposed compute service.
 	let loopback = listener.local_addr().map(|a| a.ip().is_loopback()).unwrap_or(true);
-	if api_token.is_none() && !loopback {
-		panic!("refusing to serve on non-loopback {addr} without CADCODE_API_TOKEN — set a bearer token to expose the API");
+	if !loopback && std::env::var("CADCODE_ALLOW_REMOTE").as_deref() != Ok("1") {
+		panic!("refusing non-loopback {addr}: set CADCODE_ALLOW_REMOTE=1 only after configuring isolation and authentication");
+	}
+	if !loopback && api_token.is_none() {
+		panic!("refusing non-loopback {addr} without CADCODE_API_TOKEN");
 	}
 	let auth = if api_token.is_some() { "on (bearer token)" } else { "off (loopback dev)" };
 	println!("LMCAD Studio: http://{addr}  (root {}, chat {chat}, auth {auth})", repo_root.display());

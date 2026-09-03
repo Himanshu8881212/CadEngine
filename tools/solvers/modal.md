@@ -1,6 +1,6 @@
 # modal — hex8 natural frequencies + mode shapes (voxel FEA)
 
-- **Runner**: `tools/ace_modal_runner.py` — K/M assembly, occupancy, and fixture/selector handling IMPORTED from ACE `engine.verify.fea` (the exact matrices `reference_fea`/`reference_modal` build); only the eigensolve layer is local, because ACE returns no eigenvectors and refuses free-free. · **Gates**: `tools/test_ace_modal_buckling.py` · legacy pin `tools/ace_modal_validation.py` (ACE `reference_modal`) · manifest `tools/manifests/ace_modal.manifest.json`
+- **Runner**: `tools/analyzers/ace_modal_runner.py` — K/M assembly, occupancy, and fixture/selector handling IMPORTED from ACE `engine.verify.fea` (the exact matrices `reference_fea`/`reference_modal` build); only the eigensolve layer is local, because ACE returns no eigenvectors and refuses free-free. · **Gates**: `tools/tests/test_ace_modal_buckling.py` · legacy pin `tools/validation/ace_modal_validation.py` (ACE `reference_modal`) · manifest `tools/manifests/ace_modal.manifest.json`
 - **Physics**: undamped linear free vibration about the unloaded state — no damping, no preload / stress stiffening, no plasticity. Isotropic homogeneous material; density must be > 0.
 - **Governing equations**: `K phi = omega^2 M phi`, `f = omega / 2 pi`. Participation `Gamma_d = phi^T M r_d` (mass-normalised phi), effective modal mass `Gamma_d^2`.
 - **Discretization**: trilinear hex8 on the voxel grid (binary occupancy rho >= 0.5); **lumped (row-sum) diagonal mass** — positive-definite by construction, makes `A = M^-1/2 K M^-1/2` an exact standard-form reduction (eigenvectors come out mass-normalised for free), low-mode accuracy same order as the hex8 stiffness error (both push f HIGH, converging down). Eigensolve: `scipy.sparse.linalg.eigsh` shift-invert `sigma=0` (fixed, SPD) / `sigma = -(2 pi 1e-3 f_long)^2` with `f_long = sqrt(E/rho)/(2 d_bbox)` (free-free — makes the singular K factorisable; method stated in the receipt); dense `eigh` under 400 DOF; eigenvalues <= 1e-6 x max classified rigid-body.
@@ -8,8 +8,8 @@
 ## I/O contract (JSON job -> .npy mode shapes + JSON receipt on last stdout line)
 ```
 {out_dir, voxel_mm, origin_mm?,
- ops+solid+shape[+supersample] | npy | stl+shape,    # STL parity-filled by invoking tools/voxelize_stl.py (one bridge, not reimplemented)
- material: "PLA" | {youngs_modulus_pa, poisson, density_kg_m3},   # string key resolves via tools/materials.py; density_kg_m3 > 0 enforced
+ ops+solid+shape[+supersample] | npy | stl+shape,    # STL parity-filled by invoking tools/analyzers/voxelize_stl.py (one bridge, not reimplemented)
+ material: "PLA" | {youngs_modulus_pa, poisson, density_kg_m3},   # string key resolves via tools/analyzers/materials.py; density_kg_m3 > 0 enforced
  fixtures: [{kind: clamped|pinned|slider, region_selector (bbox|plane|cylinder|sphere|all), dof_constrained?}],
  free_free?: true,                                   # EXPLICIT opt-in; no fixtures without it = refusal, never a silent fallback
  n_modes?: 6, regions?}
@@ -36,4 +36,4 @@ Outputs: `mode_shape_NN.npy` per elastic mode — (nx,ny,nz) float32 C-order per
 ## When to use
 Resonance questions on printed parts: does a drybox roller or spool-holder bracket have a mode near the printer/motor excitation band; free-free spectra to compare against a physical tap test; mode-shape .npy -> GridField grade law to stiffen where a troublesome mode moves most. First frequency also feeds shipping/vibration sanity for assemblies.
 
-Run: `ACE_PYTHON tools/ace_modal_runner.py job.json` · prove: `python3 tools/test_ace_modal_buckling.py`
+Run: `ACE_PYTHON tools/analyzers/ace_modal_runner.py job.json` · prove: `python3 tools/tests/test_ace_modal_buckling.py`

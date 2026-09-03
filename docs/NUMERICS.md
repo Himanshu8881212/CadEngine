@@ -308,7 +308,11 @@ first slice (`kernel-brep/src/heal.rs`). The contract:
 
 ## GPU evaluation and extraction (kernel-gpu) — tolerance-equivalent, never authoritative
 
-The wgpu/WGSL half (`crates/kernel-gpu`, Metal on this machine) re-evaluates
+> **2026-09:** `kernel-gpu` is parked, unbuilt, in `legacy/kernel-gpu/` (restore
+> steps in `legacy/README.md`). This section records its contract as last built
+> and tested; the `kernel-gpu/...` paths below now live under `legacy/`.
+
+The wgpu/WGSL half (`legacy/kernel-gpu`, Metal on this machine) re-evaluates
 the implicit side on the GPU. Its numerical position, stated once and enforced
 in-tree:
 
@@ -368,7 +372,7 @@ in-tree:
   LOUDER than the CPU dense meshers' documented silent-empty over-cap edge.
   Domain guards (degenerate/non-finite domain, `A − A`, bare half-space)
   mirror the CPU exactly and yield an empty mesh, not an error.
-- **Narrow-band extraction (2026-07-30):** `kernel_gpu::extract_narrow_band`
+- **Narrow-band extraction (2026-07-30):** `extract_narrow_band`
   — Lipschitz-safe coarse block scan → prefix-sum compaction → refine active
   blocks only, splicing the SAME cube-edge unroll as the dense path (shared
   `edge_unroll()`, one source of truth). Corner coordinates come from one

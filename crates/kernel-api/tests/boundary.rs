@@ -61,6 +61,33 @@ fn sandbox_rejects_escaping_export_paths() {
 		"a plain relative path must still export under the sandbox — report={r:#?}"
 	);
 
+	// 4. Lexically in-sandbox is not enough: a symlinked directory must not carry
+	// the write outside, and a symlink used as the final file must not be followed.
+	#[cfg(unix)]
+	{
+		use std::os::unix::fs::symlink;
+		let outside_dir = outside.join(format!("cadcode_symlink_target_{pid}"));
+		let escaped = outside_dir.join("escaped.stl");
+		let _ = std::fs::remove_dir_all(&outside_dir);
+		std::fs::create_dir_all(&outside_dir).unwrap();
+		symlink(&outside_dir, dir.join("link")).unwrap();
+		let r = run_export(&dir, json!("link/escaped.stl"));
+		assert!(
+			!r.ok
+				&& op(&r, "stl").error.as_ref().map(|e| e.kind) == Some(ErrorKind::InvalidParam)
+				&& !escaped.exists(),
+			"a directory symlink must not escape the sandbox — report={r:#?}"
+		);
+
+		let outside_file = outside_dir.join("existing.stl");
+		std::fs::write(&outside_file, b"sentinel").unwrap();
+		symlink(&outside_file, dir.join("final.stl")).unwrap();
+		let r = run_export(&dir, json!("final.stl"));
+		assert!(!r.ok && std::fs::read(&outside_file).unwrap() == b"sentinel",
+			"a final-file symlink must not be followed — report={r:#?}");
+		let _ = std::fs::remove_dir_all(&outside_dir);
+	}
+
 	let _ = std::fs::remove_dir_all(&dir);
 	let _ = std::fs::remove_file(&escape_abs);
 	let _ = std::fs::remove_file(&escape_rel);
@@ -88,5 +115,22 @@ fn caps_reject_allocation_bombs_before_alloc() {
 	]));
 	assert!(!op(&r, "g").ok && refused(&r, "g"), "over-cap grid shape must be refused with InvalidParam — {r:#?}");
 
+	let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn zero_direction_vectors_fail_before_geometry() {
+	let dir = std::env::temp_dir().join(format!("cadcode_direction_{}", std::process::id()));
+	std::fs::create_dir_all(&dir).unwrap();
+	let program = json!({"ops": [
+		{"id":"c","op":"cylinder","base":[0,0,0],"axis":[0,0,0],"radius":5,"height":10}
+	]});
+	let r = run_program(&serde_json::to_string(&program).unwrap(), &dir);
+	assert!(
+		!r.ok
+			&& op(&r, "c").error.as_ref().map(|e| e.kind) == Some(ErrorKind::InvalidParam)
+			&& op(&r, "c").error.as_ref().is_some_and(|e| e.message.contains("non-zero finite")),
+		"a zero cylinder axis must be refused before construction — {r:#?}"
+	);
 	let _ = std::fs::remove_dir_all(&dir);
 }

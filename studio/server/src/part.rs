@@ -197,7 +197,7 @@ pub async fn load_endpoint(State(state): State<Arc<AppState>>, Json(req): Json<L
 		Err(e) => return bad_request(&format!("cannot read '{}': {e}", req.path)),
 	};
 	let path = req.path.clone();
-	let result = tokio::task::spawn_blocking(move || -> Result<PartInfo, String> {
+	let result = state.spawn_compute(move || -> Result<PartInfo, String> {
 		let (doc, meta) = load_part(&text).map_err(|e| format!("'{path}' is not a loadable .lmcpart: {e}"))?;
 		let receipt = rebuild_and_export(&doc, &stem_of(&path), &out_dir, &session)?;
 		Ok(PartInfo {
@@ -341,7 +341,7 @@ pub async fn set_dim_endpoint(State(state): State<Arc<AppState>>, Json(req): Jso
 		Ok(t) => t,
 		Err(e) => return bad_request(&format!("cannot read '{}': {e}", req.path)),
 	};
-	let result = tokio::task::spawn_blocking(move || -> Result<SetDimResponse, String> {
+	let result = state.spawn_compute(move || -> Result<SetDimResponse, String> {
 		let (mut doc, meta) = load_part(&text).map_err(|e| format!("'{}' is not a loadable .lmcpart: {e}", req.path))?;
 		let Some(before) = doc.param(&req.dim) else {
 			let available: Vec<String> = dims_of(&doc).into_iter().map(|d| d.name).collect();

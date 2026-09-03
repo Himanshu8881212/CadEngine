@@ -39,15 +39,15 @@ pins.
 
 | field | type | meaning |
 |---|---|---|
-| `sources` | array of `{title, ref, used_for}` | the CITATIONS behind the equations — `ref` is a book+edition+section, DOI, standard number, or URL; `used_for` names the equation/gate it backs. **Required in practice for derived models** (`tools/derived_model.py` refuses a source-less model at import time); recommended for everything else. |
+| `sources` | array of `{title, ref, used_for}` | the CITATIONS behind the equations — `ref` is a book+edition+section, DOI, standard number, or URL; `used_for` names the equation/gate it backs. **Required in practice for derived models** (`tools/analyzers/derived_model.py` refuses a source-less model at import time); recommended for everything else. |
 | `model_file` | string | for derived-model manifests: the runnable model file the manifest describes (relative to `tools/`) |
-| `derived_model` | bool | marks a manifest produced by the `tools/derived_model.py` scaffold |
+| `derived_model` | bool | marks a manifest produced by the `tools/analyzers/derived_model.py` scaffold |
 
 ### `validation` sub-object
 
 | field | type | meaning |
 |---|---|---|
-| `pin_file` | string | path to the `*_validation.py` that runs the check (the primary pin) |
+| `pin_file` | string | path to the `*_validation.py` that runs the check (the primary pin) — `tools/validation/<analyzer>_validation.py` since the 2026-09-02 layout |
 | `additional_pins` | array of string (optional) | further pins (may be `pending` until a parallel agent lands them) |
 | `ground_truth` | string | the closed-form / measured reference the pin compares against |
 | `error_band` | object | the pinned error interval(s), e.g. `{"coarse": "-20%..0", "fine": "-10%..0"}` |
@@ -68,14 +68,18 @@ synthesis guardrail in `docs/ANALYSIS_TIERS.md`, not by a committed manifest.
 parses as JSON, has `schema == "lmcad.manifest.v1"`, and carries every required
 top-level field above with a non-empty value. A `Validated` claim additionally
 requires the `validation.pin_file` to exist on disk. Reference examples that
-pass this check ship for the three structural analyzers
-(`tools/manifests/ace_fea.manifest.json`, `ace_modal.manifest.json`,
-`ace_buckling.manifest.json`) and both optimizers
-(`param_optimize.manifest.json`, `ace_optimize.manifest.json`).
+pass this check ship for the four structural analyzers
+(`tools/manifests/ace_fea.manifest.json`, `ace_fea_tet.manifest.json`,
+`ace_modal.manifest.json`, `ace_buckling.manifest.json`), both optimizers
+(`param_optimize.manifest.json`, `ace_optimize.manifest.json`), and the three
+rules/bookkeeping engines (`tolerance_stack.manifest.json`,
+`production_check.manifest.json`, `production_dossier.manifest.json` — closed
+forms with a hand-derived pin; `discretization.method` is "closed form" and the
+`sources` block cites the textbook / table each rule is arithmetic over).
 
 ## Derived-model manifests (`tools/manifests/derived/`)
 
-Manifests written by the `tools/derived_model.py` scaffold (an agent's
+Manifests written by the `tools/analyzers/derived_model.py` scaffold (an agent's
 on-the-fly physics model — see the 5-step loop in its docstring). Same schema,
 plus `sources` (mandatory there), `model_file`, and `derived_model: true`.
 Committing one to `tools/manifests/derived/<name>.manifest.json` AUTO-REGISTERS

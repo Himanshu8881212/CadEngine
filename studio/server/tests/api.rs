@@ -19,7 +19,10 @@ use tower::ServiceExt;
 /// dirs) with the repo root pointed at `repo_root`.
 fn test_router(repo_root: PathBuf, tag: &str) -> Router {
 	let out_root = std::env::temp_dir().join(format!("studio_test_{tag}_{}", std::process::id()));
-	let state = Arc::new(AppState { repo_root, out_root, api_key: None, sessions: Default::default() });
+	let state = Arc::new(AppState {
+		repo_root, out_root, api_key: None, sessions: Default::default(),
+		compute_slots: Arc::new(tokio::sync::Semaphore::new(2)),
+	});
 	// Web dist intentionally absent in tests: the API fallback text is fine.
 	router(state, &PathBuf::from("studio/web/dist-not-built"), None)
 }

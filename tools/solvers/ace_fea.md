@@ -1,6 +1,6 @@
 # ace_fea — hex8 linear-elastic voxel FEA (the registry precedent)
 
-- **Runner**: `tools/ace_fea_runner.py` (bridge to ACE `engine.verify.reference_fea`; needs the ACE package, `ACE_ROOT`/`ACE_PYTHON`) · **Pins**: `tools/ace_fea_validation.py`, `tools/ace_fea_kt_validation.py` · registry manifest: `tools/manifests/ace_fea.manifest.json`
+- **Runner**: `tools/analyzers/ace_fea_runner.py` (bridge to ACE `engine.verify.reference_fea`; needs the ACE package, `ACE_ROOT`/`ACE_PYTHON`) · **Pins**: `tools/validation/ace_fea_validation.py`, `tools/validation/ace_fea_kt_validation.py` · registry manifest: `tools/manifests/ace_fea.manifest.json`
 - **Physics**: linear static elasticity — small strain, small displacement, isotropic homogeneous; no plasticity, contact, or geometric nonlinearity (dynamics live in ace_modal/ace_buckling, cards owned by mission 2).
 - **Governing equations**: `K u = F`; `sigma = D(E,nu) : sym(grad u)` reduced to von Mises; optional SIMP `E_eff = rho_eff^p * E0` (then reported stress is homogenized, NOT solid-material stress).
 - **Discretization**: trilinear hex8 elements on the regular voxel grid; binary as-built occupancy rho >= 0.5 (or SIMP density mode). Jacobi-preconditioned CG rtol 1e-8, raises on non-convergence; direct SuperLU below opt-in DOF cap.
@@ -8,8 +8,8 @@
 ## I/O contract (JSON job -> .npy fields + JSON receipt on last stdout line)
 ```
 {out_dir, voxel_mm, origin_mm?,
- ops+solid+shape[+supersample] | npy,                # LMCAD JSON ops sampled by ACE, or a density .npy (tools/voxelize_stl.py output)
- material: "PLA" | {youngs_modulus_pa, poisson, density_kg_m3},   # string key resolves via tools/materials.py (Unit 3)
+ ops+solid+shape[+supersample] | npy,                # LMCAD JSON ops sampled by ACE, or a density .npy (tools/analyzers/voxelize_stl.py output)
+ material: "PLA" | {youngs_modulus_pa, poisson, density_kg_m3},   # string key resolves via tools/analyzers/materials.py (Unit 3)
  fixtures: [{kind: clamped|pinned|slider, region_selector, dof_constrained?}],   # REQUIRED; ACE's own selector engine
  loads?: [{kind: point|body|pressure, magnitude, direction?, region_selector}],
  regions?: [{kind: frozen|fixed|design|void, selector}], simp_penalty?, density_floor?, direct_solver_max_dof?}
@@ -28,9 +28,9 @@ Failure = `{ok:false, error}` + **exit 0** — the JSON line is the contract, no
 - Coarse grids under-predict bending stiffness response ~5-20% (see band above); quote feature stresses as approximate below ~4 voxels across the feature.
 - Fillet/notch PEAK stress is staircase-dominated: trust only to roughly +/-20-30%, biased high. Use the closed-form Kt on the FEA's (accurate) nominal stress instead of the voxel peak.
 - SIMP-mode stress is homogenized (`rho_eff^p * D B u`), not a solid-material stress.
-- Isotropic material: printed-layer anisotropy is NOT in the solve — apply `tools/materials.py derated()` to the allowable, not to E.
+- Isotropic material: printed-layer anisotropy is NOT in the solve — apply `tools/analyzers/materials.py derated()` to the allowable, not to E.
 
 ## When to use
 Sharpening a campaign's closed-form load case (DESIGN_GUIDE §25.7): stiffness/deflection checks, load paths through brackets/hubs/lattices (voxelize_stl bridges fused hybrid meshes), SIMP topology passes via ace_optimize. Not a substitute for the closed-form gate — it sharpens, never replaces.
 
-Run: `ACE_PYTHON tools/ace_fea_runner.py job.json` · prove: `ACE_PYTHON tools/ace_fea_validation.py && ACE_PYTHON tools/ace_fea_kt_validation.py`
+Run: `ACE_PYTHON tools/analyzers/ace_fea_runner.py job.json` · prove: `ACE_PYTHON tools/validation/ace_fea_validation.py && ACE_PYTHON tools/validation/ace_fea_kt_validation.py`

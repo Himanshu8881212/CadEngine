@@ -34,7 +34,7 @@ import subprocess
 import sys
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.dirname(TOOLS)
+REPO = os.path.dirname(os.path.dirname(TOOLS))  # parked under tools/_parked/: repo root is two levels up
 PY = sys.executable
 JOB = os.path.join(TOOLS, "sim_design_shaft_job.json")
 ALLOWABLE_PA = 20_000_000.0

@@ -113,7 +113,9 @@ fn strut_lattice_bad_kind_and_unshrouded_lattice_refuse_loudly() {
 	assert_refusal(&unbounded, "s", ErrorKind::InvalidParam, &["unbounded", "domain"]);
 
 	let unknown = run(&dir, json!([{"id": "x", "op": "frobnicate_solid"}]));
-	assert_refusal(&unknown, "x", ErrorKind::UnknownOp, &["160 supported ops", "describe"]);
+	// Derive the count from OP_COUNT so adding an op cannot silently stale this pin.
+	let count_needle = format!("{} supported ops", kernel_api::OP_COUNT);
+	assert_refusal(&unknown, "x", ErrorKind::UnknownOp, &[&count_needle, "describe"]);
 	let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -581,6 +583,6 @@ fn min_ligament_echoes_the_edge_web_and_maps_sentinels_to_statuses() {
 			{"id": "m", "op": "min_ligament", "in": "plate", "at": [5, 15, 12], "axis": [0, 0, 0], "d": 6.0}
 		]),
 	);
-	assert_refusal(&bad_axis, "m", ErrorKind::InvalidParam, &["non-zero finite direction"]);
+	assert_refusal(&bad_axis, "m", ErrorKind::InvalidParam, &["non-zero finite"]);
 	let _ = std::fs::remove_dir_all(&dir);
 }

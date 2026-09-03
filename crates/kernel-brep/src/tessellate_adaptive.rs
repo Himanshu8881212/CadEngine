@@ -61,7 +61,19 @@ pub fn tessellate_adaptive(solid: &Solid, edge_segments: usize) -> Mesh {
 		// never from a surface tag whose stored normal sign may be incidental.
 		let outward = newell_normal(&boundary);
 		match surface {
-			Surface::Plane { .. } => tessellate_planar(&mut mesh, &boundary, outward),
+			Surface::Plane { .. } => {
+				let inner = &solid.face(f).inner;
+				if inner.is_empty() {
+					tessellate_planar(&mut mesh, &boundary, outward);
+				} else {
+					// Same dense shared-seam sampling for the hole rings as for the
+					// outer ring, so the hole tube's wall stays crack-free against
+					// the cap — then the hole-aware bridged ear-clip.
+					let holes: Vec<Vec<DVec3>> =
+						inner.iter().map(|&lid| loop_boundary(solid, lid, &edge_points)).collect();
+					crate::tessellate::tessellate_planar_with_holes(&mut mesh, &boundary, &holes, outward);
+				}
+			}
 			curved => tessellate_curved(&mut mesh, &boundary, curved, segs, outward),
 		}
 	}
@@ -200,13 +212,12 @@ fn subdivide_edge(start: DVec3, end: DVec3, surface: Option<Surface>, segs: usiz
 	}
 }
 
-/// Assemble a face's dense boundary polyline from its outer loop. Each
-/// half-edge contributes its edge's shared points (direction-corrected),
-/// dropping the last point so the seam to the next half-edge is not duplicated.
-fn face_boundary(solid: &Solid, f: FaceId, edge_points: &EdgePoints) -> Vec<DVec3> {
-	let outer = solid.face(f).outer;
+/// Assemble a loop's dense boundary polyline. Each half-edge contributes its
+/// edge's shared points (direction-corrected), dropping the last point so the
+/// seam to the next half-edge is not duplicated.
+fn loop_boundary(solid: &Solid, lp: crate::topo::LoopId, edge_points: &EdgePoints) -> Vec<DVec3> {
 	let mut boundary = Vec::new();
-	for he in solid.loop_half_edges(outer) {
+	for he in solid.loop_half_edges(lp) {
 		let pts = edge_points.for_half_edge(solid, he);
 		// `pts` runs origin→next-origin for this half-edge. Append all but the
 		// final point; the next half-edge starts exactly there.
@@ -215,6 +226,15 @@ fn face_boundary(solid: &Solid, f: FaceId, edge_points: &EdgePoints) -> Vec<DVec
 		}
 	}
 	boundary
+}
+
+/// A face's dense OUTER boundary polyline ([`loop_boundary`] of `face.outer`).
+/// Inner (hole) loops are assembled separately by the caller — dropping them
+/// here was the root cause of the sealed-hole family (campaign themes
+/// T6(b)/(c)/T15: unclosed measurement meshes, `voxel_healed` demotions on
+/// trivially exact parts, support areas measured as if holes were skin).
+fn face_boundary(solid: &Solid, f: FaceId, edge_points: &EdgePoints) -> Vec<DVec3> {
+	loop_boundary(solid, solid.face(f).outer, edge_points)
 }
 
 // --- Normals / winding -------------------------------------------------------
@@ -257,6 +277,15 @@ fn tessellate_planar(mesh: &mut Mesh, poly: &[DVec3], normal: DVec3) {
 	if poly.len() < 3 {
 		return;
 	}
+	// Boolean-stitched keyhole corridors: recover the real outer + hole rings
+	// and take the verified hole-aware path (see tessellate.rs::unbake_keyholes
+	// — the 60-tooth gear cap shipped 18 wall crossings through the baked ring).
+	if let Some((outer_ring, holes)) = crate::tessellate::unbake_keyholes(poly) {
+		let holes3d: Vec<Vec<DVec3>> = holes.iter().map(|h| h.iter().map(|&i| poly[i]).collect()).collect();
+		let outer3d: Vec<DVec3> = outer_ring.iter().map(|&i| poly[i]).collect();
+		crate::tessellate::tessellate_planar_with_holes(mesh, &outer3d, &holes3d, normal);
+		return;
+	}
 	let (u, v) = perp_basis(normal);
 	let p2: Vec<DVec2> = poly.iter().map(|p| DVec2::new(p.dot(u), p.dot(v))).collect();
 	crate::tessellate::ear_clip_ring(mesh, poly, &p2, (0..poly.len()).collect(), normal);
@@ -271,29 +300,39 @@ fn tessellate_planar(mesh: &mut Mesh, poly: &[DVec3], normal: DVec3) {
 /// rings are stitched to the interior grid so that the seam uses the shared
 /// edge points verbatim (no T-junctions), while the interior stays smooth.
 fn tessellate_curved(mesh: &mut Mesh, boundary: &[DVec3], surface: Surface, segs: usize, face_outward: DVec3) {
-	// Vertex normal from the analytic surface, sign-corrected to the face's
-	// outward direction; winding always uses `face_outward`.
-	let nrm = |p: DVec3| {
-		let n = surface.normal_at(p);
-		if n.dot(face_outward) < 0.0 {
-			-n
-		} else {
-			n
-		}
-	};
+	// The face's outward SIGN is decided once for the whole ring — the same
+	// aggregate vote as `push_refined_tris`: sum the analytic normal against
+	// the ring's Newell normal over every boundary sample. Winding and vertex
+	// normals then use the analytic normal at each triangle's own centroid /
+	// each vertex, `sigma`-corrected. A single global winding reference is
+	// near-degenerate on a wide-arc face (a boolean-split half-barrel bore
+	// wall) and flips interior grid triangles on the far side of the arc
+	// (measured: 24 non-orientable edges on a two-cylinder washer once the
+	// chord tolerance pushed the grid to segs > 1); per-vertex sign flips are
+	// wrong the same way, two vertices of one cell voting differently.
+	let vote: f64 = boundary.iter().map(|&p| surface.normal_at(p).dot(face_outward)).sum();
+	let sigma = if vote < 0.0 { -1.0 } else { 1.0 };
+	let nrm = move |p: DVec3| surface.normal_at(p) * sigma;
+	let wind = move |a: DVec3, b: DVec3, c: DVec3| surface.normal_at((a + b + c) / 3.0) * sigma;
 
 	// Recover the topological corners: a corner is where a new half-edge begins,
 	// i.e. every `segs`-th boundary sample (the boundary was built by appending
 	// `segs` points per edge). With one edge per side, corners are evenly spaced.
 	let corners = recover_corners(boundary, segs);
 
-	match corners.len() {
-		4 => tessellate_curved_quad(mesh, boundary, &corners, surface, segs, face_outward, &nrm),
-		3 => tessellate_curved_tri(mesh, boundary, &corners, surface, segs, face_outward, &nrm),
-		_ => {
-			if boundary.len() < 3 {
-				return;
-			}
+	// The grid tessellators refuse a FOLDED grid (mixed winding against the
+	// local analytic outward) instead of pushing overlapping triangles; such a
+	// face — its side is a warped intersection curve the bilinear interior
+	// cannot follow — falls through to the chart-based paths below.
+	let gridded = match corners.len() {
+		4 => tessellate_curved_quad(mesh, boundary, &corners, surface, segs, &wind, &nrm),
+		3 => tessellate_curved_tri(mesh, boundary, &corners, surface, segs, &wind, &nrm),
+		_ => false,
+	};
+	if !gridded {
+		if boundary.len() < 3 {
+			return;
+		}
 			// A MERGED wide-span curved face (a recover-pass chart face) is
 			// triangulated with interior refinement — the dense boundary is
 			// consumed verbatim (seam-shared, crack-free) and interior points
@@ -310,7 +349,7 @@ fn tessellate_curved(mesh: &mut Mesh, boundary: &[DVec3], surface: Surface, segs
 			// points are already the shared seam samples so a boundary-only clip
 			// stays crack-free.
 			if let Some(p2) = SurfaceChart::for_warped_ring(&surface, boundary, face_outward).and_then(|c| c.uv_ring(boundary)) {
-				crate::tessellate::ear_clip_ring(mesh, boundary, &p2, (0..boundary.len()).collect(), face_outward);
+				crate::tessellate::ear_clip_ring_wound(mesh, boundary, &p2, (0..boundary.len()).collect(), &nrm, &wind);
 				return;
 			}
 			// Generic curved polygon: fan the dense boundary from its projected
@@ -322,9 +361,8 @@ fn tessellate_curved(mesh: &mut Mesh, boundary: &[DVec3], surface: Surface, segs
 			for k in 0..n {
 				let a = boundary[k];
 				let b = boundary[(k + 1) % n];
-				push_tri(mesh, center, a, b, nrm(center), nrm(a), nrm(b), face_outward);
+				push_tri(mesh, center, a, b, nrm(center), nrm(a), nrm(b), wind(center, a, b));
 			}
-		}
 	}
 }
 
@@ -371,7 +409,9 @@ fn quad_point(corners: &[DVec3], surface: Surface, s: f64, t: f64) -> DVec3 {
 
 /// Quad curved face: build a `(segs+1)²` grid whose four borders are taken
 /// verbatim from the shared boundary polyline and whose interior is the
-/// surface-snapped bilinear blend.
+/// surface-snapped bilinear blend. Returns `false` — pushing nothing — when the
+/// grid comes out FOLDED (see [`grid_fold_free`]); the caller then routes the
+/// face to the chart-based paths.
 #[allow(clippy::too_many_arguments)]
 fn tessellate_curved_quad(
 	mesh: &mut Mesh,
@@ -379,9 +419,9 @@ fn tessellate_curved_quad(
 	corners: &[usize],
 	surface: Surface,
 	segs: usize,
-	face_outward: DVec3,
+	wind: &impl Fn(DVec3, DVec3, DVec3) -> DVec3,
 	nrm: &impl Fn(DVec3) -> DVec3,
-) {
+) -> bool {
 	let n = segs;
 	let bl = boundary.len();
 	// Corner positions in boundary order: c0→c1 (side 0), c1→c2 (side 1),
@@ -415,20 +455,41 @@ fn tessellate_curved_quad(
 		grid[0][n - off] = boundary[side_sample(bl, corners[3], off)];
 	}
 
+	let cells = |i: usize, j: usize| {
+		let (p00, p10, p11, p01) = (grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]);
+		[(p00, p10, p11), (p00, p11, p01)]
+	};
+	if !grid_fold_free((0..n).flat_map(|i| (0..n).flat_map(move |j| cells(i, j))), wind) {
+		return false;
+	}
 	for i in 0..n {
 		for j in 0..n {
-			let p00 = grid[i][j];
-			let p10 = grid[i + 1][j];
-			let p11 = grid[i + 1][j + 1];
-			let p01 = grid[i][j + 1];
-			push_tri(mesh, p00, p10, p11, nrm(p00), nrm(p10), nrm(p11), face_outward);
-			push_tri(mesh, p00, p11, p01, nrm(p00), nrm(p11), nrm(p01), face_outward);
+			for (a, b, c) in cells(i, j) {
+				push_tri(mesh, a, b, c, nrm(a), nrm(b), nrm(c), wind(a, b, c));
+			}
 		}
 	}
+	true
+}
+
+/// `true` when every non-degenerate triangle's geometric normal sits on the
+/// SAME side of its local analytic outward. A grid side that is a warped
+/// intersection curve (a transverse bore's exit rim) bends away from the chord
+/// path the blended interior follows, folding cells across it — overlapping
+/// geometry that no winding rule can repair, only re-routing can.
+fn grid_fold_free(tris: impl Iterator<Item = (DVec3, DVec3, DVec3)>, wind: &impl Fn(DVec3, DVec3, DVec3) -> DVec3) -> bool {
+	let (mut pos, mut neg) = (false, false);
+	for (a, b, c) in tris {
+		let d = (b - a).cross(c - a).dot(wind(a, b, c));
+		pos |= d > 0.0;
+		neg |= d < 0.0;
+	}
+	!(pos && neg)
 }
 
 /// Triangle curved face: barycentric grid with the three borders taken verbatim
-/// from the shared boundary polyline.
+/// from the shared boundary polyline. Returns `false` (nothing pushed) on a
+/// folded grid, exactly as [`tessellate_curved_quad`] does.
 #[allow(clippy::too_many_arguments)]
 fn tessellate_curved_tri(
 	mesh: &mut Mesh,
@@ -436,9 +497,9 @@ fn tessellate_curved_tri(
 	corners: &[usize],
 	surface: Surface,
 	segs: usize,
-	face_outward: DVec3,
+	wind: &impl Fn(DVec3, DVec3, DVec3) -> DVec3,
 	nrm: &impl Fn(DVec3) -> DVec3,
-) {
+) -> bool {
 	let n = segs;
 	let bl = boundary.len();
 	let (a, b, c) = (boundary[corners[0]], boundary[corners[1]], boundary[corners[2]]);
@@ -461,18 +522,23 @@ fn tessellate_curved_tri(
 		grid[0][n - off] = boundary[side_sample(bl, corners[2], off)];
 	}
 
+	let mut tris: Vec<(DVec3, DVec3, DVec3)> = Vec::with_capacity(n * n);
 	for i in 0..n {
 		for j in 0..(n - i) {
-			let p0 = grid[i][j];
-			let p1 = grid[i + 1][j];
-			let p2 = grid[i][j + 1];
-			push_tri(mesh, p0, p1, p2, nrm(p0), nrm(p1), nrm(p2), face_outward);
+			let (p0, p1, p2) = (grid[i][j], grid[i + 1][j], grid[i][j + 1]);
+			tris.push((p0, p1, p2));
 			if i + j + 2 <= n {
-				let p3 = grid[i + 1][j + 1];
-				push_tri(mesh, p1, p3, p2, nrm(p1), nrm(p3), nrm(p2), face_outward);
+				tris.push((p1, grid[i + 1][j + 1], p2));
 			}
 		}
 	}
+	if !grid_fold_free(tris.iter().copied(), wind) {
+		return false;
+	}
+	for (a, b, c) in tris {
+		push_tri(mesh, a, b, c, nrm(a), nrm(b), nrm(c), wind(a, b, c));
+	}
+	true
 }
 
 #[cfg(test)]

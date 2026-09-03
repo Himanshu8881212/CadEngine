@@ -17,6 +17,9 @@
 //! All dates in these programs are caller-supplied literals — the library
 //! never reads a clock.
 
+// The parts-library ops live behind the `catalog` cargo feature (on by default).
+#![cfg(feature = "catalog")]
+
 use std::path::{Path, PathBuf};
 
 use kernel_api::{run_program, ErrorKind, OpReport, Report};

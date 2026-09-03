@@ -430,6 +430,7 @@ fn tpms_families_mesh_watertight_through_the_op_surface() {
 /// six families (`invalid_param`), sheet mode without a positive `level` is
 /// refused. Same parser as the leaf, so this pins the WIRING, not new math.
 #[test]
+#[cfg(feature = "catalog")]
 fn tpms_named_op_all_families_and_errors() {
 	let dir = out_dir("tpms_named");
 	let run = |program: Value| run_program(&serde_json::to_string(&program).expect("serialize"), &dir);

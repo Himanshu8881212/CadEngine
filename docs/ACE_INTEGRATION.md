@@ -49,7 +49,7 @@ touch C# — only the Designer's voxel sampler did.
   drop `spec/geometry.cs`/`Program.cs`/csproj generation. The
   `initial/*.npy` gate (`validate_initial_arrays`) needs no change.
 - **C — gated emit**: point the Optimizer template's `render.emit_stl` at
-  `lmcad.emit_stl_gated` (per-part `render.py` one-liner).
+  `lmcad.emit_stl_gated` (a one-line change in each ACE part renderer).
 - **D — reverse bridge**: rate LMCAD's drive parts (cyclo/harmonic/
   planetary) with ACE's `reference_fea` — real stress fields replacing
   hand formulas (`kernel_model::rate` stays as the first-order sanity

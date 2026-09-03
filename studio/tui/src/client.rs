@@ -451,11 +451,39 @@ impl Client {
 			"cannot reach {} (connection refused).\nstart it with: cargo run -p studio-server --release   (or point CADCODE_SERVER elsewhere)",
 			self.base
 		);
-		let bin = std::path::Path::new("./target/release/studio-server");
-		if !allow_spawn || !bin.exists() {
+		if !allow_spawn {
 			return Err(hint);
 		}
-		std::process::Command::new(bin)
+		let local_target = self.base.starts_with("http://127.0.0.1:")
+			|| self.base.starts_with("http://localhost:")
+			|| self.base.starts_with("http://[::1]:");
+		if !local_target {
+			return Err(format!("refusing to auto-spawn a local server for non-loopback CADCODE_SERVER '{}'.\n{hint}", self.base));
+		}
+		let bin = if let Some(explicit) = std::env::var_os("CADCODE_SERVER_BIN") {
+			std::fs::canonicalize(&explicit)
+				.map_err(|e| format!("CADCODE_SERVER_BIN '{}' is not a readable executable: {e}\n{hint}", std::path::Path::new(&explicit).display()))?
+		} else {
+			let exe = std::env::current_exe().map_err(|e| format!("cannot locate lmcad-tui executable: {e}\n{hint}"))?;
+			let sibling = exe.parent().ok_or_else(|| format!("lmcad-tui executable has no parent directory\n{hint}"))?.join("studio-server");
+			std::fs::canonicalize(&sibling).map_err(|_| {
+				format!("trusted sibling server binary '{}' is absent. Set CADCODE_SERVER_BIN explicitly or start the server manually.\n{hint}", sibling.display())
+			})?
+		};
+		if !bin.is_file() {
+			return Err(format!("server binary '{}' is not a regular file\n{hint}", bin.display()));
+		}
+		let mut command = std::process::Command::new(&bin);
+		// A release-layout sibling lives at <repo>/target/release/studio-server.
+		// Start it from <repo> so the default LMCAD_ROOT cannot be attacker-chosen cwd.
+		if std::env::var_os("LMCAD_ROOT").is_none() {
+			if let Some(repo) = bin.parent().and_then(std::path::Path::parent).and_then(std::path::Path::parent) {
+				if repo.join("Cargo.toml").is_file() {
+					command.current_dir(repo).env("LMCAD_ROOT", repo);
+				}
+			}
+		}
+		command
 			.stdin(std::process::Stdio::null())
 			.stdout(std::process::Stdio::null())
 			.stderr(std::process::Stdio::null())

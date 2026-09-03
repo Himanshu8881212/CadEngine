@@ -19,15 +19,23 @@ What it suggests (and what it refuses to guess):
   the sheet's overall bbox dimension is skipped.
 - Nothing else: cones, tori and freeform faces get no invented numbers.
 
-Usage:  python3 dim_suggest.py job.json
+Usage:  python3 dim_suggest.py job.json [--out PATH]
 Job: {"program": {...} | "program_file": path,   the ops that BUILD the part
       "solid": "op id of the solid to measure",
       "out": "dims.json",                         the render_sheet fragment
       "max": 10,                                  callout budget (priority:
                                                   diameters, then z/x/y steps)
+      "program_dir": path?,                       where the measurement program is
+                                                  materialised = the root its
+                                                  relative import_step/load_part
+                                                  paths resolve against (default:
+                                                  out_dir, else the job file's own
+                                                  directory; never a system temp
+                                                  dir — turgo F7)
       "receipt": path?}                           see tools/_receipt.py
 Stdout: one-line JSON receipt {ok, suggested, dropped, out}; the `out` file
 holds {"dimensions": [...]} for direct merge into a render_sheet job.
+Persistence + exit codes: the shared contract in tools/_receipt.py.
 """
 
 import json
@@ -35,8 +43,11 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _layout  # noqa: E402
+_layout.add_import_paths()  # analyzers/ + publish/ are importable siblings after the 2026-09-02 move
 import _receipt  # noqa: E402
 import param_optimize  # noqa: E402 — call_engine: the one-shot engine pattern
+from _receipt import Refusal  # noqa: E402
 
 
 def log(msg):
@@ -59,23 +70,27 @@ def _dot(a, b):
 	return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 
 
-def suggest(job):
+def suggest(job, job_path=None):
 	if "program" in job:
 		program = job["program"]
 	elif "program_file" in job:
 		program = json.load(open(job["program_file"]))
 	else:
-		raise ValueError("job needs 'program' (ops) or 'program_file'")
+		raise Refusal("missing_program", "job needs 'program' (ops) or 'program_file'")
+	if "solid" not in job:
+		raise Refusal("missing_solid", "job needs 'solid' (the op id of the solid to measure)")
 	solid = job["solid"]
 	budget = int(job.get("max", 10))
 
 	ops = [op for op in program["ops"] if op.get("op") not in ("export_stl", "export_step", "export_3mf")]
 	ops.append({"id": "__dim_faces", "op": "list_faces", "in": solid})
 	ops.append({"id": "__dim_bb", "op": "bounding_box", "in": solid})
-	rep = param_optimize.call_engine({"ops": ops})
+	rep = param_optimize.call_engine(
+		{"ops": ops}, program_dir=param_optimize.station_dir(job, job_path))
 	if not rep.get("ok"):
 		bad = next((o for o in rep["ops"] if not o.get("ok")), {})
-		raise ValueError(f"program failed at op '{bad.get('id')}': {bad.get('error')}")
+		raise Refusal("program_failed",
+		              f"program failed at op '{bad.get('id')}': {bad.get('error')}")
 	by_id = {o["id"]: o for o in rep["ops"]}
 	faces = by_id["__dim_faces"]["measures"]["faces"]
 	bb = by_id["__dim_bb"]["measures"]
@@ -159,20 +174,11 @@ def suggest(job):
 
 
 def main():
-	job = json.load(open(sys.argv[1]))
-	_receipt.emit(suggest(job), job, "dim_suggest")
+	job_path, _ = _receipt.parse_argv()
+	job, out = _receipt.load_job()
+	_receipt.finish(suggest(job, job_path), job=job, tool="dim_suggest", out=out,
+	                use_out_dir_default=True)
 
 
 if __name__ == "__main__":
-	if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
-		print(__doc__)
-		sys.exit(0)
-	try:
-		main()
-	except Exception as e:  # honest failure receipt — the JSON line is the contract
-		try:
-			_job = json.load(open(sys.argv[1]))
-		except Exception:
-			_job = {}
-		_receipt.emit({"ok": False, "error": f"{type(e).__name__}: {e}"}, _job, "dim_suggest")
-		sys.exit(1)
+	_receipt.run_cli("dim_suggest", main)

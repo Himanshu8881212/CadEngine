@@ -6,6 +6,49 @@ stays short; nothing was reworded — these are the original entries).
 Current-state summary and open frontier live in CLAUDE.md; the falsifiable
 scorecard in docs/BAR.md; deep friction write-ups in docs/FRICTION.md.
 
+CLEANUP + FIXES 2026-09-03 (branch `cleanup-2026-09`, four parallel worktrees):
+the two friction items that cost a day in each of the last two campaigns are fixed at
+the source. **F3 — silent export demotion:** an `export_stl`/`export_3mf` receipt that
+falls back to the voxel heal now carries `demotion` = {reason (first failing check:
+boundary_edges / non_manifold_edges / non_orientable_edges / non_manifold_vertices /
+degenerate_triangles / self_intersection / tessellation_failed), the counts, and ≤8
+`witness` points in the body's frame}; exact exports are unchanged. **F4 —
+`wall_thickness` read mirror-image dovetail grooves 5× apart:** the sampler is now
+area-uniform, stratified and deterministic (mirror images agree to ≈0.25 %; the 5× was
+one centroid ray per triangle on boolean triangulations), every receipt carries
+`thin_witness` (≤8 thinnest flagged samples with coordinates), and the new optional
+`exclude_wedge_deg` moves acute-wedge readings (dovetail lips, cone rims) into
+`thin_area_wedge` so `thin_area` is a statement about real walls. Coarse boolean bodies
+therefore report thin bands the centroid sampler missed — a measurement improvement, not
+a geometry change (table in `campaign/fixlog/2026-09-02-export-demotion-wedge-thickness.md`).
+
+STRUCTURE 2026-09-03: 32 pre-JSON `kernel-model` examples, `kernel-wasm` and
+`kernel-gpu` (nothing in the workspace depended on either) moved to `legacy/`;
+`kernel-api` gained a default-on `catalog` feature that gates the 52 hardware-catalog
+ops no campaign uses (`--no-default-features` = 109 of 161 ops; a gated op refuses with
+`unknown_op` naming the feature). `docs/OP_USAGE.md` is the census: 161 ops dispatched,
+84 used across 23 campaign trees.
+
+ANALYSIS 2026-09-03: `tolerance_stack`, `production_check` and `production_dossier`
+graduated Cataloged → **Validated** (manifest + ground-truth pin each); they were the
+three most-used analyzers in every campaign and had no pin. `ace_contact` receipts now
+report reaction forces at prescribed-displacement nodes (`reactions`, `tip_reaction_n`);
+`materials.creep_lookup` gained opt-in temperature/time interpolation between table
+cells (`interpolate=True`, receipt states `basis` and both bracketing cells; the
+conservative bucket remains the default). `tools/` reorganised into `analyzers/`,
+`publish/`, `validation/`, `tests/` with a forwarding shim at every old flat path (the
+runner-contract gate checks each shim), six orphaned tools parked under `tools/_parked/`,
+August's round records moved to `campaign/history/`. Binding agent reading list is now
+OPERATOR_BRIEF, DELIVERABLE_SPEC, digests/, PRINTABLES_LISTING_SPEC.
+
+REGRESSION 2026-09-03: `framework_system/l12_mini_case` 65/65 green and
+`magic_system/uphill_roller` 41/41 green on the cleaned engine, every print file and
+STEP byte-identical to the pre-cleanup build. Two campaign gates were rewritten to use
+the new mechanism honestly: the Framework tray/foot rail/VESA frame now gate with
+`exclude_wedge_deg: 75` and read `thin_area` 0.0 (the hand-cut lip-band workaround is
+deleted), and the CONEJURE ramp bounds `thin_area` at 6.0 mm² with a receipt note
+naming the ~85° plate corners the 4.07 mm² comes from.
+
 FIXED 2026-06-09 (do not regress; repro tests live in-tree): **R1** revolve of
 concave/multi-segment profiles; **R2/R3** booleans on faces with inner loops and cuts
 crossing cut curved walls (loop-aware triangulation/recovery/healing in booleans.rs);
@@ -250,7 +293,8 @@ build evaluations 9.75% of dense, cache error 5.06e-4 mm, mesh-through-
 cache volume delta 0.00002%, hash-identical independent builds; octree
 scoped honestly to evaluation caching (T-junction discontinuity + non-
 conservative far field stated) (tests/sparse.rs).
-(3) **GPU narrow-band extraction** — `kernel_gpu::extract_narrow_band`:
+(3) **GPU narrow-band extraction** — `extract_narrow_band` (kernel-gpu; the crate
+was parked in `legacy/` 2026-09):
 coarse Lipschitz-safe block scan → prefix-sum compaction → refine active
 blocks with the SAME cube-edge unroll as dense (shared `edge_unroll()`);
 per-block re-evaluation of identical global-index coordinates ⇒ identical
@@ -415,16 +459,16 @@ of a static allowable; drybox: 43× bearing / 23× root shear, replacing a
 prose "structural analysis intentionally absent"). Neither product changed;
 both now prove the right CLASS of claim.
 
-**Meta-layer proofs** (`docs/META_PROOFS.md`): `tools/audit_docs.py`
+**Meta-layer proofs** (the historical META_PROOFS document): `tools/audit_docs.py`
 (op-count / path / section / symbol / claim-freshness drift, each check
 proven able to fire by injection into both a synthetic fixture and a copy of
-the real tree), `coldstart_probe.py` (entry-path readiness — and it states
+the real tree), the historical coldstart probe (entry-path readiness — and it states
 plainly it does NOT prove a fresh model would succeed; the real exam is a
-written manual protocol), `portability_check.py` (canonicality, adapter
+written manual protocol), the historical portability check (canonicality, adapter
 parity, Claude-specific-assumption scan). First run found 5 op-count errors,
 3 dead section pointers, 3 ops missing from API.md entirely, and a
 PORTABILITY BUG in the lessons skill (it told agents to update a section of
-`CLAUDE.md` that does not exist — `CLAUDE.md` is a 4-line shim). All fixed.
+the then-current CLAUDE.md shim). All fixed.
 
 **Engine fixes found BY this wave's own gates:**
 - **45° knife-edge** (`kernel-core/src/mesh/mod.rs`): the support threshold
@@ -533,7 +577,7 @@ outside the repo; the graded party must not be able to touch it), campaign tier
 per docs/META_PROOFS.md §4.
 
 **VERDICT: PASS — 10/10 required criteria, plus both probes.** It shipped
-`crates/kernel-model/examples/drill_hook.rs` → `hook_system/drill_hook/`:
+`legacy/kernel-model-examples/drill_hook.rs` (then under `crates/kernel-model/examples/`) → `hook_system/drill_hook/`:
 40 gate rows, exit 0, the full 7-folder deliverable, ANALYSIS.md generated from
 live numbers, workspace suite green, clippy clean. Unprompted it also produced
 a print-first fit coupon, negative controls, and FEA receipts.
@@ -593,7 +637,7 @@ closed forms (pure power law and pure Coulomb) to <0.5%, plus a
 meta-negative-control proving the benchmark can go red. Also written here
 because the engine has no API for them: transverse contact ratio (external AND
 internal, each driven by its own negative control), the ISO undercut floor, a
-polygon polar-second-moment helper benchmarked against πR⁴/2, an EN 71-1 §4.10
+polygon polar-second-moment helper benchmarked against πR⁴/2, an EN 71-1 section 4.10
 rod-rule gate with an 8-planet negative control that fires, and a grounded-carrier
 STAR pose evaluator (`kinematics::instance_poses` is ring-fixed/sun-driven and
 does not cover a held carrier).
@@ -833,3 +877,24 @@ v4 retains by a shoulder instead, and the dependency becomes a pass/fail proof.
   calibration dependency). `CAP_PRESS_R` keeps the cap's 0.025 mm press — the
   ONE interference fit left, and the one residual calibration dependence, which
   G16n prints every run so the headline cannot imply otherwise.
+
+FIXED 2026-09-02 (friction l12_mini_case F3/F4, uphill_roller F2/F3;
+`campaign/fixlog/2026-09-02-export-demotion-wedge-thickness.md`): **export
+demotion receipt** — `export_stl` / `export_3mf` (and `asm_export` per-instance
+entries) on the `voxel_healed` route carry `demotion: {reason, boundary_edges,
+non_manifold_edges, non_orientable_edges, non_manifold_vertices,
+degenerate_triangles, self_intersections, exact_triangles, witness[≤8]}`,
+naming the first failing check of the abandoned exact tessellation and
+locating it in the body's frame; the routing decision is untouched and exact
+exports are unchanged. **`wall_thickness` sampler** — area-uniform stratified
+sampling (65 536-sample budget, deterministic `(triangle, sub-cell)` hash
+jitter, no RNG state) replaces one centroid ray per triangle, so mirror-image
+dovetail grooves read 76.6 vs 76.8 mm² (the campaign measured 19.6 vs 101);
+meshes whose triangles are all below one budget cell (fine voxel-route meshes)
+read byte-identically; per-triangle `thickness` keeps the centroid ray. New
+`exclude_wedge_deg` sets knife-edge readings (ray exits through an
+edge-adjacent face at a convex material dihedral below the threshold) aside
+under `thin_area_wedge` / `thin_area_total` / `thin_wedge_witness`;
+`thin_witness` (≤ 8 thinnest flagged samples) and `samples` are always
+reported. Tests: `kernel-core mesh::thickness`, `kernel-api
+tests/export_demotion.rs`, `tests/wall_thickness_wedge.rs`.

@@ -1,0 +1,168 @@
+name: release-gate
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PYTHONPATH: ''
+      PYTHONNOUSERSITE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Release commit is on protected main
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Rust format
+        run: cargo fmt --all -- --check
+      - name: CI trust-boundary security gate
+        run: |
+          python3 tools/check_ci_security.py
+          python3 tools/check_ci_security.py --self-test
+      - name: Rust tests
+        run: cargo test --workspace --release --all-targets
+      - name: Rust lint
+        run: cargo clippy --workspace --all-targets --release -- -D warnings
+      - name: Manufacturing gallery (strict serialized round trip)
+        run: cargo run --example parts_gallery -p kernel-model --release
+      - name: Rust dependency audit
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install hash-locked analyzer environment
+        run: |
+          python -m pip install --disable-pip-version-check uv
+          uv pip install --system --require-hashes -r tools/requirements-analysis.lock
+      - name: Analyzer registry and non-ACE contracts
+        run: |
+          python tools/analyzer_registry.py --check
+          python tools/analyzer_registry.py --check-contract
+          python tools/tests/test_checkers.py
+          python tools/tests/test_aux_tools.py
+          python docs/test_doc_contracts.py
+          python tools/analyzers/materials.py --selftest
+          python tools/analyzers/production_check.py --selftest
+          python tools/validation/tolerance_stack_validation.py
+          python tools/validation/production_check_validation.py
+          python tools/validation/production_dossier_validation.py
+          python tools/tests/param_optimize_drift_test.py
+          python tools/audit_docs.py --all-docs --fail-on warn
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: studio/web/package-lock.json
+      - name: Web install, audit, and production build
+        working-directory: studio/web
+        run: |
+          npm ci
+          npm audit --audit-level=high
+          npm run build
+
+      - name: Require the protected-main physics pin check
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          result="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs" \
+            --jq '[.check_runs[] | select(.name == "physics-pins" and .conclusion == "success")] | length')"
+          test "$result" -ge 1 || {
+            echo "No successful protected-main physics-pins check for $GITHUB_SHA" >&2
+            exit 1
+          }
+
+  package:
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: macos-14
+            target: aarch64-apple-darwin
+            archive: tar.gz
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release executables
+        run: cargo build --release --locked --target '${{ matrix.target }}' -p kernel-api -p studio-server -p studio-tui -p studio-mcp
+      - name: Install smoke tests and archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="dist/lmcad-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "$root"
+          for bin in kernel-api studio-server lmcad-tui lmcad-mcp; do
+            src="target/${{ matrix.target }}/release/$bin"
+            test -x "$src"
+            cp "$src" "$root/"
+          done
+          printf '%s\n' '{"ops":[{"id":"b","op":"box","min":[0,0,0],"max":[1,1,1]}]}' > "$root/smoke.json"
+          "$root/kernel-api" run "$root/smoke.json" --out-dir "$root/smoke-out" >/dev/null
+          "$root/lmcad-tui" --help >/dev/null
+          cp README.md SECURITY.md LICENSE "$root/"
+          tar -C dist -czf "$root.tar.gz" "$(basename "$root")"
+          if command -v sha256sum >/dev/null; then
+            sha256sum "$root.tar.gz" > "$root.tar.gz.sha256"
+          else
+            shasum -a 256 "$root.tar.gz" > "$root.tar.gz.sha256"
+          fi
+
+      - uses: anchore/sbom-action@v0
+        with:
+          path: dist
+          format: spdx-json
+          output-file: dist/lmcad-${{ matrix.target }}.spdx.json
+
+      - uses: actions/attest-build-provenance@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          subject-path: 'dist/*.tar.gz'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lmcad-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30

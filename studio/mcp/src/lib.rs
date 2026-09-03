@@ -26,7 +26,7 @@
 //! | `ace_modal` | natural frequencies: ACE's hex8 free-vibration (lumped-mass) reference solver via `tools/ace_modal_runner.py` — linear, no damping; validated against the Euler-Bernoulli cantilever pin |
 //! | `ace_buckling` | linear (eigenvalue) buckling load factors via `tools/ace_buckling_runner.py` — an UPPER bound on the elastic critical load; validated against the Euler column pin |
 //! | `graded_infill` | stress-graded gyroid lattice infill via `tools/graded_infill_runner.py` — wall thickness follows a prior `ace_fea` stress field; meshed by the kernel's gated `mesh_density_grid` |
-//! | `production_check` | Layer-1 FDM production rules on a prior `ace_fea` peak stress via `tools/production_check.py` + `tools/material_db.json` — static/creep/fatigue/temp/anisotropy allowables with every derating in the arithmetic; typical published data, verify per filament brand |
+//! | `production_check` | Layer-1 FDM production rules on a prior `ace_fea` peak stress via `tools/production_check.py` + `tools/material_db.json` — static/creep/fatigue/temp/anisotropy allowables with every derating in the arithmetic; typical published data, verify per filament brand. The creep rule reads the material record's time × temperature TABLE and therefore needs `duration_h`; it refuses (never guesses) when the duration is absent, the temperature is above the table, or the material has no table |
 //! | `render_views` | VISION: the 12-view contact sheet (6 orthos + 2 isos + bed view + 3 true sections) via `tools/render_sheet.py`, returned as an MCP **image** content item (base64 PNG) + the text receipt — the designing model literally sees the part |
 //!
 //! The seven Python-runner tools (`ace_*`, `graded_infill`,
@@ -562,24 +562,49 @@ impl Server {
 		)
 	}
 
-	/// Confine an `stl` argument to the export tree: relative paths join the
-	/// out dir (`..` refused); absolute paths must canonicalize to somewhere
-	/// under the (canonical) out dir. The file must exist — rendering a
-	/// non-export is not a thing this tool does.
+	/// Resolve an `stl` argument for READING: relative paths join the out dir
+	/// first, then the repo root (`..` refused in both); absolute paths must
+	/// canonicalize under one of those two trees. The repo-root fallback exists
+	/// because rendering a campaign's shipped `parts/*.stl` is the tool's most
+	/// common use, and the out-dir-only rule rejected exactly that with an
+	/// error that named no fix (friction rated_desk_hook F2, 2026-08-27).
+	/// Rendering is read-only, so admitting the repo tree loosens nothing the
+	/// sandbox protects (writes still land under the out dir).
 	fn confine_to_out_dir(&self, rel_or_abs: &str) -> Result<PathBuf, String> {
 		let p = Path::new(rel_or_abs);
-		let candidate = if p.is_absolute() { p.to_path_buf() } else { confine(&self.out_dir, rel_or_abs)? };
 		let out_canon = self
 			.out_dir
 			.canonicalize()
 			.map_err(|e| format!("out dir '{}' is unavailable: {e}", self.out_dir.display()))?;
-		let canon = candidate
-			.canonicalize()
-			.map_err(|_| format!("stl '{rel_or_abs}' not found under the out dir '{}'", self.out_dir.display()))?;
-		if !canon.starts_with(&out_canon) {
-			return Err(format!("stl path must live under the out dir '{}': '{rel_or_abs}'", self.out_dir.display()));
+		let repo_canon = self.repo_root.canonicalize().ok();
+		let roots: Vec<&Path> =
+			std::iter::once(out_canon.as_path()).chain(repo_canon.as_deref()).collect();
+		let candidates: Vec<PathBuf> = if p.is_absolute() {
+			vec![p.to_path_buf()]
+		} else {
+			let mut v = vec![confine(&self.out_dir, rel_or_abs)?];
+			if repo_canon.is_some() {
+				v.push(confine(&self.repo_root, rel_or_abs)?);
+			}
+			v
+		};
+		for candidate in &candidates {
+			if let Ok(canon) = candidate.canonicalize() {
+				if roots.iter().any(|r| canon.starts_with(r)) {
+					return Ok(canon);
+				}
+				return Err(format!(
+					"stl path must live under the out dir '{}' or the repo root '{}': '{rel_or_abs}'",
+					self.out_dir.display(),
+					self.repo_root.display()
+				));
+			}
 		}
-		Ok(canon)
+		Err(format!(
+			"stl '{rel_or_abs}' not found under the out dir '{}' or the repo root '{}' — pass a path relative to either tree (e.g. a run_program export, or a campaign's parts/<name>.stl)",
+			self.out_dir.display(),
+			self.repo_root.display()
+		))
 	}
 }
 
@@ -775,14 +800,15 @@ pub fn tool_definitions() -> Vec<Value> {
 		}),
 		json!({
 			"name": "production_check",
-			"description": "Layer-1 FDM production rules on a prior ace_fea result: grades a part's peak von Mises stress against DERATED allowables for a named filament (tools/material_db.json: PLA|PETG|ABS|ASA|TPU95A|PC|PA; aliases TPU, NYLON). Rules — static (yield), creep (yield x creep_sustained_fraction, when load_character.sustained), fatigue (ultimate x fatigue_knockdown ~1e6 cycles, when load_character.cyclic), temp (service_temp_c vs the material's HDT-class limit), anisotropy (when the primary load is > 30 deg out of the layer plane, ALL stress allowables are further multiplied by layer_adhesion_factor and an explicit across-layer row is added). Every derating is shown in each rule's arithmetic; rules that don't apply are listed under skipped WITH the reason (orientation absent => anisotropy UNCHECKED, said so). VERDICT SEMANTICS: the receipt's ok is the overall verdict — a part FAILING its rules answers isError:true with the full per-rule receipt {rule, allowable_mpa, demand_mpa, SF, pass, detail} attached (it is a gate, not a crash). HONESTY: material data are TYPICAL published desktop-FDM values — verify per filament brand (the receipt carries this disclaimer); creep/fatigue knockdowns are engineering rules of thumb, not measured filament data; the anisotropy rule is SCALAR-TIER (load-direction heuristic) — a tensor-based layer-normal stress check requires an ACE change; the demand inherits ace_fea's ~20% coarse-mesh under-prediction of peak bending stress, so pair it with an adequate safety_factor_required (default 2).",
+			"description": "Layer-1 FDM production rules on a prior ace_fea result: grades a part's peak von Mises stress against DERATED allowables for a named filament (tools/material_db.json: PLA|PETG|ABS|ASA|TPU95A|PC|PA; aliases TPU, NYLON). Rules — static (yield), creep (the material record's MEASURED time x temperature table, tools/materials/<mat>.json creep.sig_allow_mpa, when load_character.sustained), fatigue (ultimate x fatigue_knockdown ~1e6 cycles, when load_character.cyclic), temp (service_temp_c vs the material's HDT-class limit), anisotropy (when the primary load is > 30 deg out of the layer plane, ALL stress allowables are further multiplied by layer_adhesion_factor and an explicit across-layer row is added). Every derating is shown in each rule's arithmetic; rules that don't apply are listed under skipped WITH the reason (orientation absent => anisotropy UNCHECKED, said so). CREEP IS TIME-DEPENDENT AND SO IS ITS INPUT: a sustained load REQUIRES duration_h. The rule reads the table cell at the stated temperature and duration, rounding BOTH up to the next tabulated cell (never interpolating — the data between rows does not exist), and reports the cell it used as creep_cell {row_used_c, col_used_h, temperature_bucket, duration_bucket, cell_match}. Three conditions produce a FAILING row with a machine-matchable refusal_kind rather than a number: creep_duration_required (no duration_h), creep_temp_above_tabulated (hotter than the table's top tier — there is no fallback row), creep_no_table (the material has no creep data; the legacy time-blind yield x creep_sustained_fraction scalar is reported for visibility and is NEVER used as an allowable). Only PLA carries a table today. VERDICT SEMANTICS: the receipt's ok is the overall verdict — a part FAILING its rules answers isError:true with the full per-rule receipt {rule, allowable_mpa, demand_mpa, SF, pass, detail} attached (it is a gate, not a crash). HONESTY: material data are TYPICAL published desktop-FDM values — verify per filament brand (the receipt carries this disclaimer); the fatigue knockdown is an engineering rule of thumb, not measured filament data; the anisotropy rule is SCALAR-TIER (load-direction heuristic) — a tensor-based layer-normal stress check requires an ACE change; the demand inherits ace_fea's ~20% coarse-mesh under-prediction of peak bending stress, so pair it with an adequate safety_factor_required (default 2).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"material": {"type": "string", "description": "PLA|PETG|ABS|ASA|TPU95A|PC|PA (case-insensitive; TPU->TPU95A, NYLON->PA)"},
 					"max_von_mises_pa": {"type": "number", "description": "peak von Mises stress in Pa from a prior ace_fea run"},
 					"load_character": {"type": "object", "description": "{sustained: bool, cyclic: bool}, default both false — enables the creep/fatigue rules"},
-					"service_temp_c": {"type": "number", "description": "service temperature in C, default 25"},
+					"duration_h": {"type": "number", "description": "how long the sustained load is HELD, in hours (e.g. 24, 720, 8760). REQUIRED whenever load_character.sustained is true — the creep allowable is a function of duration as much as of temperature, and without it the rule refuses with refusal_kind creep_duration_required rather than inventing one. Also accepted as service.duration_h / load_character.duration_h."},
+					"service_temp_c": {"type": "number", "description": "service temperature in C, default 25. NOTE the creep table is a coarse step (PLA: 23 C and 55 C): 25 C reads the 55 C row, and the receipt's creep_cell says so."},
 					"orientation": {"type": "object", "description": "{build_dir:[x,y,z], primary_load_dir:[x,y,z]} — enables the anisotropy rule; absent => anisotropy unchecked (noted)"},
 					"safety_factor_required": {"type": "number", "description": "required SF on every stress rule, default 2"},
 					"timeout_s": {"type": "number", "description": "wall-clock cap, default 60 (clamped 1..600)"}

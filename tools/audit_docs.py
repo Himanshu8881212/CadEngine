@@ -81,7 +81,7 @@ CLASSES = ["op-count", "op-family", "op-doc", "path", "section", "symbol", "clai
 
 CORE_DOCS = ["AGENTS.md", "CLAUDE.md", "README.md", "API.md", "DESIGN_GUIDE.md"]
 CRATE_NAMES = ["kernel-core", "kernel-brep", "kernel-implicit", "kernel-model",
-	"kernel-api", "kernel-gpu", "kernel-wasm", "agent-bench"]
+	"kernel-api", "agent-bench"]
 PATH_EXTS = {".rs", ".py", ".sh", ".md", ".json", ".jsonl", ".toml", ".ts", ".lock",
 	".csv", ".png", ".stl", ".step", ".stp", ".3mf", ".lmcpart", ".lmcasm", ".txt",
 	".yaml", ".yml", ".obj", ".ply", ".gltf", ".glb", ".svg", ".gif", ".html", ".rlib"}
@@ -343,7 +343,8 @@ def op_truth(repo):
 	names = []
 	m = re.search(r"pub const OP_NAMES:\s*&\[&str\]\s*=\s*&\[(.*?)\n\];", text, re.S)
 	if m:
-		names = re.findall(r'"([a-z0-9_]+)"', m.group(1))
+		# one tag per line; a `#[cfg(feature = "catalog")]` row above a gated tag is not a tag
+		names = re.findall(r'^\s*"([a-z0-9_]+)"', m.group(1), re.M)
 	else:
 		findings.append(Finding("op-count", "warn", DISCOVER_REL, 0,
 			"`OP_NAMES` table not found — cross-check of the catalogue skipped"))

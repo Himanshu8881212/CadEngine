@@ -48,8 +48,11 @@ pub fn op_catalogue(scratch_dir: &Path) -> Result<(u64, Vec<String>), String> {
 }
 
 /// Extract the `API.md` documentation section for `op`, or `None` when the
-/// op has no section (known-missing as of 2026-07: `support_report`,
-/// `list_faces`, `list_edges`, `coincident_fit`).
+/// op has no section. `None` is a real answer, not an error: API.md documents
+/// most but not all of the op surface (the `asm_*` family and the density-grid
+/// samplers are prose-only as of 2026-08), and the tool layer turns `None`
+/// into the "probe params carefully" note. Which ops are undocumented is not
+/// pinned here — `tools/audit_docs.py` reports the live list.
 ///
 /// A section starts at a level-3 heading whose first backticked token equals
 /// `op` (trailing prose after the token is allowed) and runs until the next
@@ -128,10 +131,21 @@ mod tests {
 	/// test was the record of that gap. The doc auditor
 	/// (`tools/audit_docs.py`) flagged them as absent from a reference that
 	/// claims to cover all 160 ops, and they were written with executed
-	/// examples, so the pin flips to asserting they are PRESENT. `clearance`
-	/// takes over as the honest known-missing case; keep one real gap here so
-	/// the `None` branch stays exercised by something true rather than by a
-	/// fictional op alone.
+	/// examples, so the pin flips to asserting they are PRESENT.
+	///
+	/// UPDATED 2026-08-08: the `None` branch used to be pinned to ONE named op
+	/// (`clearance`) chosen as "the honest known-missing case". That made the
+	/// test a hostage of the docs: writing the missing section — which is
+	/// exactly the improvement the auditor asks for — broke the test, and it
+	/// did (`clearance` gained a section this pass). The name was never the
+	/// contract. The contract is the BICONDITIONAL, so it is now asserted over
+	/// the whole live op surface: `extract_section` returns a section starting
+	/// with that op's heading iff API.md carries one, for every op `describe`
+	/// serves. The expectation side is computed by an independent oracle (a
+	/// plain `"### \`op\`"` line-prefix scan, deliberately not reusing this
+	/// module's fence/depth machinery), so the two disagree the moment
+	/// extraction breaks — and the `None` branch stays exercised by whatever is
+	/// genuinely undocumented, without naming it.
 	#[test]
 	fn extracts_real_sections_and_reports_missing_ones_honestly() {
 		let md = api_md();
@@ -155,7 +169,6 @@ mod tests {
 				&& extract_section(&md, "list_faces").is_some_and(|s| s.starts_with("### `list_faces`"))
 				&& extract_section(&md, "list_edges").is_some_and(|s| s.starts_with("### `list_edges`"))
 				&& extract_section(&md, "coincident_fit").is_some_and(|s| s.starts_with("### `coincident_fit`"))
-				&& extract_section(&md, "clearance").is_none()
 				&& extract_section(&md, "no_such_op_lol").is_none(),
 			"API.md section extraction contract broken.\nbox: {:?}…\nteardrop: {:?}…\ngland: {:?}…\nimplicit: {:?}…\nsupport_report present: {} (expected true since 2026-07-30)",
 			&boxs.chars().take(80).collect::<String>(),
@@ -164,6 +177,37 @@ mod tests {
 			&implicit.chars().take(80).collect::<String>(),
 			extract_section(&md, "support_report").is_some(),
 		);
+
+		// The biconditional, over every op the live surface serves.
+		let (_, ops) = op_catalogue(&std::env::temp_dir()).expect("describe runs in-process");
+		let mut disagreements: Vec<String> = Vec::new();
+		let mut undocumented: Vec<&str> = Vec::new();
+		for op in &ops {
+			let heading = format!("### `{op}`");
+			let documented = md.lines().any(|l| l.starts_with(&heading));
+			if !documented {
+				undocumented.push(op);
+			}
+			match (documented, extract_section(&md, op)) {
+				(true, Some(s)) if s.starts_with(&heading) => {}
+				(false, None) => {}
+				(true, Some(s)) => disagreements.push(format!(
+					"{op}: API.md has the heading but the section starts {:?}",
+					&s.chars().take(40).collect::<String>()
+				)),
+				(true, None) => disagreements.push(format!("{op}: API.md has the heading but extraction returned None")),
+				(false, Some(_)) => disagreements.push(format!("{op}: API.md has NO heading but extraction returned a section")),
+			}
+		}
+		assert!(
+			disagreements.is_empty(),
+			"extract_section disagrees with API.md's own headings for {} of {} ops: {:?}",
+			disagreements.len(),
+			ops.len(),
+			&disagreements[..disagreements.len().min(8)],
+		);
+		// Not an assertion — a note, so closing the last gap never fails the test.
+		eprintln!("API.md op sections: {}/{} documented; undocumented: {undocumented:?}", ops.len() - undocumented.len(), ops.len());
 	}
 
 	/// The catalogue comes from a REAL in-process describe run: count matches

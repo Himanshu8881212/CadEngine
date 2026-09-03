@@ -1,0 +1,8 @@
+# Release-supported analyzer runtime (Python 3.11).
+# Compile with:
+#   uv pip compile --python-version 3.11 --generate-hashes \
+#     tools/requirements-analysis.in -o tools/requirements-analysis.lock
+numpy==2.4.3
+scipy==1.17.0
+gmsh==4.15.2
+matplotlib==3.10.8

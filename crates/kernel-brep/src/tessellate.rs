@@ -174,14 +174,135 @@ fn tessellate_planar(mesh: &mut Mesh, poly: &[DVec3], normal: DVec3) {
 	if poly.len() < 3 {
 		return;
 	}
+	// A boolean-stitched annular cap arrives as ONE ring with the hole spliced
+	// in through a doubled zero-width corridor (`bridge_hole_into`'s merge:
+	// … P, M, hole…, M, P …). Ear-clipping that ring can roof the hole on large
+	// concave outers (the shipped 60-tooth gear cap measured 18 wall crossings),
+	// so recover the real outer + hole rings first and take the hole-aware path
+	// with its verification ladder; a ring with no corridor is unchanged.
+	if let Some((outer_ring, holes)) = unbake_keyholes(poly) {
+		let holes3d: Vec<Vec<DVec3>> = holes.iter().map(|h| h.iter().map(|&i| poly[i]).collect()).collect();
+		let outer3d: Vec<DVec3> = outer_ring.iter().map(|&i| poly[i]).collect();
+		tessellate_planar_with_holes(mesh, &outer3d, &holes3d, normal);
+		return;
+	}
 	let (u, v) = perp_basis(normal);
 	let p2: Vec<DVec2> = poly.iter().map(|p| DVec2::new(p.dot(u), p.dot(v))).collect();
 	ear_clip_ring(mesh, poly, &p2, (0..poly.len()).collect(), normal);
 }
 
+/// Detect and undo `bridge_hole_into`-style keyhole splices in a face polygon:
+/// exact-duplicate vertex pairs `(i, j)` with `poly[i+1] == poly[j-1]` bracket a
+/// spliced hole cycle `poly[i+1 .. j-1]`. Returns the outer ring plus every
+/// recovered hole (indices into `poly`), or `None` when the ring carries no
+/// corridor. Duplicates are exact bit-equal positions — the splice reuses the
+/// welded vertex, so tolerance would only invite false positives.
+pub(crate) fn unbake_keyholes(poly: &[DVec3]) -> Option<(Vec<usize>, Vec<Vec<usize>>)> {
+	let n = poly.len();
+	if n < 8 {
+		return None; // smallest splice: 3-vertex outer + 3-vertex hole + 2 dups
+	}
+	let mut ring: Vec<usize> = (0..n).collect();
+	let mut holes: Vec<Vec<usize>> = Vec::new();
+	let eq = |a: usize, b: usize| poly[a] == poly[b];
+	loop {
+		let m = ring.len();
+		let mut found: Option<(usize, usize)> = None;
+		'scan: for i in 0..m {
+			for j in (i + 3)..m {
+				if eq(ring[i], ring[j]) && eq(ring[i + 1], ring[(j + m - 1) % m]) && j - i >= 4 {
+					found = Some((i, j));
+					break 'scan;
+				}
+			}
+		}
+		let Some((i, j)) = found else { break };
+		// hole cycle: ring[i+1 ..= j-2] starts at the corridor mouth M and runs
+		// the spliced hole once (M's closing duplicate at j-1 is dropped).
+		let hole: Vec<usize> = ring[i + 1..j - 1].to_vec();
+		if hole.len() < 3 {
+			break; // degenerate corridor — leave the ring to the plain clip
+		}
+		let mut rest: Vec<usize> = Vec::with_capacity(ring.len() - hole.len() - 2);
+		rest.extend_from_slice(&ring[..=i]);
+		rest.extend_from_slice(&ring[j + 1..]);
+		holes.push(hole);
+		ring = rest;
+		if ring.len() < 3 {
+			return None; // over-stripped — not a keyhole pattern after all
+		}
+	}
+	if holes.is_empty() {
+		return None;
+	}
+	// Validate the decomposition before trusting it: dense rings (refined
+	// revolve seams, sliver walls) can contain innocent duplicate-vertex
+	// patterns that match the corridor signature without being keyholes, and a
+	// false split flips winding over whole regions (measured: 105 non-orientable
+	// edges on a horn at tol 0.01). A REAL keyhole hole lies strictly inside its
+	// outer ring and is smaller than it; reject the unbake otherwise and let the
+	// plain clip handle the ring unchanged.
+	let n2 = |ring: &[usize]| -> (f64, f64, f64) {
+		// Projected signed area (Newell z) + centroid in the dominant plane of
+		// the polygon: adequate for containment screening on planar face rings.
+		let mut area2 = 0.0;
+		let (mut cx, mut cy) = (0.0, 0.0);
+		let m = ring.len();
+		for k in 0..m {
+			let a = poly[ring[k]];
+			let b = poly[ring[(k + 1) % m]];
+			area2 += a.x * b.y - b.x * a.y;
+			cx += a.x;
+			cy += a.y;
+		}
+		(area2 * 0.5, cx / m as f64, cy / m as f64)
+	};
+	let inside = |x: f64, y: f64, ring: &[usize]| -> bool {
+		let m = ring.len();
+		let mut hit = false;
+		for k in 0..m {
+			let a = poly[ring[k]];
+			let b = poly[ring[(k + 1) % m]];
+			if (a.y > y) != (b.y > y) {
+				let xi = a.x + (y - a.y) / (b.y - a.y) * (b.x - a.x);
+				if xi > x {
+					hit = !hit;
+				}
+			}
+		}
+		hit
+	};
+	let (outer_area, _, _) = n2(&ring);
+	for hole in &holes {
+		let (hole_area, hx, hy) = n2(hole);
+		if hole_area.abs() >= outer_area.abs() || !inside(hx, hy, &ring) {
+			return None; // not a keyhole decomposition — plain clip
+		}
+	}
+	Some((ring, holes))
+}
+
 /// Ear-clip a CCW index `ring` into `poly` / `p2`, pushing the triangles. The ring
 /// is reversed to CCW if needed; degenerate leftovers are fanned.
-pub(crate) fn ear_clip_ring(mesh: &mut Mesh, poly: &[DVec3], p2: &[DVec2], mut idx: Vec<usize>, normal: DVec3) {
+pub(crate) fn ear_clip_ring(mesh: &mut Mesh, poly: &[DVec3], p2: &[DVec2], idx: Vec<usize>, normal: DVec3) {
+	ear_clip_ring_wound(mesh, poly, p2, idx, &|_| normal, &|_, _, _| normal)
+}
+
+/// [`ear_clip_ring`] with per-vertex normals and a per-triangle winding
+/// reference. Required whenever the ring lives on a CURVED surface and spans a
+/// wide arc: a single global reference is near-degenerate there and flips
+/// triangles on the far side of the arc (the same failure the grid tessellator
+/// had — measured 52 flipped directed edges on a transverse-bored cylinder's
+/// bore wall). Planar callers keep the exact constant-normal behavior through
+/// the wrapper above.
+pub(crate) fn ear_clip_ring_wound(
+	mesh: &mut Mesh,
+	poly: &[DVec3],
+	p2: &[DVec2],
+	mut idx: Vec<usize>,
+	nrm: &dyn Fn(DVec3) -> DVec3,
+	wind: &dyn Fn(DVec3, DVec3, DVec3) -> DVec3,
+) {
 	if idx.len() < 3 {
 		return;
 	}
@@ -203,10 +324,18 @@ pub(crate) fn ear_clip_ring(mesh: &mut Mesh, poly: &[DVec3], p2: &[DVec2], mut i
 			if orient2d([a.x, a.y], [b.x, b.y], [c.x, c.y]) <= 0.0 {
 				continue;
 			}
-			// No other vertex inside this candidate ear?
+			// No other vertex inside this candidate ear? Vertices POSITIONALLY
+			// identical to an ear corner are skipped: a keyhole corridor's twin
+			// (the same point entering the ring twice, once per corridor side)
+			// otherwise sits exactly ON the ear's edge and — through this
+			// inclusive test — permanently blocks every corridor-adjacent ear,
+			// stalling the whole clip into the guarded fan (measured: a
+			// 12-hole plate's stalled remainder fanned slivers along the hole
+			// rims — 111 non-orientable edges). A corridor EDGE poking through
+			// the ear is still caught by the crossing test below.
 			let mut ok = true;
 			for &j in &idx {
-				if j == ip || j == ic || j == inx {
+				if j == ip || j == ic || j == inx || p2[j] == a || p2[j] == b || p2[j] == c {
 					continue;
 				}
 				if point_in_tri(p2[j], a, b, c) {
@@ -214,20 +343,97 @@ pub(crate) fn ear_clip_ring(mesh: &mut Mesh, poly: &[DVec3], p2: &[DVec2], mut i
 					break;
 				}
 			}
+			// Vertex containment alone is NOT a sufficient ear test: a LONG ring
+			// edge (a boolean's radial seam runs bore-to-outer in one span) can
+			// slice through the candidate with both endpoints outside it. One
+			// such ear roofed a gear bore and shipped 18 cap-to-wall crossings.
+			// Reject the ear if any non-incident ring edge properly crosses any
+			// of its three sides.
 			if ok {
-				push_tri(mesh, poly[ip], poly[ic], poly[inx], normal, normal, normal, normal);
+				'edges: for e in 0..n {
+					let e0 = idx[e];
+					let e1 = idx[(e + 1) % n];
+					if e0 == ip || e0 == ic || e0 == inx || e1 == ip || e1 == ic || e1 == inx {
+						continue;
+					}
+					let (s0, s1) = (p2[e0], p2[e1]);
+					for (t0, t1) in [(a, b), (b, c), (c, a)] {
+						if seg_proper_cross(t0, t1, s0, s1) {
+							ok = false;
+							break 'edges;
+						}
+					}
+				}
+			}
+			if ok {
+				let (a3, b3, c3) = (poly[ip], poly[ic], poly[inx]);
+				push_tri(mesh, a3, b3, c3, nrm(a3), nrm(b3), nrm(c3), wind(a3, b3, c3));
 				idx.remove(i);
 				clipped = true;
 				break;
 			}
 		}
 		if !clipped {
-			break; // degenerate; fall through to fan the remainder
+			// Collinear-drain on stall: a flat corner (exact orient2d == 0 —
+			// dense arcs produce runs of them) both blocks its neighbours' ears
+			// through the inclusive point-in-triangle test and can never be an
+			// ear itself. Removing ONE flat vertex loses no area and usually
+			// unsticks the clip; repeat via the outer loop. Only a remainder
+			// with no ear AND no flat vertex falls through to the fan — and a
+			// CONCAVE remainder must never be fanned (the fan roofs concavities:
+			// a stalled gear half-annulus measured 18 bore-wall crossings), so
+			// the fan is now gated on the remainder being convex, with the
+			// concave dead-end taking a centroid fan that at least stays inside
+			// the polygon's kernel when one exists.
+			let n = idx.len();
+			let mut drained = false;
+			for i in 0..n {
+				let a = p2[idx[(i + n - 1) % n]];
+				let b = p2[idx[i]];
+				let c = p2[idx[(i + 1) % n]];
+				if orient2d([a.x, a.y], [b.x, b.y], [c.x, c.y]) == 0.0 {
+					idx.remove(i);
+					drained = true;
+					break;
+				}
+			}
+			if !drained {
+				break; // truly stuck; the guarded fan below decides
+			}
 		}
 	}
-	// Remaining triangle(s): fan.
-	for w in 1..idx.len().saturating_sub(1) {
-		push_tri(mesh, poly[idx[0]], poly[idx[w]], poly[idx[w + 1]], normal, normal, normal, normal);
+	// Remaining triangle(s).
+	if idx.len() == 3 {
+		let (a3, b3, c3) = (poly[idx[0]], poly[idx[1]], poly[idx[2]]);
+		push_tri(mesh, a3, b3, c3, nrm(a3), nrm(b3), nrm(c3), wind(a3, b3, c3));
+		return;
+	}
+	if idx.len() < 3 {
+		return;
+	}
+	// A convex remainder fans safely from any vertex; a concave one fans from
+	// its 2D centroid (correct whenever the centroid sees the whole remainder,
+	// and strictly better than an arbitrary-vertex fan in every case).
+	let n = idx.len();
+	let convex = (0..n).all(|i| {
+		let a = p2[idx[(i + n - 1) % n]];
+		let b = p2[idx[i]];
+		let c = p2[idx[(i + 1) % n]];
+		orient2d([a.x, a.y], [b.x, b.y], [c.x, c.y]) >= 0.0
+	});
+	if convex {
+		for w in 1..n - 1 {
+			let (a3, b3, c3) = (poly[idx[0]], poly[idx[w]], poly[idx[w + 1]]);
+			push_tri(mesh, a3, b3, c3, nrm(a3), nrm(b3), nrm(c3), wind(a3, b3, c3));
+		}
+	} else {
+		let c3 = idx.iter().fold(DVec3::ZERO, |acc, &i| acc + poly[i]) / n as f64;
+		let c2 = idx.iter().fold(DVec2::ZERO, |acc, &i| acc + p2[i]) / n as f64;
+		let _ = c2;
+		for w in 0..n {
+			let (a3, b3) = (poly[idx[w]], poly[idx[(w + 1) % n]]);
+			push_tri(mesh, c3, a3, b3, nrm(c3), nrm(a3), nrm(b3), wind(c3, a3, b3));
+		}
 	}
 }
 
@@ -236,7 +442,7 @@ pub(crate) fn ear_clip_ring(mesh: &mut Mesh, poly: &[DVec3], p2: &[DVec2], mut i
 /// hole's right-most vertex to a mutually-visible outer vertex), merging into one
 /// simple polygon that is then ear-clipped — so the hole is a real cut, giving a
 /// correct annular mesh and exact volume.
-fn tessellate_planar_with_holes(mesh: &mut Mesh, outer3d: &[DVec3], holes3d: &[Vec<DVec3>], normal: DVec3) {
+pub(crate) fn tessellate_planar_with_holes(mesh: &mut Mesh, outer3d: &[DVec3], holes3d: &[Vec<DVec3>], normal: DVec3) {
 	if outer3d.len() < 3 {
 		return;
 	}
@@ -264,10 +470,191 @@ fn tessellate_planar_with_holes(mesh: &mut Mesh, outer3d: &[DVec3], holes3d: &[V
 	// Bridge the right-most holes first so their bridges don't cross later ones.
 	holes.sort_by(|a, b| ring_max_x(&p2, b).partial_cmp(&ring_max_x(&p2, a)).unwrap_or(std::cmp::Ordering::Equal));
 	let all = holes.clone();
-	for hole in &holes {
-		bridge_hole_into(&p2, &mut outer, hole, &all);
+	// Retry ladder: the nearest-anchor bridge can self-overlap on large concave
+	// outers (T15 family; a 60-tooth gear annulus measured 18 crossing pairs).
+	// Each attempt bridges every hole with the attempt-th ranked anchor for the
+	// FIRST hole (later holes stay nearest), clips into a scratch mesh, and
+	// keeps the first attempt whose own triangles do not cross. Bounded and
+	// deterministic; a fully exhausted ladder keeps attempt 0's output (the
+	// historical behavior — downstream demotes the export to the voxel heal).
+	const BRIDGE_ATTEMPTS: usize = 8;
+	let mut kept: Option<Mesh> = None;
+	let mut found_clean = false;
+	for attempt in 0..BRIDGE_ATTEMPTS {
+		let mut ring = outer.clone();
+		for (hi, hole) in holes.iter().enumerate() {
+			let skip = if hi == 0 { attempt } else { 0 };
+			bridge_hole_into_ranked(&p2, &mut ring, hole, &all, skip);
+		}
+		let mut scratch = Mesh::new();
+		ear_clip_ring(&mut scratch, &poly, &p2, ring.clone(), normal);
+		// A valid cap neither crosses itself NOR covers a hole NOR lies about
+		// its rim. The second test is the one the T15/gear family fails: a
+		// mis-clipped ear can span the keyhole and roof the hole with triangles
+		// whose crossings only appear against the hole's WALL — invisible to a
+		// cap-only self-check. The third catches what BOTH miss: a stalled
+		// clip's fan lays slivers flat ON the cap (they share vertices, so the
+		// self-intersection sweep ignores them; they hug the rim, so the
+		// hole-centroid test never sees them) — but any such sliver either
+		// duplicates a directed edge or invents a rim the ring never had.
+		let clean = !scratch.has_self_intersection() && !cap_covers_hole(&scratch, &p2, &holes, normal) && cap_rim_true(&scratch, &poly, &ring);
+		if kept.is_none() || clean {
+			kept = Some(scratch);
+		}
+		if clean {
+			found_clean = true;
+			break;
+		}
 	}
-	ear_clip_ring(mesh, &poly, &p2, outer, normal);
+	// Deterministic last-resort for the annulus family: when every keyhole
+	// attempt fails and the face is a single hole with both rings star-shaped
+	// about the hole centroid (every gear/washer/flange cap), triangulate by
+	// angular merge-strip — crossing-free by construction.
+	if !found_clean && holes.len() == 1 {
+		if let Some(strip) = annulus_strip(&poly, &p2, &outer, &holes[0], normal) {
+			kept = Some(strip);
+		}
+	}
+	if let Some(cap) = kept {
+		let base = mesh.positions.len() as u32;
+		mesh.positions.extend_from_slice(&cap.positions);
+		mesh.normals.extend_from_slice(&cap.normals);
+		mesh.indices.extend(cap.indices.iter().map(|i| i + base));
+	}
+}
+
+/// Is the cap's own edge topology truthful? Keyed by EXACT vertex position
+/// (the clip copies ring samples verbatim, so exact f32 equality is the right
+/// join), the cap must (a) never traverse a directed edge twice — two
+/// triangles walking the same edge the same way is a fold lying flat on the
+/// cap — and (b) leave single-used (rim) edges only along the bridged ring's
+/// own forward steps. Any other rim means the clip dropped ring vertices or
+/// invented a chord: the face's neighbours still sample the true ring, so that
+/// ships as a crack in the welded body even though the cap alone looks closed.
+fn cap_rim_true(cap: &Mesh, poly: &[DVec3], ring: &[usize]) -> bool {
+	type K = (u32, u32, u32);
+	let key = |p: glam::Vec3| (p.x.to_bits(), p.y.to_bits(), p.z.to_bits());
+	let mut dir: std::collections::HashMap<(K, K), u32> = std::collections::HashMap::new();
+	for t in cap.indices.chunks_exact(3) {
+		let (a, b, c) = (cap.positions[t[0] as usize], cap.positions[t[1] as usize], cap.positions[t[2] as usize]);
+		for (e0, e1) in [(a, b), (b, c), (c, a)] {
+			*dir.entry((key(e0), key(e1))).or_insert(0) += 1;
+		}
+	}
+	let n = ring.len();
+	let ringset: std::collections::HashSet<(K, K)> =
+		(0..n).map(|k| (key(poly[ring[k]].as_vec3()), key(poly[ring[(k + 1) % n]].as_vec3()))).collect();
+	dir.iter().all(|(&(ka, kb), &cnt)| {
+		let paired = dir.get(&(kb, ka)).copied().unwrap_or(0) > 0;
+		cnt == 1 && (paired || ringset.contains(&(ka, kb)))
+	})
+}
+
+/// Does any triangle of `cap` roof a hole? True when a triangle centroid lands
+/// strictly inside a hole ring — the signature of a keyhole mis-clip. Centroids
+/// of LEGAL triangles can never sit inside a hole (the merged ring excludes the
+/// hole's interior), so this is a pure rejection test with no false positives
+/// beyond degenerate slivers already rejected elsewhere.
+fn cap_covers_hole(cap: &Mesh, p2: &[DVec2], holes: &[Vec<usize>], normal: DVec3) -> bool {
+	let (u, v) = perp_basis(normal);
+	let project = |p: glam::Vec3| -> DVec2 {
+		let d = DVec3::new(p.x as f64, p.y as f64, p.z as f64);
+		DVec2::new(d.dot(u), d.dot(v))
+	};
+	let inside = |pt: DVec2, ring: &[usize]| -> bool {
+		// Even-odd ray cast in 2D over the ring's projected vertices.
+		let n = ring.len();
+		let mut hit = false;
+		for i in 0..n {
+			let a = p2[ring[i]];
+			let b = p2[ring[(i + 1) % n]];
+			if (a.y > pt.y) != (b.y > pt.y) {
+				let x = a.x + (pt.y - a.y) / (b.y - a.y) * (b.x - a.x);
+				if x > pt.x {
+					hit = !hit;
+				}
+			}
+		}
+		hit
+	};
+	for tri in cap.indices.chunks_exact(3) {
+		let c = project(cap.positions[tri[0] as usize])
+			+ project(cap.positions[tri[1] as usize])
+			+ project(cap.positions[tri[2] as usize]);
+		let c = c / 3.0;
+		if holes.iter().any(|h| inside(c, h)) {
+			return true;
+		}
+	}
+	false
+}
+
+/// Angular merge-strip triangulation of a single-hole face whose outer and
+/// hole rings are both star-shaped about the hole centroid: sweep both rings
+/// by angle, always advancing the ring whose next vertex has the smaller
+/// angle, emitting one triangle per advance. Returns `None` when either ring
+/// is not strictly star-shaped (a fold-back would self-cross), leaving the
+/// caller on the keyhole result.
+fn annulus_strip(poly: &[DVec3], p2: &[DVec2], outer: &[usize], hole: &[usize], normal: DVec3) -> Option<Mesh> {
+	if outer.len() < 3 || hole.len() < 3 {
+		return None;
+	}
+	let centroid = hole.iter().fold(DVec2::ZERO, |a, &i| a + p2[i]) / hole.len() as f64;
+	// Angle-sort both rings about the hole centroid; star-shapedness = the
+	// sorted order is a rotation of ring order (no fold-backs).
+	let sorted_ring = |ring: &[usize]| -> Option<Vec<usize>> {
+		let mut with_angle: Vec<(f64, usize)> =
+			ring.iter().map(|&i| ((p2[i] - centroid).y.atan2((p2[i] - centroid).x), i)).collect();
+		let n = with_angle.len();
+		// Strict monotonicity in ring order (up to one wrap) proves star shape.
+		let mut wraps = 0;
+		for k in 0..n {
+			let a = with_angle[k].0;
+			let b = with_angle[(k + 1) % n].0;
+			if b <= a {
+				wraps += 1;
+			}
+		}
+		if wraps != 1 {
+			return None;
+		}
+		with_angle.sort_by(|x, y| x.0.total_cmp(&y.0));
+		Some(with_angle.into_iter().map(|(_, i)| i).collect())
+	};
+	let og = sorted_ring(outer)?;
+	let hg = sorted_ring(hole)?;
+	let angle = |i: usize| -> f64 {
+		let d = p2[i] - centroid;
+		d.y.atan2(d.x)
+	};
+	let mut mesh = Mesh::new();
+	let (mut oi, mut hi) = (0usize, 0usize);
+	let (on, hn) = (og.len(), hg.len());
+	// March both rings once around, stitching the strip. Winding is enforced
+	// by push_tri against the face normal, so sweep direction is irrelevant.
+	while oi < on || hi < hn {
+		let o0 = og[oi % on];
+		let h0 = hg[hi % hn];
+		let advance_outer = if oi >= on {
+			false
+		} else if hi >= hn {
+			true
+		} else {
+			let oa = angle(og[(oi + 1) % on]);
+			let ha = angle(hg[(hi + 1) % hn]);
+			oa <= ha
+		};
+		if advance_outer {
+			let o1 = og[(oi + 1) % on];
+			push_tri(&mut mesh, poly[o0], poly[o1], poly[h0], normal, normal, normal, normal);
+			oi += 1;
+		} else {
+			let h1 = hg[(hi + 1) % hn];
+			push_tri(&mut mesh, poly[h0], poly[h1], poly[o0], normal, normal, normal, normal);
+			hi += 1;
+		}
+	}
+	Some(mesh)
 }
 
 /// Maximum x of a ring's projected vertices.
@@ -323,6 +710,20 @@ fn dir_in_wedge(p2: &[DVec2], ring: &[usize], pos: usize, target: DVec2) -> bool
 /// right-most vertex to the nearest visible outer vertex, merging them into one ring.
 /// `pub(crate)` so the boolean's loop-aware triangulation reuses the same bridging.
 pub(crate) fn bridge_hole_into(p2: &[DVec2], outer: &mut Vec<usize>, hole: &[usize], all_holes: &[Vec<usize>]) {
+	bridge_hole_into_ranked(p2, outer, hole, all_holes, 0);
+}
+
+/// [`bridge_hole_into`] with the `skip`-th ranked wedge-valid anchor instead of
+/// the nearest: the retry ladder for caps whose nearest-anchor bridge produces
+/// a self-overlapping triangulation (large concave outers — a 60-tooth gear
+/// annulus was the shipped case). `skip: 0` is exactly the historical choice.
+pub(crate) fn bridge_hole_into_ranked(
+	p2: &[DVec2],
+	outer: &mut Vec<usize>,
+	hole: &[usize],
+	all_holes: &[Vec<usize>],
+	skip: usize,
+) {
 	if hole.is_empty() {
 		return;
 	}
@@ -330,8 +731,7 @@ pub(crate) fn bridge_hole_into(p2: &[DVec2], outer: &mut Vec<usize>, hole: &[usi
 		.max_by(|&i, &j| p2[hole[i]].x.total_cmp(&p2[hole[j]].x))
 		.unwrap();
 	let m = hole[m_local];
-	let mut best: Option<usize> = None;
-	let mut best_d = f64::INFINITY;
+	let mut candidates: Vec<(f64, usize)> = Vec::new();
 	for (pos, &pv) in outer.iter().enumerate() {
 		if pv == m
 			|| !dir_in_wedge(p2, outer, pos, p2[m])
@@ -340,28 +740,21 @@ pub(crate) fn bridge_hole_into(p2: &[DVec2], outer: &mut Vec<usize>, hole: &[usi
 		{
 			continue;
 		}
-		let d = (p2[pv] - p2[m]).length_squared();
-		if d < best_d {
-			best_d = d;
-			best = Some(pos);
-		}
+		candidates.push(((p2[pv] - p2[m]).length_squared(), pos));
 	}
 	// Fall back to the old nearest-visible rule if the strict wedge tests reject
 	// everything (a fully degenerate corner) — an imperfect bridge beats a
 	// dropped hole.
-	if best.is_none() {
+	if candidates.is_empty() {
 		for (pos, &pv) in outer.iter().enumerate() {
 			if pv == m || !bridge_visible(p2, m, pv, outer, all_holes) {
 				continue;
 			}
-			let d = (p2[pv] - p2[m]).length_squared();
-			if d < best_d {
-				best_d = d;
-				best = Some(pos);
-			}
+			candidates.push(((p2[pv] - p2[m]).length_squared(), pos));
 		}
 	}
-	let Some(pos) = best else {
+	candidates.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+	let Some(&(_, pos)) = candidates.get(skip.min(candidates.len().saturating_sub(1))) else {
 		return; // no visible bridge (degenerate); leave the hole un-merged
 	};
 	// Insert: …outer[..=pos] (ends at P), hole from M all the way round, M again, P again, outer[pos+1..]…
@@ -479,7 +872,15 @@ fn tessellate_curved_verbatim(mesh: &mut Mesh, poly: &[DVec3], surface: Surface,
 		return;
 	}
 	if let Some(p2) = SurfaceChart::for_warped_ring(&surface, poly, face_outward).and_then(|c| c.uv_ring(poly)) {
-		ear_clip_ring(mesh, poly, &p2, (0..poly.len()).collect(), face_outward);
+		// Wide-arc warped ring: wind each ear against the analytic normal at its
+		// own centroid, sign fixed once by the ring's aggregate vote (see
+		// `push_refined_tris` — the single `face_outward` reference flips the
+		// far side of the arc).
+		let vote: f64 = poly.iter().map(|&p| surface.normal_at(p).dot(face_outward)).sum();
+		let sigma = if vote < 0.0 { -1.0 } else { 1.0 };
+		let nrm = move |p: DVec3| surface.normal_at(p) * sigma;
+		let wind = move |a: DVec3, b: DVec3, c: DVec3| surface.normal_at((a + b + c) / 3.0) * sigma;
+		ear_clip_ring_wound(mesh, poly, &p2, (0..poly.len()).collect(), &nrm, &wind);
 		return;
 	}
 	tessellate_planar(mesh, poly, face_outward);

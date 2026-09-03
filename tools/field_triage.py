@@ -49,7 +49,10 @@ from pathlib import Path
 TOOLS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TOOLS_DIR.parent
 sys.path.insert(0, str(TOOLS_DIR))
+import _layout  # noqa: E402
+_layout.add_import_paths()  # materials.py lives in tools/analyzers/ since 2026-09-02
 import field_report as fr  # noqa: E402 — sibling tool, same directory
+import materials as _materials  # noqa: E402 — THE one reader of the creep table
 
 # ---------------------------------------------------------------------------
 # failure_mode → the analysis that would have caught it, and what to change.
@@ -407,42 +410,40 @@ def reaudit(record, claims):
 # ---------------------------------------------------------------------------
 # Material-driven numbers (real data from the record, or an explicit UNKNOWN)
 # ---------------------------------------------------------------------------
-_TIME_H = {"h": 1.0, "d": 24.0, "w": 168.0, "mo": 730.0, "y": 8760.0}
+_TIME_H = _materials.CREEP_TIME_UNITS_H  # one units table, imported not re-keyed
 
 
 def _duration_hours(key):
-	m = re.match(r"^(\d+(?:\.\d+)?)(h|d|w|mo|y)$", key.strip())
-	return float(m.group(1)) * _TIME_H[m.group(2)] if m else None
+	"""Legacy shim: hours for a creep-table duration key, or None if it cannot be
+	parsed. New code should call `materials.creep_duration_key_hours`, which
+	RAISES instead of returning None — a None here used to be coerced to 0.0 h by
+	the old reader, which sorts FIRST and would then be picked for every request."""
+	try:
+		return _materials.creep_duration_key_hours(key)
+	except ValueError:
+		return None
 
 
-def creep_allowable(mat, temp_c, duration_h):
-	"""Pick the conservative cell of the record's creep table: the smallest
-	tabulated temperature ≥ service and the smallest tabulated duration ≥
-	service (i.e. round BOTH up, allowable down). Falls back to the scalar
-	`thermal.creep_sustained_fraction` when no table exists, and returns an
-	explicit UNKNOWN when neither is present — never a guess."""
-	table = (mat.get("creep") or {}).get("sig_allow_mpa")
-	if not table:
-		frac = (mat.get("thermal") or {}).get("creep_sustained_fraction")
-		yld = (mat.get("mechanical") or {}).get("yield_mpa")
-		if frac is None or yld is None:
-			return {"known": False, "note": "no creep table and no creep_sustained_fraction in the material record — allowable UNKNOWN"}
-		return {"known": True, "sig_allow_mpa": round(float(frac) * float(yld), 3),
-		        "basis": f"thermal.creep_sustained_fraction {frac} × yield {yld} MPa (scalar, time-blind)",
-		        "temperature_bucket": None, "duration_bucket": None, "confidence": "scalar rule of thumb — no time dependence"}
-	temps = sorted(((float(re.sub(r"[^0-9.\-]", "", k)), k) for k in table), key=lambda x: x[0])
-	pick_t = next((k for v, k in temps if temp_c is not None and v >= temp_c), temps[-1][1])
-	col = table[pick_t]
-	durs = sorted(((_duration_hours(k) or 0.0, k) for k in col), key=lambda x: x[0])
-	pick_d = next((k for v, k in durs if duration_h is not None and v >= duration_h), durs[-1][1])
-	conf = ((mat.get("creep") or {}).get("confidence") or {}).get(pick_t, {}).get(pick_d)
-	return {
-		"known": True, "sig_allow_mpa": float(col[pick_d]),
-		"temperature_bucket": pick_t, "duration_bucket": pick_d,
-		"basis": f"creep.sig_allow_mpa[{pick_t}][{pick_d}] — service {temp_c} °C / {duration_h} h rounded UP to the tabulated cell",
-		"confidence": conf or "(no confidence string in the record for this cell)",
-		"extrapolated": (temp_c is not None and temp_c > temps[-1][0]) or (duration_h is not None and duration_h > (durs[-1][0] or 0.0)),
-	}
+def creep_allowable(mat, temp_c, duration_h, *, across_layer=False):
+	"""Sustained-load (creep) allowable at a stated service temperature AND
+	duration — a thin wrapper over `materials.creep_lookup`, which is THE single
+	reader of `creep.sig_allow_mpa`.
+
+	`mat` may be a material NAME ("PLA", "pla") or an already-parsed record dict:
+	every other material-facing entry point in the campaign surface takes a name,
+	and the field tools hold a parsed record, so both must work.
+
+	The semantics are `materials.creep_lookup`'s, which are the Rust contract's:
+	round T and duration UP to the next tabulated cell, and **REFUSE above the
+	hottest tabulated tier** (`known: False`, `sig_allow_mpa: 0.0`,
+	`refusal_kind: "creep_temp_above_tabulated"`) instead of falling back to the
+	hot row. This function used to return the 55 °C cell (1.5 MPa) at 70 °C and
+	at 120 °C flagged only by `extrapolated: True`, while the Rust reader of the
+	same table refused outright — a gate that missed the flag got a
+	non-conservative allowable. One table, one reader, and the refusing semantic
+	wins."""
+	return _materials.creep_lookup(mat, temp_c, duration_h,
+	                               across_layer=across_layer)
 
 
 def fatigue_allowable(mat, cycles):
@@ -682,8 +683,20 @@ def self_test():
 	"""Run the whole pipeline on the labelled EXAMPLE reports and assert the
 	expected remediations. Exit 1 on any mismatch."""
 	checks = []
+	# Fixtures this suite reads out of the tree. A fixture that is not there is
+	# ONE fact about the tree, not N failed engineering assertions: without this
+	# split, a missing corpus file reported eleven substantive checks as FAILED
+	# (claim parsing, contradiction, priority) and pinned the suite permanently
+	# red, so nobody could use it as a gate and a real regression would have hidden
+	# in the noise. Worse, some of the dependent checks assert an EMPTY result
+	# ("contradicts nothing"), so a missing fixture made them pass vacuously.
+	fixtures = {"respool_analysis": REPO_ROOT / "spool_system" / "respool" / "analysis" / "ANALYSIS.md"}
+	missing = {k: str(p) for k, p in fixtures.items() if not p.is_file()}
 
-	def check(label, cond, detail=""):
+	def check(label, cond, detail="", needs=None):
+		if needs and needs in missing:
+			checks.append((label, None, f"SKIPPED — fixture '{needs}' is absent: {missing[needs]}"))
+			return
 		checks.append((label, bool(cond), detail))
 
 	# the two files must not drift apart
@@ -697,16 +710,16 @@ def self_test():
 	check("shipped corpus has the three EXAMPLE reports",
 	      {"EXAMPLE-001", "EXAMPLE-002", "EXAMPLE-003"} <= set(by_id), f"ids: {sorted(by_id)}")
 	if not {"EXAMPLE-001", "EXAMPLE-002", "EXAMPLE-003"} <= set(by_id):
-		_report(checks)
+		_report(checks, missing)
 
 	# --- the real respool ANALYSIS.md parses -------------------------------
-	respool_md = REPO_ROOT / "spool_system" / "respool" / "analysis" / "ANALYSIS.md"
+	respool_md = fixtures["respool_analysis"]
 	claims = parse_analysis(respool_md)
-	check("respool ANALYSIS.md parses into claims", len(claims) >= 15, f"{len(claims)} claims")
+	check("respool ANALYSIS.md parses into claims", len(claims) >= 15, f"{len(claims)} claims", needs="respool_analysis")
 	check("respool claims carry section labels", all("/" in c["label"] for c in claims),
-	      str([c["label"] for c in claims if "/" not in c["label"]][:3]))
+	      str([c["label"] for c in claims if "/" not in c["label"]][:3]), needs="respool_analysis")
 	check("the out-of-scope section is recognised as gaps, not green claims",
-	      sum(1 for c in claims if c["gap"]) >= 3, f"{sum(1 for c in claims if c['gap'])} gap claims")
+	      sum(1 for c in claims if c["gap"]) >= 3, f"{sum(1 for c in claims if c['gap'])} gap claims", needs="respool_analysis")
 
 	# --- EXAMPLE-001: creep on respool, contradicts a green claim ----------
 	t1 = triage(by_id["EXAMPLE-001"])
@@ -722,22 +735,63 @@ def self_test():
 	      str(creep))
 	check("E-001 derated sustained allowable is 0.5 MPa (the record's stated BOUND)",
 	      creep["sig_allow_mpa"] == 0.5, str(creep.get("sig_allow_mpa")))
+	check("E-001 records WHICH CELL the allowable was read at, and that 48 °C was "
+	      "rounded UP to the 55C row rather than interpolated",
+	      creep["cell_match"] == "rounded_up_conservative" and creep["temp_match"] == "rounded_up"
+	      and creep["row_used_c"] == 55.0 and creep["col_used_h"] == 8760.0
+	      and creep["interpolated"] is False, str({k: creep.get(k) for k in
+	      ("cell_match", "temp_match", "row_used_c", "col_used_h", "interpolated")}))
+
+	# --- the divergence class this reader exists to end --------------------
+	# Above the hottest tabulated tier the Rust contract refuses (0.0 MPa). This
+	# reader used to serve the 55 °C cell (1.5 MPa) at 70 °C and at 120 °C with
+	# only `extrapolated: True` to warn a gate that may not read it.
+	pla = fr.material_record("PLA")[0]
+	for probe_t in (55.001, 70.0, 120.0):
+		hot = creep_allowable(pla, probe_t, 24.0)
+		check(f"creep_allowable REFUSES at {probe_t} °C (0.0 MPa, known False) — "
+		      f"never the 55C fallback row",
+		      hot["known"] is False and hot["refused"] is True
+		      and hot["sig_allow_mpa"] == 0.0
+		      and hot["refusal_kind"] == "creep_temp_above_tabulated", str(hot))
+	check("creep_allowable accepts a material NAME as well as a record dict "
+	      "(both must give the same cell)",
+	      creep_allowable("pla", 23.0, 720.0)["sig_allow_mpa"]
+	      == creep_allowable(pla, 23.0, 720.0)["sig_allow_mpa"] == 3.5,
+	      str(creep_allowable("pla", 23.0, 720.0)))
+	for bad_t, bad_h in ((None, 24.0), (23.0, None), (23.0, -1.0)):
+		bad = creep_allowable(pla, bad_t, bad_h)
+		check(f"creep_allowable REFUSES temp_c={bad_t!r} duration_h={bad_h!r} rather "
+		      f"than defaulting to a cell",
+		      bad["known"] is False and bad["sig_allow_mpa"] == 0.0
+		      and bad["refusal_kind"] in _materials.CREEP_REFUSAL_KINDS, str(bad))
+	check("creep_allowable derates across-layer ONLY when the caller says so "
+	      "(0.5 × 0.55 = 0.275 MPa), and says which factor it applied",
+	      creep_allowable(pla, 48.0, 1440.0, across_layer=True)["sig_allow_mpa"] == 0.275
+	      and creep_allowable(pla, 48.0, 1440.0)["anisotropy_factor"] == 1.0,
+	      str(creep_allowable(pla, 48.0, 1440.0, across_layer=True)))
+	check("a material with NO creep table is REFUSED, not served the time-blind "
+	      "0.2-fraction scalar (the table governs, and where there is none there "
+	      "is no allowable)",
+	      creep_allowable("PETG", 23.0, 8760.0)["refusal_kind"] == "creep_no_table"
+	      and creep_allowable("PETG", 23.0, 8760.0)["legacy_scalar"]["usable_as_allowable"] is False,
+	      str(creep_allowable("PETG", 23.0, 8760.0)))
 	check("E-001 CONTRADICTS at least one green claim in the real respool ANALYSIS.md",
-	      len(t1["contradicted_gates"]) >= 1, f"{len(t1['contradicted_gates'])} contradicted")
+	      len(t1["contradicted_gates"]) >= 1, f"{len(t1['contradicted_gates'])} contradicted", needs="respool_analysis")
 	labels1 = " | ".join(c["label"] for c in t1["contradicted_gates"])
 	check("E-001 names the 'joint cannot be the failure point in a dryer' claim",
-	      "cannot be the failure point" in labels1, labels1)
+	      "cannot be the failure point" in labels1, labels1, needs="respool_analysis")
 	check("E-001 also lands on the declared out-of-scope long-term creep gap",
 	      any("creep" in g["label"].lower() for g in t1["acknowledged_gaps"]),
-	      str([g["label"] for g in t1["acknowledged_gaps"]]))
+	      str([g["label"] for g in t1["acknowledged_gaps"]]), needs="respool_analysis")
 	check("E-001 ties LC4/LC5 in by the part's own words (tongue, lugs)",
 	      any(c["matched_location_words"] for c in t1["contradicted_gates"]),
-	      str([(c["label"], c["matched_location_words"]) for c in t1["contradicted_gates"]]))
+	      str([(c["label"], c["matched_location_words"]) for c in t1["contradicted_gates"]]), needs="respool_analysis")
 	check("E-001 demotes the generic one-word 'hot' rows (LC1/LC2) to weak, not contradicted",
 	      any(w["label"].startswith("Load cases / LC1") for w in t1["weak_matches"])
 	      and not any(c["label"].startswith("Load cases / LC1") for c in t1["contradicted_gates"]),
-	      f"weak={[w['label'] for w in t1['weak_matches']]}")
-	check("E-001 is P0 (a green gate was contradicted)", t1["priority"] == "P0", t1["priority"])
+	      f"weak={[w['label'] for w in t1['weak_matches']]}", needs="respool_analysis")
+	check("E-001 is P0 (a green gate was contradicted)", t1["priority"] == "P0", t1["priority"], needs="respool_analysis")
 
 	# --- EXAMPLE-002: fatigue on respool, lands on a declared gap ----------
 	t2 = triage(by_id["EXAMPLE-002"])
@@ -753,18 +807,18 @@ def self_test():
 	check("E-002 refuses to interpolate the S-N curve at 2400 cycles", "warning" in fat, str(fat))
 	check("E-002 lands on respool's declared 'fatigue of the detent' gap",
 	      any("fatigue" in g["label"].lower() for g in t2["acknowledged_gaps"]),
-	      str([g["label"] for g in t2["acknowledged_gaps"]]))
+	      str([g["label"] for g in t2["acknowledged_gaps"]]), needs="respool_analysis")
 	check("E-002 contradicts NO green claim (the 'cycles' in the thermal bullet is demoted)",
 	      t2["contradicted_gates"] == [] and any("cycles" in w["matched_failure_mode_words"] for w in t2["weak_matches"]),
-	      f"contradicted={[c['label'] for c in t2['contradicted_gates']]} weak={[w['label'] for w in t2['weak_matches']]}")
+	      f"contradicted={[c['label'] for c in t2['contradicted_gates']]} weak={[w['label'] for w in t2['weak_matches']]}", needs="respool_analysis")
 	check("E-002 is P1 — a declared gap made due, not a contradicted gate",
-	      t2["priority"] == "P1" and "DECLARED gap" in t2["priority_why"], f"{t2['priority']}: {t2['priority_why']}")
+	      t2["priority"] == "P1" and "DECLARED gap" in t2["priority_why"], f"{t2['priority']}: {t2['priority_why']}", needs="respool_analysis")
 
 	# --- EXAMPLE-003: condition violation, must NOT blame the design -------
 	t3 = triage(by_id["EXAMPLE-003"])
 	check("E-003 is classified a condition violation", t3["classification"] == fr.CLASS_CONDITION, str(t3["classification"]))
 	check("E-003 contradicts NOTHING (an out-of-envelope run cannot falsify an in-envelope gate)",
-	      t3["contradicted_gates"] == [], str(t3["contradicted_gates"]))
+	      t3["contradicted_gates"] == [], str(t3["contradicted_gates"]), needs="respool_analysis")
 	check("E-003 states the envelope override", "CONDITION VIOLATION" in t3["remediation"].get("classification_override", ""),
 	      str(t3["remediation"].get("classification_override"))[:80])
 	check("E-003 re-derates NO allowable", "none" in t3["remediation"]["allowable_to_rederate"].lower(),
@@ -776,18 +830,39 @@ def self_test():
 	# every triage renders without blowing up
 	for t in (t1, t2, t3):
 		check(f"{t['report_id']} renders", len(render(t)) > 400, "")
-	_report(checks)
+	_report(checks, missing)
 
 
-def _report(checks):
-	failed = [(l, d) for l, c, d in checks if not c]
+def _report(checks, missing=None):
+	"""Print the check table and exit.
+
+	Three outcomes, never conflated: PASS (exit 0), a real FAILURE (exit 1,
+	`error_kind: self_test_failed`), and "a fixture this suite reads is not in
+	the tree" (exit 1, `error_kind: fixture_missing`) — non-zero because the
+	suite could not prove what it claims, but named so a reader is not told that
+	N engineering properties are broken when one file is absent.
+	"""
+	failed = [(l, d) for l, c, d in checks if c is False]
+	skipped = [(l, d) for l, c, d in checks if c is None]
 	width = max(len(l) for l, _, _ in checks)
 	for label, cond, detail in checks:
-		print(f"  [{'OK' if cond else 'FAIL'}] {label:<{width}}  {detail if not cond else ''}")
-	print(f"\n{len(checks) - len(failed)}/{len(checks)} checks passed")
+		tag = "OK" if cond else ("SKIP" if cond is None else "FAIL")
+		print(f"  [{tag:<4}] {label:<{width}}  {detail if cond is not True else ''}")
+	passed = len(checks) - len(failed) - len(skipped)
+	print(f"\n{passed}/{len(checks)} checks passed, {len(failed)} failed, {len(skipped)} skipped")
 	if failed:
-		print(json.dumps({"ok": False, "error": f"{len(failed)} self-test check(s) failed",
+		print(json.dumps({"ok": False, "error_kind": "self_test_failed",
+		                  "error": f"{len(failed)} self-test check(s) failed",
+		                  "skipped": len(skipped),
 		                  "errors": [f"{l}: {d}" for l, d in failed]}, ensure_ascii=False, indent=2))
+		sys.exit(1)
+	if skipped:
+		print(json.dumps({"ok": False, "error_kind": "fixture_missing",
+		                  "error": f"{len(skipped)} check(s) could not run: a fixture this suite "
+		                           f"reads is not in the tree. Nothing failed; nothing was proved either.",
+		                  "missing_fixtures": missing or {},
+		                  "checks_passed": passed,
+		                  "skipped": [l for l, _ in skipped]}, ensure_ascii=False, indent=2))
 		sys.exit(1)
 	print(json.dumps({"ok": True, "self_test": "PASS", "checks": len(checks)}, indent=2))
 

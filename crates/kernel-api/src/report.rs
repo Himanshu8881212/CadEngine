@@ -46,10 +46,13 @@ pub enum ErrorKind {
 	/// still reference the entry by path (the message lists them). Pass
 	/// `"force": true` to remove anyway.
 	DependentsExist,
-	/// A declared expectation was not met by the measured geometry: an `assert` /
-	/// `assert_disjoint` op check failed, or the `asm` runner's mate-residual gate
-	/// tripped. The message lists each failed check with measured vs expected
-	/// values; the op's `measures` carry the measured numbers.
+	/// A declared expectation was not met by the measured geometry: an op's
+	/// universal `require` gate failed, an `assert` / `assert_disjoint` op check
+	/// failed, or the `asm` runner's mate-residual gate tripped. The message lists
+	/// each failed check with measured vs expected values; the op's `measures`
+	/// carry the measured numbers. Distinct from `invalid_param`, which means the
+	/// GATE ITSELF was malformed (an empty `require`, a key naming no measure) —
+	/// "the part is wrong" and "the program is wrong" never share a kind.
 	AssertFailed,
 	/// A file could not be written (export ops).
 	Io,
@@ -79,6 +82,13 @@ pub struct OpReport {
 	/// Op-specific measurements (validate/volume/mass/sketch-DOF/export route …).
 	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub measures: Option<serde_json::Value>,
+	/// Non-fatal hazards the interpreter noticed — today: params the op does not
+	/// accept (a typo would otherwise leave the default silently in force, the
+	/// worst trap on this surface). Keys starting with `_` are the documented
+	/// in-op comment convention and never warn. Absent when empty, so reports
+	/// without warnings keep their exact historical bytes (determinism contract).
+	#[serde(default, skip_serializing_if = "Vec::is_empty")]
+	pub warnings: Vec<String>,
 	/// The path actually written, for export ops.
 	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub file: Option<String>,
@@ -128,6 +138,7 @@ impl Report {
 				id: "$program".to_string(),
 				ok: false,
 				measures: None,
+				warnings: Vec::new(),
 				file: None,
 				error: Some(OpError { kind, message: message.into() }),
 			}],

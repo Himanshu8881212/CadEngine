@@ -4,7 +4,7 @@
 
 import { useRef, useState } from 'react'
 import type { MeshReceipt, PartInfo, Report } from './api'
-import { chatStream, loadPart, runProgram, setDim } from './api'
+import { authorizationHeaders, chatStream, configureApiToken, loadPart, runProgram, setDim } from './api'
 import type { AsstBlock, ChatItem } from './components/ChatPanel'
 import { ChatPanel } from './components/ChatPanel'
 import { CodePane } from './components/CodePane'
@@ -73,6 +73,14 @@ export default function App() {
 	}
 
 	const freshUrl = (url: string) => `${url}&v=${++bust}`
+	const configureAuth = () => {
+		const token = window.prompt('Studio API bearer token (blank clears it; stored only in this browser tab)')
+		if (token === null) return
+		configureApiToken(token)
+		if (meshUrl) setMeshUrl(freshUrl(meshUrl.split('&v=')[0]))
+		setToast(token.trim() ? 'API token configured for this tab' : 'API token cleared')
+		setTimeout(() => setToast(null), 3000)
+	}
 
 	const openPart = async (path: string) => {
 		setBusy(true)
@@ -120,14 +128,18 @@ export default function App() {
 		if (r) setReceipt(r)
 	}
 
-	const exportStl = () => {
+	const exportStl = async () => {
 		if (!meshUrl) return
+		const response = await fetch(meshUrl, { headers: authorizationHeaders() })
+		if (!response.ok) throw new Error(`mesh download failed: ${response.status}`)
+		const objectUrl = URL.createObjectURL(await response.blob())
 		const a = document.createElement('a')
-		a.href = meshUrl
+		a.href = objectUrl
 		a.download = (receipt?.artifact.file || part?.name || 'part') + (receipt?.artifact.file ? '' : '.stl')
 		document.body.appendChild(a)
 		a.click()
 		a.remove()
+		URL.revokeObjectURL(objectUrl)
 	}
 
 	const sendChat = async (text: string) => {
@@ -200,7 +212,8 @@ export default function App() {
 				onParts={() => setPartsOpen(true)}
 				onToggleCode={() => setCodeOpen((o) => !o)}
 				codeOpen={codeOpen}
-				onExport={exportStl}
+				onExport={() => void exportStl().catch(fail)}
+				onAuth={configureAuth}
 				canExport={meshUrl != null}
 			/>
 			<aside className="left">
@@ -216,7 +229,7 @@ export default function App() {
 				{tab === 'params' && <ParamsPanel part={part} receipt={receipt} onSetDim={changeDim} busy={busy} />}
 			</aside>
 			<main className="stage-wrap" style={{ position: 'relative', minWidth: 0, minHeight: 0 }}>
-				<Viewport meshUrl={meshUrl} working={working} receipt={receipt} onExport={exportStl} canExport={meshUrl != null} />
+				<Viewport meshUrl={meshUrl} working={working} receipt={receipt} onExport={() => void exportStl().catch(fail)} canExport={meshUrl != null} />
 				<CodePane title={code.title} text={code.text} open={codeOpen} onToggle={() => setCodeOpen((o) => !o)} />
 			</main>
 			{partsOpen && <PartsModal onClose={() => setPartsOpen(false)} onInsert={insertCatalogPart} />}

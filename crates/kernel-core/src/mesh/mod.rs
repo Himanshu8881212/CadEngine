@@ -7,9 +7,11 @@
 
 mod formats;
 mod measure;
+pub mod thickness;
 pub(crate) use measure::triangle_triangle_distance;
+pub use measure::SelfIntersection;
 use std::collections::HashMap;
-use std::collections::HashSet;
+pub use thickness::{ThicknessOptions, ThicknessSample, THICKNESS_SAMPLE_BUDGET};
 
 use crate::math::{Aabb, DMat3, DVec3, Obb, Ray, Vec2, Vec3};
 
@@ -166,16 +168,31 @@ pub struct DraftReport {
 }
 
 /// Ray-based wall-thickness analysis of a mesh — how thick the material is under
-/// each face, and where it is thinner than a printable/moldable minimum.
+/// each face, and where it is thinner than a printable/moldable minimum. Produced
+/// by [`Mesh::wall_thickness`] / [`Mesh::wall_thickness_with`]; the sampling
+/// contract is documented on [`mesh::thickness`](crate::mesh::thickness).
 #[derive(Clone, Debug)]
 pub struct ThicknessReport {
-	/// Smallest wall thickness measured over the sampled faces.
+	/// Smallest wall thickness over the COUNTED samples (every sample when no
+	/// wedge exclusion is set; the non-wedge samples otherwise).
 	pub min_thickness: f64,
-	/// Per-triangle thickness (inward ray distance to the opposite wall), in index
-	/// order. [`f64::INFINITY`] where the inward ray found no opposite wall.
+	/// Per-triangle thickness (inward ray from the triangle's centroid to the
+	/// opposite wall), in index order. [`f64::INFINITY`] where the inward ray
+	/// found no opposite wall. Unaffected by the wedge exclusion.
 	pub thickness: Vec<f64>,
-	/// Total area of faces thinner than the queried minimum.
+	/// Total area (area-weighted stratified samples) thinner than the queried
+	/// minimum, EXCLUDING the acute-wedge readings when an exclusion is set.
 	pub thin_area: f64,
+	/// Area thinner than the queried minimum whose reading is an acute-wedge
+	/// (knife-edge) reading — the ray left through a face that meets the sample's
+	/// own face at a convex material angle below `exclude_wedge_deg`. Always `0`
+	/// when no exclusion is set (those samples then count in `thin_area`).
+	pub thin_area_wedge: f64,
+	/// Every surface sample taken, in deterministic order (triangle order, then
+	/// the triangle's stratified sub-cells).
+	pub samples: Vec<ThicknessSample>,
+	/// The wedge exclusion the report was computed with, if any.
+	pub exclude_wedge_deg: Option<f64>,
 }
 
 /// The nearest point on a mesh surface to a query point.
@@ -522,36 +539,151 @@ impl MeshHealDelta {
 	}
 }
 
+/// How many triangles traverse each directed edge `(a, b)`. An undirected edge
+/// `{a, b}` is *open* when the two entries sum to 1, *closed* when they sum to
+/// 2, and *non-orientable* when one of them alone is 2.
+type DirectedEdgeUses = HashMap<(u32, u32), u32>;
+
 impl Mesh {
-	/// Unpaired directed-edge count — a boundary (open-crack) measure. An edge is
-	/// unpaired when its reverse is absent; every such edge lies on a hole rim.
-	pub fn boundary_edge_count(&self) -> usize {
-		let mut edges: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
+	/// Every directed edge of the mesh with how many triangles traverse it, plus
+	/// the directed edges in first-appearance (triangle) order.
+	///
+	/// The ordered list exists so boundary walks are deterministic: a hash
+	/// container's iteration order is seeded per process, and it decides which
+	/// loop a walk starts on and where it splices at a pinch vertex (see
+	/// [`Mesh::fill_holes`], whose repair must reproduce byte for byte).
+	fn directed_edges(&self) -> (DirectedEdgeUses, Vec<(u32, u32)>) {
+		let mut dir: HashMap<(u32, u32), u32> = HashMap::new();
+		let mut ordered: Vec<(u32, u32)> = Vec::with_capacity(self.indices.len());
 		for t in self.indices.chunks_exact(3) {
 			for &(a, b) in &[(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
-				edges.insert((a, b));
+				let n = dir.entry((a, b)).or_insert(0);
+				if *n == 0 {
+					ordered.push((a, b));
+				}
+				*n += 1;
 			}
 		}
-		edges.iter().filter(|(a, b)| !edges.contains(&(*b, *a))).count()
+		(dir, ordered)
+	}
+
+	/// True iff the undirected edge `{a, b}` is used by exactly ONE triangle —
+	/// i.e. it lies on an open rim.
+	fn is_boundary_edge(dir: &DirectedEdgeUses, a: u32, b: u32) -> bool {
+		dir.get(&(a, b)).copied().unwrap_or(0) + dir.get(&(b, a)).copied().unwrap_or(0) == 1
+	}
+
+	/// Boundary (open-crack) edge count: undirected edges used by exactly one
+	/// triangle. Every such edge lies on a hole rim.
+	///
+	/// # Why this is not "the reverse edge is missing"
+	///
+	/// It used to be, and that is a different — wrong — question. Two triangles
+	/// that share an edge but wind the SAME way (`a→b` twice, `b→a` never) close
+	/// that edge perfectly: no rim, no crack, nothing to fill. They are
+	/// *non-orientable*, which is a winding defect, not an opening. Asking "is
+	/// the reverse present?" reported all of them as boundary and put this
+	/// oracle in permanent contradiction with [`crate::meshcheck::check_mesh`],
+	/// which has always counted boundary (used once) and non-orientable (used
+	/// twice, same direction) separately. Anything gating on "the measurement
+	/// surface is not closed" then fired on solids whose tessellation is closed —
+	/// which is exactly how it reached 11 shipped part programs across 8 campaigns
+	/// as a false "the faceter dropped geometry" refusal (2026-08-08). Use
+	/// [`Mesh::is_two_manifold`] when orientability matters too.
+	pub fn boundary_edge_count(&self) -> usize {
+		let (dir, ordered) = self.directed_edges();
+		ordered.iter().filter(|&&(a, b)| Self::is_boundary_edge(&dir, a, b)).count()
+	}
+
+	/// Non-orientable edge count: undirected edges whose two triangles traverse
+	/// them the SAME way, i.e. one of the pair is wound inside-out.
+	///
+	/// Closure and orientability are different defects and this method exists so
+	/// they can be reported apart without paying for
+	/// [`crate::check_mesh`](crate::check_mesh)'s self-intersection sweep. Same
+	/// edge-hash pass as [`Mesh::boundary_edge_count`], same answer as
+	/// `check_mesh().non_orientable_edges`.
+	pub fn non_orientable_edge_count(&self) -> usize {
+		let (dir, ordered) = self.directed_edges();
+		let mut seen: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
+		let mut count = 0usize;
+		for &(a, b) in &ordered {
+			let key = if a < b { (a, b) } else { (b, a) };
+			if !seen.insert(key) {
+				continue; // one visit per undirected edge
+			}
+			let fwd = dir.get(&key).copied().unwrap_or(0);
+			let bwd = dir.get(&(key.1, key.0)).copied().unwrap_or(0);
+			if fwd + bwd == 2 && (fwd == 2 || bwd == 2) {
+				count += 1;
+			}
+		}
+		count
+	}
+
+	/// Midpoints of up to `cap` non-orientable edges (same defect as
+	/// [`Mesh::non_orientable_edge_count`]), so a nonzero count is locatable
+	/// instead of just countable — a receipt that says "105 non-orientable
+	/// edges" should point at them. Deterministic: first-encounter order of the
+	/// triangle scan.
+	pub fn non_orientable_edge_witnesses(&self, cap: usize) -> Vec<[f64; 3]> {
+		self.edge_witnesses(cap, |fwd, bwd| fwd + bwd == 2 && (fwd == 2 || bwd == 2))
+	}
+
+	/// Midpoints of up to `cap` boundary (open-rim) edges — the locatable form
+	/// of [`Mesh::boundary_edge_count`]. Same traversal order as
+	/// [`Mesh::non_orientable_edge_witnesses`].
+	pub fn boundary_edge_witnesses(&self, cap: usize) -> Vec<[f64; 3]> {
+		self.edge_witnesses(cap, |fwd, bwd| fwd + bwd == 1)
+	}
+
+	/// Midpoints of up to `cap` non-manifold edges (undirected edges used by
+	/// more than two triangles — a fin or T-junction). Same traversal order as
+	/// [`Mesh::non_orientable_edge_witnesses`].
+	pub fn non_manifold_edge_witnesses(&self, cap: usize) -> Vec<[f64; 3]> {
+		self.edge_witnesses(cap, |fwd, bwd| fwd + bwd > 2)
+	}
+
+	/// Midpoints of the first `cap` undirected edges whose directed use counts
+	/// `(forward, backward)` satisfy `offending`, in first-encounter order of the
+	/// triangle scan — the one traversal behind every edge-witness list, so the
+	/// three defect kinds are located the same way.
+	fn edge_witnesses(&self, cap: usize, offending: impl Fn(u32, u32) -> bool) -> Vec<[f64; 3]> {
+		let (dir, ordered) = self.directed_edges();
+		let mut seen: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
+		let mut out = Vec::new();
+		for &(a, b) in &ordered {
+			let key = if a < b { (a, b) } else { (b, a) };
+			if !seen.insert(key) {
+				continue;
+			}
+			let fwd = dir.get(&key).copied().unwrap_or(0);
+			let bwd = dir.get(&(key.1, key.0)).copied().unwrap_or(0);
+			if offending(fwd, bwd) {
+				let (p, q) = (self.positions[a as usize], self.positions[b as usize]);
+				let m = (p.as_dvec3() + q.as_dvec3()) * 0.5;
+				out.push([m.x, m.y, m.z]);
+				if out.len() >= cap {
+					break;
+				}
+			}
+		}
+		out
 	}
 
 	/// The edge count of the longest boundary loop (the largest single opening).
 	fn largest_boundary_loop(&self) -> usize {
+		let (dir, ordered) = self.directed_edges();
 		let mut next: std::collections::HashMap<u32, u32> = std::collections::HashMap::new();
-		let mut edges: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
-		for t in self.indices.chunks_exact(3) {
-			for &(a, b) in &[(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
-				edges.insert((a, b));
-			}
-		}
-		for &(a, b) in &edges {
-			if !edges.contains(&(b, a)) {
-				next.insert(a, b); // boundary edge a->b
+		let mut starts: Vec<u32> = Vec::new();
+		for &(a, b) in &ordered {
+			if Self::is_boundary_edge(&dir, a, b) && next.insert(a, b).is_none() {
+				starts.push(a); // boundary edge a->b
 			}
 		}
 		let mut visited: std::collections::HashSet<u32> = std::collections::HashSet::new();
 		let mut best = 0usize;
-		for &start in next.keys() {
+		for start in starts {
 			if visited.contains(&start) {
 				continue;
 			}
@@ -1132,40 +1264,6 @@ impl Mesh {
 		}
 	}
 
-	/// Ray-based wall-thickness analysis: from each face, cast a ray inward (along
-	/// `−normal`) and measure the distance to the opposite wall — the local wall
-	/// thickness. Faces thinner than `flag_below` are summed into `thin_area`. Uses
-	/// the [`MeshBvh`](crate::MeshBvh) internally, so the whole pass is `O(n log n)`.
-	/// Outward winding is assumed; an inward ray that escapes (an open mesh or a
-	/// through-hole) records [`f64::INFINITY`] for that face.
-	pub fn wall_thickness(&self, flag_below: f64) -> ThicknessReport {
-		let bvh = self.build_bvh();
-		let eps = self.aabb().size().length().max(1.0) * 1e-5;
-		let mut thickness = Vec::with_capacity(self.triangle_count());
-		let mut min_thickness = f64::INFINITY;
-		let mut thin_area = 0.0f64;
-		for t in self.indices.chunks_exact(3) {
-			let a = self.positions[t[0] as usize];
-			let b = self.positions[t[1] as usize];
-			let c = self.positions[t[2] as usize];
-			let area_vec = (b - a).cross(c - a);
-			let normal = area_vec.normalize_or_zero();
-			let centroid = (a + b + c) / 3.0;
-			// Start a hair inside so the originating face is behind the ray.
-			let ray = Ray::new(centroid - normal * eps, -normal);
-			let th = match bvh.raycast(ray) {
-				Some(hit) => (hit.t + eps) as f64,
-				None => f64::INFINITY,
-			};
-			thickness.push(th);
-			min_thickness = min_thickness.min(th);
-			if th < flag_below {
-				thin_area += (area_vec.length() * 0.5) as f64;
-			}
-		}
-		ThicknessReport { min_thickness, thickness, thin_area }
-	}
-
 	/// Reduce the cross-section by the given plane to its [`SectionProperties`]
 	/// (net area, perimeter, centroid, and second moments of area about the
 	/// centroid). Holes are handled by even–odd nesting of the contour loops, so a
@@ -1377,6 +1475,14 @@ impl Mesh {
 	/// position-welded vertices (`weld_tol` in model units; 1e-3 mm is the house
 	/// value, matching `Mesh::weld`'s working scale).
 	///
+	/// `weld_tol` is a true TOLERANCE, not a grid pitch: any two vertices no
+	/// farther apart than `weld_tol` are treated as one point, wherever the part
+	/// sits in space. It therefore also sets the resolution of the oracle — a
+	/// severance NARROWER than `weld_tol` is welded shut and reads as one body,
+	/// which is why it is a caller-visible parameter and why `shells` (which
+	/// counts B-rep records and sees a boolean severance at any width) is the
+	/// COMPLEMENTARY check, not a weaker one.
+	///
 	/// # Why this is a THIRD oracle, not a restatement of the other two
 	///
 	/// Connectivity is independent of validity and of watertightness, and it is
@@ -1404,15 +1510,28 @@ impl Mesh {
 	/// cross-section shrinks to a point must keep that apex strictly INSIDE the
 	/// material.
 	///
-	/// Returns 0 for an empty mesh. Cost is near-linear in triangle count.
+	/// Returns 0 for an empty mesh. Cost is near-linear in triangle count while
+	/// `weld_tol` is at or below the facet scale (each grid cell then holds a
+	/// handful of vertices); a `weld_tol` MUCH coarser than the facets puts many
+	/// vertices per cell and the within-cell pairing grows quadratically in that
+	/// occupancy. Deterministic regardless: union-find connectivity does not
+	/// depend on the order cells are visited.
 	pub fn component_count(&self, weld_tol: f32) -> usize {
 		if self.is_empty() {
 			return 0;
 		}
-		// Quantize to the weld grid so coincident-but-unshared vertices (the
-		// normal state of a boolean result before welding) count as one point —
-		// otherwise every triangle would look like its own island.
-		let q = if weld_tol > 0.0 { 1.0 / weld_tol as f64 } else { 1e3 };
+		// Vertices are the union-find nodes; the grid is only an ACCELERATOR for
+		// finding which of them are within `weld_tol`. Making cell membership
+		// itself the merge rule (what this used to do) turns `weld_tol` into a
+		// grid PITCH rather than a tolerance: whether two points 0.4·weld_tol
+		// apart share a cell depends on where they sit relative to the grid, so
+		// the same gap in the same part answered 1 or 2 depending on the part's
+		// absolute position in space (campaign theme T6). Testing the real
+		// distance makes the contract the honest one — *any two vertices no
+		// farther apart than `weld_tol` are the same point, wherever the part
+		// sits* — at the cost of one distance test per near pair.
+		let tol = if weld_tol > 0.0 { weld_tol as f64 } else { 1e-3 };
+		let q = 1.0 / tol;
 		let key = |p: &Vec3| -> (i64, i64, i64) {
 			(
 				(p.x as f64 * q).round() as i64,
@@ -1420,13 +1539,11 @@ impl Mesh {
 				(p.z as f64 * q).round() as i64,
 			)
 		};
-		let mut ids: std::collections::HashMap<(i64, i64, i64), u32> = std::collections::HashMap::new();
-		let mut of: Vec<u32> = Vec::with_capacity(self.positions.len());
-		for p in &self.positions {
-			let n = ids.len() as u32;
-			of.push(*ids.entry(key(p)).or_insert(n));
+		let mut cells: std::collections::HashMap<(i64, i64, i64), Vec<u32>> = std::collections::HashMap::new();
+		for (i, p) in self.positions.iter().enumerate() {
+			cells.entry(key(p)).or_default().push(i as u32);
 		}
-		let mut parent: Vec<u32> = (0..ids.len() as u32).collect();
+		let mut parent: Vec<u32> = (0..self.positions.len() as u32).collect();
 		fn find(parent: &mut [u32], mut i: u32) -> u32 {
 			while parent[i as usize] != i {
 				parent[i as usize] = parent[parent[i as usize] as usize];
@@ -1434,17 +1551,60 @@ impl Mesh {
 			}
 			i
 		}
+		let tol2 = tol * tol;
+		let unite = |parent: &mut Vec<u32>, a: u32, b: u32| {
+			let (ra, rb) = (find(parent, a), find(parent, b));
+			if ra != rb {
+				parent[rb as usize] = ra;
+			}
+		};
+		// Cells are `weld_tol` wide, so a vertex within the tolerance is either in
+		// this cell or in one of the 26 neighbours — the sweep stays near-linear
+		// while `weld_tol` is at or below the facet scale (1e-3 mm by default).
+		let cell_keys: Vec<(i64, i64, i64)> = cells.keys().copied().collect();
+		let near = |i: u32, j: u32| -> bool {
+			(self.positions[i as usize].as_dvec3() - self.positions[j as usize].as_dvec3()).length_squared() <= tol2
+		};
+		for k in &cell_keys {
+			let here = cells[k].clone();
+			for a in 0..here.len() {
+				for b in (a + 1)..here.len() {
+					if near(here[a], here[b]) {
+						unite(&mut parent, here[a], here[b]);
+					}
+				}
+			}
+			for dz in -1i64..=1 {
+				for dy in -1i64..=1 {
+					for dx in -1i64..=1 {
+						// Half the neighbourhood: every unordered cell pair is visited
+						// exactly once, from its lexicographically lower key.
+						if (dx, dy, dz) <= (0, 0, 0) {
+							continue;
+						}
+						let Some(there) = cells.get(&(k.0 + dx, k.1 + dy, k.2 + dz)) else {
+							continue;
+						};
+						for &i in &here {
+							for &j in there {
+								if near(i, j) {
+									unite(&mut parent, i, j);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 		for t in self.indices.chunks_exact(3) {
-			let (a, b, c) = (of[t[0] as usize], of[t[1] as usize], of[t[2] as usize]);
-			let (ra, rb, rc) = (find(&mut parent, a), find(&mut parent, b), find(&mut parent, c));
-			parent[rb as usize] = ra;
-			parent[rc as usize] = ra;
+			unite(&mut parent, t[0], t[1]);
+			unite(&mut parent, t[0], t[2]);
 		}
 		// Count roots of vertices that a triangle actually references; an
 		// unreferenced stray position is not a body.
 		let mut used = vec![false; parent.len()];
 		for &i in &self.indices {
-			used[of[i as usize] as usize] = true;
+			used[i as usize] = true;
 		}
 		let mut roots = std::collections::HashSet::new();
 		for i in 0..parent.len() as u32 {
@@ -1486,26 +1646,25 @@ impl Mesh {
 	/// deterministic (boundary edges are taken in triangle order), so identical
 	/// input always yields the identical repaired mesh.
 	pub fn fill_holes(&mut self) -> usize {
-		// Directed-edge SET for O(1) reverse-edge lookups, plus the same edges in
+		// Directed-edge counts for O(1) edge-use lookups, plus the same edges in
 		// first-insertion (triangle) order. Boundary edges must NOT be collected by
-		// iterating the HashSet: its order is seeded per instance, and that order
-		// decides each loop's start vertex, the cap emission order, and — at a pinch
-		// vertex on two hole rims — which loop the walk splices into, so identical
-		// input was repaired differently run to run.
-		let mut dir: HashSet<(u32, u32)> = HashSet::new();
-		let mut ordered: Vec<(u32, u32)> = Vec::with_capacity(self.indices.len());
-		for t in self.indices.chunks_exact(3) {
-			for e in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
-				if dir.insert(e) {
-					ordered.push(e);
-				}
-			}
-		}
-		// Boundary edges: directed edges `a→b` with no opposing `b→a`, in triangle
+		// iterating a hash container: its order is seeded per instance, and that
+		// order decides each loop's start vertex, the cap emission order, and — at a
+		// pinch vertex on two hole rims — which loop the walk splices into, so
+		// identical input was repaired differently run to run.
+		let (dir, ordered) = self.directed_edges();
+		// Boundary edges: undirected edges used by exactly ONE triangle, in triangle
 		// order. Keep them as a list and a tail→edge multimap, so a vertex that is
 		// the tail of two boundary edges (a pinch where two holes meet) does not
 		// drop one of them.
-		let boundary: Vec<(u32, u32)> = ordered.into_iter().filter(|&(a, b)| !dir.contains(&(b, a))).collect();
+		//
+		// "Used once" and not "the reverse `b→a` is absent": two triangles that wind
+		// the same way over an edge leave no rim to cap, and fanning one anyway adds
+		// a THIRD triangle to an edge that already had two — turning a winding defect
+		// into a non-manifold one. Same rule as [`Mesh::boundary_edge_count`], which
+		// is the measure this repair is supposed to drive to zero.
+		let boundary: Vec<(u32, u32)> =
+			ordered.into_iter().filter(|&(a, b)| Self::is_boundary_edge(&dir, a, b)).collect();
 		if boundary.is_empty() {
 			return 0;
 		}

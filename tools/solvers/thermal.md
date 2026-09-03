@@ -1,6 +1,6 @@
 # thermal — voxel heat conduction (steady + transient)
 
-- **Runner**: `tools/ace_thermal_runner.py` · **Gates**: `tools/test_ace_thermal.py` · in-house (NumPy/SciPy only, no ACE dependency)
+- **Runner**: `tools/analyzers/ace_thermal_runner.py` · **Gates**: `tools/tests/test_ace_thermal.py` · in-house (NumPy/SciPy only, no ACE dependency)
 - **Physics**: heat conduction in an isotropic solid; convection only as a Robin film coefficient. No radiation, no internal convection, no temperature-dependent k.
 - **Governing equations**: steady `div(k grad T) + q_vol = 0`; transient `rho*cp*dT/dt = div(k grad T) + q_vol`.
 - **Discretization**: cell-centered finite volume on the binary voxel grid (solid = rho >= 0.5). Interior face conductance `k*h`; Dirichlet half-cell `2k*h`; Robin series film `A/(1/h_c + h/2k)`; flux into rhs. SPD system, Jacobi-CG rtol 1e-10 (SuperLU opt-in). Transient: implicit backward Euler — **unconditionally stable** for any dt (first-order in dt); gate-probed at Fo=2.3, ~14x the 3-D explicit limit.
@@ -8,7 +8,7 @@
 ## I/O contract (JSON manifest -> .npy fields + JSON receipt on last stdout line)
 ```
 {out_dir, voxel_mm, origin_mm?,                      # geometry frame in mm (origin = grid NODE (0,0,0), ACE convention)
- npy | stl+shape | shape+solid:"full",               # density grid; STL goes through tools/voxelize_stl.py (one parity-fill)
+ npy | stl+shape | shape+solid:"full",               # density grid; STL goes through tools/analyzers/voxelize_stl.py (one parity-fill)
  material: "PLA" | {k_w_mk[, density_kg_m3, cp_j_kgk]},   # registry key reads tools/materials/*.json thermal block; null k refused
  bcs: [{kind:"fixed_t", t_c | kind:"flux", q_w_m2 | kind:"convection", h_w_m2k, t_inf_c,
         box_mm:[[..],[..]], faces?:"any"|["+x",...]}],    # exposed-face sets by axis-aligned box over face CENTERS;
@@ -41,4 +41,4 @@ Failure = `{ok:false, error}` + **exit 1** (deliberate deviation from the ACE ru
 ## When to use
 Printed-part service-temperature questions: heat-soak time of a spool hub in a drybox, temperature at a bearing seat near a heat source, whether a PLA bracket's hot side exceeds `thermal.softening_c` (pair with the creep table in `tools/materials/pla.json`). Feed the field back into geometry via GridField grade laws (e.g. thicken hot zones).
 
-Run: `python3 tools/ace_thermal_runner.py job.json` · prove: `python3 tools/test_ace_thermal.py`
+Run: `python3 tools/analyzers/ace_thermal_runner.py job.json` · prove: `python3 tools/tests/test_ace_thermal.py`

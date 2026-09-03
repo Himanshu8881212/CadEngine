@@ -154,18 +154,54 @@ fn degenerate_triangle_count(mesh: &Mesh) -> usize {
 	mesh.triangles().filter(|&t| is_degenerate(mesh, t)).count()
 }
 
+/// Centroids of up to `cap` degenerate triangles (the defect counted by
+/// [`MeshReport::degenerate_triangles`]), in triangle order — so a nonzero
+/// count is locatable, not just countable. A triangle with an out-of-range
+/// corner index contributes the centroid of its in-range corners.
+pub fn degenerate_triangle_witnesses(mesh: &Mesh, cap: usize) -> Vec<[f64; 3]> {
+	let mut out = Vec::new();
+	for t in mesh.triangles() {
+		if !is_degenerate(mesh, t) {
+			continue;
+		}
+		let corners: Vec<Vec3> = t.iter().filter_map(|&i| mesh.positions.get(i as usize).copied()).collect();
+		if corners.is_empty() {
+			continue;
+		}
+		let c = corners.iter().fold(crate::math::DVec3::ZERO, |acc, p| acc + p.as_dvec3()) / corners.len() as f64;
+		out.push([c.x, c.y, c.z]);
+		if out.len() >= cap {
+			break;
+		}
+	}
+	out
+}
+
+/// Positions of up to `cap` non-manifold vertices (the defect counted by
+/// [`MeshReport::non_manifold_vertices`]), in vertex order.
+pub fn non_manifold_vertex_witnesses(mesh: &Mesh, cap: usize) -> Vec<[f64; 3]> {
+	non_manifold_vertices(mesh)
+		.into_iter()
+		.take(cap)
+		.map(|v| {
+			let p = mesh.positions[v].as_dvec3();
+			[p.x, p.y, p.z]
+		})
+		.collect()
+}
+
 /// Disjoint-set forest (union-find) with path halving and union by size.
-struct UnionFind {
+pub(crate) struct UnionFind {
 	parent: Vec<usize>,
 	size: Vec<usize>,
 }
 
 impl UnionFind {
-	fn new(n: usize) -> Self {
+	pub(crate) fn new(n: usize) -> Self {
 		Self { parent: (0..n).collect(), size: vec![1; n] }
 	}
 
-	fn find(&mut self, mut x: usize) -> usize {
+	pub(crate) fn find(&mut self, mut x: usize) -> usize {
 		while self.parent[x] != x {
 			self.parent[x] = self.parent[self.parent[x]];
 			x = self.parent[x];
@@ -173,7 +209,7 @@ impl UnionFind {
 		x
 	}
 
-	fn union(&mut self, a: usize, b: usize) {
+	pub(crate) fn union(&mut self, a: usize, b: usize) {
 		let (ra, rb) = (self.find(a), self.find(b));
 		if ra == rb {
 			return;
@@ -203,9 +239,15 @@ impl UnionFind {
 /// vertices that end up with more than one component. Degenerate / out-of-range
 /// triangles are skipped so they cannot create phantom components.
 fn non_manifold_vertex_count(mesh: &Mesh) -> usize {
+	non_manifold_vertices(mesh).len()
+}
+
+/// The vertex ids whose incident triangles form more than one edge-connected
+/// fan (see [`non_manifold_vertex_count`]), ascending.
+fn non_manifold_vertices(mesh: &Mesh) -> Vec<usize> {
 	let vcount = mesh.positions.len();
 	if vcount == 0 {
-		return 0;
+		return Vec::new();
 	}
 
 	// For each vertex, the list of (local triangle id) it participates in, where
@@ -228,8 +270,8 @@ fn non_manifold_vertex_count(mesh: &Mesh) -> usize {
 		}
 	}
 
-	let mut non_manifold = 0;
-	for tris in &others {
+	let mut non_manifold = Vec::new();
+	for (v, tris) in others.iter().enumerate() {
 		let m = tris.len();
 		if m <= 1 {
 			// 0 or 1 incident triangle is trivially a single (or empty) fan.
@@ -250,7 +292,7 @@ fn non_manifold_vertex_count(mesh: &Mesh) -> usize {
 			}
 		}
 		if uf.component_count(m) > 1 {
-			non_manifold += 1;
+			non_manifold.push(v);
 		}
 	}
 	non_manifold
@@ -549,14 +591,21 @@ pub(crate) fn has_proper_self_intersection(mesh: &Mesh) -> bool {
 
 /// Does segment `o`→`e` cross the *interior* of triangle `abc`? Epsilon margins
 /// exclude edge/vertex grazes so only proper crossings count (Möller–Trumbore).
+///
+/// Evaluated in f64, mirroring `mesh::measure::segment_pierces_triangle` (the
+/// two are pinned to agree by `kernel-api/tests/self_intersection_witness.rs`):
+/// at f32, a rotated mesh's last-ulp noise manufactured crossings that vanish
+/// at double precision (friction folding_book_stand F4, 2026-08-27).
 fn seg_hits_tri(o: Vec3, e: Vec3, a: Vec3, b: Vec3, c: Vec3) -> bool {
-	let eps = 1e-6_f32;
+	let (o, e, a, b, c) = (o.as_dvec3(), e.as_dvec3(), a.as_dvec3(), b.as_dvec3(), c.as_dvec3());
+	let eps = 1e-9_f64;
 	let dir = e - o;
 	let ab = b - a;
 	let ac = c - a;
 	let pv = dir.cross(ac);
 	let det = ab.dot(pv);
-	if det.abs() < eps {
+	// Scale-aware parallel guard: det = ±(n·dir) with n = ab×ac.
+	if det.abs() < 1e-12 * ab.cross(ac).length() * dir.length() {
 		return false; // segment parallel to the triangle plane
 	}
 	let inv = 1.0 / det;

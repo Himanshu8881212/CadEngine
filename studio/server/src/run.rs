@@ -88,7 +88,10 @@ pub async fn run_endpoint(State(state): State<Arc<AppState>>, Json(body): Json<V
 	// The kernel is synchronous and can take seconds on heavy booleans — keep it
 	// off the async runtime. Panics inside ops are already caught by the kernel
 	// and surfaced as ErrorKind::Internal in the report.
-	let report = match tokio::task::spawn_blocking(move || kernel_api::run_program_with_input_base(&program_text, &run_dir, &input_base)).await {
+	let report = match state
+		.spawn_compute(move || kernel_api::run_program_with_input_base(&program_text, &run_dir, &input_base))
+		.await
+	{
 		Ok(r) => r,
 		Err(e) => return server_error(&format!("run task failed: {e}")),
 	};

@@ -1,14 +1,13 @@
-# LMCAD engine CI — the three gates (test / clippy / acceptance), on Linux + macOS.
-#
-# Written 2026-07-10 for the dev-preview release; runs on GitHub push/PR.
-# Local baseline the day this file landed: 819/819 tests, clippy clean,
-# parts_gallery exit 0.
-
+# Hosted Rust/kernel CI. Physics validation is intentionally isolated in
+# physics-gate.yml, whose trigger set contains no pull-request event.
 name: engine
 
 on:
   push:
   pull_request:
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -20,52 +19,19 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-14]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-
       - uses: Swatinem/rust-cache@v2
 
-      # The full suite. This includes the ratcheted robustness floors
-      # (fuzz_chains) and the 40x bit-identical determinism gate — no test is
-      # skipped or weakened for CI.
-      - name: cargo test (workspace, release)
-        run: cargo test --workspace --release
-
-      - name: clippy (deny warnings)
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-      # End-to-end acceptance: builds six real parts and exits non-zero on any
-      # regression (closed / manifold / genus / watertight / analytic volume).
-      - name: parts_gallery acceptance
+      - name: Cargo test (workspace, release, every target)
+        run: cargo test --workspace --release --all-targets
+      - name: Clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets --release -- -D warnings
+      - name: Manufacturing gallery acceptance and serialized round-trip gate
         run: cargo run --example parts_gallery -p kernel-model --release
-
-  # HONEST LIMIT — the physics validation pins do NOT run here.
-  #
-  # tools/ace_fea_validation.py, tools/ace_modal_validation.py and
-  # tools/ace_buckling_validation.py verify the hex8 solvers against
-  # closed-form pins (cantilever -11.2%/-5.9% converging, modal +4.0%/+0.9%,
-  # buckling +7.3%/+3.0%). They need the ACE repository installed into a local
-  # Python (`pip install -e <ACE>` under miniconda, env ACE_PYTHON) — neither
-  # the ACE repo nor that environment exists on GitHub-hosted runners, and
-  # vendoring ACE here is not ours to do. Until ACE is publicly installable,
-  # this job is self-hosted-only and intentionally disabled (if: false) so it
-  # documents the gap instead of faking a green. Run the pins locally:
-  #
-  #   ACE_PYTHON=~/miniconda3/bin/python3 python3 tools/ace_fea_validation.py
-  #
-  # Everything the `test` job covers is pure Rust — the ace_* MCP tools
-  # themselves are tested in-tree via transport-level fakes, no Python needed.
-  physics-pins:
-    if: ${{ false }}  # self-hosted only — see the comment above
-    runs-on: self-hosted
-    steps:
-      - uses: actions/checkout@v4
-      - name: FEA / modal / buckling validation pins
-        run: |
-          "$ACE_PYTHON" tools/ace_fea_validation.py
-          "$ACE_PYTHON" tools/ace_modal_validation.py
-          "$ACE_PYTHON" tools/ace_buckling_validation.py

@@ -10,6 +10,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { STLLoader } from 'three/addons/loaders/STLLoader.js'
 import type { MeshReceipt } from '../api'
+import { authorizationHeaders } from '../api'
 import { ViewCube } from './ViewCube'
 
 interface Props {
@@ -126,7 +127,9 @@ export function Viewport({ meshUrl, working, receipt, onExport, canExport }: Pro
 		if (!rig || !meshUrl) return
 		let cancelled = false
 		setLoading(true)
-		new STLLoader().load(
+		const loader = new STLLoader()
+		loader.setRequestHeader(authorizationHeaders())
+		loader.load(
 			meshUrl,
 			(geometry) => {
 				if (cancelled) return
