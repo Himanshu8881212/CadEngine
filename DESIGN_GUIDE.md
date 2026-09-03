@@ -2557,7 +2557,8 @@ model of that caller-policy layer.
 The contact scan proves parts *touch*; it cannot prove they are *attached*.
 Resting a stack of parts on each other passes every clearance check and
 falls apart in your hand. The tri-benchmark
-(`crates/kernel-model/examples/tri_benchmark.rs`) encodes the lesson — steal
+(`legacy/kernel-model-examples/tri_benchmark.rs`, kept out of the build since
+2026-09) encodes the lesson — steal
 its three moves:
 
 - **Recess/spigot registration**: the B-rep base carries a 2 mm-deep recess
@@ -3344,7 +3345,9 @@ to say so in the receipt rather than degrade silently. Read the receipts.
 ## 25. Campaign cookbook — gate-driven Rust examples
 
 The shipped print campaigns (DOVESTACK `drawer_system.rs`, POOLDOCK
-`pool_*.rs`, RESPOOL `respool.rs` — all in `crates/kernel-model/examples/`)
+`pool_*.rs`, RESPOOL `respool.rs` — all parked, uncompiled, in
+`legacy/kernel-model-examples/` since 2026-09; its README says how to restore
+one)
 share one architecture that this guide's JSON surface does not cover: a flat
 Rust `main` that builds parts with the `kernel_brep` API, then **re-proves
 every claim on every run** and exits non-zero on any FAIL. If you are
@@ -3426,7 +3429,8 @@ carriers where they fit within tol and reports the residual. Engine-wide
 riders landed 2026-07-30: intra-arrangement threading (booleans ~2× on
 heavy chains at 8 cores, byte-identical to sequential BY CONSTRUCTION,
 `LMCAD_BREP_THREADS`, parity + threaded-40× pinned — docs/NUMERICS.md) and
-GPU narrow-band extraction (`kernel_gpu::extract_narrow_band`: preview
+GPU narrow-band extraction (`extract_narrow_band` in `kernel-gpu`, a crate
+parked unbuilt in `legacy/kernel-gpu/` since 2026-09: preview
 path, domains beyond the dense 2²⁸-cell cap delivered watertight, CPU
 stays bit-authoritative). The five capabilities on this JSON surface since
 2026-07-30: `offset_solid`, `shell_solid`, `solid_from_implicit`,

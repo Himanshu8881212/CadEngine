@@ -723,7 +723,7 @@ within µm and the union welds). Topology contracts double as fingerprints
 | .lmcpart envelope, feature table, Document grammar corners | DESIGN_GUIDE §16 (all 30 variants §16.4) |
 | HybridFuse routes, 50k rail, remedy chain | DESIGN_GUIDE §17; voxel table §17.4; rails §17.5 + docs/NUMERICS.md |
 | .lmcasm grammar, runner, contacts, nesting, BOM v2 | DESIGN_GUIDE §18; in-program ops API.md "Assembly ops (in-program)" |
-| joinery doctrine / intent checks | DESIGN_GUIDE §18.6; `gearbox/check_asm.py`; `crates/kernel-model/examples/tri_benchmark.rs` |
+| joinery doctrine / intent checks | DESIGN_GUIDE §18.6; `gearbox/check_asm.py`; `legacy/kernel-model-examples/tri_benchmark.rs` (uncompiled) |
 | library ops + gate | DESIGN_GUIDE §19; API.md "Parts library" |
 | catalog parts / cuts / design math params | DESIGN_GUIDE §20; API.md "Standard parts catalog", "Standard feature cuts" |
 | exports, STEP, print-readiness, failure playbook, limits | DESIGN_GUIDE §21–§24 |

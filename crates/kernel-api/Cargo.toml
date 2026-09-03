@@ -23,3 +23,14 @@ kernel-implicit = { path = "../kernel-implicit" }
 kernel-model = { path = "../kernel-model" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[features]
+default = ["catalog"]
+# The hardware-catalog op families no shipped campaign uses (docs/OP_USAGE.md): the unused
+# standard parts and catalog feature cuts, the parts library (`library_*`), the lattice ops
+# `gyroid_block` / `tpms`, and `sketch_extrude`. On by default, so a normal build is unchanged;
+# `--no-default-features` compiles the 52 out and `run` refuses them with `unknown_op`
+# naming this feature. The gate is `#[cfg(feature = "catalog")]` on the `OpKind` variants
+# (program.rs), their `exec_op` arms (interp.rs) and the generated `describe` tables
+# (discover.rs, via tools/gen_discover.py).
+catalog = []

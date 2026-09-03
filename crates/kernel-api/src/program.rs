@@ -11,6 +11,7 @@
 //! reserved for inert in-op comments. Missing or malformed required parameters
 //! are also loud errors.
 
+#[cfg(feature = "catalog")]
 use std::collections::BTreeMap;
 
 use serde::Deserialize;
@@ -473,6 +474,7 @@ pub enum OpKind {
 		constraints: Vec<ConstraintSpec>,
 	},
 	/// Extrude a previously solved sketch along +Z.
+	#[cfg(feature = "catalog")]
 	SketchExtrude { sketch: String, height: f64 },
 	/// Revolve a previously solved sketch (its `(x, y)` read as `(r, z)`) about Z.
 	SketchRevolve {
@@ -804,6 +806,7 @@ pub enum OpKind {
 	// --- Implicit / hybrid -------------------------------------------------------------
 	/// A gyroid TPMS lattice block (cube of half-extent `half` at `center`),
 	/// meshed watertight by Manifold Dual Contouring and written as STL.
+	#[cfg(feature = "catalog")]
 	GyroidBlock {
 		center: [f64; 3],
 		half: f64,
@@ -851,6 +854,7 @@ pub enum OpKind {
 	/// (`level` = wall half-thickness, > 0). Meshed watertight by Manifold Dual
 	/// Contouring at `voxel`; the mesh goes to `file` (`route: "voxel_implicit"`,
 	/// like `gyroid_block`/`implicit` it binds no solid).
+	#[cfg(feature = "catalog")]
 	Tpms {
 		/// Family: `gyroid` / `schwarz_p` / `diamond` / `neovius` / `schoen_iwp`
 		/// / `fischer_koch_s`.
@@ -1138,6 +1142,7 @@ pub enum OpKind {
 	/// volume-bit-deterministically at the interface defaults, sampled range
 	/// corners and midpoint — or the op fails `admission_rejected`, naming the
 	/// failing sample, and nothing is admitted.
+	#[cfg(feature = "catalog")]
 	LibraryAdd {
 		/// Library directory (relative joins `--out-dir`; created on demand).
 		dir: String,
@@ -1150,6 +1155,7 @@ pub enum OpKind {
 	},
 	/// Search a library's curated view by free text and tags (deprecated
 	/// entries are hidden).
+	#[cfg(feature = "catalog")]
 	LibrarySearch {
 		/// Library directory.
 		dir: String,
@@ -1164,6 +1170,7 @@ pub enum OpKind {
 	/// Instantiate a library entry with parameter values and bind the solid.
 	/// Unknown names/versions/parameters and out-of-range values fail loudly;
 	/// a deprecated entry still builds but the measures carry a warning.
+	#[cfg(feature = "catalog")]
 	LibraryInstantiate {
 		/// Library directory.
 		dir: String,
@@ -1177,6 +1184,7 @@ pub enum OpKind {
 	},
 	/// Deprecate every version of a name: hidden from `library_search`,
 	/// still on disk, still instantiable (with a warning).
+	#[cfg(feature = "catalog")]
 	LibraryDeprecate {
 		/// Library directory.
 		dir: String,
@@ -1186,6 +1194,7 @@ pub enum OpKind {
 	/// Remove every version of a name (files + index rows). Refuses with kind
 	/// `dependents_exist` when `.lmcasm` files in the directory still reference
 	/// it by path — unless `force` (git history keeps removals recoverable).
+	#[cfg(feature = "catalog")]
 	LibraryRemove {
 		/// Library directory.
 		dir: String,
@@ -1213,6 +1222,7 @@ pub enum OpKind {
 		keyway: bool,
 	},
 	/// ISO 4017 hex-head bolt body (M3–M16), shank length `length`.
+	#[cfg(feature = "catalog")]
 	HexBolt { m: f64, length: f64 },
 	/// ISO 4032 hex nut (M3–M16).
 	HexNut { m: f64 },
@@ -1222,6 +1232,7 @@ pub enum OpKind {
 	/// drive socket cut into the head.
 	SocketHeadCapScrew { m: f64, length: f64 },
 	/// GT2 2 mm timing pulley: `teeth` grooves, `belt_width` band, bored.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "gt2_pulley")]
 	Gt2Pulley {
 		teeth: usize,
@@ -1234,6 +1245,7 @@ pub enum OpKind {
 		flanged: bool,
 	},
 	/// ANSI/ASA B29.1 roller-chain sprocket (e.g. #25: pitch 6.35, roller 3.302).
+	#[cfg(feature = "catalog")]
 	ChainSprocket {
 		pitch: f64,
 		roller_d: f64,
@@ -1243,6 +1255,7 @@ pub enum OpKind {
 		bore: f64,
 	},
 	/// Plain Ø`d` shaft along +Z, optionally with a DIN 6885 form-A keyway slot.
+	#[cfg(feature = "catalog")]
 	Shaft {
 		/// Shaft **diameter** (mm).
 		d: f64,
@@ -1252,6 +1265,7 @@ pub enum OpKind {
 		keyway: Option<ShaftKeywaySpec>,
 	},
 	/// DIN 6885 form-A parallel key bar (`b` × `h` × `l`, round ends) on z = 0.
+	#[cfg(feature = "catalog")]
 	ParallelKey { b: f64, h: f64, l: f64 },
 	/// ISO 2338 parallel dowel pin (Ø 1–12 table), 15° chamfers both ends.
 	DowelPin {
@@ -1262,6 +1276,7 @@ pub enum OpKind {
 	/// DIN 471 external retaining ring for a nominal shaft Ø, installed state.
 	CirclipExternal { shaft_d: f64 },
 	/// DIN 472 internal retaining ring for a nominal bore Ø.
+	#[cfg(feature = "catalog")]
 	CirclipInternal { bore_d: f64 },
 	/// ISO 10642 countersunk (flat-head) socket screw body (M3–M16).
 	FlatHeadScrew { m: f64, length: f64 },
@@ -1272,8 +1287,10 @@ pub enum OpKind {
 	/// DIN 985 nyloc lock-nut body (M3–M16).
 	LockNut { m: f64 },
 	/// Metric threaded rod with half-pitch end chamfers (M3–M16).
+	#[cfg(feature = "catalog")]
 	ThreadedRod { m: f64, length: f64 },
 	/// Female–female hex standoff at the conventional wrench size (M2–M6).
+	#[cfg(feature = "catalog")]
 	Standoff { m: f64, length: f64 },
 	/// Compression spring: round wire swept on a helix, plain open ends.
 	CompressionSpring {
@@ -1287,12 +1304,15 @@ pub enum OpKind {
 		turns: f64,
 	},
 	/// 2020 V-slot aluminium extrusion stock along +Z.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "extrusion_2020")]
 	Extrusion2020 { length: f64 },
 	/// 3030 T-slot aluminium extrusion stock along +Z.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "extrusion_3030")]
 	Extrusion3030 { length: f64 },
 	/// 2020-series M5 drop-in tee nut (no parameters), flange-down on z = 0.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "tnut_2020")]
 	Tnut2020 {},
 	/// AS568 O-ring at its free nominal size: the exact torus, axis +Z.
@@ -1312,6 +1332,7 @@ pub enum OpKind {
 	},
 	/// One jaw-coupling hub (GR-style): body, half-height centre spigot, three 28°
 	/// jaws on the 60° station grid, bored.
+	#[cfg(feature = "catalog")]
 	JawCouplingHub {
 		/// Body outer **diameter** (a table size: 20, 25, 30, 40).
 		od: f64,
@@ -1319,12 +1340,14 @@ pub enum OpKind {
 		bore: f64,
 	},
 	/// The elastomer spider (star insert) mating two `jaw_coupling_hub`s.
+	#[cfg(feature = "catalog")]
 	JawCouplingSpider {
 		/// Body outer **diameter** (a table size: 20, 25, 30, 40).
 		od: f64,
 	},
 	/// One-piece set-screw rigid shaft coupling, possibly stepped-bore (4 radial
 	/// set-screw tap holes; threads not modelled).
+	#[cfg(feature = "catalog")]
 	SetScrewCoupling {
 		/// Bore at z = 0 (a stocked size).
 		bore1: f64,
@@ -1333,6 +1356,7 @@ pub enum OpKind {
 	},
 	/// One-piece slit clamp coupling, possibly stepped-bore (full-length slit + two
 	/// DIN 912 cross screws as counterbored clearance holes).
+	#[cfg(feature = "catalog")]
 	ClampCoupling {
 		/// Bore at z = 0 (a stocked size).
 		bore1: f64,
@@ -1341,6 +1365,7 @@ pub enum OpKind {
 	},
 	/// Simplified NEMA stepper body: chamfered square body below z = 0, pilot
 	/// boss + output shaft along +Z (frames 17 and 23).
+	#[cfg(feature = "catalog")]
 	NemaMotor {
 		/// NEMA frame number (17 or 23).
 		frame: usize,
@@ -1348,6 +1373,7 @@ pub enum OpKind {
 		body_len: f64,
 	},
 	/// Square NEMA mount plate: pilot register bore + the 4-bolt clearance pattern.
+	#[cfg(feature = "catalog")]
 	NemaMountPlate {
 		/// NEMA frame number (17 or 23).
 		frame: usize,
@@ -1357,27 +1383,33 @@ pub enum OpKind {
 		margin: f64,
 	},
 	/// LM-series linear ball-bearing envelope (LM8UU / LM12UU): grooved tube.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "linear_bearing_lmuu")]
 	LinearBearingLmuu {
 		/// Shaft bore **diameter**: 8 (LM8UU) or 12 (LM12UU).
 		bore: f64,
 	},
 	/// SC8UU linear-bearing pillow block envelope (Ø15 seat at height 11).
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "sc8uu_block")]
 	Sc8uuBlock {},
 	/// SK8 upright shaft support for Ø8 rod (slit clamp, two base holes).
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "shaft_support_sk8")]
 	ShaftSupportSk8 {},
 	/// SHF8 flange shaft support for Ø8 rod (stadium plate, slit clamp).
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "shaft_support_shf8")]
 	ShaftSupportShf8 {},
 	/// HIWIN MGN12 profile-rail envelope with countersunk M3 holes on a 25 pitch.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "mgn12_rail")]
 	Mgn12Rail {
 		/// Rail length, mm (≥ one 25 mm pitch).
 		length: f64,
 	},
 	/// MGN12H carriage envelope (45.4 × 27, rail channel, four M3 platform taps).
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "mgn12_carriage")]
 	Mgn12Carriage {},
 	/// Deep-groove ball-bearing body: the seat table's d × D × B annulus.
@@ -1393,15 +1425,18 @@ pub enum OpKind {
 		designation: String,
 	},
 	/// Thrust ball-bearing body, 511 series.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "thrust_bearing")]
 	ThrustBearing {
 		/// "51100" (10 × 24 × 9) or "51101" (12 × 26 × 9).
 		designation: String,
 	},
 	/// KP08 pillow block (Ø8 bore at centre height 15, base 55 × 13, holes at ±21).
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "kp08_pillow_block")]
 	Kp08PillowBlock {},
 	/// G-series (ISO 228-1) pipe-thread port boss: tap-drill bore + mouth chamfer.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "pipe_boss_g")]
 	PipeBossG {
 		/// "G1/8", "G1/4", "G3/8" or "G1/2".
@@ -1412,6 +1447,7 @@ pub enum OpKind {
 		length: f64,
 	},
 	/// Parametric hose-barb stem (de-facto proportions; bore Ø 0.6·hose_id).
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "hose_barb")]
 	HoseBarb {
 		/// Hose inner **diameter**, mm.
@@ -1420,6 +1456,7 @@ pub enum OpKind {
 		barbs: usize,
 	},
 	/// ISO 7379 hexagon-socket shoulder screw (thread at major Ø, socket head).
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "shoulder_bolt")]
 	ShoulderBolt {
 		/// Shoulder **diameter**: 6.5, 8, 10, 13 or 16 (the ISO 7379 sizes).
@@ -1428,12 +1465,14 @@ pub enum OpKind {
 		shoulder_len: f64,
 	},
 	/// DIN 127 B spring (split) lock washer: one open helical turn of the b × s section.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "spring_washer")]
 	SpringWasher {
 		/// Nominal thread size: 3, 4, 5, 6, 8, 10 or 12.
 		m: f64,
 	},
 	/// Tr8 trapezoidal lead-screw body (DIN 103 envelope, Ø8 with entry chamfer).
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "lead_screw_tr8")]
 	LeadScrewTr8 {
 		/// Screw length, mm.
@@ -1442,9 +1481,11 @@ pub enum OpKind {
 		lead: f64,
 	},
 	/// The flanged Tr8 brass-nut envelope (body Ø10.2 ×15, flange Ø22, 4 × Ø3.5).
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "lead_screw_nut_tr8")]
 	LeadScrewNutTr8 {},
 	/// ISO 53 / DIN 867 basic-rack gear rack (whole teeth, pitch line y = 3·m).
+	#[cfg(feature = "catalog")]
 	GearRack {
 		module: f64,
 		length: f64,
@@ -1454,6 +1495,7 @@ pub enum OpKind {
 	},
 	/// Internal (ring) gear: involute tooth spaces in a rim, the exact conjugate
 	/// of a `spur_gear` pinion of the same module and pressure angle.
+	#[cfg(feature = "catalog")]
 	InternalGear {
 		module: f64,
 		teeth: usize,
@@ -1476,6 +1518,7 @@ pub enum OpKind {
 		m: f64,
 	},
 	/// DIN 471 circlip groove cut into a shaft, spanning `[at, at + m·axis]`.
+	#[cfg(feature = "catalog")]
 	CirclipGrooveExternal {
 		#[serde(rename = "in")]
 		input: String,
@@ -1484,6 +1527,7 @@ pub enum OpKind {
 		shaft_d: f64,
 	},
 	/// DIN 472 circlip channel cut into a bore wall.
+	#[cfg(feature = "catalog")]
 	CirclipGrooveInternal {
 		#[serde(rename = "in")]
 		input: String,
@@ -1492,6 +1536,7 @@ pub enum OpKind {
 		bore_d: f64,
 	},
 	/// AS568 / Parker static O-ring gland groove cut into a shaft.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "o_ring_groove")]
 	ORingGroove {
 		#[serde(rename = "in")]
@@ -1518,6 +1563,7 @@ pub enum OpKind {
 	/// Racetrack **face-seal** O-ring gland for rectangular lids: a rounded-rect
 	/// channel (centreline `x_len × y_len`, corner radius `corner_r`) sunk into a
 	/// flat face for a metric cord.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "o_ring_face_gland_racetrack")]
 	ORingFaceGlandRacetrack {
 		#[serde(rename = "in")]
@@ -1538,6 +1584,7 @@ pub enum OpKind {
 
 	/// NEMA mount feature cut: pilot register through-bore + the 4 clearance
 	/// holes, machined into any face.
+	#[cfg(feature = "catalog")]
 	NemaMountCut {
 		#[serde(rename = "in")]
 		input: String,
@@ -1552,6 +1599,7 @@ pub enum OpKind {
 	},
 	/// Hobby-servo pocket: rectangular case cutout + ear-screw pilot holes
 	/// through a panel (models: "sg90", "mg996r").
+	#[cfg(feature = "catalog")]
 	ServoPocket {
 		#[serde(rename = "in")]
 		input: String,
@@ -1567,6 +1615,7 @@ pub enum OpKind {
 
 	/// Tr8 nut-trap feature cut: nut-body through-bore + flat flange recess +
 	/// 4 × M3 clearance holes, into any face.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "tr8_nut_trap")]
 	Tr8NutTrap {
 		#[serde(rename = "in")]
@@ -1581,6 +1630,7 @@ pub enum OpKind {
 
 	/// PC4-M6 / PC4-M10 push-fit pneumatic port: flat tap-drill pocket for the
 	/// fitting thread + Ø4.2 tube-pass bore through the rest of the material.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "pc4_port")]
 	Pc4Port {
 		#[serde(rename = "in")]
@@ -1878,9 +1928,11 @@ pub enum OpKind {
 
 	// --- Design-math lookups ----------------------------------------------------------------
 	/// GT2 2 mm two-pulley belt sizing: exact loop length + nearest whole tooth.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "gt2_belt")]
 	Gt2Belt { center_distance: f64, t1: usize, t2: usize },
 	/// Inverse belt sizing: exact centre distance for a given belt tooth count.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "gt2_center_distance")]
 	Gt2CenterDistance { belt_teeth: usize, t1: usize, t2: usize },
 	/// ISO 286 hole-basis preferred fit resolved to limit deviations (mm).
@@ -1897,6 +1949,7 @@ pub enum OpKind {
 	#[serde(rename = "racetrack_cord_length")]
 	RacetrackCordLength { x_len: f64, y_len: f64, corner_r: f64 },
 	/// ISO 228-1 G/BSPP pipe-thread lookup: major Ø, TPI, pitch, tap drill.
+	#[cfg(feature = "catalog")]
 	#[serde(rename = "pipe_thread_g")]
 	PipeThreadG {
 		/// "G1/8", "G1/4", "G3/8" or "G1/2".

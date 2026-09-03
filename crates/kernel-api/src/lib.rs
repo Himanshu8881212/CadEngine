@@ -75,7 +75,7 @@ mod report;
 mod require;
 
 pub use asm::{run_assembly, AsmOptions};
-pub use discover::{op_params, op_tag, ParamSpec, OP_COUNT, OP_NAMES, OP_PARAMS};
+pub use discover::{op_params, op_tag, ParamSpec, CATALOG_OP_NAMES, OP_COUNT, OP_NAMES, OP_PARAMS};
 pub use interp::{run_program, run_program_with_input_base};
 pub use program::{
 	ArcSpec, BoltHoleSpec, BoolOpSpec, CircleSpec, ConstraintSpec, DomainSpec, FitSpec, LibraryMetaSpec, LibraryParamSpec,

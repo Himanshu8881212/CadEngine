@@ -257,9 +257,9 @@ params are ignored — which is precisely why the tool descriptions tell it to c
 | [`crates/kernel-implicit`](crates/kernel-implicit) | SDF primitives (incl. Gyroid TPMS), strut lattices, textures/text, CSG/blends, manifold dual contouring, narrow-band + sparse/octree grids, mesh→SDF bridge (winding-number sign) |
 | [`crates/kernel-brep`](crates/kernel-brep) | analytic surfaces, half-edge topology + persistent naming, extrude/revolve/loft/sweep, loop-aware booleans, fillets/chamfers, NURBS, adaptive tessellation, analytic mass properties, STEP import/export (real analytic quadrics, not mesh dumps) |
 | [`crates/kernel-model`](crates/kernel-model) | parametric `Document`/feature tree, 2D sketch + LM constraint solver, assemblies (mates, clearance/interference), parts catalog, materials, drawings, cost, hybrid routing, campaign gates |
-| [`crates/kernel-api`](crates/kernel-api) | the JSON op surface: 161 ops, one `Report` type — the contract everything above speaks |
+| [`crates/kernel-api`](crates/kernel-api) | the JSON op surface: 161 ops, one `Report` type — the contract everything above speaks (the 52 hardware-catalog ops no campaign uses sit behind the default-on `catalog` feature — `docs/OP_USAGE.md`) |
 | [`crates/agent-bench`](crates/agent-bench) | the 36-criterion agent-surface ruler + the ≥5-part end-to-end benchmark |
-| [`crates/kernel-gpu`](crates/kernel-gpu), [`crates/kernel-wasm`](crates/kernel-wasm) | wgpu preview/bulk field extraction (CPU stays bit-authoritative); wasm bindings |
+| [`legacy/`](legacy/) | parked, **not built**: `kernel-gpu` (wgpu preview/bulk field extraction; CPU stays bit-authoritative), `kernel-wasm` (wasm bindings) and the pre-JSON Rust example campaigns — `legacy/README.md` has the restore steps |
 
 Around the kernel:
 

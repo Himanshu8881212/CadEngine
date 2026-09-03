@@ -23,7 +23,9 @@ silently omitted.
 # assemblies from .lmcasm files
 "/Users/himanshu/Work/New-LMCAD/cad engine/target/release/kernel-api" asm <assembly.lmcasm> [--base-dir D] [--out-dir O] [--tol MM] [--voxel MM] [--window MM]
 
-# Rust-style campaign (exits non-zero if any gate fails)
+# Rust-style campaign (exits non-zero if any gate fails). The source is parked in
+# legacy/kernel-model-examples/ (not compiled) — restore it per that folder's README first:
+cd "/Users/himanshu/Work/New-LMCAD/cad engine" && git mv legacy/kernel-model-examples/card_magazine.rs crates/kernel-model/examples/
 cd "/Users/himanshu/Work/New-LMCAD/cad engine" && cargo run -p kernel-model --release --example card_magazine
 
 # Python analysis layer — every tool takes ONE job.json as argv[1]
@@ -173,7 +175,8 @@ camera_system/card_magazine/
     └── check_listing.py            # machine validator for those limits
 ```
 
-Source of truth: `crates/kernel-model/examples/card_magazine.rs` (949 lines) —
+Source of truth: `legacy/kernel-model-examples/card_magazine.rs` (949 lines;
+parked out of the build since 2026-09, see `legacy/kernel-model-examples/README.md`) —
 geometry constants, the `gate(label, cond, evidence_string, &mut ok)` suite, and
 the code that regenerates `ANALYSIS.md`. Exits non-zero on any gate failure.
 
@@ -418,5 +421,5 @@ All paths relative to `/Users/himanshu/Work/New-LMCAD/cad engine/`.
 | ACE solver integration (FEA/modal/thermal/fatigue/…) | `docs/ACE_INTEGRATION.md`; `tools/ace_*_runner.py` |
 | Tool job schemas (authoritative) | docstring at the top of each `tools/*.py` |
 | The JSON-style exemplar, end to end | `showcase/README.md`; `showcase/squatchee_spin/programs/*.json` |
-| The Rust-style exemplar + its 35 gates | `camera_system/card_magazine/README.md`, `analysis/*.md`; `crates/kernel-model/examples/card_magazine.rs` (gates from line ~400) |
+| The Rust-style exemplar + its 35 gates | `camera_system/card_magazine/README.md`, `analysis/*.md`; `legacy/kernel-model-examples/card_magazine.rs` (gates from line ~400; not compiled — restore per its README) |
 | Materials data | `tools/material_db.json`, `tools/materials/*.json`, `kernel_model::materials` |

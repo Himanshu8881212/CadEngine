@@ -579,7 +579,8 @@ Still open:
 ## #24 — `valid` + `watertight` + every dimensional gate can all pass on a part that is in TWO PIECES — 2026-07-31
 
 **Severity: major.** Found building the DRILL HOOK campaign
-(`crates/kernel-model/examples/drill_hook.rs`).
+(`drill_hook.rs`, then under `crates/kernel-model/examples/`, parked since 2026-09
+in `legacy/kernel-model-examples/`).
 
 The hook is a prism with a tapered cutter through its cradle: a hexagonal
 prism whose two ends ramp inward at 46.6° so the grip channel closes without
@@ -605,7 +606,7 @@ welded vertices: **2 components**.
 **What closed it (campaign-side, and it should be the idiom):**
 
 ```rust
-// crates/kernel-model/examples/drill_hook.rs
+// legacy/kernel-model-examples/drill_hook.rs (then crates/kernel-model/examples/)
 let parts_n = mesh_components(&tessellate_default(&hook));
 gate("the hook is ONE connected body", parts_n == 1, format!("{parts_n} bodies"), &mut ok);
 ```
@@ -650,7 +651,9 @@ needs the full face neighbourhood, per the RESPOOL precedent).
 Handled by choosing negative-control offsets that resolve (−6 for the tight
 control, −10 for the loose one) and **recording the refusal in the campaign
 source and in `analysis/DESIGN.md`** rather than silently stepping around it.
-Repro: `cargo run --release -p kernel-model --example drill_hook` with the
+Repro: restore the drill-hook source from `legacy/kernel-model-examples/` into
+`crates/kernel-model/examples/` (see the legacy README), then
+`cargo run --release -p kernel-model --example drill_hook` with the
 diagnostic loop restored around `body_keepout`.
 
 ---

@@ -250,7 +250,8 @@ build evaluations 9.75% of dense, cache error 5.06e-4 mm, mesh-through-
 cache volume delta 0.00002%, hash-identical independent builds; octree
 scoped honestly to evaluation caching (T-junction discontinuity + non-
 conservative far field stated) (tests/sparse.rs).
-(3) **GPU narrow-band extraction** — `kernel_gpu::extract_narrow_band`:
+(3) **GPU narrow-band extraction** — `extract_narrow_band` (kernel-gpu; the crate
+was parked in `legacy/` 2026-09):
 coarse Lipschitz-safe block scan → prefix-sum compaction → refine active
 blocks with the SAME cube-edge unroll as dense (shared `edge_unroll()`);
 per-block re-evaluation of identical global-index coordinates ⇒ identical
@@ -533,7 +534,7 @@ outside the repo; the graded party must not be able to touch it), campaign tier
 per docs/META_PROOFS.md §4.
 
 **VERDICT: PASS — 10/10 required criteria, plus both probes.** It shipped
-`crates/kernel-model/examples/drill_hook.rs` → `hook_system/drill_hook/`:
+`legacy/kernel-model-examples/drill_hook.rs` (then under `crates/kernel-model/examples/`) → `hook_system/drill_hook/`:
 40 gate rows, exit 0, the full 7-folder deliverable, ANALYSIS.md generated from
 live numbers, workspace suite green, clippy clean. Unprompted it also produced
 a print-first fit coupon, negative controls, and FEA receipts.

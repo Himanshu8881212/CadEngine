@@ -317,6 +317,19 @@ parts, 13 standard feature cuts, design-math lookups, the hole wizard — and
 the **in-program assembly surface** (`asm_*` + `gear_train_poses`, next
 section after Implicit/hybrid).
 
+**Build feature `catalog` (on by default).** 52 of these ops — the standard
+parts no shipped campaign has used, their catalog feature cuts, the parts
+library (`library_*`), the lattice ops `gyroid_block` / `tpms`, and
+`sketch_extrude` — are compiled behind the `catalog` cargo feature of
+`kernel-api`. A default build (and every release binary) has all 161 ops;
+`cargo build -p kernel-api --no-default-features` compiles the 52 out,
+`describe` then enumerates 109, and a program that names one of them is
+refused with `unknown_op` and a message saying it is behind the `catalog`
+feature (not "unknown op"). The per-op campaign census and the exact gated
+list are in `docs/OP_USAGE.md`; `kernel_api::CATALOG_OP_NAMES` is the
+machine-readable list, and the sections below mark each gated op with
+"*(`catalog` feature)*" only through that list — their docs are unchanged.
+
 ## Solid constructors
 
 All constructors validate their result and fail rather than bind a broken or

@@ -1,7 +1,9 @@
 #!/bin/sh
-# LMCAD nightly self-exercise — full test suite, clippy, the two campaign gate
-# suites (respool, drybox_roller), every Python contract gate under tools/ and
-# docs/, and the generated-table-in-step check. Re-proves every machine-verified
+# LMCAD nightly self-exercise — full test suite, clippy, every Python contract
+# gate under tools/ and docs/, and the generated-table-in-step check. (The two
+# Rust campaign gate suites, respool and drybox_roller, ran here until 2026-09;
+# their sources are parked uncompiled in legacy/kernel-model-examples/.)
+# Re-proves every machine-verified
 # claim in the repo, on both sides of the language line.
 # Writes telemetry/nightly/YYYY-MM-DD.md (table + FAIL lines + tails of failing
 # logs) and appends one summary line to telemetry/nightly/history.jsonl.
@@ -53,31 +55,7 @@ else
 	FAILURES=$((FAILURES + 1))
 fi
 
-# ---- 3. RESPOOL campaign gate suite ----------------------------------------
-cargo run --release -p kernel-model --example respool >"$LOGS/respool.log" 2>&1
-RESPOOL_EXIT=$?
-RESPOOL_VERDICT=$(grep '^RESPOOL:' "$LOGS/respool.log" | tail -n 1)
-[ -n "$RESPOOL_VERDICT" ] || RESPOOL_VERDICT="(no verdict line - crashed before gates?)"
-if [ "$RESPOOL_EXIT" -eq 0 ]; then
-	RESPOOL_STATUS=PASS
-else
-	RESPOOL_STATUS=FAIL
-	FAILURES=$((FAILURES + 1))
-fi
-
-# ---- 4. DRYBOX ROLLER campaign gate suite ----------------------------------
-cargo run --release -p kernel-model --example drybox_roller >"$LOGS/drybox.log" 2>&1
-DRYBOX_EXIT=$?
-DRYBOX_VERDICT=$(grep '^DRYBOX ROLLER:' "$LOGS/drybox.log" | tail -n 1)
-[ -n "$DRYBOX_VERDICT" ] || DRYBOX_VERDICT="(no verdict line - crashed before gates?)"
-if [ "$DRYBOX_EXIT" -eq 0 ]; then
-	DRYBOX_STATUS=PASS
-else
-	DRYBOX_STATUS=FAIL
-	FAILURES=$((FAILURES + 1))
-fi
-
-# ---- 5. Python contract gates ----------------------------------------------
+# ---- 3. Python contract gates ----------------------------------------------
 # The tools/ half of the repo carries hundreds of executable contracts —
 # checker pins, aux-tool pins, doc contracts, the cross-language creep vectors,
 # the runner exit/receipt contract, the doc-drift audit. Until 2026-08-08 the
@@ -131,7 +109,7 @@ else
 	FAILURES=$((FAILURES + 1))
 fi
 
-# ---- 6. generated tables are in step with their source ---------------------
+# ---- 4. generated tables are in step with their source ---------------------
 # `crates/kernel-api/src/discover.rs` is GENERATED from program.rs. Hand-editing
 # one without the other is invisible to every other gate here, so regenerate and
 # require that nothing moved.
@@ -159,10 +137,6 @@ if [ "$FAILURES" -eq 0 ]; then OVERALL=pass; else OVERALL=fail; fi
 		"$TEST_STATUS" "$TEST_EXIT" "$SUITES_OK" "$SUITES_TOTAL"
 	printf '| cargo clippy --workspace --all-targets | %s | exit %s, %s warnings |\n' \
 		"$CLIPPY_STATUS" "$CLIPPY_EXIT" "$CLIPPY_WARNINGS"
-	printf '| example respool | %s | exit %s, %s |\n' \
-		"$RESPOOL_STATUS" "$RESPOOL_EXIT" "$RESPOOL_VERDICT"
-	printf '| example drybox_roller | %s | exit %s, %s |\n' \
-		"$DRYBOX_STATUS" "$DRYBOX_EXIT" "$DRYBOX_VERDICT"
 	printf '| python contract gates | %s | %s/%s gates exit 0 |\n' \
 		"$PY_STATUS" "$PY_OK" "$PY_TOTAL"
 	printf '| discover.rs in step with program.rs | %s | %s |\n' \
@@ -175,7 +149,6 @@ if [ "$FAILURES" -eq 0 ]; then OVERALL=pass; else OVERALL=fail; fi
 
 # Any FAIL lines from the gate tables / test harness, verbatim.
 FAIL_LINES=$(
-	grep -h '<<< FAIL' "$LOGS/respool.log" "$LOGS/drybox.log" 2>/dev/null
 	grep 'FAILED' "$LOGS/tests.log" 2>/dev/null
 )
 if [ -n "$FAIL_LINES" ]; then
@@ -195,13 +168,11 @@ append_tail() {
 }
 if [ "$TEST_STATUS" = FAIL ]; then append_tail "cargo test" "$LOGS/tests.log"; fi
 if [ "$CLIPPY_STATUS" = FAIL ]; then append_tail "cargo clippy" "$LOGS/clippy.log"; fi
-if [ "$RESPOOL_STATUS" = FAIL ]; then append_tail "example respool" "$LOGS/respool.log"; fi
-if [ "$DRYBOX_STATUS" = FAIL ]; then append_tail "example drybox_roller" "$LOGS/drybox.log"; fi
 
 # ---- history JSONL (one line per run) --------------------------------------
-printf '{"date":"%s","test_exit":%s,"suites_ok":%s,"suites_total":%s,"clippy_exit":%s,"clippy_warnings":%s,"respool_exit":%s,"drybox_exit":%s,"py_gates_ok":%s,"py_gates_total":%s,"discover_in_step":%s,"failures":%s,"overall":"%s"}\n' \
+printf '{"date":"%s","test_exit":%s,"suites_ok":%s,"suites_total":%s,"clippy_exit":%s,"clippy_warnings":%s,"py_gates_ok":%s,"py_gates_total":%s,"discover_in_step":%s,"failures":%s,"overall":"%s"}\n' \
 	"$DATE" "$TEST_EXIT" "$SUITES_OK" "$SUITES_TOTAL" "$CLIPPY_EXIT" "$CLIPPY_WARNINGS" \
-	"$RESPOOL_EXIT" "$DRYBOX_EXIT" "$PY_OK" "$PY_TOTAL" \
+	"$PY_OK" "$PY_TOTAL" \
 	"$([ "$GEN_STATUS" = PASS ] && echo true || echo false)" "$FAILURES" "$OVERALL" >>"$HISTORY"
 
 rm -rf "$LOGS"
