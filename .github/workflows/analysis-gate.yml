@@ -17,7 +17,7 @@ concurrency:
 jobs:
   registry-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,6 +25,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      # The runner-contract gate does not just read source: nine of its forty
+      # checks RUN a runner (positive control, refusal exit codes, dry-run,
+      # --out atomicity, core_digest stability), and every runner shells out to
+      # target/release/kernel-api. Without this build those nine fail as
+      # "internal", which is how this job went red on 2026-09-03 while the
+      # analyzers themselves were fine.
+      - name: Build the engine the runners shell out to
+        run: cargo build -p kernel-api --release
 
       - name: Analyzer registry and provenance contracts
         run: |
