@@ -21,7 +21,10 @@ use kernel_brep::holes::{self, HoleDepth, HoleError};
 use kernel_brep::math::{DAffine3, DVec2, DVec3};
 use kernel_brep::{FilletError, Solid, StepError};
 use kernel_core::math::Vec3;
-use kernel_core::{check_mesh, make_manifold, Aabb, Mesh, MeshReport, Resolution, Sdf};
+use kernel_core::{
+	check_mesh, degenerate_triangle_witnesses, make_manifold, non_manifold_vertex_witnesses, Aabb, Mesh, MeshReport, Resolution, Sdf,
+	ThicknessOptions, ThicknessSample,
+};
 #[cfg(feature = "catalog")]
 use kernel_implicit::{Cuboid as ImplicitCuboid, Gyroid};
 use kernel_implicit::{dual_contour_narrowband, manifold_dual_contour, mesh_boolean_implicit, BoolOp, MeshSdf, Node};
@@ -952,13 +955,86 @@ fn manufacturing_ready(mesh: &Mesh, report: &MeshReport) -> bool {
 /// (= the requested voxel unless the heal budget coarsened it; meaningful only
 /// on the healed route).
 pub(crate) fn solid_mesh(solid: &Solid, tol: f64, voxel: f64) -> (Mesh, &'static str, f64) {
+	let (mesh, route, heal_voxel, _) = solid_mesh_routed(solid, tol, voxel);
+	(mesh, route, heal_voxel)
+}
+
+/// [`solid_mesh`] plus the DEMOTION receipt: `Some(demotion)` exactly when the
+/// exact route was abandoned, naming the defect that abandoned it and where it
+/// is (see [`exact_route_demotion`]). A bare `route: "voxel_healed"` sent
+/// campaign authors bisecting geometry for a day to find the leaking edge
+/// (friction l12_mini_case F3, uphill_roller F2, 2026-09); the receipt now
+/// points at it.
+pub(crate) fn solid_mesh_routed(solid: &Solid, tol: f64, voxel: f64) -> (Mesh, &'static str, f64, Option<Value>) {
 	let exact = kernel_brep::tessellate_adaptive_tol(solid, tol);
-	if manufacturing_ready(&exact, &check_mesh(&exact)) {
-		(exact, "exact", voxel)
-	} else {
-		let heal_voxel = heal_voxel_for_budget(solid, voxel);
-		(watertight_mesh(solid, heal_voxel as f32), "voxel_healed", heal_voxel)
+	match exact_route_demotion(&exact) {
+		None => (exact, "exact", voxel, None),
+		Some(demotion) => {
+			let heal_voxel = heal_voxel_for_budget(solid, voxel);
+			(watertight_mesh(solid, heal_voxel as f32), "voxel_healed", heal_voxel, Some(demotion))
+		}
 	}
+}
+
+/// The exact route's verdict on its tessellation: `None` when the mesh is
+/// manufacturing-ready — the SAME predicate as [`manufacturing_ready`],
+/// evaluated in the same order (the self-intersection sweep runs only once the
+/// topology is clean) — else the demotion receipt:
+///
+/// ```json
+/// {"reason": "non_orientable_edges", "boundary_edges": 0, "non_manifold_edges": 0,
+///  "non_orientable_edges": 3, "non_manifold_vertices": 0, "degenerate_triangles": 0,
+///  "self_intersections": null, "exact_triangles": 1234, "witness": [[x, y, z], …]}
+/// ```
+///
+/// `reason` is the first defect in the order boundary edges → non-manifold
+/// edges → non-orientable edges → non-manifold vertices → degenerate triangles
+/// → self-intersection (`tessellation_failed` for an empty tessellation), and
+/// `witness` locates up to 8 of THAT defect in the body's own frame: edge
+/// midpoints, vertex positions, degenerate-triangle centroids, or the pierce
+/// point plus the two crossing triangles' centroids. `self_intersections` is
+/// `null` when the sweep never ran because the topology already demoted.
+fn exact_route_demotion(exact: &Mesh) -> Option<Value> {
+	let report = check_mesh(exact);
+	let topology_ok = report.watertight && report.degenerate_triangles == 0;
+	let crossing = if topology_ok { exact.self_intersection_witness() } else { None };
+	if topology_ok && crossing.is_none() {
+		return None;
+	}
+	let centroid = |t: usize| -> [f64; 3] {
+		let idx = &exact.indices[3 * t..3 * t + 3];
+		let c = idx.iter().fold(DVec3::ZERO, |acc, &i| acc + exact.positions[i as usize].as_dvec3()) / 3.0;
+		[c.x, c.y, c.z]
+	};
+	let (reason, witness): (&str, Vec<[f64; 3]>) = if exact.triangle_count() == 0 {
+		("tessellation_failed", Vec::new())
+	} else if report.boundary_edges > 0 {
+		("boundary_edges", exact.boundary_edge_witnesses(8))
+	} else if report.non_manifold_edges > 0 {
+		("non_manifold_edges", exact.non_manifold_edge_witnesses(8))
+	} else if report.non_orientable_edges > 0 {
+		("non_orientable_edges", exact.non_orientable_edge_witnesses(8))
+	} else if report.non_manifold_vertices > 0 {
+		("non_manifold_vertices", non_manifold_vertex_witnesses(exact, 8))
+	} else if report.degenerate_triangles > 0 {
+		("degenerate_triangles", degenerate_triangle_witnesses(exact, 8))
+	} else if let Some(w) = crossing {
+		let p = w.point.as_dvec3();
+		("self_intersection", vec![[p.x, p.y, p.z], centroid(w.triangles[0]), centroid(w.triangles[1])])
+	} else {
+		("tessellation_failed", Vec::new())
+	};
+	Some(json!({
+		"reason": reason,
+		"boundary_edges": report.boundary_edges,
+		"non_manifold_edges": report.non_manifold_edges,
+		"non_orientable_edges": report.non_orientable_edges,
+		"non_manifold_vertices": report.non_manifold_vertices,
+		"degenerate_triangles": report.degenerate_triangles,
+		"self_intersections": if topology_ok { json!(crossing.map_or(0, |w| w.pairs)) } else { Value::Null },
+		"exact_triangles": exact.triangle_count(),
+		"witness": witness,
+	}))
 }
 
 /// The heal voxel that keeps the winding-number lattice inside the heal's
@@ -1176,7 +1252,7 @@ fn export_mesh(
 	if !(voxel.is_finite() && voxel > 0.0) {
 		return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': voxel must be a positive voxel size in mm")));
 	}
-	let (mut mesh, route, heal_voxel) = solid_mesh(solid, tol, voxel);
+	let (mut mesh, route, heal_voxel, demotion) = solid_mesh_routed(solid, tol, voxel);
 	// An EMPTY healed mesh is the dual-contour mesher's only refusal channel —
 	// it means the heal never ran (its lattice would blow the cell budget), not
 	// that the geometry healed to nothing. Letting it fall through to the
@@ -1290,27 +1366,29 @@ fn export_mesh(
 	// the FULL predicate (incl. zero self-intersections) — on the healed route
 	// it can honestly read false while the export still ships, and a campaign
 	// that needs the strict bar gates it with `require {manufacturing_ready: true}`.
-	Ok(Outcome {
-		value: Some(EnvValue::Mesh(round_trip.clone())),
-		measures: Some(json!({
-			"route": route,
-			"heal_voxel_mm": if route == "voxel_healed" { json!(heal_voxel) } else { json!(null) },
-			"triangles": round_trip.triangle_count(),
-			"manufacturing_ready": manufacturing_ready(&round_trip, &round_trip_report),
-			"round_trip_validated": true,
-			"watertight": round_trip_report.watertight,
-			"watertight_means": "closed, consistently oriented 2-manifold: no boundary, non-manifold, or non-orientable edges and no non-manifold vertices",
-			"boundary_edges": round_trip_report.boundary_edges,
-			"non_manifold_edges": round_trip_report.non_manifold_edges,
-			"non_orientable_edges": round_trip_report.non_orientable_edges,
-			"non_manifold_vertices": round_trip_report.non_manifold_vertices,
-			"degenerate_triangles": round_trip_report.degenerate_triangles,
-			"self_intersections": round_trip_crossings,
-			"contacts_or_coplanar_overlaps": round_trip_report.self_intersections,
-			"two_manifold": round_trip_report.watertight,
-		})),
-		file: Some(path.display().to_string()),
-	})
+	let mut measures = json!({
+		"route": route,
+		"heal_voxel_mm": if route == "voxel_healed" { json!(heal_voxel) } else { json!(null) },
+		"triangles": round_trip.triangle_count(),
+		"manufacturing_ready": manufacturing_ready(&round_trip, &round_trip_report),
+		"round_trip_validated": true,
+		"watertight": round_trip_report.watertight,
+		"watertight_means": "closed, consistently oriented 2-manifold: no boundary, non-manifold, or non-orientable edges and no non-manifold vertices",
+		"boundary_edges": round_trip_report.boundary_edges,
+		"non_manifold_edges": round_trip_report.non_manifold_edges,
+		"non_orientable_edges": round_trip_report.non_orientable_edges,
+		"non_manifold_vertices": round_trip_report.non_manifold_vertices,
+		"degenerate_triangles": round_trip_report.degenerate_triangles,
+		"self_intersections": round_trip_crossings,
+		"contacts_or_coplanar_overlaps": round_trip_report.self_intersections,
+		"two_manifold": round_trip_report.watertight,
+	});
+	// Only on the healed route: WHY the exact route was abandoned, and where.
+	// An exact export carries no `demotion` field at all.
+	if let Some(demotion) = demotion {
+		measures["demotion"] = demotion;
+	}
+	Ok(Outcome { value: Some(EnvValue::Mesh(round_trip.clone())), measures: Some(measures), file: Some(path.display().to_string()) })
 }
 
 /// Resolve `file` under `out_dir`, enforce the manufacturing mesh contract,
@@ -2247,13 +2325,25 @@ fn exec_op(
 			}
 			Ok(Outcome::measures(Value::Object(m)))
 		}
-		OpKind::WallThickness { input, flag_below } => {
+		OpKind::WallThickness { input, flag_below, exclude_wedge_deg } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
-			let t = kernel_brep::wall_thickness(s, flag_below);
-			// `min_thickness` is corner noise in practice (oblique rays at sharp
-			// corners, FRICTION #17); report percentiles of the finite samples as
-			// the robust signal alongside it.
-			let mut finite: Vec<f64> = t.thickness.iter().copied().filter(|d| d.is_finite()).collect();
+			if let Some(deg) = exclude_wedge_deg {
+				if !(deg.is_finite() && deg > 0.0 && deg <= 180.0) {
+					return Err(err(
+						ErrorKind::InvalidParam,
+						format!("op '{op_id}': exclude_wedge_deg must be a material dihedral angle in (0, 180] degrees"),
+					));
+				}
+			}
+			let t = kernel_brep::wall_thickness_with(s, ThicknessOptions { flag_below, exclude_wedge_deg });
+			// Every thinness statistic is over the COUNTED samples — all of them
+			// without a wedge exclusion, the non-wedge ones with it; the wedge
+			// readings are reported apart (`thin_area_wedge`, `thin_wedge_witness`).
+			// The samples are area-uniform, so the percentiles are AREA
+			// percentiles. `min_thickness` is still edge noise on an acute body
+			// without the exclusion (FRICTION #17); the robust signals are the
+			// percentiles and `thin_area`.
+			let mut finite: Vec<f64> = t.samples.iter().filter(|s| !s.wedge && s.thickness.is_finite()).map(|s| s.thickness).collect();
 			finite.sort_unstable_by(f64::total_cmp);
 			let pct = |p: f64| -> Value {
 				if finite.is_empty() {
@@ -2262,14 +2352,36 @@ fn exec_op(
 					json!(finite[((finite.len() - 1) as f64 * p).round() as usize])
 				}
 			};
-			Ok(Outcome::measures(json!({
+			// The thinnest flagged samples of a bucket, so a nonzero area is
+			// locatable: `{"at": [x, y, z], "thickness": t}`, thinnest first.
+			let witness = |wedge: bool| -> Value {
+				let mut flagged: Vec<&ThicknessSample> =
+					t.samples.iter().filter(|s| s.wedge == wedge && s.thickness < flag_below).collect();
+				flagged.sort_by(|a, b| a.thickness.total_cmp(&b.thickness));
+				let points: Vec<Value> = flagged
+					.iter()
+					.take(8)
+					.map(|s| json!({ "at": [s.point.x as f64, s.point.y as f64, s.point.z as f64], "thickness": s.thickness }))
+					.collect();
+				Value::Array(points)
+			};
+			let mut m = json!({
 				"min_thickness": t.min_thickness,
 				"p05_thickness": pct(0.05),
 				"median_thickness": pct(0.5),
 				"thin_area": t.thin_area,
 				"flag_below": flag_below,
 				"sampled_triangles": t.thickness.len(),
-			})))
+				"samples": t.samples.len(),
+				"thin_witness": witness(false),
+			});
+			if let Some(deg) = exclude_wedge_deg {
+				m["exclude_wedge_deg"] = json!(deg);
+				m["thin_area_wedge"] = json!(t.thin_area_wedge);
+				m["thin_area_total"] = json!(t.thin_area + t.thin_area_wedge);
+				m["thin_wedge_witness"] = witness(true);
+			}
+			Ok(Outcome::measures(m))
 		}
 		OpKind::DraftAnalysis { input, pull, min_deg } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;

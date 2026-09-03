@@ -634,6 +634,9 @@ pub enum OpKind {
 		#[serde(rename = "in")]
 		input: String,
 		flag_below: f64,
+		/// Material dihedral angle (degrees, in (0, 180]) below which a flagged reading whose ray exits through a face that shares an edge with the sample's own face is an acute-wedge (knife-edge) reading, counted under `thin_area_wedge` instead of `thin_area`. Absent: every flagged reading counts in `thin_area`.
+		#[serde(default)]
+		exclude_wedge_deg: Option<f64>,
 	},
 	/// Draft (moldability) analysis against pull direction `pull`.
 	DraftAnalysis {

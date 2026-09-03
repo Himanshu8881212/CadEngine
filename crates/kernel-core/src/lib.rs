@@ -29,9 +29,11 @@ pub use manifold::make_manifold;
 pub use math::{Aabb, Obb, Ray, Vec3};
 pub use mesh::{
 	closest_point_on_triangle, ClosestPoint, DraftReport, MassProperties, Mesh, OverhangReport, PrincipalAxes, RayHit,
-	SectionProperties, SupportFreeReport, ThicknessReport,
+	SectionProperties, SupportFreeReport, ThicknessOptions, ThicknessReport, ThicknessSample,
 };
-pub use meshcheck::{check_mesh, MeshReport};
+pub use meshcheck::{
+	check_mesh, degenerate_triangle_witnesses, non_manifold_vertex_witnesses, MeshReport,
+};
 pub use mesher::{surface_nets, Resolution};
 pub use mesher_f64::{dual_contour_f64, dual_contour_sdf_f64, surface_nets_f64, surface_nets_sdf_f64, MeshF64};
 pub use poly2::{polygon_area, polygon_intersection_area};

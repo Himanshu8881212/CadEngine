@@ -698,6 +698,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 	("wall_thickness", &[
 		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "flag_below", ty: "number", required: true, doc: "", aliases: &[] },
+		ParamSpec { name: "exclude_wedge_deg", ty: "number", required: false, doc: "Material dihedral angle (degrees, in (0, 180]) below which a flagged reading whose ray exits through a face that shares an edge with the sample's own face is an acute-wedge (knife-edge) reading, counted under `thin_area_wedge` instead of `thin_area`.", aliases: &[] },
 	]),
 	("draft_analysis", &[
 		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "", aliases: &[] },

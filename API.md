@@ -1082,25 +1082,57 @@ plus per-kind anchors (`face`/`face_a`/`face_b` descriptors, `delta`).
 ```
 
 ### `wall_thickness`
-Ray-based wall thickness (inward ray per facet to the opposite wall).
-`min_thickness` reads oblique distances on sharp-corner facets — judge thin
-walls by `thin_area` against your `flag_below`, not the raw minimum alone.
+Ray-based wall thickness: area-uniform stratified surface samples (a fixed
+budget of ~65k samples spread by surface area, deterministic — no RNG state),
+one inward ray each to the opposite wall. `thin_area` is the sampled area whose
+reading is below `flag_below`. Judge thin walls by `thin_area` and the
+percentiles, and locate them with `thin_witness`.
 
 | param | type | required | meaning |
 |---|---|---|---|
 | `in` | id | yes | a prior solid |
 | `flag_below` | number | yes | thinness threshold (mm) |
+| `exclude_wedge_deg` | number | no | material dihedral angle (degrees, in (0, 180]) below which a flagged reading whose ray exits through a face that **shares an edge** with the sample's own face is an acute-wedge (knife-edge) reading — counted under `thin_area_wedge`, not `thin_area` |
 
 Measures: `min_thickness`, `p05_thickness`, `median_thickness`, `thin_area`,
-`flag_below`, `sampled_triangles`. In practice `min_thickness` is corner noise
-(oblique rays at sharp corners can read near-zero); the robust signals are the
-percentiles (`p05_thickness` / `median_thickness`, over the finite per-triangle
-samples) and `thin_area` against `flag_below`.
+`flag_below`, `sampled_triangles`, `samples`, `thin_witness` (up to 8 of the
+thinnest samples counted in `thin_area`, thinnest first, each
+`{"at": [x,y,z], "thickness": t}` — empty when nothing is flagged). With
+`exclude_wedge_deg` also: `exclude_wedge_deg`, `thin_area_wedge`,
+`thin_area_total` (= `thin_area + thin_area_wedge`) and `thin_wedge_witness`
+(same shape, the wedge bucket); every other statistic is then over the
+non-wedge samples only.
+
+**Acute wedges.** The lip of a female dovetail groove, the rim of a cone base,
+a bevel run out to a point: two faces meeting at a convex material angle below
+90° are genuinely thin next to their shared edge, and every ray from that band
+exits through the neighbouring face. Those readings are edge geometry, not a
+wall, and they consume a `thin_area: 0` gate no design can pass (friction
+l12_mini_case F4, uphill_roller F3). `exclude_wedge_deg` sets them aside — a
+dovetail lip at a 68° material angle reads under `thin_area_wedge` with
+`exclude_wedge_deg: 75`. "Face" means the planar face (edge-connected
+triangles with near-parallel normals), not the triangle, so the rule is about
+the B-rep. Two PARALLEL faces (a thin plate, a drafted wall) never share an
+edge, so a real thin wall is never a wedge; a concave notch is never a wedge
+either. Absent, the receipt is the plain census (every flagged reading in
+`thin_area`, no wedge fields).
+
+`min_thickness` on an acute body without the exclusion is edge noise (the
+thinnest lip sample), as it always was; the robust signals are the percentiles
+(AREA percentiles, over the counted samples) and `thin_area`. Sampling is
+deterministic and area-uniform, so mirror-image bodies read the same
+`thin_area` to sampling noise (≈1 % of a thin band's area), not to the luck of
+the triangulation — a per-triangle centroid sampler read mirror-image grooves
+5× apart.
 
 ```json
 {"ops": [
   {"id": "b", "op": "box", "min": [0,0,0], "max": [30,20,10]},
-  {"id": "wt", "op": "wall_thickness", "in": "b", "flag_below": 1}
+  {"id": "wt", "op": "wall_thickness", "in": "b", "flag_below": 1},
+  {"id": "tray", "op": "extrude", "height": 30,
+   "profile": [[0,0],[40,0],[40,4.5],[22,4.5],[23,2],[17,2],[18,4.5],[0,4.5]]},
+  {"id": "lip", "op": "wall_thickness", "in": "tray", "flag_below": 1.6, "exclude_wedge_deg": 75,
+   "require": {"thin_area": {"max": 0.0}}}
 ]}
 ```
 
@@ -1633,7 +1665,9 @@ path (chord tolerance `tol`); if that mesh is watertight it ships
 (`"route": "exact"`), otherwise the solid is healed through the voxel half
 (winding-number SDF → manifold re-mesh at `voxel` mm,
 `"route": "voxel_healed"`). A mesh that stays leaky even after healing fails
-with `invalid_geometry` rather than exporting garbage.
+with `invalid_geometry` rather than exporting garbage. When the exact route is
+abandoned the receipt says WHY and WHERE (`demotion`, below) — read it before
+bisecting geometry.
 
 ### `export_stl`
 
@@ -1645,11 +1679,37 @@ with `invalid_geometry` rather than exporting garbage.
 | `voxel` | number | no (0.3) | heal-fallback voxel size in mm |
 
 Measures: `route`, `triangles`, `watertight`, `watertight_means`,
-`boundary_edges`, `non_orientable_edges`, `two_manifold`. The op also **binds
-the mesh it wrote**, so the print file itself can be gated (`mesh_components`,
+`boundary_edges`, `non_orientable_edges`, `two_manifold`, and — on the
+`voxel_healed` route only — `demotion`. The op also **binds the mesh it
+wrote**, so the print file itself can be gated (`mesh_components`,
 `support_report`, `bounding_box`, `validate`, `require`) rather than the solid
 that stands in for it — on the `voxel_healed` route those are two different
 surfaces.
+
+**When the exact route is abandoned** the receipt carries a `demotion` object
+naming the defect that abandoned it and where it is:
+
+```json
+"demotion": {"reason": "self_intersection",
+             "boundary_edges": 0, "non_manifold_edges": 0, "non_orientable_edges": 0,
+             "non_manifold_vertices": 0, "degenerate_triangles": 0, "self_intersections": 2,
+             "exact_triangles": 412, "witness": [[x, y, z], [x, y, z], [x, y, z]]}
+```
+
+`reason` is the first failing check of the exact route's manufacturing
+predicate, in the order `boundary_edges` → `non_manifold_edges` →
+`non_orientable_edges` → `non_manifold_vertices` → `degenerate_triangles` →
+`self_intersection` (`tessellation_failed` for an empty exact tessellation).
+The counts are those of the abandoned EXACT tessellation at `tol` — not of the
+healed file, whose own counters are the top-level ones; `self_intersections` is
+`null` when the sweep never ran because the topology already demoted. `witness`
+locates up to 8 of the named defect in the body's own frame: edge midpoints
+(the edge kinds), vertex positions, degenerate-triangle centroids, or the pierce
+point followed by the two crossing triangles' centroids. An exact export has no
+`demotion` field. `mesh_components` (tol 0.05, topology only) can call a body
+clean while the export at tol 0.01 demotes on a sliver crossing or a collapsed
+triangle — the demotion receipt is the authoritative reason. `asm_export`'s
+per-instance entries carry the same object.
 
 **What `watertight` means here.** It is EDGE CLOSURE: every undirected edge is
 used by exactly two triangles. That is the property the op refuses without, and

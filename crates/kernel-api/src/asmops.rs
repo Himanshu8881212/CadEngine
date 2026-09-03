@@ -29,7 +29,8 @@ use kernel_model::{Constraint, ConstraintSystem};
 use serde_json::{json, Value};
 
 use crate::interp::{
-	err, fetch_solid, polygon_centroid, read_mesh_file, resolve_path, solid_mesh, v3a, write_mesh_auto, EnvValue, Outcome,
+	err, fetch_solid, polygon_centroid, read_mesh_file, resolve_path, solid_mesh, solid_mesh_routed, v3a, write_mesh_auto, EnvValue,
+	Outcome,
 };
 use crate::program::{MaterialSpec, RotateSpec};
 use crate::report::{ErrorKind, OpError};
@@ -736,12 +737,12 @@ pub(crate) fn export(
 	let mut merged = Mesh::new();
 	let mut per_instance = Vec::new();
 	for inst in &state.instances {
-		let (mut mesh, route, _) = match &inst.geom {
+		let (mut mesh, route, _, demotion) = match &inst.geom {
 			InstanceGeom::Solid { solid_ref, .. } => {
 				let solid = fetch_solid(env, all_ids, op_id, "instance", solid_ref)?;
-				solid_mesh(solid, tol, voxel)
+				solid_mesh_routed(solid, tol, voxel)
 			}
-			InstanceGeom::Mesh(m) => (m.clone(), "mesh", 0.0),
+			InstanceGeom::Mesh(m) => (m.clone(), "mesh", 0.0, None),
 		};
 		pose_mesh(&mut mesh, inst.pose);
 		let mut entry = json!({
@@ -750,6 +751,11 @@ pub(crate) fn export(
 			"triangles": mesh.triangle_count(),
 			"watertight": mesh.is_watertight(),
 		});
+		// Same receipt as `export_stl`: why the exact route was abandoned, with
+		// witnesses in the PART's own frame (before the instance pose).
+		if let Some(demotion) = demotion {
+			entry["demotion"] = demotion;
+		}
 		if let Some(dir) = parts_dir {
 			let rel = format!("{dir}/{}.stl", sanitize(&inst.name));
 			let written = write_mesh_auto(op_id, out_dir, &rel, &mesh)?;

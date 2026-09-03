@@ -4,7 +4,7 @@
 //! exact area / volume (the spec's correctness oracle, free from analytic faces).
 
 use kernel_core::math::{DMat3, DVec3};
-use kernel_core::{DraftReport, MassProperties, OverhangReport, SectionProperties, ThicknessReport};
+use kernel_core::{DraftReport, MassProperties, OverhangReport, SectionProperties, ThicknessOptions, ThicknessReport};
 
 use crate::geom::{Curve, Surface};
 use crate::tessellate::tessellate_default;
@@ -1275,6 +1275,13 @@ pub fn draft_analysis(s: &Solid, pull_dir: DVec3, min_draft_deg: f64) -> DraftRe
 /// tessellated; a through-hole or open region records [`f64::INFINITY`] for that ray.
 pub fn wall_thickness(s: &Solid, flag_below: f64) -> ThicknessReport {
 	tessellate_default(s).wall_thickness(flag_below)
+}
+
+/// [`wall_thickness`] with the sampler's full controls — the acute-wedge
+/// (knife-edge) exclusion that keeps a dovetail lip or a cone rim out of
+/// `thin_area` (see [`kernel_core::mesh::thickness`]).
+pub fn wall_thickness_with(s: &Solid, opts: ThicknessOptions) -> ThicknessReport {
+	tessellate_default(s).wall_thickness_with(opts)
 }
 
 /// Additive-manufacturing **overhang** analysis of this solid against the upward `build_dir`:
