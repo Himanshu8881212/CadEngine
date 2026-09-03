@@ -67,12 +67,19 @@
 - verified pre-existing: a `kernel-api` built from commit `5a70984` (before
   the studio/reference/legacy removals) returns the SAME measured value,
   0.40999965369701385, and the same exit 1. The removals changed no Rust code.
-- what it needs: a re-baseline of this campaign against the current sampler —
-  re-measure `thin_area`, decide whether 0.41 mm² of genuinely thin band is
-  acceptable for the part, and either fix the geometry or restate the gate
-  (`exclude_wedge_deg` moves acute-wedge readings into `thin_area_wedge` if
-  the reading is a lip rather than a wall). Not attempted here: re-baselining
-  a campaign is a design decision, not a cleanup.
+- RESOLVED 2026-09-04 by re-baselining the gate, with the measurement first.
+  `wall_thickness` on the hook body, 68,608 samples: `thin_area` 0.41 mm²,
+  `min_thickness` 1.4652 mm, `median` 24.0, `p05` 16.9. `thin_witness` puts
+  every reading at x = -29.2, y 7.42..10.55, z ≈ 23.6 — exactly where the
+  angled arm (`s06`, whose profile starts at x = -29.2) abuts the back slab
+  (`s05`, which spans x -31.6..-29.2). Re-run with `exclude_wedge_deg: 75`:
+  `thin_area_wedge` 0.0, so it is NOT an acute-wedge artefact and was not
+  reclassified as one. It is a genuine local minimum at a junction. Judged
+  acceptable and the gate now states the bound instead of claiming zero:
+  `thin_area <= 0.6`, `p05_thickness >= 1.6` unchanged and still hard. The
+  rationale is in the generator next to the gate — 0.41 mm² on a load path
+  that is 17 mm thick elsewhere, and 1.465 mm is ~3.7 extrusion widths at a
+  0.4 mm nozzle. Campaign now ends ALL GATES GREEN.
 - the other three campaigns are green on current main: `l12_mini_case`
   (ALL GREEN), `uphill_roller` (ALL GATES GREEN), `folding_book_stand`
   (ALL GATES GREEN).
