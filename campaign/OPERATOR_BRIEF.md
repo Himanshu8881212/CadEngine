@@ -415,6 +415,7 @@ Stock reality: 0.4 mm nozzle, **256 mm bed** (gate `bounding_box` with
 | every tool's job schema + verified examples | `campaign/digests/tools_cookbook.md`; docstring at top of each `tools/*.py` |
 | finished-campaign layouts, gate taxonomy, negative controls, process lessons | `campaign/digests/exemplars.md`; showcase/squatchee_spin/; camera_system/card_magazine/; docs/FRICTION.md |
 | what each campaign must ship | `campaign/DELIVERABLE_SPEC.md` (the contract) |
+| how the August 2026 rounds went (slate, verdicts, fix report, re-baseline runbook) — records, NOT binding | `campaign/history/` (README indexes each document) |
 | the two connectivity oracles, the weld-scale limit, the two constructible oracle-NCs | `DELIVERABLE_SPEC` §2.2 + §2.13; `digests/ops_core.md` "ENGINE UPDATE" |
 | `support_report` semantics (`describe` ships empty docs) | `digests/ops_core.md` §11a; `DELIVERABLE_SPEC` §2.5; DESIGN_GUIDE §22 |
 | `clearance` on nested pairs + the grown-gauge bracket | `digests/ops_core.md` §11b; `DELIVERABLE_SPEC` §2.11 |
