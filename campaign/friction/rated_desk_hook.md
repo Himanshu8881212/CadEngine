@@ -48,3 +48,31 @@
   CLI twins, which take ordinary CWD-relative paths:
   `python3 tools/render_views.py job.json` and
   `python3 tools/render_sheet.py job.json`.
+
+---
+
+## OPEN — the campaign is RED against current main (2026-09-03)
+
+- symptom: `sh school_system/rated_desk_hook/run_all.sh` dies at its first
+  gate, `hook_desk19`:
+  `op 'g_walls': require failed: thin_area: measured 0.40999965369701385, expected 0.0`
+  (`set -e`, so nothing after it runs).
+- minimal repro: `kernel-api run school_system/rated_desk_hook/programs/hook_desk19.json`
+- cause, not a regression from the 2026-09-03 tree cleanup: the
+  `wall_thickness` sampler became area-uniform and stratified in the same-day
+  fix wave (see docs/CHANGELOG.md, F4), and that wave's own note says coarse
+  boolean bodies now report thin bands the old centroid-per-triangle sampler
+  missed — "a measurement improvement, not a geometry change". The campaign's
+  `thin_area: 0.0` gate was baselined against the OLD sampler.
+- verified pre-existing: a `kernel-api` built from commit `5a70984` (before
+  the studio/reference/legacy removals) returns the SAME measured value,
+  0.40999965369701385, and the same exit 1. The removals changed no Rust code.
+- what it needs: a re-baseline of this campaign against the current sampler —
+  re-measure `thin_area`, decide whether 0.41 mm² of genuinely thin band is
+  acceptable for the part, and either fix the geometry or restate the gate
+  (`exclude_wedge_deg` moves acute-wedge readings into `thin_area_wedge` if
+  the reading is a lip rather than a wall). Not attempted here: re-baselining
+  a campaign is a design decision, not a cleanup.
+- the other three campaigns are green on current main: `l12_mini_case`
+  (ALL GREEN), `uphill_roller` (ALL GATES GREEN), `folding_book_stand`
+  (ALL GATES GREEN).
