@@ -43,6 +43,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _layout  # noqa: E402
+_layout.add_import_paths()  # analyzers/ + publish/ are importable siblings after the 2026-09-02 move
 import _receipt  # noqa: E402
 import param_optimize  # noqa: E402 — call_engine: the one-shot engine pattern
 from _receipt import Refusal  # noqa: E402

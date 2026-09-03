@@ -52,7 +52,7 @@
     "notes": "Square sections give a degenerate eigen-PAIR (two identical bending planes); the pin uses the smallest factor."
   },
   "validation": {
-    "pin_file": "tools/ace_buckling_validation.py",
+    "pin_file": "tools/validation/ace_buckling_validation.py",
     "additional_pins": [],
     "ground_truth": "Euler clamped-free (fixed-free) column Pcr = pi^2 E I / (4 L^2) = 162.85 N for L=60, b=h=6 mm, E=2.2 GPa; effective slenderness Le/r ~ 69.",
     "error_band": {"coarse_voxel_1.0": "0..+15%", "fine_voxel_0.5": "0..+8%"},

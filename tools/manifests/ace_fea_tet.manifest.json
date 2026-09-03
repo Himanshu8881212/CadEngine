@@ -55,7 +55,7 @@
     "notes": "gmsh OCC/STL body-fitted conforming mesh at elem_size_mm; ElementOrder=2 with HighOrderOptimize to untangle curved elements. Fillet element size drives convergence of the recovered surface peak."
   },
   "validation": {
-    "pin_file": "tools/ace_fea_kt_tet_validation.py",
+    "pin_file": "tools/validation/ace_fea_kt_tet_validation.py",
     "ground_truth": "Peterson/Pilkey stepped-bar shoulder-fillet-in-tension Kt = 1.667 for d=16, D=24, r=2.4 mm (D/d=1.5, r/d=0.15, h/r=1.667); sigma_nom = P/(pi d^2/4). Source: Pilkey, Peterson's Stress Concentration Factors, chart 3.4.",
     "error_band": {"elem_2.0": "Kt ~1.545 (-7.3%)", "elem_1.5": "Kt ~1.610 (-3.4%)", "elem_1.0": "Kt ~1.652 (-0.9%)", "far_field_nominal": "within 2% of P/A at every size"},
     "direction": "under-predicts the fillet Kt and CONVERGES from below (monotone up 1.545 -> 1.610 -> 1.652) toward 1.667 with no overshoot — the qualitatively-correct convergence the voxel hex8 path (ace_fea) never achieves (it scatters -6%..+44%, non-convergent).",

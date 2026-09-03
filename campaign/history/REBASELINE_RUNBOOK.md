@@ -53,7 +53,7 @@ while any campaign workflow is live.
 4. Re-run the non-orientable-edge census (26/41 pre-fix) and update the
    `watertight_means` disclosure in DELIVERABLE_SPEC §2.4 with the post-fix
    number.
-5. Re-run `campaign/ORCHESTRATOR_VERIFICATION.md` checks end to end and append
+5. Re-run `campaign/history/ORCHESTRATOR_VERIFICATION.md` checks end to end and append
    the round-2 results.
 
 ---

@@ -12,7 +12,7 @@ Modes:
   verify — any byte change or unexpected failure is a problem (exit 1)
   census — byte changes are EXPECTED (tessellation re-baseline); listed per part
 
-House rules (campaign/ORCHESTRATOR_VERIFICATION.md): tool-job JSONs are not
+House rules (campaign/history/ORCHESTRATOR_VERIFICATION.md): tool-job JSONs are not
 engine programs; negative controls may exit 0 (union+assert: the interference
 number is the receipt) or nonzero (assert_failed style) — both legitimate.
 """

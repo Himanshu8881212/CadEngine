@@ -115,14 +115,14 @@ nothing, and prescribes a stated + gated maximum service temperature instead.
 
    | mode | analysis | solver | change |
    |---|---|---|---|
-   | `creep_deformation` | sustained load at the SERVICE temperature and duration | `tools/production_check.py` | re-derate against `creep.sig_allow_mpa[T][t]` |
-   | `fatigue_crack` | cyclic life vs a cycle-count allowable | `tools/ace_fatigue_runner.py`, `tools/ace_fea_runner.py` | `sn_curve` knockdown; UNKNOWN off the tabulated point |
-   | `fracture` | static strength margin at the break | `tools/ace_fea_runner.py`, `tools/production_check.py` | the reported load becomes the design load |
-   | `layer_delamination` | interlayer allowable in the AS-PRINTED orientation | `tools/production_check.py` | × `z_vs_xy_strength_ratio` |
-   | `warping` | service temperature vs the softening envelope + DFM | `tools/ace_thermal_runner.py`, `tools/production_check.py` | stated + gated service limit |
+   | `creep_deformation` | sustained load at the SERVICE temperature and duration | `tools/analyzers/production_check.py` | re-derate against `creep.sig_allow_mpa[T][t]` |
+   | `fatigue_crack` | cyclic life vs a cycle-count allowable | `tools/analyzers/ace_fatigue_runner.py`, `tools/analyzers/ace_fea_runner.py` | `sn_curve` knockdown; UNKNOWN off the tabulated point |
+   | `fracture` | static strength margin at the break | `tools/analyzers/ace_fea_runner.py`, `tools/analyzers/production_check.py` | the reported load becomes the design load |
+   | `layer_delamination` | interlayer allowable in the AS-PRINTED orientation | `tools/analyzers/production_check.py` | × `z_vs_xy_strength_ratio` |
+   | `warping` | service temperature vs the softening envelope + DFM | `tools/analyzers/ace_thermal_runner.py`, `tools/analyzers/production_check.py` | stated + gated service limit |
    | `wear` | none — no wear solver exists in this tree | — | design rule + replaceable wear part |
    | `chemical_uv` | none — material selection against cited data | — | declared environment drives material choice |
-   | `fit_loose` / `fit_tight` | tolerance stack vs a MEASURED profile | `tools/tolerance_stack.py`, `tools/ingest_calibration.py` | tighten/open against measured deviation, ship a coupon |
+   | `fit_loose` / `fit_tight` | tolerance stack vs a MEASURED profile | `tools/analyzers/tolerance_stack.py`, `tools/ingest_calibration.py` | tighten/open against measured deviation, ship a coupon |
    | `other` | UNCLASSIFIED — triage refuses to guess | — | classify first |
 
 2. **Campaign re-audit.** The generated `<family>_system/<entry>/analysis/

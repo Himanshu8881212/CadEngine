@@ -269,7 +269,12 @@ Around the kernel:
 - [`tools/`](tools/) — the Python analysis layer the model drives: ACE FEA/modal/buckling
   runners *with their closed-form validation pins*, SIMP optimization, graded infill,
   air-topology audit, tolerance stacks, balance/joint/sweep checks, production dossier,
-  render sheets, assembly docs. [`tools/solvers/`](tools/solvers/) is the solver
+  render sheets, assembly docs — laid out as [`tools/analyzers/`](tools/analyzers/)
+  (every registered analysis surface), [`tools/publish/`](tools/publish/) (renderers and
+  document emitters), [`tools/validation/`](tools/validation/) (the ground-truth pins),
+  [`tools/tests/`](tools/tests/) (the gate suites), with the shared contracts at the top
+  level and a forwarding shim at every old flat path (`tools/<name>.py` still runs; map in
+  [`tools/_layout.py`](tools/_layout.py)). [`tools/solvers/`](tools/solvers/) is the solver
   registry: one card per solver stating its physics, contract, measured benchmarks and
   **validity limits** — a case outside those limits is a new solver or a declared gap,
   never a shrug.
@@ -286,7 +291,7 @@ still match the source:
 
 - **Voxel FEA under-reads peak stress.** Coarse hex8 under-predicts peak bending stress
   by ~20% vs a converged mesh (pins: −11.2% coarse / −5.9% refined vs the closed-form
-  cantilever — converging from the conservative side, `tools/ace_fea_validation.py`). The
+  cantilever — converging from the conservative side, `tools/validation/ace_fea_validation.py`). The
   tools echo this in their own receipts. Modal reads slightly stiff (+4.0%/+0.9%);
   buckling factors are upper bounds (+7.3%/+3.0% on the Euler pin).
 - **Optimized parts come back as meshes.** `ace_optimize` and `graded_infill` return a

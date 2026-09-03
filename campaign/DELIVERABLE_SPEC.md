@@ -47,7 +47,7 @@ Required layout (card_magazine convention):
 (maintainer directive, 2026-08-27). The BOM and the ballooned diagram are
 the artifacts a builder actually opens; a single part still has a mounting
 or unfolding sequence, a coupon, and a mass line, so generate them with
-`tools/production_dossier.py` (BOM into `assembly/`) + `tools/assembly_doc.py`
+`tools/publish/production_dossier.py` (BOM into `assembly/`) + `tools/publish/assembly_doc.py`
 (the diagram + instructions), and wire both into `run_all.sh`. For a
 print-in-place part, export the interlocked bodies as `assembly/scene/*.stl`
 (print pose) and balloon those — state in the steps that the exploded view

@@ -16,7 +16,7 @@ from that solver is worth without reading the source.
 | **buckling** | [buckling.md](buckling.md) | linearised bifurcation, `K phi = -lambda K_g phi` | `ace_buckling_runner.py` · `test_ace_modal_buckling.py` | green (ACE) | slender compression members; UPPER bound — apply the card's 0.5 knockdown |
 | **contact** | [contact.md](contact.md) | geometrically-nonlinear planar beam + rigid-obstacle penalty contact, Newton-Raphson | `ace_contact_runner.py` · `test_ace_contact_fatigue.py` | green, in-house | snap-fits, latches, living hinges, spring clips: insertion/retention force curves and peak strain at large deflection |
 | **fatigue** | [fatigue.md](fatigue.md) | stress-life: Basquin S-N + mean-stress correction + Palmgren-Miner damage | `ace_fatigue_runner.py` · `test_ace_contact_fatigue.py` | green, in-house · **screening only** | repeated actuation / cyclic duty; REFUSES any material without credible printed S-N data (PLA is the only one that has it) |
-| **creep** | [creep.md](creep.md) | time × temperature allowable LOOKUP (not a solve): `sig_allow(T, t)` from the record's own tabulated cells, rounded UP on both axes, never interpolated | `materials.py --creep` / `production_check.py` · `materials_crosslang_test.py`, `materials_creep_crosslang.py` gates | green, in-house · **table lookup, PLA only** | any load HELD rather than applied: a static margin says nothing about a load that never comes off. REFUSES above the hottest tabulated tier, for a material with no table, and when no duration is stated |
+| **creep** | [creep.md](creep.md) | time × temperature allowable LOOKUP (not a solve): `sig_allow(T, t)` from the record's own tabulated cells, rounded UP on both axes by default; interpolation between bracketing cells is OPT-IN, labelled `basis: "interpolated"`, Python-only | `materials.py --creep` / `production_check.py` · `materials_crosslang_test.py`, `materials_creep_crosslang.py` gates | green, in-house · **table lookup, PLA only** | any load HELD rather than applied: a static margin says nothing about a load that never comes off. REFUSES above the hottest tabulated tier, for a material with no table, and when no duration is stated |
 
 Notes that apply across the registry:
 
@@ -36,12 +36,12 @@ Notes that apply across the registry:
   (`ace_thermal` Demonstrated, `ace_contact` Demonstrated, `ace_fatigue`
   Cataloged — deliberately below Demonstrated, because proving the Miner
   arithmetic is not proving the life).
-- **Materials**: `tools/materials.py` is the one source of truth for material
+- **Materials**: `tools/analyzers/materials.py` is the one source of truth for material
   records (`tools/materials/<key>.json`). `tools/materials/fatigue.json` is a
   SIDECAR table (`meta.schema_kind = "fatigue_table"`), not a record.
 - **Everything is as-designed, not as-printed**: no solver here models
   printed-layer anisotropy inside the solve. Apply
-  `tools/materials.py derated()` to the ALLOWABLE, not to `E`.
+  `tools/analyzers/materials.py derated()` to the ALLOWABLE, not to `E`.
 - **Adding a solver**: write the runner, write the gate suite, run it, freeze
   the bands from the MEASURED numbers, add a meta-negative-control that proves
   the suite can go red, then add the card and a row here.

@@ -1,11 +1,11 @@
 # creep — sustained-load allowable (material card, not a solver)
 
-**Runner**: `tools/production_check.py` (the `creep` rule) ·
-`tools/materials.py --creep <MAT> <TEMP_C> <HOURS>` (bare lookup + receipt) ·
+**Runner**: `tools/analyzers/production_check.py` (the `creep` rule) ·
+`tools/analyzers/materials.py --creep <MAT> <TEMP_C> <HOURS>` (bare lookup + receipt) ·
 `kernel_model::materials::pla::creep_lookup` / `creep_allowable_mpa` (Rust).
-**Gates**: `python3 tools/materials_crosslang_test.py` ·
+**Gates**: `python3 tools/tests/materials_crosslang_test.py` ·
 `cargo test -p kernel-model --release --test materials_creep --test materials_creep_crosslang` ·
-`python3 tools/production_check.py --selftest` · `python3 tools/materials.py --selftest`.
+`python3 tools/analyzers/production_check.py --selftest` · `python3 tools/analyzers/materials.py --selftest`.
 **Status**: green. **Tier**: a researched TABLE with per-cell confidence, not a
 model — there is nothing to converge and nothing to mesh.
 
@@ -41,13 +41,28 @@ them as "do not design sustained load into unannealed PLA at 55 °C".
 
 ## Lookup semantics — the contract both languages implement
 
-1. **No interpolation, ever.** The table is a coarse STEP: two temperature
-   tiers, *nothing between*. Temperature rounds **UP** to the next tier and
-   duration rounds **UP** to the next column, so an in-between request always
-   reads the WORSE cell. `creep_allowable_mpa(23.0, 8760)` = 2.5;
+1. **No interpolation by default.** The table is a coarse STEP: two
+   temperature tiers, *nothing between*. Temperature rounds **UP** to the next
+   tier and duration rounds **UP** to the next column, so an in-between request
+   always reads the WORSE cell. `creep_allowable_mpa(23.0, 8760)` = 2.5;
    `creep_allowable_mpa(23.000001, 8760)` = **0.5**. That five-fold cliff at a
    temperature nobody controls a room to is deliberate, and it is the reason
    every lookup now returns the cell it used.
+   **Opt-in interpolation (Python only, 2026-09-02):**
+   `creep_lookup(..., interpolate=True)` / `materials.py --creep ... --interpolate`
+   / a `production_check` job with `"creep_interpolation": true` reads the
+   allowable interpolated between the bracketing cells — linear in
+   temperature, log-linear in duration (`materials.CREEP_INTERPOLATION_FORMULA`):
+   30 °C / 24 h → 5.0 + (30−23)/(55−23) × (1.5−5.0) = **4.234375** MPa instead
+   of the default 1.5. The receipt then says `basis: "interpolated"`,
+   `cell_match: "interpolated"`, lists every bracketing cell with its
+   confidence string, carries the formula, and reports the bucket the default
+   would have read (`default_bucket_mpa`) beside it. It never extrapolates
+   (above 55 °C it still refuses; below the coldest row / before the first
+   column it clamps and is then *not* labelled interpolated), invents no
+   measured cell, takes the LOWEST bracketing confidence, and has **no Rust
+   mirror** — the cross-language pin covers the default reader only. Quote an
+   interpolated allowable as interpolated, with both cells.
 2. **Above the hottest tier the lookup REFUSES.** `sig_allow_mpa` = 0.0,
    `known` = false, `refused` = true, `refusal_kind` =
    `creep_temp_above_tabulated`. It does **not** fall back to the 55 °C row.
@@ -96,19 +111,20 @@ has not drifted from the values the record serves.
 
 | gate | what it pins | where |
 |---|---|---|
-| 540-probe cross-language vector pin | Python and Rust return the same allowable, the same CELL and the same refusal at every tier boundary, on both sides of it, above the hot tier, beyond the last duration column, and for every non-finite/negative input | `tools/materials/creep_crosslang_vectors.json`, read by `tools/materials_crosslang_test.py` **and** `crates/kernel-model/tests/materials_creep_crosslang.rs` |
+| 540-probe cross-language vector pin | Python and Rust return the same allowable, the same CELL and the same refusal at every tier boundary, on both sides of it, above the hot tier, beyond the last duration column, and for every non-finite/negative input | `tools/materials/creep_crosslang_vectors.json`, read by `tools/tests/materials_crosslang_test.py` **and** `crates/kernel-model/tests/materials_creep_crosslang.rs` |
 | Rust table mirror | the Rust `CREEP_SIG_ALLOW_MPA` equals the researched JSON | `crates/kernel-model/tests/materials_creep.rs` |
 | monotonicity | longer is never stronger, hotter is never stronger (without which "round up" is not conservative) | `materials._validate_creep_table`, enforced at record load |
-| production_check creep rows | 23 °C/1 y = 2.5 MPa, 25 °C reads the 55 °C row, 70 °C refuses, missing duration refuses, across-layer 2.5 → 1.375 | `tools/production_check.py --selftest` |
+| production_check creep rows | 23 °C/1 y = 2.5 MPa, 25 °C reads the 55 °C row, 70 °C refuses, missing duration refuses, across-layer 2.5 → 1.375 | `tools/analyzers/production_check.py --selftest` |
 
 ## Validity limits / out of scope
 
 - **Only PLA has a creep table.** Every other material refuses. That is honest,
   not a gap to be filled with the 0.2-fraction.
-- **Nothing between 23 °C and 55 °C**, and nothing above 55 °C. The step is real
-  missing data, not a modelling choice; it cannot be interpolated away. What the
-  tooling can do — and now does — is make the step *visible* and refuse outside
-  the table.
+- **Nothing measured between 23 °C and 55 °C**, and nothing above 55 °C. The
+  step is real missing data, not a modelling choice. The default reader makes
+  the step *visible* and refuses outside the table; the opt-in interpolation
+  (semantics §1) fills the gap with a labelled MODEL between the two
+  constructed rows — it is not data, and the receipt says so.
 - **No printed-PLA dataset beyond ~170 h** exists at any temperature; the 30 d
   and 1 y cells are extrapolations (23 °C) or stated bounds (55 °C).
 - Unannealed, dry, constant load, in-plane. Humidity coupling at 55 °C is

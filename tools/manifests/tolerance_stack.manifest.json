@@ -1,0 +1,107 @@
+{
+  "schema": "lmcad.manifest.v1",
+  "analyzer": "tolerance_stack",
+  "analyzer_version": "1.1.0",
+  "title": "1-D tolerance stack-up (worst-case + RSS) and bore/shaft fit check at printer extremes",
+  "governing_equations": [
+    {
+      "name": "nominal gap",
+      "expr": "g_nom = sum_i dir_i * n_i",
+      "description": "Linear dimension chain: each element contributes its nominal n_i with sign dir_i (+1 adds to the gap, -1 consumes it)."
+    },
+    {
+      "name": "worst-case (arithmetic) band",
+      "expr": "g_min = g_nom - sum_i lo_i ;  g_max = g_nom + sum_i hi_i ;  hi_i = plus_i if dir_i=+1 else minus_i ;  lo_i = minus_i if dir_i=+1 else plus_i",
+      "description": "Every element simultaneously at its unfavourable extreme, taken about the TRUE nominal (no mid-shift). For symmetric tolerances this is g_nom +/- sum_i t_i — the textbook worst-case stack."
+    },
+    {
+      "name": "RSS (statistical) band",
+      "expr": "g_rss = g_nom + sum_i dir_i (plus_i - minus_i)/2 ;  sigma_g = sqrt( sum_i ((plus_i + minus_i)/2 / 3)^2 ) ;  band = g_rss +/- 3 sigma_g",
+      "description": "Each asymmetric tolerance is first converted to the equivalent bilateral (standard mid-shift of the nominal by (plus-minus)/2, t_eq = (plus+minus)/2); each +/-t_eq is treated as a 3-sigma band of an independent normal contributor, so the gap sigma is the root-sum-square of t_eq_i/3. For symmetric tolerances: g_nom +/- sqrt(sum_i t_i^2)."
+    },
+    {
+      "name": "fit extremes",
+      "expr": "c_min = (bore_nom - bore_minus) - (shaft_nom + shaft_plus) ;  c_max = (bore_nom + bore_plus) - (shaft_nom - shaft_minus) ;  interference = c_min < 0",
+      "description": "Smallest bore against the largest shaft, and the largest bore against the smallest shaft. An omitted tolerance takes printer_tol_default (0.15 mm, typical well-tuned FDM)."
+    },
+    {
+      "name": "contributor ranking",
+      "expr": "band_contribution_i = plus_i + minus_i ;  pct_of_band_i = 100 * band_contribution_i / sum_j band_contribution_j",
+      "description": "Share of the worst-case band WIDTH each element owns, so the element to tighten first is the first row."
+    }
+  ],
+  "assumptions": [
+    "The chain is one-dimensional and linear: every element lies along one axis and enters the gap with sign +/-1 — no angular, projected, or form-tolerance contributions.",
+    "Worst-case assumes all extremes can coincide (no correlation assumed, no probability claimed) — it is a guaranteed bound, not a likely outcome.",
+    "RSS assumes independent contributors whose +/-t are 3-sigma bands of normal distributions (process centred on the mid-shifted nominal, ~99.73% inside the band); it says nothing about a batch printed off-centre.",
+    "Printer tolerance defaults (0.15 mm) are a typical desktop-FDM figure — verify against YOUR printer's calibration; the tool does no measurement.",
+    "Pure arithmetic: no geometry, no engine calls, no physics."
+  ],
+  "boundary_conditions": {
+    "fixtures": "not applicable — the 'boundary' of a stack is its functional limit `closes` {min_required, max_allowed}; either side may be omitted (one-sided) and the receipt records which sides were checked.",
+    "loads": "not applicable.",
+    "selector_count_unit": "chain elements (each element = one nominal + one tolerance)"
+  },
+  "units": {
+    "inputs": {
+      "chain[].nominal": "mm",
+      "chain[].tol": "mm (+/-t) or {plus, minus} magnitudes in mm",
+      "chain[].dir": "+1 | -1 (dimensionless sign)",
+      "closes.min_required/max_allowed": "mm",
+      "fit.bore/shaft.nominal": "mm",
+      "printer_tol_default": "mm"
+    },
+    "outputs": {
+      "chain.nominal_gap/worst_min/worst_max/rss_nominal_gap/rss_min/rss_max": "mm",
+      "chain.rss_sigma_gap": "mm (1 sigma)",
+      "chain.contributors[].pct_of_band": "percent",
+      "fit.nominal_clearance/min_clearance/max_clearance": "mm"
+    }
+  },
+  "discretization": {
+    "method": "closed form",
+    "element": "none — exact arithmetic over the chain; results rounded to 9 decimals in the receipt",
+    "notes": "No iteration, no mesh, no random sampling (no Monte Carlo)."
+  },
+  "validation": {
+    "pin_file": "tools/validation/tolerance_stack_validation.py",
+    "additional_pins": ["tools/tests/test_checkers.py (gate suite: asymmetric double-count regression, one-sided closes, refusals)"],
+    "ground_truth": "Hand-derived textbook stacks, arithmetic stated in the pin: 3-element chain 20.0+/-0.2 - 12.0+/-0.1 - 7.5+/-0.15 -> nominal 0.5, worst-case 0.5 +/- 0.45 = [0.05, 0.95], RSS 0.5 +/- sqrt(0.2^2+0.1^2+0.15^2) = 0.5 +/- 0.269258 = [0.230742, 0.769258]; asymmetric element 10 +0/-0.10 mid-shifts the RSS nominal by -0.05 while the worst-case band stays about the true nominal; fit 8.2+/-0.15 vs 8.0+/-0.15 -> clearance [-0.10, +0.50] (interference at extremes); the worst-case-fails-while-RSS-passes case that is the textbook reason RSS exists.",
+    "error_band": {
+      "chain_arithmetic": "exact to 1e-9 mm (receipt rounding) — measured 0.0",
+      "fit_arithmetic": "exact to 1e-9 mm — measured 0.0",
+      "determinism": "stdout receipt byte-identical across reruns (no clock fields) — measured identical"
+    },
+    "direction": "no bias — closed-form arithmetic; worst-case is a guaranteed (conservative) bound, RSS is a 3-sigma statistical band that is NARROWER than worst-case by construction.",
+    "last_measured": "2026-09-02"
+  },
+  "caveats": [
+    "1-D only: it cannot see angular stack-ups, form errors, or datum shift; a real assembly with a tilted mating face needs a projected chain the user builds by hand.",
+    "RSS is only as honest as its independence + normality assumptions; a printer whose whole batch runs 0.1 mm large violates both — use worst-case for anything that must never bind.",
+    "pass_rss true with pass_worst false is a STATISTICAL pass: state that a fraction of assemblies (~0.27% per 3-sigma side, if the assumptions hold) will fall outside the band.",
+    "The 0.15 mm printer default is a stand-in for a measurement, not a measurement.",
+    "A failing verdict exits 2 with `ok:false` and `error_kind` 'internal' (the shared receipt contract's default slug for a gate failure); refusals carry `refusal.*` kinds."
+  ],
+  "limits_of_validity": {
+    "regime": "linear 1-D chains and bore/shaft pairs with bilateral or unilateral +/- tolerances; up to any number of elements",
+    "slenderness": "not applicable",
+    "resolution": "receipt values are rounded to 9 decimals (1 nm); tolerances below that are meaningless for FDM anyway"
+  },
+  "sources": [
+    {
+      "title": "Fischer, B.R., Mechanical Tolerance Stackup and Analysis, 2nd ed., CRC Press, 2011",
+      "ref": "ISBN 978-1-4398-1572-4 — worst-case (arithmetic) and statistical (RSS) stackup chapters; equal-bilateral conversion of unequal-bilateral tolerances (the mid-shift)",
+      "used_for": "worst-case band, RSS band, and the asymmetric-tolerance mid-shift convention"
+    },
+    {
+      "title": "Drake, P.J. (ed.), Dimensioning and Tolerancing Handbook, McGraw-Hill, 1999",
+      "ref": "ISBN 978-0-07-018131-1 — statistical tolerance analysis: RSS with +/-t taken as a 3-sigma band of independent normal contributors",
+      "used_for": "the sigma_i = t_i/3 convention behind rss_sigma_gap and the +/-3 sigma pass band"
+    },
+    {
+      "title": "Shigley's Mechanical Engineering Design, 10th ed. (Budynas & Nisbett), McGraw-Hill, 2015",
+      "ref": "ISBN 978-0-07-339820-4 — tolerances and fits: clearance = bore - shaft, extremes from the tolerance limits",
+      "used_for": "fit-mode extremes (min/max clearance, interference at extremes)"
+    }
+  ]
+}

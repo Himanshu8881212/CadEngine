@@ -59,8 +59,11 @@ not here. Repo root has a space: **always quote**
   is the honest state.
 - **Provenance discipline.** Analysis results carry `validation_status`; only
   registry-`validated` surfaces (ace_fea, ace_fea_tet, ace_modal,
-  ace_buckling, ace_optimize, param_optimize) may be quoted as validated.
-  thermal/contact/fatigue are in-house-gated but NOT registered — say so.
+  ace_buckling, ace_optimize, param_optimize, and the three pinned
+  rules/bookkeeping engines tolerance_stack / production_check /
+  production_dossier — "validated arithmetic", never "validated physics") may
+  be quoted as validated. thermal/contact/fatigue are registered at
+  Demonstrated / Demonstrated / Cataloged and in-house-gated — say so.
 - **Negative controls.** Any retention/security/"can't fail" claim needs the
   failure attitude built and measured to interfere, plus the legal-path twin
   measured to clear. A gate that cannot fail is not a gate.
@@ -74,8 +77,11 @@ not here. Repo root has a space: **always quote**
 # assembly file:
 "/Users/himanshu/Work/New-LMCAD/cad engine/target/release/kernel-api" asm a.lmcasm --out-dir out/ [--tol MM] [--voxel MM] [--window MM]
 
-# Python tools (plain python3; tools/_ace.py resolves ~/Work/ACE itself):
+# Python tools (plain python3; tools/analyzers/_ace.py resolves ~/Work/ACE itself):
 python3 "/Users/himanshu/Work/New-LMCAD/cad engine/tools/<tool>.py" job.json
+# ... which since 2026-09-02 forwards to the real file under tools/analyzers/ (solvers,
+# checkers, optimizer, materials) or tools/publish/ (renderers, dossier, docs) — same
+# argv, receipt and exit code; both spellings are valid. Map: tools/_layout.py.
 ```
 
 - Report = stdout JSON, top level `{"api_version":"cadcode.v1","ok",...}`.
@@ -164,7 +170,7 @@ More consequences to plan around:
   re-renders and rebuilt STLs must be byte-identical.
 - `production_dossier.py` / `render_sheet.py` / `assembly_doc.py` have no
   `--help` (they crash treating it as a file); read each tool's docstring.
-  The docstring at the top of each `tools/*.py` outranks any digest.
+  The docstring at the top of each `tools/{analyzers,publish}/*.py` outranks any digest.
 
 ## 4. Op-surface map — what exists, when to use which
 
@@ -241,7 +247,7 @@ Operating orders:
 
 MUST-REFUSE domains (no in-tree solver, fenced): CFD/aero, 3-D EM,
 convection/thermal-CFD, nonlinear 3-D FEA, crack growth, freeform-face field
-analysis. New physics only via `tools/derived_model.py` (citations at import,
+analysis. New physics only via `tools/analyzers/derived_model.py` (citations at import,
 gates re-run every invocation, capped at `synthesized_inloop`).
 
 Anisotropy: no solver models layers — derate the ALLOWABLE via
@@ -314,6 +320,18 @@ Stock reality: 0.4 mm nozzle, **256 mm bed** (gate `bounding_box` with
   wrong by 7×. **Declare 23 °C or accept the 55 °C row — there is no middle.**
   Above 55 °C the reader **REFUSES** (`refusal_kind:
   "creep_temp_above_tabulated"`, no fallback to the 55 °C row).
+  - **Opt-in interpolation (2026-09-02) — labelled, never silent.**
+    `creep_lookup("PLA", 30, 24, interpolate=True)` → 4.234375 MPa
+    (= 5.0 + (30−23)/(55−23) × (1.5−5.0); linear in T, log-linear in time)
+    with `basis: "interpolated"`, `cell_match: "interpolated"`, both
+    bracketing cells and their confidence strings, the formula, and the
+    bucket the default would have read (`default_bucket_mpa: 1.5`). It never
+    extrapolates (above 55 °C it still refuses) and has **no Rust mirror**.
+    `production_check.py` uses it only when the job sets
+    `"creep_interpolation": true`, and its receipt says so (top-level flag,
+    the creep row, a note). Quote an interpolated allowable AS interpolated,
+    with both cells — it is a model between two conservative constructions,
+    not a cell.
   - **Always ship the `creep_lookup` receipt, not the scalar.** It carries
     `row_used_c` / `col_used_h` / `cell_match` / `extrapolated` / `refused` /
     `anisotropy_factor` / `material_hash` — i.e. *which cell your margin was
@@ -397,6 +415,7 @@ Stock reality: 0.4 mm nozzle, **256 mm bed** (gate `bounding_box` with
 | every tool's job schema + verified examples | `campaign/digests/tools_cookbook.md`; docstring at top of each `tools/*.py` |
 | finished-campaign layouts, gate taxonomy, negative controls, process lessons | `campaign/digests/exemplars.md`; showcase/squatchee_spin/; camera_system/card_magazine/; docs/FRICTION.md |
 | what each campaign must ship | `campaign/DELIVERABLE_SPEC.md` (the contract) |
+| how the August 2026 rounds went (slate, verdicts, fix report, re-baseline runbook) — records, NOT binding | `campaign/history/` (README indexes each document) |
 | the two connectivity oracles, the weld-scale limit, the two constructible oracle-NCs | `DELIVERABLE_SPEC` §2.2 + §2.13; `digests/ops_core.md` "ENGINE UPDATE" |
 | `support_report` semantics (`describe` ships empty docs) | `digests/ops_core.md` §11a; `DELIVERABLE_SPEC` §2.5; DESIGN_GUIDE §22 |
 | `clearance` on nested pairs + the grown-gauge bracket | `digests/ops_core.md` §11b; `DELIVERABLE_SPEC` §2.11 |

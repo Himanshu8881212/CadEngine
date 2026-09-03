@@ -511,6 +511,15 @@ def t_path_root_asymmetry():
 # --------------------------------------------------------------------------
 
 def _tool(name):
+	"""The REAL file of a tool (tools/{analyzers,publish,...}/<name> since the
+	2026-09-02 layout), never the forwarding shim at the old flat path — the
+	source-text contracts below must read the runner, not its 12-line pointer."""
+	sys.path.insert(0, os.path.join(REPO, "tools"))
+	try:
+		import _layout  # noqa: PLC0415
+		return str(_layout.find_tool(name))
+	except (ImportError, FileNotFoundError):
+		pass
 	p = os.path.join(REPO, "tools", name)
 	if not os.path.exists(p):
 		raise Skip(f"missing tools/{name}")

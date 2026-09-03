@@ -49,6 +49,8 @@ from pathlib import Path
 TOOLS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TOOLS_DIR.parent
 sys.path.insert(0, str(TOOLS_DIR))
+import _layout  # noqa: E402
+_layout.add_import_paths()  # materials.py lives in tools/analyzers/ since 2026-09-02
 import field_report as fr  # noqa: E402 — sibling tool, same directory
 import materials as _materials  # noqa: E402 — THE one reader of the creep table
 

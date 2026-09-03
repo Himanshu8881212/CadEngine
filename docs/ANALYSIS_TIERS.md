@@ -2,7 +2,7 @@
 
 *(Companion: [`ANALYSIS_DOMAINS.md`](ANALYSIS_DOMAINS.md) — the capability
 contract: which physics domains are pinned in-tree, which are derivable with
-citations via `tools/derived_model.py`, and how the external-solver bridge
+citations via `tools/analyzers/derived_model.py`, and how the external-solver bridge
 works.)*
 
 This is the graduation pipeline's constitution. It says what it means for an
@@ -115,35 +115,49 @@ the research status in section 4).
 
 ### The current ledger (run `python3 tools/analyzer_registry.py`)
 
+Pins live in `tools/validation/`, the analyzers they pin in `tools/analyzers/`
+(renderers/emitters in `tools/publish/`, gate suites in `tools/tests/`; the
+2026-09-02 layout, mapped by `tools/_layout.py`, with a forwarding shim at
+every old flat `tools/<name>.py` path). The table names pins by basename.
+
 | analyzer | tier | manifest | pin |
 |---|---|---|---|
-| ace_fea | Validated | yes | yes (`ace_fea_validation.py`; Kt pin pending) |
+| ace_fea | Validated | yes | yes (`ace_fea_validation.py`; Kt pin `ace_fea_kt_validation.py`) |
+| ace_fea_tet | Validated | yes | yes (`ace_fea_kt_tet_validation.py` — Peterson/Pilkey stepped-bar Kt, converging from below) |
 | ace_modal | Validated | yes | yes (`ace_modal_validation.py`) |
 | ace_buckling | Validated | yes | yes (`ace_buckling_validation.py`) |
 | ace_optimize | Validated | yes | yes (`ace_optimize_validation.py` — exact inequalities: OC descent, material-removal monotonicity, volume honesty, watertight STL) |
+| ace_thermal | Demonstrated | no | no (gate suite `test_ace_thermal.py`, not a registered pin) |
+| ace_contact | Demonstrated | no | no (gate suite `test_ace_contact_fatigue.py`) |
+| ace_fatigue | Cataloged | no | no (gate suite proves the Miner arithmetic, not the life) |
 | graded_infill | Demonstrated | no | no |
 | param_optimize | Validated | yes | yes (`param_optimize_validation.py` — analytic known optimum, target convergence, active constraint, byte-identical determinism) |
 | air_topology_audit | Demonstrated | no | no |
 | sweep_check | Demonstrated | no | no |
 | balance_check | Demonstrated | no | no |
 | joint_check | Cataloged | no | no |
-| tolerance_stack | Cataloged | no | no |
-| production_check | Cataloged | no | no |
-| production_dossier | Cataloged | no | no |
+| tolerance_stack | Validated | yes | yes (`tolerance_stack_validation.py` — hand-derived textbook worst-case + RSS stacks, asymmetric mid-shift, fit extremes; exact) |
+| production_check | Validated | yes | yes (`production_check_validation.py` — material-table cells x the documented rules, the three creep refusals, exit contract; exact) |
+| production_dossier | Validated | yes | yes (`production_dossier_validation.py` — analytic box STLs: exact volume/area, the shell mass model by hand, thick-section warning, packing, refusal) |
 | damped_oscillator | Demonstrated | yes | no (derived-model exemplar, auto-registered from `tools/manifests/derived/`) |
 
 **System health metric — "% of analysis surface below the validated line":**
 
-- analysis surface (registered analyzers): **14**
-- Validated: **5** => **35.7% above** the validated line
-- **64.3% below** the validated line (9 of 14 analyzers not yet validated)
+- analysis surface (registered analyzers): **18**
+- Validated: **9** => **50.0% above** the validated line
+- **50.0% below** the validated line (9 of 18 analyzers not yet validated)
 
-This number is intentionally, honestly conservative. The three structural
+This number is intentionally, honestly conservative. The four structural
 solvers are pinned to closed-form physics and both optimizers are pinned to
 analytic optima / exact physics inequalities (2026-07-17 — the tools that
-DRIVE design decisions now sit above the line); the audit and rules surfaces
-are useful and deterministic but have not been graduated. Agent-derived
-physics models (`tools/derived_model.py`) enter the ledger automatically when
+DRIVE design decisions sit above the line); the three rules/bookkeeping
+engines campaigns gate on (`tolerance_stack`, `production_check`,
+`production_dossier`) were graduated on 2026-09-02 by pinning their arithmetic
+to hand derivations — **Validated there means "the arithmetic is proven
+against an independent hand derivation", not "a physics simulation"; their
+`kind` column still reads rules_engine / reporting.** The remaining audit and
+rules surfaces are useful and deterministic but have not been graduated. Agent-derived
+physics models (`tools/analyzers/derived_model.py`) enter the ledger automatically when
 their manifest is committed under `tools/manifests/derived/` — at Demonstrated,
 BELOW the line, until someone lands a ground-truth pin (see
 `docs/MANIFEST_SCHEMA.md`). The metric is
@@ -203,7 +217,7 @@ rejects.
 
 **Graduation path:** a synthesised analysis becomes a first-class analyzer only
 by landing (a) a committed manifest in `tools/manifests/`, (b) a committed
-`*_validation.py` pin against ground truth, and (c) a registry row — at which
+`tools/validation/*_validation.py` pin against ground truth, and (c) a registry row — at which
 point the registry (and CI) can report it `Validated`. Until all three exist, it
 stays synthesised and marked.
 
@@ -244,5 +258,6 @@ Rules for anything inside the fence:
    auto-inflatable status; like `synthesized_*` there is no code path from it to
    `validated` without the committed evidence.
 
-The fence is a feature. It keeps the 76.9%-below-the-line honesty of section 2
-from quietly eroding into confident numbers about physics we have not validated.
+The fence is a feature. It keeps the below-the-line honesty of section 2 (50%
+of the surface as of 2026-09-02) from quietly eroding into confident numbers
+about physics we have not validated.

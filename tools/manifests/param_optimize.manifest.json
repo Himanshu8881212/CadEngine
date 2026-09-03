@@ -51,7 +51,7 @@
     "notes": "Deterministic: no RNG, no clocks; multi-start points come from a bit-reversed lattice, so receipts are byte-identical across runs (R5)."
   },
   "validation": {
-    "pin_file": "tools/param_optimize_validation.py",
+    "pin_file": "tools/validation/param_optimize_validation.py",
     "additional_pins": [],
     "ground_truth": "Analytic known-optimum problems via a hermetic command evaluator: argmin of (x-3)^2+(y+1)^2 = (3,-1); the real root of x^3+13x = 40 (x* = 2.0912942); maximize x s.t. x <= 7 has optimum exactly at the cap.",
     "error_band": {

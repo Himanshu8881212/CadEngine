@@ -54,10 +54,10 @@ the retention claim falsifiable:
 
 The verification job orders re-run through the MCP tools and the Python analysis layer:
 balance (`balance_job.json`), tolerance stacks (`tol_*.json` →
-`tools/tolerance_stack.py`), motion sweeps (`sweep_*_job.json`), production dossier
-(`dossier_job.json` → `tools/production_dossier.py`), drawing sheets (`sheet_*_job.json`
-→ `tools/render_sheet.py`), assembly document (`asmdoc_job.json` →
-`tools/assembly_doc.py`). Start the MCP server with `./target/release/lmcad-mcp`; see
+`tools/analyzers/tolerance_stack.py`), motion sweeps (`sweep_*_job.json`), production dossier
+(`dossier_job.json` → `tools/publish/production_dossier.py`), drawing sheets (`sheet_*_job.json`
+→ `tools/publish/render_sheet.py`), assembly document (`asmdoc_job.json` →
+`tools/publish/assembly_doc.py`). Start the MCP server with `./target/release/lmcad-mcp`; see
 [`../API.md`](../API.md) for the op reference and [`../DESIGN_GUIDE.md`](../DESIGN_GUIDE.md)
 for the operator manual.
 

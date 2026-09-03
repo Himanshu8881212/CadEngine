@@ -32,7 +32,7 @@ ON-DISK STATE WHEN THIS RUN WAS PLANNED: ${t.state}
 
 MANDATORY READS: "${REPO}/campaign/OPERATOR_BRIEF.md" (doctrine, the universal 'require' gate param, the 3-code tool exit contract), "${REPO}/campaign/DELIVERABLE_SPEC.md" (section 2 gates incl. asserting BOTH shells and components, section 3 honesty rules, section 4 friction protocol, section 5 self-check), and your own analysis/DESIGN.md (the frozen dimensions, analysis plan, negative-control plan).
 
-DEFECT CLASSES FROM THE PART ROUND — DO NOT REPEAT (see campaign/PART_PORTFOLIO_VERDICT.md sections 3 and 5):
+DEFECT CLASSES FROM THE PART ROUND — DO NOT REPEAT (see campaign/history/PART_PORTFOLIO_VERDICT.md sections 3 and 5):
 - hand-typed literals smuggled into "generated-from-receipts" documents (the #1 defect: every number in ANALYSIS.md/README.md must flow from a receipt file, and say which);
 - claims that contradict their own cited receipt;
 - gates that cannot fail (one shipped oracle measured a faceter artefact and passed vacuously — verify each oracle actually FIRES);

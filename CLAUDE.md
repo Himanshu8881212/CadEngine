@@ -21,8 +21,8 @@ Repo root contains a space: always quote
 
 - **Every campaign ships an `assembly/` folder — single-part campaigns
   included.** It holds the ballooned exploded diagram
-  (`tools/assembly_doc.py`), `ASSEMBLY_instructions.md`, and the BOM
-  (`tools/production_dossier.py` → `bom_dossier.{csv,json}`), plus
+  (`tools/publish/assembly_doc.py`), `ASSEMBLY_instructions.md`, and the BOM
+  (`tools/publish/production_dossier.py` → `bom_dossier.{csv,json}`), plus
   `scene/*.stl` when the part has distinguishable bodies. Wire the
   generation into the campaign's `run_all.sh`. See DELIVERABLE_SPEC §1 and
   the `school_system/*` exemplars.
@@ -38,6 +38,6 @@ Repo root contains a space: always quote
 
 ```sh
 "./target/release/kernel-api" run <program.json> --out-dir <dir>
-python3 tools/<tool>.py job.json [--out receipt.json]
+python3 tools/<tool>.py job.json [--out receipt.json]   # forwards to tools/{analyzers,publish}/<tool>.py (2026-09-02 layout; map in tools/_layout.py)
 sh <campaign>/run_all.sh          # from repo root; NCs must exit 1
 ```

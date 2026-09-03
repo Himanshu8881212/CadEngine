@@ -9,6 +9,22 @@ source and the marked (VERIFIED) examples were actually executed on 2026-08-06.
 - All Python tools: `python3 "/Users/himanshu/Work/New-LMCAD/cad engine/tools/<tool>.py" <job.json>`
   — plain `python3` works; the runners put `~/Work/ACE` on `sys.path` themselves (`ACE_ROOT` env
   overrides) and default `LMCAD_KERNEL_API` to the repo's `target/release/kernel-api`.
+- **Where the tools live (re-organised 2026-09-02, map in `tools/_layout.py`):**
+  `tools/analyzers/` (every registered analysis surface: the `ace_*_runner.py` solvers,
+  `graded_infill_runner.py`, `param_optimize.py`, the checkers `tolerance_stack` /
+  `production_check` / `joint_check` / `sweep_check` / `balance_check` / `air_topology_audit`,
+  `derived_model.py`, `materials.py`, `_ace.py`, `voxelize_stl.py`, `stress_to_density.py`),
+  `tools/publish/` (`render_sheet`, `render_views`, `analysis_sheet`, `assembly_doc`,
+  `motion_gif`, `production_dossier`, `document_bundle`, `make_all_plate`, `bom_audit`),
+  `tools/validation/` (the `*_validation.py` pins), `tools/tests/` (the gate suites), and
+  at the top level the shared contracts (`_receipt.py`, `_stl.py`, `provenance.py`,
+  `analyzer_registry.py`, `check_ci_security.py`) plus data (`manifests/`, `materials/`,
+  `material_db.json`). **Every old flat path still works**: `tools/<name>.py` is a forwarding
+  shim that runs the real file with the same argv, stdout and exit code (and hands back the
+  real module on `import`), so `python3 tools/tolerance_stack.py job.json` and
+  `python3 tools/analyzers/tolerance_stack.py job.json` are the same command with the same
+  receipt (proven byte-identical on 2026-09-02; CI re-proves one shim on every PR). Edit the
+  real file, never the shim. `tools/_parked/` holds orphaned tools that are off the surface.
 - **Engine op args are FLAT, not nested under `params`**: `{"id":"b","op":"box","min":[0,0,0],"max":[40,10,6]}`.
   `export_stl` takes `file` (not `path`); `cylinder` takes `base`+`axis` (3-vector)+`radius`+`height`.
 - The engine and several tools **ignore unknown JSON keys silently** — a typoed param name is not an
@@ -87,7 +103,7 @@ FEA for cylinder/sphere selectors. Treat `{ok:false}` + a reasoned error as evid
 
 ## Materials — one source of truth
 
-`tools/materials.py` reads `tools/materials/{pla,petg,abs,asa,pc,pa,tpu95a}.json`.
+`tools/analyzers/materials.py` reads `tools/materials/{pla,petg,abs,asa,pc,pa,tpu95a}.json`.
 Anywhere a job wants `"material"`, a **string key** (`"PLA"`, case-insensitive, aliases
 TPU→TPU95A, NYLON→PA, PET-G→PETG) resolves to the registry record; a pasted dict
 `{youngs_modulus_pa, poisson, density_kg_m3}` passes through unchanged.
@@ -110,7 +126,7 @@ Any load selector catching >30% of active elements gets a "suspiciously broad" n
 One of:
 - `ops` + `solid` (op id) + `shape` `[nx,ny,nz]` [+ `supersample` default 2] — LMCAD ops sampled via ACE's `sample_part`;
 - `npy` — absolute path of an existing `(nx,ny,nz)` float density grid;
-- `stl` + `shape` — (modal/buckling/thermal only) watertight STL parity-filled via `tools/voxelize_stl.py`.
+- `stl` + `shape` — (modal/buckling/thermal only) watertight STL parity-filled via `tools/analyzers/voxelize_stl.py`.
 Plus `voxel_mm` (REQUIRED) and `origin_mm` (default `[0,0,0]`, world coord of grid node (0,0,0)).
 
 ---
@@ -119,7 +135,7 @@ Plus `voxel_mm` (REQUIRED) and `origin_mm` (default `[0,0,0]`, world coord of gr
 
 ## ace_fea_runner.py — hex8 voxel linear-elastic FEA (needs full ACE)  [tier: Validated]
 
-`python3 tools/ace_fea_runner.py job.json`
+`python3 tools/analyzers/ace_fea_runner.py job.json`
 
 Job: `out_dir`*, `voxel_mm`*, `origin_mm`?, GEOMETRY (ops+solid+shape | npy), `regions`?
 (`[{kind: frozen|fixed|design|void, selector}]`), `material`* (key or dict), `fixtures`*
@@ -162,7 +178,7 @@ Minimal job (VERIFIED):
 
 ## ace_fea_tet_runner.py — body-fitted tet10 FEA (needs ACE + gmsh)  [Validated]
 
-`python3 tools/ace_fea_tet_runner.py job.json` — the curved-geometry twin: true surfaces, resolves
+`python3 tools/analyzers/ace_fea_tet_runner.py job.json` — the curved-geometry twin: true surfaces, resolves
 fillet stress concentrations the voxel path under-reads.
 
 Job: `out_dir`*, `elem_size_mm`*, GEOMETRY one of `stl` (watertight) | `specimen:"shouldered_bar"`
@@ -177,7 +193,7 @@ consumers (analysis_sheet field panels, stress_to_density) — those want the vo
 
 ## ace_modal_runner.py — hex8 modal (frequencies + mode shapes) (needs ACE)  [Validated]
 
-`python3 tools/ace_modal_runner.py job.json`
+`python3 tools/analyzers/ace_modal_runner.py job.json`
 
 Job: `out_dir`*, `voxel_mm`*, GEOMETRY (ops|npy|stl+shape), `regions`?, `material`* (**density must
 be > 0**), `fixtures`* UNLESS `free_free:true` (fixtures+free_free together = refused; neither =
@@ -191,7 +207,7 @@ Honesty: no damping/preload; lumped-mass hex8 reads a few % HIGH, converges down
 
 ## ace_buckling_runner.py — hex8 linear (eigenvalue) buckling (needs ACE)  [Validated]
 
-`python3 tools/ace_buckling_runner.py job.json`
+`python3 tools/analyzers/ace_buckling_runner.py job.json`
 
 Job: like ace_fea plus geometry via ops|npy|stl+shape; `loads`* REQUIRED (the reference load case;
 all-zero refused; moment loads skipped — no rotational DOF), `n_modes`? (4), `knockdown`? (0<k≤1,
@@ -208,7 +224,7 @@ columns, ACE docstring says up to +10..30% coarse.
 
 ## ace_thermal_runner.py — voxel heat conduction, steady + transient (numpy/scipy ONLY)  [not yet in registry]
 
-`python3 tools/ace_thermal_runner.py job.json` — in-house FV solver, no ACE import. **Exit 1 on failure.**
+`python3 tools/analyzers/ace_thermal_runner.py job.json` — in-house FV solver, no ACE import. **Exit 1 on failure.**
 
 Job (temps °C): `out_dir`*, `voxel_mm`*, `origin_mm`?, GEOMETRY (npy | stl+shape | shape+`solid:"full"`),
 `material`* (key with non-null `thermal.conductivity_w_mk`, or dict `{k_w_mk[,density_kg_m3,cp_j_kgk]}`
@@ -226,7 +242,7 @@ GridField::from_npy_file}, timings_s}`. Fields: `T_field.npy`, `T_t<t>s.npy`.
 
 ## ace_contact_runner.py — 2-D corotational beam + rigid contact (numpy ONLY)  [not yet in registry]
 
-`python3 tools/ace_contact_runner.py job.json` — snap-fits, latch arms, living hinges: large
+`python3 tools/analyzers/ace_contact_runner.py job.json` — snap-fits, latch arms, living hinges: large
 rotation load PATHS that linear voxel FEA gets wrong. **Exit 1 on failure**; no silent last-iterate.
 
 Job (mm, N, N·mm): `out_dir`*, `beam`* `{length_mm, n_elements}|{nodes_mm:[[x,y],..]}` +
@@ -237,13 +253,21 @@ mz_nmm?}]` (λ-scaled, fixed direction), `obstacles`? `[{kind: plane|cylinder|pr
 penalty_n_per_mm, friction?:{mu,k_t_n_per_mm}, motion?:{dir,travel_mm}, nodes?}]`,
 `steps`? `{n:20, max_iter:30, tol:1e-8, ...}`, `linear_reference`? (true).
 
-Receipt includes `curve_columns` (12 named columns: lambda, insertion_force_n, tip_ux/uy_mm,
-max_abs_stress_mpa, max_penetration_mm, ...) for `curve.npy` `(n_steps+1, n_cols)`.
+Receipt includes `curve_columns` (16 named columns: lambda, insertion_force_n, tip_ux/uy_mm,
+max_abs_stress_mpa, max_penetration_mm, ..., reaction_fx_n/reaction_fy_n/reaction_mz_nmm,
+tip_reaction_n) for `curve.npy` `(n_steps+1, n_cols)`.
+**Reactions (2026-09-02):** `reactions` = one row per support node at λ = 1
+`{node, dofs_constrained, ramped, prescribed, fx_n, fy_n, mz_nmm}` (force BY the support ON the
+beam — `reaction_convention` spells it out). For a prescribed displacement
+(`{"node":"tip","dofs":{"uy":-1.0},"ramped":true}`) that row IS the actuator force, and
+`tip_reaction_n` is the scalar (null under load control; its curve column is NaN there, never a
+silent 0). `linear.tip_reaction_n` sits beside it. Pinned: 3EId/L³ within 2 % at d/L = 0.01
+(gate 1b, measured 1e-4; linear exact).
 Limits: planar, Euler-Bernoulli, node-based contact, quasi-static, isotropic.
 
 ## ace_fatigue_runner.py — S-N (Basquin + Miner) post-processor (numpy ONLY)  [not yet in registry]
 
-`python3 tools/ace_fatigue_runner.py job.json` — consumes a prior ace_fea `stress_field.npy` or a
+`python3 tools/analyzers/ace_fatigue_runner.py job.json` — consumes a prior ace_fea `stress_field.npy` or a
 scalar. **Exit 1 on failure/refusal.** SCREENING tool: ranks variants, never certifies life.
 
 Job: `out_dir`*, `material`* (registry key — only PLA currently has `measured` printed S-N data;
@@ -252,7 +276,7 @@ everything else REFUSED — or inline `{curve:{a_mpa,b,stress_measure,n_valid?},
 "across_layer" ALWAYS refused),
 
 > **`stress` is a NESTED BLOCK, not top-level keys** — the single most-hit line in this cookbook
-> (three campaigns). The runner reads `job.get("stress")` (`tools/ace_fatigue_runner.py:283`).
+> (three campaigns). The runner reads `job.get("stress")` (`tools/analyzers/ace_fatigue_runner.py:283`).
 > ```json
 > "stress": {"sigma_ref_mpa": 4.15}          ✅
 > "sigma_ref_mpa": 4.15                       ❌ → {"ok": false, "error":
@@ -275,7 +299,7 @@ spectrum_repeats_to_failure, cycles_to_failure, critical_index}, confidence {lif
 
 ## ace_optimize_runner.py — SIMP topology optimization (needs ACE)  [Validated]
 
-`python3 tools/ace_optimize_runner.py job.json` — top88-lineage SIMP + OC over ACE hex8 FEA, then
+`python3 tools/analyzers/ace_optimize_runner.py job.json` — top88-lineage SIMP + OC over ACE hex8 FEA, then
 one honest binary-occupancy re-analysis of the thresholded design + watertight-or-fail STL.
 
 Job = ace_fea job + `volfrac`* (0..1), `penalty`? (3.0), `filter_radius_vox`? (1.5), `max_iters`?
@@ -289,7 +313,7 @@ ONLY — no B-rep reconstruction exists.
 
 ## graded_infill_runner.py — stress-graded gyroid infill (needs ACE + lmcad-mcp binary)  [Demonstrated]
 
-`python3 tools/graded_infill_runner.py job.json` (or `--selftest`)
+`python3 tools/analyzers/graded_infill_runner.py job.json` (or `--selftest`)
 
 Job: `out_dir`*, `voxel_mm`*, GEOMETRY (ops+solid+shape | npy), `stress_npy`* (ace_fea field ON THE
 SAME GRID — shape mismatch refused, never resampled), `cell_mm`? (8.0), `wall`? `{min:0.8, max:2.4}`,
@@ -303,7 +327,7 @@ voxel/2, voxel/3). Wall thickness is volume-calibrated ±10% local variation; ve
 
 ## param_optimize.py — universal parametric optimizer (stdlib; drives the engine or ANY analyzer)  [Validated]
 
-`python3 tools/param_optimize.py job.json`
+`python3 tools/analyzers/param_optimize.py job.json`
 
 Any string `"$name"` anywhere in the template ops is replaced by the param value. Nelder-Mead with
 bound clipping + constraint penalties; feasibility-first selection.
@@ -322,7 +346,7 @@ Objectives/constraints are dotted expressions over op measures (`mp.volume`,
 `mp.inertia_diag[2]`). v2 additions (all optional): `evaluator {kind:"command", argv:[...,"$JOB"],
 job_template:{...}, timeout: <seconds, default 300>}` to optimize over ANY receipt-emitting
 analyzer (physics-in-the-loop) — **set `timeout` explicitly.** Every candidate is wrapped in
-`subprocess.run(..., timeout=float(ev.get("timeout", 300)))` (`tools/param_optimize.py`), so a
+`subprocess.run(..., timeout=float(ev.get("timeout", 300)))` (`tools/analyzers/param_optimize.py`), so a
 physics-in-the-loop evaluator that takes longer than 300 s per candidate — which any real solver
 loop does — dies unless you raise it. Campaigns use 1800;
 `targets [{expr,value,tol,weight}]`; `objectives [...]` (weighted sum — reported per-term, NOT a
@@ -331,7 +355,7 @@ over tolerance corners). Uses `kernel-api` CLI per eval (uncapped reports; MCP f
 
 ## derived_model.py — scaffold for agent-derived physics models  [exemplar: Demonstrated]
 
-`python3 tools/derived_model.py job.json | --selftest | --manifest OUT | --new NAME`
+`python3 tools/analyzers/derived_model.py job.json | --selftest | --manifest OUT | --new NAME`
 
 Subclass `DerivedModel`: cannot exist without equations/assumptions/units/limits/SOURCES
 (`__init_subclass__` refuses at import). Every run re-executes validation gates; failing gates =
@@ -341,14 +365,14 @@ JSON, so param_optimize's command evaluator drives it directly. `--new NAME` sca
 
 ## stress_to_density.py — stress .npy → graded density .npy (numpy)
 
-`python3 tools/stress_to_density.py stress.npy [--floor 0.15] [--ceil 1.0] [--gamma 1.0] [--clip-percentile 99]`
+`python3 tools/analyzers/stress_to_density.py stress.npy [--floor 0.15] [--ceil 1.0] [--gamma 1.0] [--clip-percentile 99]`
 (flags, not a job file). Writes `<stem>_density.npy` (float32, same shape) next to input.
 Receipt: `{ok, in, out, shape, stress_min, stress_max_clipped, floor, ceil, gamma, clip_percentile,
 density_mean}`. Non-finite voxels refused. Feeds `GridField` grading (`Node::offset_by`).
 
 ## voxelize_stl.py — watertight STL → binary occupancy .npy on an EXPLICIT grid (numpy)
 
-`python3 tools/voxelize_stl.py job.json`;
+`python3 tools/analyzers/voxelize_stl.py job.json`;
 job `{stl, origin_mm:[x,y,z], voxel_mm, shape:[nx,ny,nz], out}`.
 VERIFIED: box STL → `{ok:true, solid_voxels:2320, solid_fraction_mean:0.967, bytes:9600}`.
 The bridge for full-geometry physics on hybrid/mesh parts; keeps the same grid frame as a FEA job
@@ -358,9 +382,9 @@ so selectors keep world coordinates. Struts under ~4 cells: quote stresses as ap
 
 # 3. FIT / MOTION / ASSEMBLY CHECKS
 
-## tolerance_stack.py — 1-D stack-up + bore/shaft fit (pure stdlib)  [Cataloged]
+## tolerance_stack.py — 1-D stack-up + bore/shaft fit (pure stdlib)  [Validated — arithmetic pinned, not physics]
 
-`python3 tools/tolerance_stack.py job.json [--out PATH]` — 0/1/2 exit contract; persists receipt.
+`python3 tools/analyzers/tolerance_stack.py job.json [--out PATH]` — 0/1/2 exit contract; persists receipt.
 
 CHAIN mode: `{"chain":[{name, nominal, tol (±t or {plus,minus}), dir:±1}...],
 "closes":{min_required, max_allowed}, "printer_tol_default":0.15}` — worst-case AND RSS (±t = 3σ).
@@ -375,7 +399,7 @@ clearances ≥ 0.3 mm or state tighter tols.
 
 ## sweep_check.py — parameter-sweep interference check (stdlib + engine)  [Demonstrated]
 
-`python3 tools/sweep_check.py job.json`. Template ops contain `"$t"`; at each station the engine
+`python3 tools/analyzers/sweep_check.py job.json`. Template ops contain `"$t"`; at each station the engine
 runs and each watched `clearance`/`coincident_fit` op is collected.
 Job: `{template:{ops:[...]}, t:{from,to,steps<=200}, watch:[op ids], out_dir}`.
 Receipt: `{ok (false iff any watch interferes anywhere or a station failed), watches:{id:
@@ -384,7 +408,7 @@ failed_stations}`.
 
 ## balance_check.py — rotating-assembly imbalance (stdlib + engine)  [Demonstrated]
 
-`python3 tools/balance_check.py job.json`
+`python3 tools/analyzers/balance_check.py job.json`
 Job: form 1 `{ops, solid, density_kg_m3}` or form 2 `{parts:[{name,ops,solid,density_kg_m3}...]}`,
 plus `spin_axis {point, dir}`, `spin_rpm`?.
 Receipt: `{ok, mass_g, cg_mm, cg_offset_mm, static_imbalance_g_mm, couple_terms {I_uw_g_mm2,
@@ -393,7 +417,7 @@ VERIFIED on a centered box: all zeros, `ok:true`.
 
 ## joint_check.py — fastener/insert rules engine (pure stdlib)  [Cataloged]
 
-`python3 tools/joint_check.py job.json`
+`python3 tools/analyzers/joint_check.py job.json`
 Job: `{joints:[{name, type: machine_screw_into_heatset|screw_into_plastic_thread|bolt_through_nut,
 size: M3|M4|M5, material: pla|petg|abs|asa|pc|nylon (the PLASTIC side), loads:{tension_N, shear_N,
 sustained}, engagement_mm, insert_len_mm?}], safety_factor: 2.0}`.
@@ -405,7 +429,7 @@ VERIFIED: M3 heatset in PLA, 100 N tension + 50 N shear → SF 3.39, pass.
 
 ## air_topology_audit.py — internal-air connectivity gate (numpy + scipy)  [Demonstrated]
 
-`python3 tools/air_topology_audit.py job.json` — the TL-91 lesson: watertight/geometric_ok gate the
+`python3 tools/analyzers/air_topology_audit.py job.json` — the TL-91 lesson: watertight/geometric_ok gate the
 MATERIAL, not the VOID. Voxelizes an STL, flood-labels internal air, verifies the functional air
 path is one component between named seeds.
 Job: `{stl, voxel_mm:1.0, wall_margin_mm:7, open_faces:["y+"], seeds:{name:[x,y,z]},
@@ -417,14 +441,19 @@ required pair is disconnected.
 
 # 4. PRINT / PRODUCTION GATES
 
-## production_check.py — FDM derated-allowables gate on FEA results (pure stdlib)  [Cataloged]
+## production_check.py — FDM derated-allowables gate on FEA results (pure stdlib)  [Validated — table arithmetic pinned, not physics]
 
-`python3 tools/production_check.py job.json` (also `--selftest`)
+`python3 tools/analyzers/production_check.py job.json` (also `--selftest`)
 Job: `{material* (PLA|PETG|ABS|ASA|TPU95A|PC|PA), max_von_mises_pa* (from ace_fea),
 load_character?:{sustained,cyclic}, **duration_h — REQUIRED when sustained**
 (also accepted as service.duration_h / load_character.duration_h),
 service_temp_c?:25, orientation?:{build_dir, primary_load_dir},
-safety_factor_required?:2.0}`.
+safety_factor_required?:2.0, creep_interpolation?:false}`.
+`creep_interpolation:true` (2026-09-02, opt-in) reads the creep allowable INTERPOLATED between
+the bracketing table cells (linear in T, log-linear in time: 30 °C/24 h → 4.234375 MPa instead of
+the default 55 °C-row 1.5 MPa); the receipt says so (top-level flag, the creep row's
+`creep_interpolation`, `creep_cell.basis: "interpolated"`, both cells, the formula, and the
+default bucket beside it). Never extrapolates (70 °C still refuses); quote it as interpolated.
 Rules: static (yield), creep (the material's `creep.sig_allow_mpa`
 temperature×duration TABLE at the stated service_temp_c and duration_h,
 sustained — the legacy `yield × creep_sustained_fraction` scalar is reported
@@ -444,9 +473,9 @@ duration; sustained-load PLA still fails early — design to ~5 MPa (24 h) /
 ~2.5 MPa (1 y) or switch material. Demand also inherits ace_fea's ~20%
 under-prediction: margin accordingly.
 
-## production_dossier.py — BOM cost + print-time + plate packing (numpy)  [Cataloged]
+## production_dossier.py — BOM cost + print-time + plate packing (numpy)  [Validated — bookkeeping pinned to analytic boxes, not physics]
 
-`python3 tools/production_dossier.py job.json` — 0/1/2 exit contract.
+`python3 tools/publish/production_dossier.py job.json` — 0/1/2 exit contract.
 Job: `out_dir`*, `parts`* (MADE `{name, stl, material, qty?, material_required?, print_notes?,
 print_params?}` | BUY `{name, buy:true, qty?, part_number?, unit_price?, source?}`),
 `bed`? `{x:220,y:220,z:250}`, `density_kg_m3`? overrides, `print_params`? `{perimeters:3,
@@ -459,7 +488,7 @@ Thick-section warning when solid_g > 2×printed_g. Parts that can't fit the bed 
 ## bom_audit.py — HARDCODED project script, not generic
 
 Audits `{cyclo26,harmonic26,planetary26}/ASSEMBLY.step` against a hardcoded unified hardware BOM by
-counting STEP instance names. Run from a directory containing those trees: `python3 tools/bom_audit.py`.
+counting STEP instance names. Run from a directory containing those trees: `python3 tools/publish/bom_audit.py`.
 Not reusable for other campaigns without editing the `UNIFIED` table. Exit 0/1 = PASS/FAIL.
 
 ---
@@ -468,12 +497,12 @@ Not reusable for other campaigns without editing the `UNIFIED` table. Exit 0/1 =
 
 ## render_views.py — quick 4-view PNG (positional args, no job file)
 
-`python3 tools/render_views.py in.stl out.png [iso|joint z0 z1]` — iso = top/iso/front/bottom;
+`python3 tools/publish/render_views.py in.stl out.png [iso|joint z0 z1]` — iso = top/iso/front/bottom;
 joint = z-clipped band 3-view. Prints `out: N tris` (not JSON). VERIFIED.
 
 ## render_sheet.py — the 12-panel vision contact sheet
 
-`python3 tools/render_sheet.py job.json` — 0/1/2 exit contract. Job paths resolve against the CWD; launch from the repo root.
+`python3 tools/publish/render_sheet.py job.json` — 0/1/2 exit contract. Job paths resolve against the CWD; launch from the repo root.
 Job: `stl` (one) or `stls` (overlay), `out`*, `dimensions`? (`[{kind:"linear",a,b,label?,view?}|
 {kind:"diameter",center,axis,radius,label?}]` — take values from dim_suggest/measure_dimension so
 numbers are analytic), `build_dir`? ([0,0,1]; drives the bed-view print orientation), `sections`?
@@ -483,7 +512,7 @@ Receipt: `{ok, out, panels:12, px, triangles, ...}`. VERIFIED on the box (1600×
 
 ## analysis_sheet.py — how the part PERFORMED (domain-agnostic panels)
 
-`python3 tools/analysis_sheet.py job.json`
+`python3 tools/publish/analysis_sheet.py job.json`
 Modern form: `{title, panels:[{kind:"view", caption, stl, loads, fixture} | {kind:"field", stl, npy,
 origin_mm, voxel_mm, cmap, unit, scale?, vmax?, hotspot?} | {kind:"curve", series, xlabel, ylabel,
 targets?} | {kind:"image", png}], results (dict or [[label,value]] — verbatim receipts), gates
@@ -493,7 +522,7 @@ origin_mm, voxel_mm, case, loads, fixture, results, gates`). Field panels expect
 
 ## assembly_doc.py — exploded-view assembly sheet + instructions.md
 
-`python3 tools/assembly_doc.py job.json`
+`python3 tools/publish/assembly_doc.py job.json`
 Job: `parts`* `[{name, stl, color?}]` in assembly order, `explode`*
 (`{axis: [x,y,z], auto:true, gap_mm:8}` | `{axis: [x,y,z], spacing_mm}` |
 `{axis: [x,y,z], offsets:{name:[dx,dy,dz]}}`), `steps`* (`[{order, text, fasteners?}]`
@@ -502,7 +531,7 @@ or `auto_steps:true` draft), `bom_csv`? (production_dossier's csv — row order 
 
 > **`explode.axis` now accepts BOTH forms** (fixed 2026-08-08, ball F6 / singulator F12):
 > a 3-vector `[0,0,1]` **or** an axis name `"z"` / `"+z"` / `"-z"` (`parse_axis`,
-> `tools/assembly_doc.py`). It used to be vector-only and a letter died with
+> `tools/publish/assembly_doc.py`). It used to be vector-only and a letter died with
 > `ValueError: could not convert string to float: 'z'` — a message that never named the key.
 > An unknown name now refuses by name. Prefer the explicit vector in shipped jobs: it is the
 > form every other direction field in the toolchain takes (`motion_gif`'s `spin.axis` /
@@ -514,7 +543,7 @@ error. Receipt: `{ok, png, md, px, parts, steps, bom_rows}`.
 
 ## motion_gif.py — motion study / assembly-sequence GIF (+MP4 via ffmpeg)
 
-`python3 tools/motion_gif.py job.json`
+`python3 tools/publish/motion_gif.py job.json`
 Job: `title, meta, parts:[{stl, name, color?, spin:{axis,center,turns}? | keyframes:[{at:0..1,
 translate?, rotate:{axis,center,degrees}?}]?, visible_from?}], sequence?:{axis?, distance?, hold?}
 (auto fly-in assembly), frames:48, fps:24, elev, azim, azim_sweep?, size_px:[900,640], ground:true,
@@ -534,7 +563,7 @@ label:"Ø6.00"}]}`.
 
 ## document_bundle.py — ONE command → full deliverable bundle
 
-`python3 tools/document_bundle.py job.json` — orchestrates everything above into
+`python3 tools/publish/document_bundle.py job.json` — orchestrates everything above into
 `<out_dir>/{print,docs,receipts,programs,README.md,manifest.json}` (sha256-signed manifest).
 Job (paths relative to the JOB FILE's directory): `{name, title, out_dir, date* (never the clock),
 rev, changelog, bed?, print_params?, parts:[{name, program_file|program, solid, material, qty?,
@@ -561,11 +590,13 @@ Receipt: `{ok, out_dir, artifacts, gates, ...}`. Nothing is claimed a receipt do
 # Trust tiers (tools/analyzer_registry.py — run it to see the live ledger)
 
 Validated (manifest+pin): ace_fea, ace_fea_tet, ace_modal, ace_buckling, ace_optimize,
-param_optimize. Demonstrated: graded_infill, air_topology_audit, sweep_check, balance_check,
-damped_oscillator. Cataloged: joint_check, tolerance_stack, production_check, production_dossier.
-**Registry drift warning (live output)**: ace_contact, ace_fatigue, ace_thermal, audit_docs are
-analyzer-shaped but NOT in the registry — cite their tier as "unregistered/in-house-gated", not
-Validated.
+param_optimize, and — since 2026-09-02, pinned to hand-derived arithmetic rather than physics —
+tolerance_stack, production_check, production_dossier (quote them as "Validated arithmetic",
+their registry `kind` is rules_engine / reporting). Demonstrated: ace_thermal, ace_contact,
+graded_infill, air_topology_audit, sweep_check, balance_check, damped_oscillator. Cataloged:
+ace_fatigue (deliberately — the gate suite proves the Miner arithmetic, not the life), joint_check.
+ace_thermal / ace_contact / ace_fatigue ARE registered (Demonstrated / Demonstrated / Cataloged,
+`--tier <name>` returns the reason); their solver cards' "green" is a gate-suite status, not a tier.
 
 # Pitfalls checklist (each one observed or source-documented)
 
@@ -601,14 +632,14 @@ Validated.
 
 | topic | source |
 |---|---|
-| solver validation pins + error bands | `tools/manifests/*.manifest.json` (fea, fea_tet, modal, buckling, optimize, param_optimize); `tools/ace_*_validation.py`, `tools/test_ace_modal_buckling.py`, `tools/test_ace_thermal.py`, `tools/test_ace_contact_fatigue.py` |
+| solver validation pins + error bands | `tools/manifests/*.manifest.json` (fea, fea_tet, modal, buckling, optimize, param_optimize); `tools/ace_*_validation.py`, `tools/tests/test_ace_modal_buckling.py`, `tools/tests/test_ace_thermal.py`, `tools/tests/test_ace_contact_fatigue.py` |
 | solver registry cards (why each exists, limits) | `tools/solvers/{ace_fea,modal,buckling,thermal,contact,fatigue}.md`, `tools/solvers/README.md` |
 | trust tiers & graduation rules | `tools/analyzer_registry.py` (runnable), `docs/ANALYSIS_TIERS.md`, `docs/MANIFEST_SCHEMA.md` |
-| provenance envelope (`lmcad.analysis.v1`) | `tools/provenance.py`, `tools/_ace.py` (provenance_fields) |
-| materials records & derating | `tools/materials.py`, `tools/materials/*.json`, `tools/material_db.json`, `tools/materials/fatigue.json` |
+| provenance envelope (`lmcad.analysis.v1`) | `tools/provenance.py`, `tools/analyzers/_ace.py` (provenance_fields) |
+| materials records & derating | `tools/analyzers/materials.py`, `tools/materials/*.json`, `tools/material_db.json`, `tools/materials/fatigue.json` |
 | ACE integration & selector engine | `docs/ACE_INTEGRATION.md`; ACE source `~/Work/ACE/engine/verify/selectors.py`, `fea.py`, `fea_tet.py` |
-| derived on-the-fly models | `tools/derived_model.py` docstring + `DampedOscillator` exemplar; `tools/manifests/derived/` |
+| derived on-the-fly models | `tools/analyzers/derived_model.py` docstring + `DampedOscillator` exemplar; `tools/manifests/derived/` |
 | engine op vocabulary | `crates/kernel-api/src/discover.rs`, `crates/agent-bench/src/lib.rs` (worked op JSON), `describe` op at runtime (`{"op":"describe","name":"box"}`) |
-| doc design system | `tools/render_sheet.py` STYLE dict (assembly_doc/analysis_sheet/motion_gif import it) |
-| bundle layout convention | `tools/document_bundle.py` docstring |
+| doc design system | `tools/publish/render_sheet.py` STYLE dict (assembly_doc/analysis_sheet/motion_gif import it) |
+| bundle layout convention | `tools/publish/document_bundle.py` docstring |
 | numerics/robustness doctrine | `docs/NUMERICS.md`, `docs/ROBUSTNESS.md`, `docs/FRICTION.md` |
