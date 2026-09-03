@@ -1,20 +1,22 @@
 # ops_core.md — Exact-B-rep Work-Order Cookbook (LMCAD `kernel-api`)
 
-Digest of DESIGN_GUIDE.md §1–§10 + §21/§23 and API.md, cross-checked against the
-live binary on 2026-08-06 (`describe` reports **160 ops**). Every snippet marked
-"VERIFIED" was executed against
+Digest of `campaign/DESIGN_GUIDE.md` §1–§10 + §21/§23 and `API.md`, cross-checked
+against the live binary on 2026-09-03: the interpreter dispatches **161 ops**, of
+which 109 are compiled in a `--no-default-features` build (the other 52 are the
+hardware-catalog ops behind the default-on `catalog` feature — `docs/OP_USAGE.md`).
+Every snippet marked "VERIFIED" was executed against
 `"/Users/himanshu/Work/New-LMCAD/cad engine/target/release/kernel-api"` during
 digest preparation.
 
-> **DOC-DRIFT WARNING (verified live):** DESIGN_GUIDE Parts I–II are stale in
-> three places. The binary HAS ops the guide says don't exist:
-> `loft`, `sweep` (guide §5.4 says "Document-only" — wrong, both run as JSON ops),
-> `linear_pattern`, `polar_pattern`, `mirror`, `rotate_x`, `rotate_y` (guide §9.2
-> says "no B-rep array op by design" — wrong), and `bounding_box` +
-> `measure_dimension` (guide §10.4 says "no bounding-box or linear-dimension
-> measure" — wrong). API.md is the accurate op reference; when the two disagree,
-> trust API.md, and when in doubt run `{"op": "describe", "name": "<op>"}` —
-> that catalogue is compile-forced complete and cannot drift.
+> **Which document wins.** `API.md` is the op reference; this file is the
+> cookbook — recipes, verified snippets and gotchas, not definitions. When the two
+> disagree, trust `API.md`, and when in doubt run `{"op": "describe", "name":
+> "<op>"}`: that catalogue is compile-forced complete and cannot drift.
+>
+> (The 2026-08-06 drift warning that stood here — the guide calling `loft`/`sweep`
+> "Document-only", denying `linear_pattern`/`polar_pattern`/`mirror` and
+> `bounding_box`/`measure_dimension` — is retired: all three passages were
+> corrected in the guide, re-checked 2026-09-03.)
 
 ---
 
