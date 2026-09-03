@@ -42,13 +42,16 @@ A program is plain JSON — ops in, receipts out:
 ]}
 ```
 
-**As MCP tools** (Claude Code and any MCP client): build `cargo build -p studio-mcp
---release` and use [`.mcp.json`](.mcp.json), which is project-scoped. The model gets ten
-tools: `run_program`, `describe_api`, `run_assembly`, `ace_fea`, `ace_optimize`,
-`ace_modal`, `ace_buckling`, `graded_infill`, `production_check`, `render_views`.
+**Driven by a model** (Claude Code or any coding agent): the CLI *is* the interface.
+`kernel-api run <program.json> --out-dir <dir>` executes a program and prints the whole
+report on stdout; `kernel-api asm <assembly.lmcasm>` runs the assembly pipeline. The op
+surface describes itself — `{"op": "describe"}` enumerates all 161 ops and
+`{"op": "describe", "name": "fillet_edge_near"}` gives one op's parameters — and the Python analysis layer (`tools/analyzers/*.py`) is invoked the same
+way: `python3 tools/<tool>.py job.json --out receipt.json`. Nothing else needs to be
+running.
 
 The op reference is [`API.md`](API.md); the operator manual for a model driving the
-engine is [`DESIGN_GUIDE.md`](DESIGN_GUIDE.md).
+engine is [`campaign/DESIGN_GUIDE.md`](campaign/DESIGN_GUIDE.md).
 
 ## The worked example
 
@@ -73,10 +76,9 @@ Everything it shipped — programs, receipts, drawings, listing — is in
 | [`crates/kernel-model`](crates/kernel-model) | feature tree, sketch solver, assemblies and mates, parts catalog, materials, drawings, campaign gates |
 | [`crates/kernel-api`](crates/kernel-api) | the JSON op surface and the one `Report` type everything speaks |
 | [`crates/agent-bench`](crates/agent-bench) | the agent-surface ruler and end-to-end benchmark |
-| [`studio/`](studio/) | HTTP server, web IDE, terminal client (`lmcad-tui`), MCP server (`lmcad-mcp`) |
 | [`tools/`](tools/) | the Python analysis layer: [`analyzers/`](tools/analyzers/), [`publish/`](tools/publish/), [`validation/`](tools/validation/) ground-truth pins, [`tests/`](tools/tests/). Old flat paths still work via shims |
-| [`campaign/`](campaign/) | the contract an agent designs under: [operator brief](campaign/OPERATOR_BRIEF.md), [deliverable spec](campaign/DELIVERABLE_SPEC.md), [op digests](campaign/digests/), [publishing spec](campaign/PRINTABLES_LISTING_SPEC.md), [friction logs](campaign/friction/) |
-| [`legacy/`](legacy/) | parked and **not built**: `kernel-gpu`, `kernel-wasm`, the pre-JSON example campaigns |
+| [`campaign/`](campaign/) | **how a model must work**: [operator brief](campaign/OPERATOR_BRIEF.md), [deliverable spec](campaign/DELIVERABLE_SPEC.md), [operator manual](campaign/DESIGN_GUIDE.md), [op digests](campaign/digests/), [publishing spec](campaign/PRINTABLES_LISTING_SPEC.md), [friction logs](campaign/friction/) — see [`campaign/README.md`](campaign/README.md) |
+| [`docs/`](docs/) | **what the engine is and how far it can be trusted**: robustness floors, numeric contracts, analysis tiers, benchmarks, the changelog — see [`docs/README.md`](docs/README.md) |
 
 The 52 hardware-catalog ops no campaign uses sit behind a default-on `catalog` feature —
 see [`docs/OP_USAGE.md`](docs/OP_USAGE.md) for the census (161 dispatched, 84 used).
@@ -120,13 +122,17 @@ byte for byte:
 cmp showcase/squatchee_spin/print/squatchee_spin_prop.stl out/capspin/squatchee_spin_prop.stl
 ```
 
-More: [`docs/ROBUSTNESS.md`](docs/ROBUSTNESS.md) validity and fuzz floors ·
-[`docs/BAR.md`](docs/BAR.md) the falsifiable grading ladder ·
-[`docs/NUMERICS.md`](docs/NUMERICS.md) tolerance contracts ·
-[`docs/ANALYSIS_TIERS.md`](docs/ANALYSIS_TIERS.md) what a tier means ·
-[`docs/FRICTION.md`](docs/FRICTION.md) failures written up in full ·
-[`docs/CHANGELOG.md`](docs/CHANGELOG.md) the dated ledger ·
-[`SECURITY.md`](SECURITY.md).
+Two doors, one job each — [`docs/`](docs/README.md) is what the engine **is**
+([`ROBUSTNESS.md`](docs/ROBUSTNESS.md) validity and fuzz floors ·
+[`BAR.md`](docs/BAR.md) the falsifiable grading ladder ·
+[`NUMERICS.md`](docs/NUMERICS.md) tolerance contracts ·
+[`ANALYSIS_TIERS.md`](docs/ANALYSIS_TIERS.md) what a tier means ·
+[`CHANGELOG.md`](docs/CHANGELOG.md) the dated ledger), and
+[`campaign/`](campaign/README.md) is how a model must **work**
+([`OPERATOR_BRIEF.md`](campaign/OPERATOR_BRIEF.md) ·
+[`DELIVERABLE_SPEC.md`](campaign/DELIVERABLE_SPEC.md) ·
+[`friction/ENGINE.md`](campaign/friction/ENGINE.md) failures written up in full).
+Also [`SECURITY.md`](SECURITY.md).
 
 ## License
 

@@ -311,7 +311,7 @@ final_rho_npy, as_built {max_von_mises_pa, max_displacement_m, n_active_elements
 watertight, volume_mm3, num_triangles, path, mesh_upsample, issues}, timings_s}`. STL is a MESH
 ONLY — no B-rep reconstruction exists.
 
-## graded_infill_runner.py — stress-graded gyroid infill (needs ACE + lmcad-mcp binary)  [Demonstrated]
+## graded_infill_runner.py — stress-graded gyroid infill (needs ACE + the kernel-api binary)  [Demonstrated]
 
 `python3 tools/analyzers/graded_infill_runner.py job.json` (or `--selftest`)
 
@@ -581,7 +581,7 @@ Receipt: `{ok, out_dir, artifacts, gates, ...}`. Nothing is claimed a receipt do
 
 | needs | tools |
 |---|---|
-| full ACE (`~/Work/ACE` importable) | ace_fea, ace_fea_tet (+gmsh), ace_modal, ace_buckling, ace_optimize, graded_infill (+lmcad-mcp binary) |
+| full ACE (`~/Work/ACE` importable) | ace_fea, ace_fea_tet (+gmsh), ace_modal, ace_buckling, ace_optimize, graded_infill (+kernel-api binary) |
 | numpy/scipy only | ace_thermal, air_topology_audit, voxelize_stl (numpy) |
 | numpy only | ace_contact, ace_fatigue, stress_to_density, production_dossier |
 | pure stdlib (+ engine binary for some) | tolerance_stack, joint_check, production_check, param_optimize, sweep_check, balance_check, dim_suggest, derived_model, document_bundle (orchestrates all) |
@@ -642,4 +642,4 @@ ace_thermal / ace_contact / ace_fatigue ARE registered (Demonstrated / Demonstra
 | engine op vocabulary | `crates/kernel-api/src/discover.rs`, `crates/agent-bench/src/lib.rs` (worked op JSON), `describe` op at runtime (`{"op":"describe","name":"box"}`) |
 | doc design system | `tools/publish/render_sheet.py` STYLE dict (assembly_doc/analysis_sheet/motion_gif import it) |
 | bundle layout convention | `tools/publish/document_bundle.py` docstring |
-| numerics/robustness doctrine | `docs/NUMERICS.md`, `docs/ROBUSTNESS.md`, `docs/FRICTION.md` |
+| numerics/robustness doctrine | `docs/NUMERICS.md`, `docs/ROBUSTNESS.md`, `campaign/friction/ENGINE.md` |

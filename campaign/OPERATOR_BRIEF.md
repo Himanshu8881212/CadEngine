@@ -2,8 +2,17 @@
 
 Operating orders for design agents driving LMCAD. Everything here is condensed
 from the five digests in `campaign/digests/` — exact JSON shapes live THERE,
-not here. Repo root has a space: **always quote**
+not here; the full operator manual behind them is `campaign/DESIGN_GUIDE.md`.
+Repo root has a space: **always quote**
 `"/Users/himanshu/Work/New-LMCAD/cad engine"`.
+
+**Two folders, one job each.** `campaign/` (this one) is how you must WORK — the
+binding rules. `docs/` is what the engine IS and how far it can be TRUSTED — the
+contracts you cite for a number: `docs/ANALYSIS_TIERS.md` (what a tier means),
+`docs/ANALYSIS_DOMAINS.md` (what may be analyzed at all), `docs/NUMERICS.md`
+(tolerances), `docs/ROBUSTNESS.md` (validity floors). Each folder has a
+`README.md` listing its files. Before concluding the engine is broken, read
+`campaign/friction/ENGINE.md`.
 
 ---
 
@@ -417,9 +426,10 @@ Stock reality: 0.4 mm nozzle, **256 mm bed** (gate `bounding_box` with
 | `.lmcpart` grammar, HybridFuse, `.lmcasm`, library, catalog | `campaign/digests/implicit_recipes.md` §6–§10; DESIGN_GUIDE §16–§20 |
 | solver cards, trust tiers, refusal lists, material/creep data | `campaign/digests/analysis_honesty.md`; docs/ANALYSIS_TIERS.md, docs/ANALYSIS_DOMAINS.md; tools/solvers/*.md |
 | every tool's job schema + verified examples | `campaign/digests/tools_cookbook.md`; docstring at top of each `tools/*.py` |
-| finished-campaign layouts, gate taxonomy, negative controls, process lessons | `campaign/digests/exemplars.md`; showcase/squatchee_spin/; camera_system/card_magazine/; docs/FRICTION.md |
+| finished-campaign layouts, gate taxonomy, negative controls, process lessons | `campaign/digests/exemplars.md`; showcase/squatchee_spin/; camera_system/card_magazine/; campaign/friction/ENGINE.md |
 | what each campaign must ship | `campaign/DELIVERABLE_SPEC.md` (the contract) |
 | how the August 2026 rounds went (slate, verdicts, fix report, re-baseline runbook) — records, NOT binding | `campaign/history/` (README indexes each document) |
+| the engine-wide friction record: every known papercut, its status, the open frontier | `campaign/friction/ENGINE.md` (per-campaign logs are the other files in that folder) |
 | the two connectivity oracles, the weld-scale limit, the two constructible oracle-NCs | `DELIVERABLE_SPEC` §2.2 + §2.13; `digests/ops_core.md` "ENGINE UPDATE" |
 | `support_report` semantics (`describe` ships empty docs) | `digests/ops_core.md` §11a; `DELIVERABLE_SPEC` §2.5; DESIGN_GUIDE §22 |
 | `clearance` on nested pairs + the grown-gauge bracket | `digests/ops_core.md` §11b; `DELIVERABLE_SPEC` §2.11 |

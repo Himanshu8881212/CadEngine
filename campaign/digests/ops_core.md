@@ -599,7 +599,7 @@ standard part. In-program assembly ops exist too (`asm_instance`, `asm_mate`,
 | exports/STEP scope | DESIGN_GUIDE §21; API.md "Exports" |
 | print-readiness method | DESIGN_GUIDE §22 |
 | failure playbook (verbatim error text) | DESIGN_GUIDE §23 |
-| limits ledger / known frictions | DESIGN_GUIDE §24; docs/FRICTION.md |
+| limits ledger / known frictions | DESIGN_GUIDE §24; campaign/friction/ENGINE.md |
 | ACE voxel-physics bridge (`sample_density_grid`/`mesh_density_grid`) | API.md top; tools/ runners |
 
 ---

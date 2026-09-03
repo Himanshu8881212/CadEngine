@@ -344,7 +344,7 @@ NON_ANALYSIS = {
     "materials_crosslang_test.py": "cross-language pin: one creep table, two readers, 540 probes",
     "param_optimize_drift_test.py": "witness-selection drift detector for param_optimize (gate, not a surface)",
     "audit_docs.py": (
-        "doc-drift auditor: checks the prose corpus (README/API/DESIGN_GUIDE) against the live op "
+        "doc-drift auditor: checks the prose corpus (README/API/campaign/DESIGN_GUIDE) against the live op "
         "surface. It analyses DOCUMENTS, not parts — it computes no physical quantity, has no "
         "manifest and no validation pin, and nothing it prints is a number about a design. "
         "Caught by the drift scan only because its filename contains 'audit'."

@@ -312,33 +312,42 @@ string (existing references keep building); `rm` removes only because no
 `.lmcasm` in the directory references the entry (else `dependents_exist`,
 provoked in §19.3).
 
-### 3.5 The reference assembly
+### 3.5 The reference assembly (retired artifact, kept as the measured record)
 
-The 15:1 two-stage gearbox is the worked floor-plan project. Its design
-campaign has been retired, but the assembly itself is kept in-tree as the
-reference `.lmcasm` example (`reference/assembly/`, see its README): 20
-`.lmcpart` recipes (now the pre-W6 back-compat corpus under
-`crates/kernel-model/tests/fixtures/pre_w6_parts/`), a 37-instance flat
-`.lmcasm` plus its nested variant, and a design-intent contact allowlist. Run
-the official surface:
+The 15:1 two-stage gearbox is the worked floor-plan project this guide's
+assembly numbers were measured on: 20 `.lmcpart` recipes, a 37-instance flat
+`.lmcasm` plus its nested variant, and a design-intent contact allowlist. Its
+design campaign was retired first; the assembly files followed on 2026-09-03,
+when campaigns moved out of this repository altogether. **They are not in the
+tree any more** — recover them from git history (`git show
+5a70984:reference/assembly/gearbox.lmcasm`) if you want to re-run them. The
+20 parts they sourced do survive, as the back-compat corpus under
+`crates/kernel-model/tests/fixtures/pre_w6_parts/`.
+
+What is still live is the capability and its gate. The `.lmcasm` surface is
+taught in full, with runnable inline documents, in §16.8 and §18; the
+executable gate is `crates/kernel-api/tests/asm.rs`, which writes assembly
+documents through the public format API and drives them through
+`run_assembly` — the same entry point behind the CLI:
 
 ```bash
-target/release/kernel-api asm reference/assembly/gearbox.lmcasm --out-dir out/asm > asm_report.json
-python3 reference/assembly/check_asm.py asm_report.json   # design-intent layer
-# or everything at once (flat + nested + evidence programs + the negative
-# control, which must fail): sh reference/assembly/run_all.sh
+target/release/kernel-api asm <assembly.lmcasm> --out-dir out/asm > asm_report.json
+# flags: --base-dir DIR (part-source root) --tol MM --voxel MM --window MM
 ```
 
-Executed for this edition (pinned current-main binary): exit 0; `load` 37
-instances / 4 mates / state `exploded`; `mates` residual 1.44e-12; `bom` 20
-grouped lines; per-instance STLs with per-part routes (the housing base ships
-`voxel_healed` at 971,736 triangles, watertight — FRICTION #19, §24); merged
-export 1,010,204 triangles watertight; `contacts` 78 pairs in the 1 mm
-window, 56 touching. `check_asm.py` then proves **52/52 designed contacts, 0
-unexpected**, tightest must-clear gap 0.050 mm (the designed gear-flank
-backlash — theory says 0.051), tolerating 4 known phantom pairs that
-`reference/assembly/check_artifacts.json` re-proves disjoint by exact booleans
-every run (§10.3, §24).
+Receipts measured on the reference gearbox (pinned binary, the edition these
+numbers were taken for; a dated record, no longer re-derivable in-tree):
+exit 0; `load` 37 instances / 4 mates / state `exploded`; `mates` residual
+1.44e-12; `bom` 20 grouped lines; per-instance STLs with per-part routes (the
+housing base shipped `voxel_healed` at 971,736 triangles, watertight —
+ENGINE friction #19, §24); merged export 1,010,204 triangles watertight;
+`contacts` 78 pairs in the 1 mm window, 56 touching. The campaign's own
+design-intent layer — a Python allowlist over the contact report, the pattern
+§18.6 tells you to write for your own assembly — then proved **52/52 designed
+contacts, 0 unexpected**, tightest must-clear gap 0.050 mm (the designed
+gear-flank backlash — theory says 0.051), tolerating 4 known phantom pairs
+re-proved disjoint by exact booleans (`pose` → `union` → `assert shells`,
+§7.3, §10.3, §24).
 
 ---
 # Part II — The work-order language
@@ -364,8 +373,8 @@ all verified by execution:
   `"segemnts": 64` reports the 32-segment faceted volume 382.377, not the
   64-segment 384.227. Misspelling a *required* param is a loud
   `invalid_param`. When in doubt, check a measure.
-- Top-level unknown keys are tolerated too (the reference-assembly programs
-  in `reference/assembly/` carry a `"_comment"` field).
+- Top-level unknown keys are tolerated too — campaign programs routinely
+  carry a `"_comment"` / `"_why"` field the engine ignores.
 - An **empty boolean result is an op failure** (`invalid_param`), not an empty
   solid — a disjoint `intersection` cannot bind. To *prove* disjointness, use
   `assert_disjoint` (distance-based, tessellation-accurate) or the exact
@@ -826,9 +835,9 @@ downstream could validate against it. Prove non-overlap positively instead
 Executed: one solid, three shells, 375.000 mm³. Disjoint bodies keep their
 own shells through a union, so `shells: N` is an exact-arithmetic proof that
 N bodies do not touch — tessellation-independent, unlike `assert_disjoint`
-(which gives you the *distance*, §10.3). The reference assembly uses exactly
-this for gear-mesh interleave proofs and to re-arbitrate phantom contact-scan
-pairs (`reference/assembly/check_artifacts.json`).
+(which gives you the *distance*, §10.3). The reference gearbox (§3.5) used
+exactly this for gear-mesh interleave proofs and to re-arbitrate phantom
+contact-scan pairs; §10.3 has the pattern in full.
 
 ### 7.4 Coplanar faces — measured today, and the honest history
 
@@ -973,7 +982,7 @@ each chamfer/boolean re-tessellation fragments the flat side faces, and edge
 resolution stops finding one straight edge between two whole planes. The
 working order is **ease edges on primitives first, boolean last** (the same
 fuse-first family of rules as §14's datum re-clamp). Engine-side face
-re-coalescing is on the frontier ledger (docs/FRICTION.md #20).
+re-coalescing is on the frontier ledger (campaign/friction/ENGINE.md #20).
 
 Honest scope (`feature_failed` otherwise, both executed):
 
@@ -1282,20 +1291,33 @@ exact tessellations at `tol` (default 0.01), so treat the answer as accurate
 to about `tol` and keep `min_clearance` ≳ `tol` for hard proofs. For
 tessellation-independent proofs, the exact route is `union` + `assert
 shells` (§7.3). Both patterns in the wild: §10.2's shaft clearance (3.466
-mm), §20.3's gear backlash (0.0834 mm), and the reference assembly's
-52-contact allowlist (§18.6).
+mm), §20.3's gear backlash (0.0834 mm), and the retired reference gearbox's
+52-contact allowlist (§3.5, §18.6).
 
-Two assertion patterns worth stealing from the reference assembly
-(`reference/assembly/`):
+Two assertion patterns worth stealing from that gearbox. Both are the same
+three ops — `pose` each body to its assembled place, `union` them, `assert`
+the shell count — and both are exact-arithmetic, so neither depends on the
+tessellation that produced the doubt:
 
-- **Mesh-clearance proof**: pose two gears at the mounted centre distance,
-  `union` them, `assert shells == 2` — teeth interleave without contact, both
-  as-assembled and half-pitch-rolled
-  (`reference/assembly/programs/check_mesh_stage1.json`, `check_mesh_stage2.json`).
+```json
+{"ops": [
+	{"id": "a",    "op": "load_part", "file": "pinion.lmcpart"},
+	{"id": "b",    "op": "load_part", "file": "wheel.lmcpart"},
+	{"id": "bp",   "op": "pose", "in": "b", "translate": [60.0, 0.0, 0.0],
+	               "rotate": {"axis": [0, 0, 1], "degrees": 4.5}},
+	{"id": "pair", "op": "union", "a": "a", "b": "bp"},
+	{"id": "clear", "op": "assert", "in": "pair", "shells": 2}
+]}
+```
+
+- **Mesh-clearance proof**: pose two gears at the mounted centre distance and
+  assert `shells == 2` — the teeth interleave without contact. Run it twice,
+  as-assembled and rolled half a tooth pitch (the `rotate` above), because a
+  gear pair can clear in one angular phase and clash in another.
 - **Exact disjointness despite mesh artifacts**: where the contact scan reads
-  a phantom touch through a known tessellation leak, re-prove the pair with
-  `pose → union → assert shells == 2` — the exact boolean is the truth
-  channel (`reference/assembly/check_artifacts.json`).
+  a phantom touch through a known tessellation leak (§24), re-prove that one
+  pair the same way. The exact boolean is the truth channel; the mesh-distance
+  scan is the screen.
 
 ---
 # Part III — The implicit half
@@ -2555,17 +2577,22 @@ above 1e-6), per-export `route` and `watertight`, `contacts.touching`. Note
 (measured, §16.8): a non-watertight *instance export* does not fail the asm
 run — the receipt says `"watertight": false` and the exit stays 0, unlike
 program-level `export_stl` which fails (`invalid_geometry`) if even the heal
-stays leaky. Your pipeline decides; the reference assembly's
-`reference/assembly/check_asm.py` is the model of that caller-policy layer.
+stays leaky. Your pipeline decides. The retired reference gearbox (§3.5)
+carried the model of that caller-policy layer: a small Python script that
+reads the `contacts` block out of the asm report, matches every touching pair
+against an allowlist of *designed* fits/seats/butts, and exits nonzero on any
+pair that is not on it — plus a `MUST_CLEAR` list of pairs whose measured gap
+must stay positive. Write that script for your own assembly; the engine gives
+you the scan, the intent is yours to declare.
 
 ### 18.6 The joinery doctrine: contacts ≠ connections
 
 The contact scan proves parts *touch*; it cannot prove they are *attached*.
 Resting a stack of parts on each other passes every clearance check and
 falls apart in your hand. The tri-benchmark
-(`legacy/kernel-model-examples/tri_benchmark.rs`, kept out of the build since
-2026-09) encodes the lesson — steal
-its three moves:
+(tri_benchmark.rs, a pre-JSON Rust example parked out of the build in
+2026-09 and removed from the tree on 2026-09-03 — git history at `5a70984`)
+encodes the lesson — steal its three moves:
 
 - **Recess/spigot registration**: the B-rep base carries a 2 mm-deep recess
   that *seats* the damper with 0.3 mm radial clearance, and the cap's
@@ -2578,9 +2605,9 @@ its three moves:
   threaded rod clamps it — every "assembly" needs at least one answer to
   "what holds this together?".
 
-Then *assert the design intent*: the tri-benchmark requires exactly 2
-designed contacts; the reference assembly allowlists all 52 designed contacts
-and fails on any unexpected touch (`reference/assembly/check_asm.py`), with `MUST_CLEAR` pairs (gear
+Then *assert the design intent*: the tri-benchmark required exactly 2
+designed contacts; the reference gearbox allowlisted all 52 designed contacts
+and failed on any unexpected touch (§18.5), with `MUST_CLEAR` pairs (gear
 flanks at the designed backlash) proven positive-distance. Joinery on the
 parts, intent in the checks.
 
@@ -2594,10 +2621,11 @@ resolves its own part sources against its own directory:
  "pose": [1,0,0, 0,1,0, 0,0,1, -41,0,38]}
 ```
 
-The worked artifact is the reference assembly's nested variant
-(`reference/assembly/gearbox_nested.lmcasm`, regrouping the three shaft stacks
-into `reference/assembly/asm/shaft_*.lmcasm`). All receipts below are measured
-from that run.
+The worked artifact was the reference gearbox's nested variant, regrouping
+the three shaft stacks into their own `shaft_*.lmcasm` files (§3.5 — retired
+from the tree 2026-09-03, recoverable from git history). All receipts below
+are measured from that run; the live gate on nesting, including the cycle
+refusal quoted next, is `crates/kernel-model/tests/nesting.rs`.
 
 **Semantics** — a sub-assembly solves its *own* mates at its own load, then
 enters the parent as **one rigid unit** at the instance pose. Parent-level
@@ -2641,7 +2669,8 @@ route. The measured bearing line:
  "line_mass_g": 108.7572252782983, "make_or_buy": "buy"}
 ```
 
-— `7.85·π·(11²−4²)·7/1000` to 1e-14 (pinned at 1e-9 in `check_asm.py`). Mass
+— `7.85·π·(11²−4²)·7/1000` to 1e-14 (pinned at 1e-9 by that campaign's
+design-intent checker). Mass
 honesty cuts both ways: the BOM prices the **model**, and the modelled
 envelope ring deliberately overstates a real shielded 608ZZ (≈12 g) — if you
 need datasheet mass, that is procurement data, not geometry.
@@ -2650,8 +2679,8 @@ The `tree` view mirrors the structure with rollup counts — measured: 15
 top-level nodes, branches `stack_in: 8, stack_mid: 9, stack_out: 8`, tree
 total **37 = flat total 37** (20 flat lines) — and `bom.csv` (fixed column
 order, one header row) is the ERP hand-off. Both files are byte-identical
-across independent runs (asserted in-tree and re-pinned by
-`reference/assembly/check_asm.py`).
+across independent runs (asserted in-tree by `crates/kernel-api/tests/asm.rs`
+and re-pinned by that campaign's own design-intent checker).
 
 **What BOM v2 is not** (scope, on purpose): no revisions/ECO/release states,
 no suppliers or cost — part lifecycle lives in PLM-land (or your git
@@ -3260,7 +3289,7 @@ mind:
    triangulator), so its STL ships `voxel_healed` (measured in §3.5's run:
    971,736 triangles, watertight) and the mesh-distance contact scan reads 4
    phantom touching pairs — each re-proven disjoint by exact booleans every
-   run (`check_artifacts.json`). The B-rep itself is valid; the leak is
+   run (`pose` → `union` → `assert shells`, §10.3). The B-rep itself is valid; the leak is
    mesh-side. Pattern to copy: when a contact receipt surprises you,
    arbitrate with the exact route (§10.3).
 3. **Mirror-symmetric hole-row stitcher degeneracy.** When two hole rows
@@ -3351,10 +3380,10 @@ to say so in the receipt rather than degrade silently. Read the receipts.
 
 ## 25. Campaign cookbook — gate-driven Rust examples
 
-The shipped print campaigns (DOVESTACK `drawer_system.rs`, POOLDOCK
-`pool_*.rs`, RESPOOL `respool.rs` — all parked, uncompiled, in
-`legacy/kernel-model-examples/` since 2026-09; its README says how to restore
-one)
+The shipped print campaigns (DOVESTACK drawer_system.rs, POOLDOCK
+pool_*.rs, RESPOOL respool.rs — all pre-JSON Rust examples, parked
+uncompiled in 2026-09 and removed from the tree on 2026-09-03; git history at
+`5a70984`)
 share one architecture that this guide's JSON surface does not cover: a flat
 Rust `main` that builds parts with the `kernel_brep` API, then **re-proves
 every claim on every run** and exits non-zero on any FAIL. If you are
@@ -3437,8 +3466,9 @@ riders landed 2026-07-30: intra-arrangement threading (booleans ~2× on
 heavy chains at 8 cores, byte-identical to sequential BY CONSTRUCTION,
 `LMCAD_BREP_THREADS`, parity + threaded-40× pinned — docs/NUMERICS.md) and
 GPU narrow-band extraction (`extract_narrow_band` in `kernel-gpu`, a crate
-parked unbuilt in `legacy/kernel-gpu/` since 2026-09: preview
-path, domains beyond the dense 2²⁸-cell cap delivered watertight, CPU
+parked unbuilt in 2026-09 and removed from the tree on 2026-09-03 — git
+history at `5a70984`; the contract it was held to is still recorded in
+docs/NUMERICS.md: preview path, domains beyond the dense 2²⁸-cell cap delivered watertight, CPU
 stays bit-authoritative). The five capabilities on this JSON surface since
 2026-07-30: `offset_solid`, `shell_solid`, `solid_from_implicit`,
 `thin_wall`, `min_ligament` + tree leaves `strut_lattice`/`pipe_path`/

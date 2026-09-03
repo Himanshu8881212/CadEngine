@@ -10,11 +10,15 @@ cost real time or risks a bad part), **minor** (papercut/doc gap).
 Where a workaround exists it is named. The `gearbox/` campaign directory this log was
 written against was **retired from the repository on 2026-09-03** (design campaigns now
 live outside this checkout). Nothing it proved was lost: the 20 `.lmcpart` recipes are
-kept as the pre-W6 backward-compatibility corpus in `crates/kernel-model/tests/fixtures/pre_w6_parts/`, and the assembly files, the
-design-intent allowlist and the evidence programs are kept as the reference example in
-`reference/assembly/` (which has its own README and `run_all.sh`). Paths below have been repointed at
-those homes; a path still written as `gearbox/…` names a file that went with the
-campaign and is called out as such.
+kept as the pre-W6 backward-compatibility corpus in `crates/kernel-model/tests/fixtures/pre_w6_parts/`.
+The assembly files, the design-intent allowlist and the evidence programs survived one
+wave longer as an in-tree reference example under `reference/assembly/`, and were removed
+on 2026-09-03 as well; they are recoverable from git history at commit `5a70984`. Paths
+below that name `reference/assembly/…` or `gearbox/…` therefore name files that are no
+longer in the tree — they are kept because the evidence they carry is what makes each
+entry checkable, and because the *capability* each one proved is still live and gated by
+the workspace test suite (`crates/kernel-api/tests/asm.rs` for `.lmcasm`,
+`crates/kernel-model/tests/nesting.rs` for sub-assemblies).
 
 ## Disposition after the w6 friction pass (2026-06-11)
 
@@ -53,9 +57,9 @@ campaign and is called out as such.
 > state's STL, and runs the B-rep-aware contact scan — all as one `run`-shaped
 > JSON report with the exit-0 contract (see API.md "The assembly surface").
 > the `asmcheck` and gearbox-STL example workaround harnesses are retired, fully
-> replaced; the pipeline (now `reference/assembly/run_all.sh`) drives `kernel-api asm` +
-> `check_asm.py` (the design-intent allowlist, the only assembly-specific
-> remainder).
+> replaced; the pipeline drove `kernel-api asm` + a check_asm.py design-intent
+> allowlist (the only assembly-specific remainder, and caller policy rather than
+> engine — DESIGN_GUIDE §18.5).
 > On the gearbox: 37 instances, residual ~1e-12, 52 designed contacts found,
 > tightest must-clear gap 0.050 mm — identical to the retired harness.
 
@@ -87,7 +91,8 @@ Suggestion: `kernel-api check-asm <file.lmcasm>` (load + residual + BOM + report
 > bridge B-rep-only documents through the winding-number `MeshSdf` instead of an
 > empty mesh. Regression: `assembly_checks_see_brep_only_parts` (kernel-model).
 > The gearbox's 52-contact class is discoverable through `kernel-api asm`
-> (see #1); `reference/assembly/run_all.sh` asserts it.
+> (see #1); the gearbox pipeline asserted it, and `crates/kernel-api/tests/asm.rs`
+> asserts it now.
 
 `Assembly::clearance` / `interferences` / `interference_volume` mesh each instance through
 the **implicit half** (`Instance::mesh` → `Document::evaluate` → SDF dual-contour). Every
@@ -119,9 +124,9 @@ document is B-rep-only), or at minimum return an error/flag instead of an empty 
 > {"axis": [x,y,z], "degrees": d, "center": [x,y,z]?}, "translate": [x,y,z]?}`
 > — rotation about any axis through any point, then translation (exactly the
 > `.lmcasm` instance pose form; chain two poses for composed rotations). The
-> gearbox's `Rx(−90°)`-posed parts are now writable as programs:
-> `reference/assembly/check_artifacts.json` poses the real spacers/bolts verbatim from the
-> assembly file and proves them disjoint from the housing.
+> gearbox's `Rx(−90°)`-posed parts are now writable as programs: the reference
+> gearbox's `check_artifacts.json` posed the real spacers/bolts verbatim from the
+> assembly file and proved them disjoint from the housing.
 
 A gearbox's gears/shafts lie along Y; their assembly pose is `Rx(-90°)·Rz(phase)`. No op
 can produce that orientation, so **posed multi-part interference checks cannot be written
@@ -148,16 +153,16 @@ feature already uses.
 > proofs the exact route is now also assertable in-program:
 > `union` + `assert {"shells": 2}`. Empty booleans remain loud failures by
 > design — the assertion ops are the intended way to state emptiness intent.
-> `reference/assembly/programs/check_clash_expected_fail.json` stays in-tree as the
-> documented historical evidence.
+> the gearbox's `check_clash_expected_fail.json` is the documented historical
+> evidence (git history, commit `5a70984`).
 
 The natural check "these two posed gears must NOT intersect" is an `intersection` whose
 EMPTY result is the pass condition — but an empty boolean is a loud `invalid_param`
 **failure**, and "execution stops at the first failing op", so the check program exits 1
 on success-of-intent and there is no way to continue past it.
 
-Evidence — `reference/assembly/programs/check_clash_expected_fail.json` (kept in-tree as the
-documented expected-fail program; exits 1 with):
+Evidence — the gearbox's `check_clash_expected_fail.json` (the documented
+expected-fail program; exits 1 with):
 
 ```json
 {"id": "clash", "ok": false, "error": {"kind": "invalid_param",
@@ -179,8 +184,8 @@ binding an explicit empty + `"empty": true` measure.
 > `exact_volume_within`, `genus`, `shells`, `closed`, `manifold`, `valid` — all
 > present checks evaluated, every failure named with measured vs expected in
 > one message, measured values echoed as measures on pass. The gearbox
-> acceptance-style "shells == 2" greps are now in-program assertions
-> (`reference/assembly/check_artifacts.json`).
+> acceptance-style "shells == 2" greps are now in-program assertions (the
+> gearbox's `check_artifacts.json`; the pattern is DESIGN_GUIDE §10.3).
 
 Programs can *measure* (`validate`, `volume`, `wall_thickness`…) but cannot *assert*. The
 gearbox acceptance ("genus == 6", "shells == 2", "volume within x%") lives in my runner
@@ -431,10 +436,11 @@ M4-insert pockets and three web bores, so any mesh-distance contact scan
 (official or the retired harness) reads a phantom `0.0 mm` for
 `base↔bolt_0/bolt_3/spacer9_0/spacer10_0/spacer21_0` while the EXACT boolean
 proves clear air (bolt↔pilot 0.8 mm radial, spacer↔web 2 mm; probe: bolt-shank
-∩ base = empty). Handling: `reference/assembly/check_asm.py` tolerates exactly these five
-pairs as named artifacts, and `reference/assembly/check_artifacts.json` re-proves each
-disjoint EVERY pipeline run through the exact layer (`pose` + `union` +
-`assert shells == 2`) — if one ever truly touches, the pipeline fails.
+∩ base = empty). Handling: the gearbox's check_asm.py tolerated exactly these five
+pairs as named artifacts, and its `check_artifacts.json` re-proved each disjoint
+EVERY pipeline run through the exact layer (`pose` + `union` +
+`assert shells == 2`) — if one ever truly touched, the pipeline failed. Copy the
+pattern, not the file: DESIGN_GUIDE §10.3.
 
 ## 20. [MAJOR, found by the cold-start audit] Edge features after booleans fragment the next witness resolution
 
@@ -587,8 +593,8 @@ Still open:
 ## #24 — `valid` + `watertight` + every dimensional gate can all pass on a part that is in TWO PIECES — 2026-07-31
 
 **Severity: major.** Found building the DRILL HOOK campaign
-(`drill_hook.rs`, then under `crates/kernel-model/examples/`, parked since 2026-09
-in `legacy/kernel-model-examples/`).
+(drill_hook.rs, then under `crates/kernel-model/examples/`, parked uncompiled in
+2026-09 and removed from the tree on 2026-09-03 — git history at `5a70984`).
 
 The hook is a prism with a tapered cutter through its cradle: a hexagonal
 prism whose two ends ramp inward at 46.6° so the grip channel closes without
@@ -614,7 +620,7 @@ welded vertices: **2 components**.
 **What closed it (campaign-side, and it should be the idiom):**
 
 ```rust
-// legacy/kernel-model-examples/drill_hook.rs (then crates/kernel-model/examples/)
+// drill_hook.rs, the pre-JSON Rust campaign (crates/kernel-model/examples/)
 let parts_n = mesh_components(&tessellate_default(&hook));
 gate("the hook is ONE connected body", parts_n == 1, format!("{parts_n} bodies"), &mut ok);
 ```
@@ -627,7 +633,7 @@ contrast is the whole lesson, and the NC pins it).
 validity and watertightness, and no campaign that subtracts a tapered or
 tapering cutter should ship without it. Any cutter whose cross-section shrinks
 to a point must have that apex strictly INSIDE the material, with a stated
-solid margin — `drill_hook.rs` now carries that as the named const `END_TIE`
+solid margin — drill_hook.rs now carries that as the named const `END_TIE`
 with the failure written into its doc comment.
 
 **Engine-side follow-up, not done here:** a `Mesh::component_count()` (or a
@@ -659,8 +665,9 @@ needs the full face neighbourhood, per the RESPOOL precedent).
 Handled by choosing negative-control offsets that resolve (−6 for the tight
 control, −10 for the loose one) and **recording the refusal in the campaign
 source and in `analysis/DESIGN.md`** rather than silently stepping around it.
-Repro: restore the drill-hook source from `legacy/kernel-model-examples/` into
-`crates/kernel-model/examples/` (see the legacy README), then
+Repro: recover the drill-hook source from git history
+(`git show 5a70984:legacy/kernel-model-examples/drill_hook.rs >
+crates/kernel-model/examples/drill_hook.rs`), then
 `cargo run --release -p kernel-model --example drill_hook` with the
 diagnostic loop restored around `body_keepout`.
 

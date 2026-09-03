@@ -3,7 +3,7 @@
 Digest for design agents who have NOT read the source docs. Built from the two
 finished campaigns (`showcase/squatchee_spin/` — JSON-program style, published on
 Printables with 1.2K downloads; `camera_system/card_magazine/` — Rust-example
-style, 35 gates) plus `docs/FRICTION.md` and `docs/FIELD_REPORTS.md`. Every
+style, 35 gates) plus `campaign/friction/ENGINE.md` and `docs/FIELD_REPORTS.md`. Every
 command line and JSON shape below was verified against the live tree on
 2026-08-06 by running it, not paraphrased.
 
@@ -23,9 +23,9 @@ silently omitted.
 # assemblies from .lmcasm files
 "/Users/himanshu/Work/New-LMCAD/cad engine/target/release/kernel-api" asm <assembly.lmcasm> [--base-dir D] [--out-dir O] [--tol MM] [--voxel MM] [--window MM]
 
-# Rust-style campaign (exits non-zero if any gate fails). The source is parked in
-# legacy/kernel-model-examples/ (not compiled) — restore it per that folder's README first:
-cd "/Users/himanshu/Work/New-LMCAD/cad engine" && git mv legacy/kernel-model-examples/card_magazine.rs crates/kernel-model/examples/
+# Rust-style campaign (exits non-zero if any gate fails). The 32 pre-JSON Rust
+# campaign sources were removed from the tree on 2026-09-03 — recover one first:
+cd "/Users/himanshu/Work/New-LMCAD/cad engine" && git show 5a70984:legacy/kernel-model-examples/card_magazine.rs > crates/kernel-model/examples/card_magazine.rs
 cd "/Users/himanshu/Work/New-LMCAD/cad engine" && cargo run -p kernel-model --release --example card_magazine
 
 # Python analysis layer — every tool takes ONE job.json as argv[1]
@@ -51,8 +51,9 @@ Pitfalls, verified:
 - `export_stl` `"file"` paths are relative to `--out-dir`.
 - Relative `load_part` paths resolve against the PROGRAM file's directory
   (FRICTION #13, resolved) — programs are relocatable.
-- MCP server for the tool-driven path: `./target/release/lmcad-mcp`
-  (`sweep_check.py` drives it one-shot internally).
+- One engine binary, one wire: `./target/release/kernel-api run <program.json>
+  --out-dir <dir>` prints the whole report on stdout (`param_optimize.py` /
+  `sweep_check.py` drive it one-shot internally).
 
 ### Program receipt shape (verified by running `retainer_program.json`)
 
@@ -175,8 +176,8 @@ camera_system/card_magazine/
     └── check_listing.py            # machine validator for those limits
 ```
 
-Source of truth: `legacy/kernel-model-examples/card_magazine.rs` (949 lines;
-parked out of the build since 2026-09, see `legacy/kernel-model-examples/README.md`) —
+Source of truth: `card_magazine.rs` (949 lines; parked out of the build in 2026-09
+and removed from the tree on 2026-09-03 — git history at `5a70984`) —
 geometry constants, the `gate(label, cond, evidence_string, &mut ok)` suite, and
 the code that regenerates `ANALYSIS.md`. Exits non-zero on any gate failure.
 
@@ -328,7 +329,7 @@ Corollaries recorded in FRICTION:
 
 ---
 
-## 4. Top process lessons (FRICTION.md + FIELD_REPORTS.md) — do not repeat
+## 4. Top process lessons (campaign/friction/ENGINE.md + docs/FIELD_REPORTS.md) — do not repeat
 
 1. **Green ≠ whole.** `valid` + `watertight` + every dimensional gate can pass
    on a part in TWO PIECES (`shell_count` counts B-rep records, not connected
@@ -415,11 +416,11 @@ All paths relative to `/Users/himanshu/Work/New-LMCAD/cad engine/`.
 | Exports/STEP interop | `DESIGN_GUIDE.md` §21 |
 | Print-readiness method / failure playbook / limits ledger | `DESIGN_GUIDE.md` §22, §23, §24 |
 | **Campaign cookbook + the §25.7 analysis-plan law** | `DESIGN_GUIDE.md` §25, §25.7 |
-| Recorded failure modes, op-gap history, open frontier | `docs/FRICTION.md` (esp. #20, #24–#27) |
+| Recorded failure modes, op-gap history, open frontier | `campaign/friction/ENGINE.md` (esp. #20, #24–#27) |
 | Field-report schema, refusals, triage pipeline | `docs/FIELD_REPORTS.md`; `tools/field_report.py --self-test` |
 | Analysis tiering / domains / numerics / robustness | `docs/ANALYSIS_TIERS.md`, `docs/ANALYSIS_DOMAINS.md`, `docs/NUMERICS.md`, `docs/ROBUSTNESS.md` |
 | ACE solver integration (FEA/modal/thermal/fatigue/…) | `docs/ACE_INTEGRATION.md`; `tools/ace_*_runner.py` |
 | Tool job schemas (authoritative) | docstring at the top of each `tools/{analyzers,publish}/*.py` (the flat `tools/<name>.py` paths are forwarding shims) |
 | The JSON-style exemplar, end to end | `showcase/README.md`; `showcase/squatchee_spin/programs/*.json` |
-| The Rust-style exemplar + its 35 gates | `camera_system/card_magazine/README.md`, `analysis/*.md`; `legacy/kernel-model-examples/card_magazine.rs` (gates from line ~400; not compiled — restore per its README) |
+| The Rust-style exemplar + its 35 gates | `camera_system/card_magazine/README.md`, `analysis/*.md`; `card_magazine.rs` (gates from line ~400; removed from the tree 2026-09-03, git history at `5a70984`) |
 | Materials data | `tools/material_db.json`, `tools/materials/*.json`, `kernel_model::materials` |

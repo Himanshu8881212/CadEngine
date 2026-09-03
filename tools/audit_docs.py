@@ -12,7 +12,7 @@ Check classes (each independently reported, each independently self-tested):
                 mechanical count of `op_tag` match arms in
                 crates/kernel-api/src/discover.rs (cross-checked against
                 OP_NAMES and OP_COUNT in the same file).
-  op-family     DESIGN_GUIDE.md Appendix A: the bold family arithmetic must
+  op-family     campaign/DESIGN_GUIDE.md Appendix A: the bold family arithmetic must
                 actually sum to the true count, the table's per-family counts
                 must match that arithmetic, every op named in a family must be
                 a real op, no op may be claimed by two families, and the ops
@@ -79,7 +79,11 @@ from pathlib import Path
 SEVERITY = {"info": 0, "warn": 1, "error": 2}
 CLASSES = ["op-count", "op-family", "op-doc", "path", "section", "symbol", "claim"]
 
-CORE_DOCS = ["AGENTS.md", "CLAUDE.md", "README.md", "API.md", "DESIGN_GUIDE.md"]
+# the operator manual moved to campaign/ on 2026-09-03 (campaign/ = how the model
+# must work; docs/ = what the engine is). One constant, so the corpus list, the
+# Appendix-A checks and the self-test fixture cannot drift apart again.
+GUIDE_REL = "campaign/DESIGN_GUIDE.md"
+CORE_DOCS = ["AGENTS.md", "CLAUDE.md", "README.md", "API.md", GUIDE_REL]
 CRATE_NAMES = ["kernel-core", "kernel-brep", "kernel-implicit", "kernel-model",
 	"kernel-api", "agent-bench"]
 PATH_EXTS = {".rs", ".py", ".sh", ".md", ".json", ".jsonl", ".toml", ".ts", ".lock",
@@ -90,7 +94,7 @@ SOURCE_EXTS = {".rs", ".py", ".sh", ".toml", ".md", ".lock", ".ts"}
 # dated ledgers: a stale-looking number there may be a legitimate historical
 # record ("2026-06-10: 44-op JSON API"), so op-count findings are reported at
 # info severity and flagged for human judgement rather than gated on.
-HISTORICAL_DOCS = {"docs/BAR.md", "docs/CHANGELOG.md", "docs/FRICTION.md"}
+HISTORICAL_DOCS = {"docs/BAR.md", "docs/CHANGELOG.md", "campaign/friction/ENGINE.md"}
 SKIP_DIRS = {".git", "target", "__pycache__", "node_modules", ".venv"}
 
 
@@ -421,7 +425,7 @@ def check_op_counts(repo, docs, truth, min_claim, verbose_skips, stats):
 # --------------------------------------------------------------------------- #
 
 def check_op_families(repo, doc, truth):
-	"""DESIGN_GUIDE.md Appendix A: arithmetic, family membership, coverage."""
+	"""campaign/DESIGN_GUIDE.md Appendix A: arithmetic, family membership, coverage."""
 	out = []
 	if not truth.arms:
 		return out
@@ -927,7 +931,7 @@ def audit(root, all_docs=False, min_claim=40, verbose_skips=False, only=None):
 	repo = Repo(root)
 	docs = corpus(repo, all_docs)
 	truth = op_truth(repo)
-	guide = next((d for d in docs if d.rel == "DESIGN_GUIDE.md"), None)
+	guide = next((d for d in docs if d.rel == GUIDE_REL), None)
 
 	stats = {}
 	findings = list(truth.findings)
@@ -1082,11 +1086,12 @@ def build_fixture(dest):
 	(dest / "crates/kernel-brep/tests").mkdir(parents=True, exist_ok=True)
 	(dest / ".claude/skills/fixture-skill").mkdir(parents=True, exist_ok=True)
 	(dest / "tools").mkdir(parents=True, exist_ok=True)
+	(dest / "campaign").mkdir(parents=True, exist_ok=True)
 	(dest / "crates/kernel-api/src/discover.rs").write_text(FIXTURE_DISCOVER)
 	(dest / "crates/kernel-brep/src/lib.rs").write_text(FIXTURE_LIB)
 	(dest / "crates/kernel-brep/src/booleans.rs").write_text(FIXTURE_BOOLEANS)
 	(dest / "crates/kernel-brep/tests/fixture_pin.rs").write_text(FIXTURE_TEST)
-	(dest / "DESIGN_GUIDE.md").write_text(FIXTURE_GUIDE)
+	(dest / GUIDE_REL).write_text(FIXTURE_GUIDE)
 	(dest / "API.md").write_text(FIXTURE_API)
 	(dest / "AGENTS.md").write_text(FIXTURE_AGENTS)
 	(dest / "CLAUDE.md").write_text("# shim\n\n@AGENTS.md\n")
@@ -1111,11 +1116,11 @@ def injections():
 		return "142"
 
 	def arithmetic(root):
-		_inject(Path(root) / "DESIGN_GUIDE.md", "**2 + 2 + 2 = 6.**", "**2 + 3 + 2 = 6.**")
+		_inject(Path(root) / GUIDE_REL, "**2 + 2 + 2 = 6.**", "**2 + 3 + 2 = 6.**")
 		return "add up"
 
 	def bad_family_op(root):
-		_inject(Path(root) / "DESIGN_GUIDE.md", "| booleans (2) | union, difference |",
+		_inject(Path(root) / GUIDE_REL, "| booleans (2) | union, difference |",
 			"| booleans (2) | union, differance |")
 		return "differance"
 
@@ -1160,7 +1165,7 @@ def injections():
 		return "no `#[test]`"
 
 	def missing_pin(root):
-		_inject(Path(root) / "DESIGN_GUIDE.md",
+		_inject(Path(root) / GUIDE_REL,
 			"`crates/kernel-brep/tests/fixture_pin.rs`",
 			"`crates/kernel-brep/tests/never_written.rs`")
 		return "does not exist"
@@ -1271,7 +1276,7 @@ def self_test(root, verbose=False):
 			("claim", lambda r: _inject(Path(r) / "AGENTS.md",
 				"repro `keyed_pulley_acceptance.rs`",
 				"repro `crates/kernel-brep/tests/never_written_xyz.rs`"), "never_written_xyz"),
-			("op-family", lambda r: _inject(Path(r) / "DESIGN_GUIDE.md",
+			("op-family", lambda r: _inject(Path(r) / GUIDE_REL,
 				"| booleans (4) | union, difference, intersection, union_all |",
 				"| booleans (4) | union, difference, intersection, union_alll |"),
 				"union_alll"),

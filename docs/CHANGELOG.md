@@ -4,7 +4,8 @@ Chronological record of every capability wave, campaign, and root-cause fix
 (moved out of CLAUDE.md in the 2026-07-29 cleanup so the working context
 stays short; nothing was reworded — these are the original entries).
 Current-state summary and open frontier live in CLAUDE.md; the falsifiable
-scorecard in docs/BAR.md; deep friction write-ups in docs/FRICTION.md.
+scorecard in docs/BAR.md; deep friction write-ups in campaign/friction/ENGINE.md
+(moved there from docs/FRICTION.md on 2026-09-03).
 
 CLEANUP + FIXES 2026-09-03 (branch `cleanup-2026-09`, four parallel worktrees):
 the two friction items that cost a day in each of the last two campaigns are fixed at
@@ -22,8 +23,49 @@ one centroid ray per triangle on boolean triangulations), every receipt carries
 therefore report thin bands the centroid sampler missed — a measurement improvement, not
 a geometry change (table in `campaign/fixlog/2026-09-02-export-demotion-wedge-thickness.md`).
 
+STRUCTURE 2026-09-03 (second pass — the tree is now engine + analysis + rules, nothing
+else). **`studio/` removed**: the HTTP server, the three.js web IDE, `lmcad-tui` and the
+`lmcad-mcp` MCP server, ~3.9k lines and three workspace members, plus `.mcp.json`. The
+`kernel-api` CLI is the only engine binary and the only way in: `kernel-api run
+<program.json> --out-dir <dir>` prints the whole report on stdout (uncapped, unlike the
+60 KiB MCP tool-result cap it replaces) and `kernel-api asm <assembly.lmcasm>` runs the
+assembly pipeline. Two Python analyzers spoke JSON-RPC to `lmcad-mcp` and were rewired to
+the CLI: `tools/analyzers/graded_infill_runner.py` (which used it exclusively — it now
+materialises its program inside the job's `out_dir` and runs `kernel-api run` against the
+same directory, so relative `.npy` in and `.stl` out still mean one file) and
+`tools/analyzers/param_optimize.py` (the MCP path was already only a capped fallback; a
+missing binary is now a loud error instead of a silent downgrade). The default scratch
+out-dir moved `studio_out/mcp` → `engine_out/` (`CADCODE_OUT_DIR` still overrides; both
+stay gitignored). `release.yml` no longer builds the node front end or the three studio
+binaries. **`reference/` removed**: the worked 15:1 gearbox `.lmcasm` example. No test read
+it; the assembly CAPABILITY is untouched and gated by `crates/kernel-api/tests/asm.rs`
+(the `.lmcasm` surface end to end) and `crates/kernel-model/tests/nesting.rs`
+(sub-assemblies, include cycles). The docs that taught THROUGH it now teach inline:
+DESIGN_GUIDE §3.5 keeps the measured receipts as a dated record and names the live gate,
+§10.3 spells out the pose→union→assert-shells clearance proof as a runnable program, and
+§18.5 describes the design-intent contact-allowlist pattern instead of pointing at a
+deleted script. The 20 `.lmcpart` parts it sourced stay as the back-compat corpus in
+`crates/kernel-model/tests/fixtures/pre_w6_parts/`. **`legacy/` removed**: `kernel-gpu`,
+`kernel-wasm` and the 32 pre-JSON Rust example campaigns, none of them built. Everything
+deleted in this pass is in git history at `5a70984`; docs/NUMERICS.md still carries the
+GPU tolerance contract as the standard any restored GPU path must meet, and BENCH.md
+carries the `git show` line to recover a harness. **`docs/` and `campaign/` each got one
+job**: `campaign/` = how the model must WORK (brief, deliverable spec, listing spec,
+digests, friction, history, fixlog, workflows) and gained `DESIGN_GUIDE.md` (the operator
+manual is a rule, not a description) and `friction/ENGINE.md` (was docs/FRICTION.md —
+the engine-wide log beside the per-campaign ones, with a `friction/README.md` saying
+which is which); `docs/` = what the engine IS and how far it can be TRUSTED (robustness,
+numerics, bar, bench, analysis tiers/domains, op usage, field reports, manifest schema,
+ACE integration, this changelog). `ANALYSIS_TIERS.md` and `ANALYSIS_DOMAINS.md` stay in
+`docs/` — CI and `tools/analyzer_registry.py` reference them by path. Both folders gained
+a `README.md` stating the folder's one job and listing its files; `tools/audit_docs.py`
+grew a single `GUIDE_REL` constant so its corpus list, its Appendix-A checks and its
+self-test fixture cannot drift apart over the guide's location.
+
 STRUCTURE 2026-09-03: 32 pre-JSON `kernel-model` examples, `kernel-wasm` and
-`kernel-gpu` (nothing in the workspace depended on either) moved to `legacy/`;
+`kernel-gpu` (nothing in the workspace depended on either) were parked under
+`legacy/` and then, later the same day, removed from the tree entirely
+(git history at `5a70984`);
 `kernel-api` gained a default-on `catalog` feature that gates the 52 hardware-catalog
 ops no campaign uses (`--no-default-features` = 109 of 161 ops; a gated op refuses with
 `unknown_op` naming the feature). `docs/OP_USAGE.md` is the census: 161 ops dispatched,
@@ -72,7 +114,7 @@ sub-assemblies as rigid units, cycle detection, hierarchical names,
 branch-drop suppression) + BOM v2 (`.lmcpart` `meta` part_number/material/
 make_or_buy, mass = density × engine volume with honest `volume_source`,
 tree+flat+`bom.csv`, byte-identical) — `tests/nesting.rs`, gearbox nested
-demo in `run_all.sh`. DESIGN_GUIDE v2 (3.2k lines, every snippet executed)
+demo in its campaign run_all.sh. DESIGN_GUIDE v2 (3.2k lines, every snippet executed)
 is the operator manual. RETIRED 2026-06-11: the coplanar STACKED-primitive
 union seed-sensitivity — retested on current main during the guide-v2
 re-measurement, passes deterministically (DESIGN_GUIDE §7).
@@ -294,7 +336,7 @@ cache volume delta 0.00002%, hash-identical independent builds; octree
 scoped honestly to evaluation caching (T-junction discontinuity + non-
 conservative far field stated) (tests/sparse.rs).
 (3) **GPU narrow-band extraction** — `extract_narrow_band` (kernel-gpu; the crate
-was parked in `legacy/` 2026-09):
+was parked 2026-09 and removed from the tree 2026-09-03):
 coarse Lipschitz-safe block scan → prefix-sum compaction → refine active
 blocks with the SAME cube-edge unroll as dense (shared `edge_unroll()`);
 per-block re-evaluation of identical global-index coordinates ⇒ identical
@@ -552,7 +594,7 @@ value already biased high. Zero interior elements exceed the allowable. A
 40 %-thickness twin on the same grid is the negative control. Fatigue screened
 at D = 1.3e-5.
 
-**Three engine findings, all in `docs/FRICTION.md` (#24–#27).** The big one:
+**Three engine findings, all in `campaign/friction/ENGINE.md` (#24–#27).** The big one:
 an early draft of this hook was **in two disconnected pieces** and passed
 `validate`, `is_watertight`, `volume`, every clearance and stress gate, and
 rendered convincingly — `Solid::shell_count()` reports 1 for it too. Only a
@@ -577,7 +619,7 @@ outside the repo; the graded party must not be able to touch it), campaign tier
 per docs/META_PROOFS.md §4.
 
 **VERDICT: PASS — 10/10 required criteria, plus both probes.** It shipped
-`legacy/kernel-model-examples/drill_hook.rs` (then under `crates/kernel-model/examples/`) → `hook_system/drill_hook/`:
+drill_hook.rs (then under `crates/kernel-model/examples/`) → `hook_system/drill_hook/`:
 40 gate rows, exit 0, the full 7-folder deliverable, ANALYSIS.md generated from
 live numbers, workspace suite green, clippy clean. Unprompted it also produced
 a print-first fit coupon, negative controls, and FEA receipts.
