@@ -21,8 +21,10 @@ different profile — no geometry edits.
 ## Getting a measured profile (10 minutes of caliper work)
 
 ```sh
-# calibrate_fdm.rs is parked in legacy/kernel-model-examples/ (not compiled);
-# restore it per legacy/kernel-model-examples/README.md, then:
+# calibrate_fdm.rs was removed from the tree on 2026-09-03; recover it first:
+#   git show 5a70984:legacy/kernel-model-examples/calibrate_fdm.rs \
+#     > crates/kernel-model/examples/calibrate_fdm.rs
+# then:
 cargo run --release -p kernel-model --example calibrate_fdm   # builds the coupons
 # print calibration_system/fdm_coupons/parts/ (one plate, ~43 g)
 # measure per calibration_system/fdm_coupons/README.md

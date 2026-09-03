@@ -71,7 +71,7 @@ pub(crate) fn triangle_is_degenerate(t: [Vec3; 3]) -> bool {
 /// straddles the sliver. Tessellations legitimately contain such slivers (a
 /// subdivided seam whose interior points are collinear), and a single one used
 /// to collapse the WHOLE clearance query to `0.0` — a real 0.30 mm gap read as
-/// contact (docs/FRICTION.md, campaign theme T5). Degenerate triangles are
+/// contact (campaign/friction/ENGINE.md, campaign theme T5). Degenerate triangles are
 /// therefore routed straight to the feature distances, where the edge–edge terms
 /// measure the segment they actually are. Nothing is lost for interference
 /// detection: a sliver's edges are shared with non-degenerate neighbours in any

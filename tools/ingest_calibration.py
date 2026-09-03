@@ -316,7 +316,8 @@ def cross_check_nominals(meas_path):
 		fail([
 			f"coupon_nominals.json at {side} does not match this tool's embedded coupon set v1 — "
 			"the printed coupons and this ingest disagree; regenerate with `cargo run --release -p kernel-model --example calibrate_fdm` "
-			"(the example is parked in legacy/kernel-model-examples/ — restore it per that folder's README first) "
+			"(the calibrate_fdm example was removed from the tree on 2026-09-03 — recover it with "
+			"`git show 5a70984:legacy/kernel-model-examples/calibrate_fdm.rs > crates/kernel-model/examples/calibrate_fdm.rs` first) "
 			"and use the matching tool version"
 		])
 	return []

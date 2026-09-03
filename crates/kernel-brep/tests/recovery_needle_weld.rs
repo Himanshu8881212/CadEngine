@@ -11,7 +11,7 @@
 //! REFUSE (the designed honest failure — no silent garbage). The same joint
 //! geometry embedded in the real module shell (big profile, key piercing the
 //! front face) resolves fine — the drawer_system example asserts those gates
-//! numerically on every run. See docs/FRICTION.md #23.
+//! numerically on every run. See campaign/friction/ENGINE.md #23.
 
 use kernel_brep::math::{DVec2, DVec3};
 use kernel_brep::{

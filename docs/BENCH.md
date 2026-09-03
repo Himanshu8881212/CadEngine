@@ -1,8 +1,8 @@
 # Kernel Performance Baseline
 
 Measured **2026-06-10** with `cargo run --example bench_kernel -p kernel-model --release`
-(the harness now lives uncompiled in `legacy/kernel-model-examples/bench_kernel.rs`; see that
-folder's README to restore it before re-measuring)
+(the bench_kernel.rs harness was parked uncompiled in 2026-09 and removed from the
+tree on 2026-09-03; recover it from git history at `5a70984` before re-measuring)
 (`std::time::Instant`, median of 3 runs per workload, `black_box`-guarded; release profile:
 opt-level 3, thin LTO).
 
@@ -149,8 +149,11 @@ quiet medians, so treat the march wall time as an upper bound):
 ## Reproducing
 
 ```
-# bench_kernel.rs is parked in legacy/kernel-model-examples/ — restore it first
-# (legacy/kernel-model-examples/README.md), then:
+# bench_kernel.rs is no longer in the tree — recover it into
+# crates/kernel-model/examples/ first:
+#   git show 5a70984:legacy/kernel-model-examples/bench_kernel.rs \
+#     > crates/kernel-model/examples/bench_kernel.rs
+# then:
 cargo run --example bench_kernel -p kernel-model --release            # the median-of-3 table
 cargo run --example bench_kernel -p kernel-model --release -- --scale # + the scale section
 ```
@@ -160,8 +163,10 @@ internals change; keep old numbers in git history rather than editing them in pl
 
 ## GPU baseline (kernel-gpu, wgpu → Metal) — measured 2026-06-10
 
-(`kernel-gpu` is parked, unbuilt, in `legacy/kernel-gpu/` since 2026-09 — restore it
-per `legacy/README.md` before re-measuring.)
+(`kernel-gpu` was parked, unbuilt, in 2026-09 and removed from the tree on 2026-09-03.
+Recover the crate from git history — `git show 5a70984:legacy/kernel-gpu/…` — into
+a new crates/kernel-gpu/ directory, add it to `members` in the root `Cargo.toml`, and restore the
+`wgpu = "26"` / `bytemuck = "1"` / `pollster = "0.4"` workspace pins before re-measuring.)
 
 `cargo run --example bench_gpu -p kernel-gpu --release` — adapter **Apple M3
 (IntegratedGpu), Metal**; CPU comparisons on the same machine's 8 cores via

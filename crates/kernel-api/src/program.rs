@@ -661,7 +661,7 @@ pub enum OpKind {
 	},
 	/// Connected-body count of the tessellated mesh — the single-body oracle the
 	/// other validity gates cannot give. `shells` counts B-rep shell RECORDS and
-	/// can read 1 on a part severed into floating lumps (docs/FRICTION.md #24);
+	/// can read 1 on a part severed into floating lumps (campaign/friction/ENGINE.md #24);
 	/// this measure union-finds actual triangle connectivity over position-welded
 	/// vertices. Returns `{ components, is_one_body, triangles }` with
 	/// `provenance: "faceted"`. Gate it with `assert { components: 1 }`.

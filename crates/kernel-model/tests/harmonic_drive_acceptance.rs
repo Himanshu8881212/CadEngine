@@ -1,6 +1,7 @@
 //! A 50:1 harmonic drive (strain-wave gear) for a NEMA 17 — the gear set and its
 //! strain-wave engagement, built from catalog parts. (The full 5-part assembly +
-//! STL export lives in legacy/kernel-model-examples/harmonic_drive.rs, uncompiled.)
+//! STL export lived in the pre-JSON example harmonic_drive.rs, removed from the
+//! tree 2026-09-03 — git history at 5a70984.)
 //!
 //! Kinematics: flex spline 100T, circular spline 102T (Δ2), circular spline
 //! grounded, output on the flex spline => ratio = -100/(102-100) = -50:1. The wave

@@ -37,7 +37,7 @@ fn rot(p: DVec2, a: f64) -> DVec2 {
 /// true cylinder); a keyed bore is a keyway-notched polygonal prism cut. The boolean route —
 /// not an `extrude_with_holes` hole loop — keeps the caps free of inner loops, so the
 /// adaptive tessellation is watertight and STL export takes the exact route, not the voxel
-/// heal (FRICTION.md #6).
+/// heal (campaign/friction/ENGINE.md #6).
 ///
 /// Honest approximations (documented, not silent):
 /// - the **root fillet is optional** — off by default (`spur_gear` leaves the historical sharp
@@ -341,7 +341,7 @@ fn involute_outline_df(m: f64, z: usize, alpha: f64, ra: f64, rr: f64, dhalf: f6
 /// analytic `cylinder` primitive (exact-cylinder OD surface tags) and the toothed bore is
 /// one exact boolean prism cut — not an `extrude_with_holes` hole loop — so the caps carry
 /// no inner loops, the adaptive tessellation stays watertight and STL export routes exact
-/// instead of voxel-healed (FRICTION.md #6).
+/// instead of voxel-healed (campaign/friction/ENGINE.md #6).
 ///
 /// Honest approximations (same family as [`spur_gear`], documented, not silent): no root
 /// fillets, radial flank feet below the base circle, and **tip fouling is not checked** —

@@ -308,11 +308,15 @@ first slice (`kernel-brep/src/heal.rs`). The contract:
 
 ## GPU evaluation and extraction (kernel-gpu) — tolerance-equivalent, never authoritative
 
-> **2026-09:** `kernel-gpu` is parked, unbuilt, in `legacy/kernel-gpu/` (restore
-> steps in `legacy/README.md`). This section records its contract as last built
-> and tested; the `kernel-gpu/...` paths below now live under `legacy/`.
+> **2026-09-03:** `kernel-gpu` was parked unbuilt in 2026-09 and then removed
+> from the tree; it is recoverable from git history (`git show
+> 5a70984:legacy/kernel-gpu/…` into `crates/kernel-gpu/`, plus the `members`
+> entry and the `wgpu`/`bytemuck`/`pollster` workspace pins). This section
+> records its contract as last built and tested, and remains the contract any
+> restored GPU path must meet. Every `kernel-gpu/...` path below names a file
+> that is in git history, not in the working tree.
 
-The wgpu/WGSL half (`legacy/kernel-gpu`, Metal on this machine) re-evaluates
+The wgpu/WGSL half (`kernel-gpu`, Metal on this machine) re-evaluated
 the implicit side on the GPU. Its numerical position, stated once and enforced
 in-tree:
 

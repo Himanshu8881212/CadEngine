@@ -3,7 +3,7 @@
 //! **O-rings and their machined gland grooves**: AS568 dash sizes with Parker
 //! radial (piston) glands, plus **metric cord** sections with **face-seal (axial)
 //! glands** — circular and racetrack — for housing lids and ports whose perimeter
-//! outruns the AS568 table (FRICTION.md #10). The ring itself is the exact analytic
+//! outruns the AS568 table (campaign/friction/ENGINE.md #10). The ring itself is the exact analytic
 //! torus; gland cuts are boolean grooves whose walls cross the host face
 //! transversely. Dimension tables are copied from the published standards with the
 //! source cited next to each table; all values mm, all bores/shafts **diameters**.

@@ -3,8 +3,9 @@
 Census taken 2026-09-02 on the main checkout, read-only. **Dated record:** the campaign
 directories it counted (`*_system/*`, `gearbox/`) have since been moved out of this
 repository — the census numbers below are the ones measured on that date and are not
-re-derivable from the current tree. The gearbox's surviving assembly/evidence programs
-are in `reference/assembly/`. It answers one question per op:
+re-derivable from the current tree. (The gearbox's assembly and evidence programs
+survived one wave longer under `reference/assembly/` and were removed on 2026-09-03;
+they are in git history at commit `5a70984`.) It answers one question per op:
 did any shipped campaign ever name it? The result drives the `catalog` cargo feature of
 `kernel-api` (below) and is the evidence behind it.
 
@@ -17,7 +18,8 @@ did any shipped campaign ever name it? The result drives the `catalog` cargo fea
   868 JSON files, 394 of them program envelopes with an `ops` array,
   spread over 23 campaign directories (21 `*_system/<part>` campaigns plus `gearbox` and
   `showcase`; `gearbox/**` and `showcase/**` are counted as one directory each). Campaign folders
-  with no `programs/*.json` — the Rust-generated ones now under `legacy/kernel-model-examples/` —
+  with no `programs/*.json` — the Rust-generated ones, parked out of the build in 2026-09 and
+  removed from the tree on 2026-09-03 —
   contribute nothing, which is why this is fewer than the number of campaign folders.
 - **Counting:** `ops[]` = entries of top-level `"ops"` arrays (what `kernel-api run` dispatches);
   `all` = every `"op": "<name>"` key anywhere in those files, nested sub-programs and

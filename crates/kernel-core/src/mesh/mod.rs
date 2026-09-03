@@ -1503,7 +1503,7 @@ impl Mesh {
 	/// as a free-floating body. `validate`, `is_watertight`, `volume`, the
 	/// support audit, the keep-out and insertion sweeps, the stress sections and
 	/// the STEP round-trip ALL passed, and the render looked like a hook. Only a
-	/// human noticing a gap in the top view caught it (docs/FRICTION.md).
+	/// human noticing a gap in the top view caught it (campaign/friction/ENGINE.md).
 	///
 	/// **Operating rule**: any campaign that subtracts a tapered or tapering
 	/// cutter must gate `component_count(1e-3) == 1`. A cutter whose

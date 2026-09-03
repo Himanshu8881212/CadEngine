@@ -1,7 +1,8 @@
 //! A 10:1 cycloidal drive for a NEMA 17 — the B-rep gear train and its cycloidal
 //! engagement. (The full hybrid assembly, incl. the implicit gyroid lattice arm
 //! with the orthogonal NEMA-17 chaining face, lives in
-//! legacy/kernel-model-examples/cyclo_drive.rs, uncompiled;
+//! the pre-JSON example cyclo_drive.rs, removed from the tree 2026-09-03
+//! (git history at 5a70984);
 //! the lattice approach itself is covered by hybrid_lattice_acceptance.)
 //!
 //! Cycloidal disc: Zc=10 lobes rolling inside Zp=11 pins, ring grounded, output
@@ -72,7 +73,7 @@ fn cycloidal_disc_is_valid_genus_7_engages_11_pins_at_10_to_1() {
 	assert_eq!(ratio, 10.0, "Zc=10 / (Zp-Zc=1) = 10:1");
 }
 
-/// Exact B-rep ORTHOGONAL NEMA-17 tip mount (matches legacy/kernel-model-examples/cyclo_drive.rs): a
+/// Exact B-rep ORTHOGONAL NEMA-17 tip mount (matches the retired cyclo_drive.rs example): a
 /// 42x42x6 plate whose face normal is +X — perpendicular to this joint's Z axis —
 /// with the real NEMA-17 interface (Ø22 pilot + 4x M3 on the 31 mm square, bored
 /// along X). This is the modular chaining face: the next joint+motor bolts on here.

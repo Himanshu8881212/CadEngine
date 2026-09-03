@@ -59,7 +59,7 @@
 //!
 //! [`FdmCostModel::conservative_default`] cites each field in its doc comment.
 //! Geometry-side numbers follow the shipped campaigns (`respool.rs`,
-//! `drybox_roller.rs`, parked in `legacy/kernel-model-examples/`); the **money** rates are explicitly labelled placeholders
+//! `drybox_roller.rs`, pre-JSON examples removed from the tree 2026-09-03); the **money** rates are explicitly labelled placeholders
 //! for the caller to replace.
 //!
 //! # Example

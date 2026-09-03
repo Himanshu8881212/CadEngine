@@ -18,7 +18,7 @@
 //! three ops later.
 //!
 //! A fourth pattern joined the list from the keyed-pulley repro
-//! (`tests/keyed_pulley_acceptance.rs`, docs/FRICTION.md open frontier): a
+//! (`tests/keyed_pulley_acceptance.rs`, campaign/friction/ENGINE.md open frontier): a
 //! **planar face lying tangent to a cylindrical wall** (a keyway slot whose
 //! inner face starts exactly at the bore radius). The planar arrangement
 //! cannot resolve the coincident/tangent contact — `try_*` refuses it — and

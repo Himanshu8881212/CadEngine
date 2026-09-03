@@ -3,8 +3,8 @@
 //! Exact pose evaluators for the reduction drive trains this repo builds.
 //!
 //! The kinematic simulators (`cyclo26_sim.rs`, `harmonic26_sim.rs`,
-//! `planetary26_sim.rs` example binaries on the drive branches, now parked in
-//! `legacy/kernel-model-examples/`) originally
+//! `planetary26_sim.rs` example binaries on the drive branches, parked
+//! uncompiled in 2026-09 and removed from the tree 2026-09-03) originally
 //! hand-rolled this math, and two real bugs shipped mid-development because
 //! of it:
 //!

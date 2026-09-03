@@ -167,7 +167,7 @@ HONEST CAVEATS at 9.0: strict-ladder reading is lower (L7 ~85% — quadric∩qua
 - **Level 7 CLOSED**: parameter-space charts (gnomonic sphere, unrolled quadrics) let cut seams snap exactly for quadric∩quadric — cyl∪cyl seam vertices on BOTH true surfaces ≤1e-9 (was 1.7e-2 chords); every relaxation fuzz-arbitrated; 100.0% held on all corpora; 10k refreshed 99.98% ×2 byte-identical. Residual: torus inertia, warp-aware bulge follow-up (named).
 - **Level 8 ~90%**: closed/periodic NURBS patches (the hang-twice refinement fixed via live-owner walk + area floor), true B_SPLINE export (freeform pad round-trips EXACTLY 2620.4841→2620.4841), AP242 envelope (PMI explicitly disclaimed), STEP assembly export round-trip. Open: NURBS through booleans/fillets.
 - **Level 9 ~90%**: GPU backend (kernel-gpu: WGSL codegen for 12 leaves + 18 combinators + Expr AST; GPU surface-nets bit-deterministic, IDENTICAL 3,175,116 tris vs CPU at 5.5×; honest 0.7× on transfer-bound cheap fields; CPU bit-authoritative per NUMERICS).
-- **PRODUCTION PROOF**: dogfood 15:1 two-stage gearbox designed by an AI through PUBLIC SURFACES ONLY — 20 .lmcpart parts, 37-instance .lmcasm (mate residual 1.4e-12), 52/52 contacts verified, flank gap within 1 µm of involute theory, caught a real DIN 974 seating bug pre-print; FRICTION.md (18 items) = the Wave-6 hardening charter; assembly exports watertight (1.27M tris).
+- **PRODUCTION PROOF**: dogfood 15:1 two-stage gearbox designed by an AI through PUBLIC SURFACES ONLY — 20 .lmcpart parts, 37-instance .lmcasm (mate residual 1.4e-12), 52/52 contacts verified, flank gap within 1 µm of involute theory, caught a real DIN 974 seating bug pre-print; the friction log (18 items, now campaign/friction/ENGINE.md) = the Wave-6 hardening charter; assembly exports watertight (1.27M tris).
 - Suite 584 → **607/0**, clippy 0, 7 crates, 87 commits.
 
 Remaining to 9.5+: Wave 6 (catalog 3 + I7 living library + friction pass), NURBS-through-booleans, then mileage.
@@ -177,7 +177,7 @@ Remaining to 9.5+: Wave 6 (catalog 3 + I7 living library + friction pass), NURBS
 Final checklist, executed as promised:
 1. **Mission coverage**: L1–7 closed; L8 ~90% (NURBS-through-booleans remains); L9 ~90%
    (tolerant modeling first slice; mixed-operand + rails live). AI-track **I1–I7 all ✓**.
-2. **Production readiness**: FRICTION.md fully dispositioned — every blocker/major
+2. **Production readiness**: the friction log (campaign/friction/ENGINE.md) fully dispositioned — every blocker/major
    RESOLVED (asm surface, assertions, pose, B-rep-aware checks, parity, hole dims) or
    explicitly deferred with reasons; catalog items (#6/#10/#12/#15) landed in wave 3.
 3. **Evidence intact**: **669/0 tests**, clippy 0, fuzz 100% (floors 98), all five

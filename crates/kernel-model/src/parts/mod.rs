@@ -137,7 +137,7 @@ pub(crate) fn hexagon_area(width: f64) -> f64 {
 /// face recovery rebuilds the caps as simple faces with NO inner loops — the one cap
 /// kind the adaptive (chord-tolerance) tessellation stitcher can seam watertight —
 /// so STL/3MF exports of these parts route `exact` instead of `voxel_healed`
-/// (FRICTION.md #6: the adaptive tessellator walks only outer loops, leaking at
+/// (campaign/friction/ENGINE.md #6: the adaptive tessellator walks only outer loops, leaking at
 /// every inner-loop cap). Every cutter overshoots both caps by 1 mm, so no cutter
 /// face is coplanar with a cap (the proven transverse-cut route).
 ///
@@ -145,7 +145,7 @@ pub(crate) fn hexagon_area(width: f64) -> f64 {
 /// [`kernel_brep::cylinder`] primitive — at 48 segments its wall is the same 48-gon
 /// as [`circle48`], but the wall faces carry the exact cylinder surface tag, so
 /// `exact_volume` recovers the π-exact bore and STEP export writes a true cylinder
-/// (FRICTION.md #15). `prisms` are arbitrary CCW outlines (e.g. a keyway-notched
+/// (campaign/friction/ENGINE.md #15). `prisms` are arbitrary CCW outlines (e.g. a keyway-notched
 /// bore) cut as polygonal prisms. A degenerate hole (empty cutter) is skipped,
 /// matching `extrude_with_holes`'s tolerance of degenerate hole loops.
 pub(crate) fn extrude_bored(outer: &[DVec2], height: f64, circles: &[(DVec2, f64, usize)], prisms: &[Vec<DVec2>]) -> Solid {

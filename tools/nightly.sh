@@ -2,7 +2,7 @@
 # LMCAD nightly self-exercise — full test suite, clippy, every Python contract
 # gate under tools/ and docs/, and the generated-table-in-step check. (The two
 # Rust campaign gate suites, respool and drybox_roller, ran here until 2026-09;
-# their sources are parked uncompiled in legacy/kernel-model-examples/.)
+# their sources were removed from the tree on 2026-09-03; git history at 5a70984.)
 # Re-proves every machine-verified
 # claim in the repo, on both sides of the language line.
 # Writes telemetry/nightly/YYYY-MM-DD.md (table + FAIL lines + tails of failing

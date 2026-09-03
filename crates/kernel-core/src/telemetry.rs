@@ -17,7 +17,7 @@
 //!   Exception: cargo test/bench binaries are silent unless the env override
 //!   is set — intentional failure-path tests are proof, not friction (see
 //!   [`log_friction`]). This raw capture is what the lessons workflow curates
-//!   into `docs/FRICTION.md`.
+//!   into `campaign/friction/ENGINE.md`.
 //!
 //! Each call opens its file in append mode and writes one whole line
 //! (`O_APPEND` keeps concurrent small-line appends atomic enough); there is no
@@ -68,7 +68,7 @@ pub fn log(kind: &str, payload_json: &str) {
 ///
 /// ALWAYS appends — not gated by [`enabled`]: a failure is always worth
 /// capturing, whether or not the run opted into the event log. This is the raw
-/// stream the lessons workflow curates into `docs/FRICTION.md`. Same
+/// stream the lessons workflow curates into `campaign/friction/ENGINE.md`. Same
 /// `payload_json` splice contract and best-effort I/O as [`log`].
 ///
 /// One carve-out: inside a cargo test/bench binary (detected via
