@@ -13,10 +13,15 @@ did any shipped campaign ever name it? The result drives the `catalog` cargo fea
 
 - **Op list:** every `OpKind` variant named by the `match kind` in `exec_op`
   (`crates/kernel-api/src/interp.rs`), i.e. every variant the interpreter dispatches — the
-  dispatch code, not the docs. That is 161 ops; the family is the banner comment above the
+  dispatch code, not the docs. That was 161 variants on the census date; the family is
+  the banner comment above the
   arm in `exec_op`. (Since 2026-09-03 `exec_op` is a routing table: one arm per family,
   handing off to the matching `crates/kernel-api/src/ops/<family>.rs`. The banners, the
-  families and the 161 variants are unchanged — only where each op's body lives moved.)
+  families and the 161 variants were unchanged — only where each op's body lives moved.
+  The live surface has been 162 since 2026-09-04, when `solid_from_mesh` was added to
+  the voxel-route family; every number in this file is the census as measured and is
+  NOT restated for it — see that family's table below. `{"op": "describe"}` is always
+  the authority on the live count.)
 - **Corpus:** `*_system/*/programs/*.json`, `gearbox/**/*.json` and `showcase/**/*.json` —
   868 JSON files, 394 of them program envelopes with an `ops` array,
   spread over 23 campaign directories (21 `*_system/<part>` campaigns plus `gearbox` and
@@ -33,7 +38,7 @@ did any shipped campaign ever name it? The result drives the `catalog` cargo fea
 
 | | count |
 |---|---:|
-| ops the interpreter dispatches | 161 |
+| ops the interpreter dispatched (census date) | 161 |
 | distinct ops used by at least one campaign | 84 |
 | never used by any campaign | 77 |
 | never used **and** behind the `catalog` feature | 52 |
@@ -191,15 +196,23 @@ there was nothing to gate for them.
 
 ### Voxel-route solid ops & interrogation probes (2026-07-29 implicit wave)
 
-5 in this family — 2 used, 3 unused, 0 behind `catalog`.
+5 in this family on the census date — 2 used, 3 unused, 0 behind `catalog`.
+(6 today: `solid_from_mesh` joined it on 2026-09-04 and was never censused.)
 
 | op | `ops[]` | all | campaigns | build |
 |---|---:|---:|---:|---|
 | `offset_solid` | 0 | 0 | 0 | core |
 | `shell_solid` | 0 | 0 | 0 | core |
 | `solid_from_implicit` | 2 | 2 | 1 | core |
+| `solid_from_mesh` | — | — | — | core |
 | `thin_wall` | 0 | 0 | 0 | core |
 | `min_ligament` | 3 | 3 | 2 | core |
+
+`solid_from_mesh` was added on 2026-09-04, **after** this census was taken, so it has
+no measured usage — `—`, not `0`, because nothing counted it. It is core by the gating
+rule's second clause (it is not a hardware-catalog op), and it exists precisely because
+a campaign could NOT reach `kernel_brep::solid_from_mesh` from the op surface
+(`campaign/friction/jar_top_seed_singulator.md` F17).
 
 ### Native formats
 

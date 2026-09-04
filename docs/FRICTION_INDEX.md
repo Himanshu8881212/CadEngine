@@ -47,7 +47,7 @@ a fix.
 |---|---|
 | items parsed | 224 (219 graded, 5 `note`) |
 | severity | blocker 20 · major 131 · minor 60 · papercut 8 |
-| disposition | open 172 · partial 8 · fixed 39 |
+| disposition | open 170 · partial 8 · fixed 41 |
 | distinct surfaces | 79 |
 
 ## The rollup — most-repeated surface first
@@ -84,7 +84,7 @@ a fix.
 | `validate` | 3 | 3 | major | OPEN | [ball_kinematic_mirror_mount#F1](../campaign/friction/ball_kinematic_mirror_mount.md#f1-validategeometric_okfalse-on-a-solid-every-other-gate-calls-clean-2026-08-07) · [rotor_runout_gauge_bridge#F4](../campaign/friction/rotor_runout_gauge_bridge.md#f4-validategeometric_ok-flips-false-on-the-second-of-two-mirror-image-cuts-2026-08-07) · [turgo_runner#F1](../campaign/friction/turgo_runner.md#f1-validategeometric_ok-false-positives-on-polar-patterns-of-off-axis-tubes-2026-08-07) |
 | `tools/analyzers/air_topology_audit.py` | 2 | 3 | major | OPEN | [cubesat_1u_dev_frame#F11](../campaign/friction/cubesat_1u_dev_frame.md#f11-air_topology_auditpy-ignores-the-jobs-receipt-key-2026-08-08-repair-pass) · [screw_on_exponential_horn#F13](../campaign/friction/screw_on_exponential_horn.md#f13-air_topology_audit-receipt-seed_labels-and-sizes_cm3-cannot-be-joined-and-the-wrong-join-hides-on-passing-parts-2026-08-08) · [screw_on_exponential_horn#F8](../campaign/friction/screw_on_exponential_horn.md#f8-air_topology_auditpy-silently-seals-a-wide-open-bore-when-a-slice-centre-lands-on-a-vertex-ring-2026-08-07) |
 | `chamfer_edge_near` | 2 | 2 | **blocker** | partial (1/2 fixed) | [ENGINE#20](../campaign/friction/ENGINE.md#20-major-found-by-the-cold-start-audit-edge-features-after-booleans-fragment-the-next-witness-resolution) · [cubesat_1u_dev_frame#F2](../campaign/friction/cubesat_1u_dev_frame.md#f2-chamfer_edge_near-refuses-the-two-top-edges-incident-to-a-reflex-corner-2026-08-07) |
-| `hybrid_boolean` | 2 | 2 | **blocker** | OPEN | [iso9409_wedge_flexure_gripper#F7](../campaign/friction/iso9409_wedge_flexure_gripper.md#f7-tpms-writes-its-mesh-under---out-dir-but-hybrid_boolean-reads-relative-to-the-program-dir-2026-08-08) · [jar_top_seed_singulator#F17](../campaign/friction/jar_top_seed_singulator.md#f17-a-hybrid_boolean-result-cannot-be-gated-it-binds-no-geometry-and-nothing-can-re-bind-it-2026-08-08) |
+| `hybrid_boolean` | 2 | 2 | **blocker** | partial (1/2 fixed) | [iso9409_wedge_flexure_gripper#F7](../campaign/friction/iso9409_wedge_flexure_gripper.md#f7-tpms-writes-its-mesh-under---out-dir-but-hybrid_boolean-reads-relative-to-the-program-dir-2026-08-08) · [jar_top_seed_singulator#F17](../campaign/friction/jar_top_seed_singulator.md#f17-a-hybrid_boolean-result-cannot-be-gated-it-binds-no-geometry-and-nothing-can-re-bind-it-2026-08-08) |
 | `thread_ridge` | 2 | 2 | **blocker** | OPEN | [prosthetic_wrist_quick_disconnect#F3](../campaign/friction/prosthetic_wrist_quick_disconnect.md#f3-thread_ridge-overshoots-its-declared-axial-span-by-048-mm-at-each-end-2026-08-07) · [screw_on_exponential_horn#F3](../campaign/friction/screw_on_exponential_horn.md#f3-custom-inch-threads-are-expressible-via-thread_ridge-but-no-exact-boolean-can-use-the-result-2026-08-07) |
 | `campaign/history/CONCEPTS.md` | 2 | 2 | major | OPEN | [folding_deck_cleat#F1](../campaign/friction/folding_deck_cleat.md#f1-concept-card-names-catalog-parts-that-do-not-exist-in-the-binary-2026-08-06) · [screw_on_exponential_horn#F1](../campaign/friction/screw_on_exponential_horn.md#f1-frozen-concept-card-names-a-nonexistent-thread-standard-2026-08-06) |
 | `difference` | 2 | 2 | major | OPEN | [cubesat_1u_dev_frame#F1](../campaign/friction/cubesat_1u_dev_frame.md#f1-difference-refuses-a-solid-that-carries-both-end-chamfers-and-a-vertical-edge-fillet-2026-08-07) · [jar_top_seed_singulator#F10](../campaign/friction/jar_top_seed_singulator.md#f10-a-004-mm-change-to-one-cutter-makes-a-later-27-mm-distant-boolean-fail-validate-2026-08-07) |
@@ -117,7 +117,7 @@ a fix.
 | `tools/manifests/ace_fea.manifest.json` | 1 | 1 | major | OPEN | [rotor_runout_gauge_bridge#F14](../campaign/friction/rotor_runout_gauge_bridge.md#f14-ace_fea-manifest-validationdirection-does-not-transfer-between-geometries-and-nothing-warns-you-2026-08-08-repair-pass) |
 | `tools/publish/analysis_sheet.py` | 1 | 1 | major | OPEN | [cubesat_1u_dev_frame#F7](../campaign/friction/cubesat_1u_dev_frame.md#f7-analysis_sheetpy-view-panels-crash-with-a-bare-keyerror-when-a-load-has-no-label-2026-08-07) |
 | `campaign/digests/ops_core.md` | 1 | 1 | minor | OPEN | [rotor_runout_gauge_bridge#F7](../campaign/friction/rotor_runout_gauge_bridge.md#f7-assert-op-reports-exact_volume_within-results-under-measuresexact_volume-not-under-the-assert-key-2026-08-07) |
-| `cone` | 1 | 1 | minor | OPEN | [jar_top_seed_singulator#F7](../campaign/friction/jar_top_seed_singulator.md#f7-cone-is-a-true-cone-never-a-frustum-and-there-is-no-frustum-constructor-2026-08-07) |
+| `cone` | 1 | 1 | minor | fixed | [jar_top_seed_singulator#F7](../campaign/friction/jar_top_seed_singulator.md#f7-cone-is-a-true-cone-never-a-frustum-and-there-is-no-frustum-constructor-2026-08-07) |
 | `counterbore_hole` | 1 | 1 | minor | fixed | [ENGINE#9](../campaign/friction/ENGINE.md#9-minor-hole-wizard-cuts-dont-report-the-table-dimensions-they-used) |
 | `countersink_hole` | 1 | 1 | minor | fixed | [ENGINE#21](../campaign/friction/ENGINE.md#21-minor-found-by-the-cold-start-audit-hole-wizard-has-zero-edge-proximity-awareness) |
 | `heatset_spec` | 1 | 1 | minor | partial (0/1 fixed) | [ENGINE#11](../campaign/friction/ENGINE.md#11-minor-heat-set-inserts-boss-only-no-pocket-only-variant) |
@@ -171,7 +171,7 @@ of the table above; the ones still open are the queue:
 | `validate` | 3 | major | OPEN |
 | `tools/analyzers/air_topology_audit.py` | 2 | major | OPEN |
 | `chamfer_edge_near` | 2 | **blocker** | partial (1/2 fixed) |
-| `hybrid_boolean` | 2 | **blocker** | OPEN |
+| `hybrid_boolean` | 2 | **blocker** | partial (1/2 fixed) |
 | `thread_ridge` | 2 | **blocker** | OPEN |
 | `campaign/history/CONCEPTS.md` | 2 | major | OPEN |
 | `difference` | 2 | major | OPEN |

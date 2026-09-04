@@ -3,7 +3,7 @@
 //! The implicit/voxel half: the `implicit` expression tree, the `gyroid_block`
 //! lattice, the density-grid ops, the voxel `shell`, and the reverse-bridge solid
 //! ops and interrogation probes (`offset_solid`, `shell_solid`,
-//! `solid_from_implicit`, `thin_wall`, `min_ligament`).
+//! `solid_from_implicit`, `solid_from_mesh`, `thin_wall`, `min_ligament`).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -543,6 +543,55 @@ pub(crate) fn exec(
 			measures["volume_conserved"] = json!(true);
 			measures["approximate_offset"] = json!(approximate_offset);
 			let outcome = bind_solid(op_id, "solid_from_implicit", solid)?;
+			Ok(Outcome { measures: Some(measures), ..outcome })
+		}
+		OpKind::SolidFromMesh { input } => {
+			// Reverse bridge, MESH entry (`kernel_model::reverse::mesh_to_solid`
+			// over `kernel_brep::solid_from_mesh`). No lattice, no re-extraction:
+			// the triangles the caller already has become planar B-rep faces,
+			// coplanar neighbours coalesced, gated on validity and volume.
+			//
+			// The honest limit, restated because it is the whole risk of this op:
+			// this is a FACETED WRAP, not analytic refitting. Nothing here fits a
+			// cylinder, cone, sphere or torus to anything — a tessellated bore
+			// comes back as N planes and the STEP it exports carries those planes.
+			// `surfaces: "planar_facets"` / `analytic_surfaces: false` say so in
+			// every receipt so a caller cannot mistake this for STEP-quality
+			// geometry; the measures below are the only claim this op makes.
+			let mesh = crate::interp::fetch_mesh(env, all_ids, op_id, "in", &input)?;
+			let input_triangles = mesh.triangle_count();
+			let input_volume = mesh.signed_volume().abs();
+			let watertight_in = mesh.non_manifold_edge_count() == 0;
+			let solid = kernel_model::reverse::mesh_to_solid(mesh).map_err(|e| {
+				// An empty mesh is a degenerate question; every other refusal
+				// (not watertight after weld, invalid wrap, volume drift) is a
+				// geometry-integrity failure — `validate` told the truth and the
+				// op declined to bind a solid that does not deserve the name.
+				let kind = if e.contains("is empty") { ErrorKind::InvalidParam } else { ErrorKind::InvalidGeometry };
+				err(kind, format!("op '{op_id}': {e}"))
+			})?;
+			let v = kernel_brep::validate(&solid);
+			let measures = json!({
+				"route": "mesh_wrap",
+				"surfaces": "planar_facets",
+				"analytic_surfaces": false,
+				"provenance": "faceted_wrap_of_mesh",
+				"faceted": true,
+				"source": input,
+				"input_triangles": input_triangles,
+				"input_watertight": watertight_in,
+				"faces": solid.face_count(),
+				"volume": kernel_brep::volume(&solid),
+				"input_volume": input_volume,
+				// mesh_to_solid REFUSED any drift over 1e-6 relative, so reaching
+				// here is the proof, not a claim.
+				"volume_conserved": true,
+				"closed": v.closed,
+				"manifold": v.manifold,
+				"shells": v.shells,
+				"genus": v.genus,
+			});
+			let outcome = bind_solid(op_id, "solid_from_mesh", solid)?;
 			Ok(Outcome { measures: Some(measures), ..outcome })
 		}
 		OpKind::ThinWall { input, expr, t_min, samples, domain } => {

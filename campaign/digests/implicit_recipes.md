@@ -270,6 +270,13 @@ thread depth (0.12 for a 0.65-deep groove; 0.06–0.08 = resin-grade).
 Catalog fastener bodies (§10) carry **no** threads — they are clearance
 envelopes; model threads only when you're printing them.
 
+`thread_ridge` (the op that builds the ISO ridge body) is **not ISO-only**:
+`{m}` picks an M3–M16 coarse size from the table, but `{major_d, pitch}` — the
+two given together, exclusive with `m` — builds an arbitrary crest diameter and
+pitch, which is how a non-metric or non-standard thread (inch, 70-450 jar, a
+custom lead) gets modelled. Plus `z0?` (default 0) and the required `length`
+(`length/pitch` turns, capped at 200).
+
 ### Voxel-size selection (measured anchors)
 
 | intent | voxel (mm) |
@@ -469,7 +476,13 @@ Note: since 2026-07-17 you can build assemblies with **in-program ops**
 (`asm_instance`, `asm_instance_mesh`, `asm_mate`, `asm_mate_axis`,
 `asm_mate_face`, `asm_solve` [DOF-honest, fails on non-convergence],
 `asm_contacts`, `asm_export`, `asm_export_step`, `asm_save` which writes the
-`.lmcasm` for you, `gear_train_poses`). In-program mate kinds add `angle`,
+`.lmcasm` for you, `gear_train_poses`). `asm_solve` also takes
+`iterations?` (default 256), `max_residual?` (default 1e-6) and
+`allow_unconverged?` (default **false** — loud). Leave `allow_unconverged`
+alone: setting it turns a solve that did NOT converge into `ok: true` with
+`converged: false`, and a campaign that ships poses from such a run has
+laundered a refusal. If you ever set it, the receipt's `converged` flag must
+appear in the deliverable, unedited. In-program mate kinds add `angle`,
 `axis_distance` (gear center-distance), `fixed`. See API.md "Assembly ops
 (in-program)". The file format below remains ground truth and everything
 loads and runs.
@@ -649,13 +662,21 @@ insert_length 8.1`; dowel Ø4×20 exact_volume 249.249.)
   `shoulder_bolt` (shoulder_d, shoulder_len) · `spring_washer` (m) ·
   `dowel_pin` (d, length) · `circlip_external` (shaft_d) · `circlip_internal` (bore_d)
 - **Power transmission (13)**: `spur_gear` (module, teeth, face_width, bore,
-  keyway?) · `internal_gear` (module, teeth, face_width, rim_od) · `gear_rack`
-  (module, length, width) · `gt2_pulley` (teeth, belt_width, bore, flanged?) ·
+  keyway?, **pressure_angle_deg?**) · `internal_gear` (module, teeth,
+  face_width, rim_od, **pressure_angle_deg?**) · `gear_rack`
+  (module, length, width, **pressure_angle_deg?**) · `gt2_pulley` (teeth, belt_width, bore, flanged?) ·
   `chain_sprocket` (pitch, roller_d, teeth, bore) · `shaft` (d, length,
   keyway?) · `parallel_key` (b, h, l) · `jaw_coupling_hub` (od, bore) ·
   `jaw_coupling_spider` (od) · `set_screw_coupling` (bore1, bore2) ·
   `clamp_coupling` (bore1, bore2) · `lead_screw_tr8` (length, lead) ·
   `lead_screw_nut_tr8` ()
+  - **`pressure_angle_deg` defaults to 20** on all three involute
+    constructors. It is a MATING parameter: a 14.5° rack driven by a 20°
+    pinion is two valid, watertight, genus-correct solids that do not
+    conjugate — no gate in the engine compares one part's pressure angle to
+    another's. State it explicitly on **every** member of a train (or assert
+    the centre distance and `asm_contacts` the pair) rather than trusting the
+    default to be the one you meant.
 - **Bearings & linear (10)**: `deep_groove_bearing` (designation:
   603/608/625/688/6000/6001/6804) · `flanged_bearing` (F608/F623) ·
   `thrust_bearing` (51100/51101) · `kp08_pillow_block` () ·

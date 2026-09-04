@@ -41,11 +41,14 @@ use crate::report::{ErrorKind, OpError, OpReport, Report};
 /// PRINTED, and until they were values there was no way to gate them in-program
 /// at all — two campaigns shipped print files with no gate on them (theme T10).
 ///
-/// A mesh value is a mesh forever. Nothing here promotes one to a [`Solid`]:
-/// the only field→exact route stays the explicit, honestly-labelled
-/// `solid_from_implicit` reverse bridge, which re-meshes and wraps a FACETED
-/// B-rep under its own `route: "voxel"` receipt. Binding the mesh adds an
-/// oracle; it does not add a conversion.
+/// Nothing here promotes a mesh to a [`Solid`] IMPLICITLY. The two mesh→exact
+/// routes are both ops the author had to name, and both are labelled faceted in
+/// their own receipts: `solid_from_implicit` (re-mesh a field, then wrap;
+/// `route: "voxel"`) and `solid_from_mesh` (wrap a mesh already in hand;
+/// `route: "mesh_wrap"`). Neither refits analytic surfaces — a wrapped cylinder
+/// is flats — so a mesh that was never asked to cross stays a mesh forever, and
+/// one that was crosses under a receipt that says exactly what it became.
+/// Binding the mesh adds an oracle; it does not add a conversion.
 pub(crate) enum EnvValue {
 	/// An exact B-rep solid (most ops).
 	Solid(Solid),
@@ -316,6 +319,32 @@ pub(crate) fn fetch_solid<'e>(
 	}
 }
 
+/// Fetch a [`Mesh`] from the environment, or a `wrong_type` error. Used by
+/// `solid_from_mesh`, the one op that consumes a mesh AS a mesh: handing it a
+/// solid is refused rather than silently no-op'd, because a solid is already
+/// exact and round-tripping it through a faceted wrap would DESTROY its
+/// analytic surfaces — a silent downgrade this op will not perform.
+pub(crate) fn fetch_mesh<'e>(
+	env: &'e BTreeMap<String, EnvValue>,
+	all_ids: &BTreeSet<String>,
+	op_id: &str,
+	param: &str,
+	name: &str,
+) -> Result<&'e Mesh, OpError> {
+	match fetch(env, all_ids, op_id, param, name)? {
+		EnvValue::Mesh(m) => Ok(m),
+		EnvValue::Solid(_) => Err(err(
+			ErrorKind::WrongType,
+			format!(
+				"op '{op_id}' param '{param}': '{name}' is already an exact solid — 'solid_from_mesh' only wraps a MESH (import_mesh / implicit / tpms / gyroid_block / hybrid_boolean / mesh_carve / shell). Wrapping a solid would replace its analytic faces with planar facets; use it directly instead"
+			),
+		)),
+		other => {
+			Err(err(ErrorKind::WrongType, format!("op '{op_id}' param '{param}': '{name}' is a {}, expected a mesh", other.kind_name())))
+		}
+	}
+}
+
 /// What a mesh-capable measure was handed: an exact solid (measured on its
 /// tessellation) or a mesh value (measured directly).
 ///
@@ -545,6 +574,7 @@ fn exec_op(
 		kind @ (OpKind::OffsetSolid { .. }
 		| OpKind::ShellSolid { .. }
 		| OpKind::SolidFromImplicit { .. }
+		| OpKind::SolidFromMesh { .. }
 		| OpKind::ThinWall { .. }
 		| OpKind::MinLigament { .. }) => ops::hybrid::exec(op_id, env, all_ids, out_dir, input_base, kind),
 		// --- Parts library (curated, admission-gated; BAR.md I7) -------------------------------

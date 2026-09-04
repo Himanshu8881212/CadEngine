@@ -37,9 +37,16 @@ contracts you cite for a number: `docs/ANALYSIS_TIERS.md` (what a tier means),
 4. Units are mm; JSON-surface angles are degrees; bores are diameters.
 5. Every measure carries `provenance` (`analytic` vs `faceted`); every export
    names its `route` (`exact` vs `voxel_healed`) and `watertight`.
-6. The implicit→exact bridge is one-directional: fields leave only as meshes,
-   never as B-reps (`HybridFuse` route `exact` is the one re-entry path).
-7. The op catalogue is **161 ops** — `{"op":"describe"}` is authoritative and
+6. The implicit→exact bridge is one-directional BY DEFAULT: fields leave as
+   meshes, and a mesh stays a mesh unless you name a crossing op. Two exist,
+   both FACETED (one planar face per triangle, no analytic refitting — a
+   wrapped cylinder is flats): `solid_from_implicit` (mesh a field, then wrap;
+   `route: "voxel"`) and `solid_from_mesh` (wrap a mesh you already hold — an
+   `import_mesh`ed STL, or an `implicit`/`tpms`/`hybrid_boolean`/`mesh_carve`/
+   `shell` result; `route: "mesh_wrap"`). Either lets a field-born or scanned
+   body enter exact planar booleans and `export_step` — never claim its
+   surfaces are analytic. (`HybridFuse` route `exact` keeps untouched faces.)
+7. The op catalogue is **162 ops** — `{"op":"describe"}` is authoritative and
    cannot drift; DESIGN_GUIDE Parts I–II and old error strings ("116 ops") are
    stale in places. When guide and binary disagree, trust the binary + API.md.
 8. Physics lives OUTSIDE the JSON surface: Python runners in `tools/` consume
