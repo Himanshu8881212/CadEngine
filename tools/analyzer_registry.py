@@ -653,6 +653,19 @@ CONTRACT_RUNNERS = [
 ]
 
 
+def _why(rec) -> str:
+    """The receipt's own explanation, for a gate detail line.
+
+    A contract check that fails with `kind=internal` and no message is a dead
+    end for whoever reads the CI log — that is how the 2026-09-04 analysis-gate
+    failure stayed opaque across three pushes. Surface what the runner said.
+    """
+    if not rec:
+        return "no receipt"
+    err = rec.get("error") or rec.get("error_kind") or "-"
+    return str(err)[:200]
+
+
 def _run_runner(runner: str, argv: list[str], env_extra: dict | None = None,
                 timeout: int = 300):
     """Drive a runner CLI. Returns (receipt_or_None, returncode)."""
@@ -733,7 +746,7 @@ def check_contract() -> tuple[bool, list[dict]]:  # noqa: PLR0915 — one linear
         gate("1 positive control: ok:true AND exit 0",
              code == 0 and rec is not None and rec.get("ok") is True
              and rec.get("exit_code") == 0,
-             f"exit {code}, ok={None if rec is None else rec.get('ok')}")
+             f"exit {code}, ok={None if rec is None else rec.get('ok')}, err={_why(rec)}")
 
         # --- 2. A REFUSED ANALYSIS EXITS 2, NOT 0 ---------------------------
         # Pure tension into a buckling solve: the exact din_rail F7 job shape.

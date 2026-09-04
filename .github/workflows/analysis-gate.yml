@@ -51,6 +51,17 @@ jobs:
           uv pip install --python .analysis-venv/bin/python --require-hashes -r tools/requirements-analysis.lock
           echo "ANALYSIS_PYTHON=$PWD/.analysis-venv/bin/python" >> "$GITHUB_ENV"
 
+      # One-line proof of what the contract checks can actually see. Three pushes
+      # were spent guessing at "kind=internal" failures that reproduce nowhere
+      # locally; this makes the environment a fact in the log instead.
+      - name: Diagnose the runner environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -l target/release/kernel-api
+          "$ANALYSIS_PYTHON" -c "import numpy, scipy, sys; print('python', sys.version.split()[0], 'numpy', numpy.__version__, 'scipy', scipy.__version__)"
+          "$ANALYSIS_PYTHON" -c "import sys; sys.path.insert(0,'tools'); import _layout; print('repo root seen by tools:', _layout.REPO_ROOT)"
+
       - name: Analyzer registry and provenance contracts
         run: |
           "$ANALYSIS_PYTHON" tools/check_ci_security.py
