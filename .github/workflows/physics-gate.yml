@@ -20,7 +20,13 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
-    runs-on: self-hosted
+    # Hosted since 2026-09-04. This job was self-hosted for ONE reason: the
+    # solvers lived in a private ACE checkout that only the maintainer's machine
+    # had. That is no longer true — the physics is in-tree at
+    # tools/analyzers/physics/ — and meanwhile the repository had zero
+    # self-hosted runners registered, so this gate never ran at all and hid two
+    # real defects. A gate that cannot run is not a gate.
+    runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
       LMCAD_REQUIRE_REPRODUCIBLE_ANALYSIS: '1'
@@ -39,13 +45,25 @@ jobs:
       # see its NOTICE), so the pin is the protected main SHA checked out above:
       # there is no second repository left to drift.
 
+      - uses: dtolnay/rust-toolchain@1.95.0  # pinned; see rust-toolchain.toml
+      - uses: Swatinem/rust-cache@v2
+
+      # The pins drive real analyses, and every analyzer shells out to the engine.
+      - name: Build the engine the pins analyse
+        run: cargo build -p kernel-api --release
+
       - name: Install/verify hash-locked Python dependencies
         shell: bash
         run: |
           set -euo pipefail
+          pipx install uv || pip install uv
           uv venv --python 3.11 .analysis-venv
           uv pip install --python .analysis-venv/bin/python --require-hashes -r tools/requirements-analysis.lock
           echo "ANALYSIS_PYTHON=$PWD/.analysis-venv/bin/python" >> "$GITHUB_ENV"
 
+      # LMCAD_ANALYSIS_PYTHON so the registry launches each pin with the LOCKED
+      # interpreter, not whatever python happens to be running it.
       - name: FEA, modal, buckling, optimization, and Kt pins
+        env:
+          LMCAD_ANALYSIS_PYTHON: ${{ env.ANALYSIS_PYTHON }}
         run: '"$ANALYSIS_PYTHON" tools/analyzer_registry.py --run-pins'
