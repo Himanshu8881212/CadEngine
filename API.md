@@ -1867,11 +1867,22 @@ Read `solids[*].bbox_*` for per-part envelopes (a keep-out for a case), and
 gate on `solids_skipped` / `faces_repaired` when the exact geometry matters:
 a flat-repaired face is inside the body's envelope but not its true surface.
 
+**Measured on a real vendor assembly** (Framework's 45.6 MB, 168-solid Laptop 12
+mainboard, RELEASE build, single-threaded, peak RSS ≈ 1.4 GB): **952 s (15.9 min)**,
+`solids_total` 168, `solids_imported` 163, `solids_skipped` 5, `faces_repaired` 81,
+`faces_skipped` 4, bound body 221 shells / 602 921 faces. Against OpenCascade's
+per-solid ground truth every one of the 168 names matches, and 147 of the 168
+envelopes agree to within 0.05 mm. The rest are **one-sided**: a census box never
+exceeds the true box by more than 0.041 mm, but a curved body's envelope is taken
+from the reconstructed chord vertices and can fall up to 2.5 mm INSIDE the true
+surface extreme. Inflate a keep-out derived from `bbox_*` on rounded parts.
+
 When only the envelopes are needed, the **census** (`kernel_brep::step_census`,
 Rust surface only) produces the identical `solids` listing without
-reconstructing a single B-rep — seconds on a file the full import takes
-minutes on (measured: 168/168 solids of a 45 MB, 168-solid vendor mainboard in
-7 s in a debug build). Every record is then `"status": "skipped"` with reason
+reconstructing a single B-rep — seconds on a file whose full import takes
+16 minutes (measured: 168/168 solids of a 45 MB, 168-solid vendor mainboard in
+7 s in a debug build; the full tolerant import of the same file is 952 s in
+release, see above). Every record is then `"status": "skipped"` with reason
 `census only (not reconstructed)` and `bbox_source: "edges"`.
 
 ### `import_mesh`

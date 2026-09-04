@@ -10,7 +10,7 @@ update whichever is wrong, but never let them drift silently.
 - **Millimetres, everywhere.** All lengths — coordinates, tolerances, voxel
   sizes, chord tolerances — are model units, and the model unit is mm
   (`kernel-core/src/math.rs:EPSILON` "Default linear tolerance (mm)";
-  `kernel-brep/src/booleans.rs:EPS` "in model units (mm)").
+  `kernel-brep/src/tol.rs:EPS` "in model units (mm)").
 - The native file formats make the unit a **contract field**: a `.lmcpart` /
   `.lmcasm` whose `units` is missing or not `"mm"` is *refused* at load, not
   silently rescaled (`kernel-model/src/format.rs` — "refusing beats silently
@@ -26,7 +26,7 @@ update whichever is wrong, but never let them drift silently.
   ≈ 1.5e-8), so coincidence tests would collapse. `boolean()` measures the
   operands' bbox centre and, when `|centre| > 1e7`, translates both operands to
   the origin, runs the arrangement in full precision, and shifts the kept
-  fragments back (`kernel-brep/src/booleans.rs:154`). In place (`centre =
+  fragments back (`kernel-brep/src/booleans/mod.rs:209-212`). In place (`centre =
   ZERO`) the translate is an exact no-op, so near-origin results are
   byte-identical to the un-centred path.
 - **Implicit/voxel (f32) honest range: ~1e6 mm is already degraded.** The f32
@@ -48,9 +48,9 @@ One table, from code. "Absolute" means mm, not relative.
 
 | constant | value | governs | source |
 |---|---|---|---|
-| `EPS` | 1e-9 | boolean arrangement: on-plane / coincidence tests; degenerate-triangle filter (`area ≤ EPS²`) | `kernel-brep/src/booleans.rs:57` |
-| `WELD_EPS` | 1e-7 | stitching boolean fragments back into a half-edge solid (vertex identification) | `kernel-brep/src/booleans.rs:59` |
-| `TJUNCTION_EPS` | `4·WELD_EPS` = 4e-7 | T-junction healing: a vertex this close to another face's edge is inserted into that edge; the sliver filter in `stitch` MUST use the same value or a thin triangle folds its own boundary (the R2/R3 non-manifold seed — see the comment) | `kernel-brep/src/booleans.rs:66` |
+| `EPS` | 1e-9 | boolean arrangement: on-plane / coincidence tests; degenerate-triangle filter (`area ≤ EPS²`) | `kernel-brep/src/tol.rs:22` |
+| `WELD_EPS` | 1e-7 | stitching boolean fragments back into a half-edge solid (vertex identification) | `kernel-brep/src/tol.rs:26` |
+| `TJUNCTION_EPS` | `4·WELD_EPS` = 4e-7 | T-junction healing: a vertex this close to another face's edge is inserted into that edge; the sliver filter in `stitch` MUST use the same value or a thin triangle folds its own boundary (the R2/R3 non-manifold seed — see the comment) | `kernel-brep/src/tol.rs:33` |
 | `EPSILON` (f32) | 1e-5 | default linear tolerance for geometric comparisons on the mesh/voxel side | `kernel-core/src/math.rs:16` |
 | `SURFACE_EPSILON` (f32) | 1e-6 | SDF zero-crossing tests along a grid edge | `kernel-core/src/math.rs:19` |
 | `EPS` (solver) | 1e-12 | assembly constraint solver: directions/displacements below this are treated as zero | `kernel-model/src/constraints.rs:48` |
@@ -78,7 +78,7 @@ The convention is declared at the top of the shared math module
 (`kernel-core/src/math.rs:5-8`) and holds across the workspace:
 
 - **f64 (`DVec3`) — the exact B-rep side**: all of `kernel-brep` (topology,
-  arrangements, booleans `booleans.rs:50`, SSI, NURBS, validation, mass
+  arrangements, booleans `booleans/mod.rs`, SSI, NURBS, validation, mass
   properties, STEP), because coincidence decisions at 1e-9 on ~1e2-mm parts need
   ~1e-11 relative precision.
 - **f32 (`Vec3`) — the implicit/voxel side**: SDF evaluation, voxel grids, mesh
@@ -194,7 +194,7 @@ Loud-by-design (machine-readable error or explicit empty, never a silent lie):
   (revolution, offset, parabola, trimmed…), periodic sphere/torus regions, and
   pole-spanning caps raise `StepError::Unsupported(entity)` — a uniform, loud
   error enumerated per entity class in the module table
-  (`kernel-brep/src/step_import.rs:19-27,54`).
+  (`kernel-brep/src/step_import/mod.rs:19-29,86`).
 - **Degenerate construction inputs yield an empty `Solid`, not a panic or a
   broken manifold**: `extrude`/`revolve` sanitize profiles (drop duplicate
   points, reject <3-point/zero-area input, reject negative radius and isolated

@@ -256,7 +256,7 @@ deep N=2000 **100.0 % (2000/2000)**, 3/3 runs byte-identical each. Floors stay
 ## Measured 2026-06-10 — AFTER the Level-6 mop-up (zero residual failures)
 
 The nine residual stitch explosions left after R5 are FIXED — the deterministic
-corpus now passes 100.0 % at both sizes. Three `booleans.rs` root causes, found by
+corpus now passes 100.0 % at both sizes. Three `crates/kernel-brep/src/booleans/` root causes, found by
 replaying the nine seeds:
 
 1. **Non-unit split-line normals** (`split_triangle_by_segments`): the in-plane
@@ -312,12 +312,12 @@ split turned the old single mesh source file into the `crates/kernel-core/src/me
 R5 (run-to-run nondeterminism) is FIXED in the kernel-brep boolean pipeline. Three
 surviving `HashMap`/`HashSet` iteration-order dependences were eliminated:
 
-1. `booleans.rs cancel_coincident` — the coincident-facet accumulator was DRAINED in
+1. `booleans/faces.rs cancel_coincident` — the coincident-facet accumulator was DRAINED in
    HashMap order, so the welded triangle-soup order (which decides region
    representatives → normal/surface/provenance tags, face order, and the next
    chained boolean's entire arrangement) was random per run. It now emits in
    first-insertion key order.
-2. `booleans.rs recover_faces` — coplanar-region merging ran in `edge_map.values()`
+2. `booleans/faces.rs recover_faces` — coplanar-region merging ran in `edge_map.values()`
    (HashMap-random) order; the union-find *partition* is order-independent but the
    surviving root ids are not, and regions were ordered by sorted root id — so
    result-face ORDER shuffled run to run. Regions are now ordered by their smallest
@@ -372,7 +372,7 @@ HashSet order (pinch-vertex cap splicing) — the import-repair path, not boolea
 ## Measured 2026-06-09 (evening) — AFTER the loop-aware arrangement fix
 
 The Level-6 fleet landed R1–R4 the same day (loop-aware boolean triangulation /
-recovery / healing in booleans.rs, revolve orientation in build.rs, exact_volume
+recovery / healing in booleans/, revolve orientation in build.rs, exact_volume
 loop signs in validate.rs). Re-measured on the identical corpus:
 
 | corpus | chains | pass rate | runs |
@@ -458,7 +458,7 @@ Triage pointers (consistent with the BAR.md 2026-06-09 bisect findings):
   seeds scored 37.0–40.0 %. Boolean results depend on std `HashMap`/`HashSet`
   iteration order (process-random hasher), so the same chain can pass in one run and
   fail in the next. Determinism is itself a Level-9 quality bar — fix alongside the
-  stitcher (e.g. ordered maps or seeded hashers in `booleans.rs`).
+  stitcher (e.g. ordered maps or seeded hashers in `crates/kernel-brep/src/booleans/`).
 - Base solids are never born invalid here (0/2000) — `revolve` (R1, invalid-at-birth
   L-profiles) is **not** in this generator's base vocabulary yet; add it once R1 is
   fixed, or as a deliberately-failing bucket.

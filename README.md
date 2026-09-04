@@ -100,8 +100,11 @@ see [`docs/OP_USAGE.md`](docs/OP_USAGE.md) for the census (161 dispatched, 84 us
   trimmed-NURBS faces and sphere poles.
 - **Vendor STEP is graded.** `mode: tolerant` repairs or skips bad faces and reports every
   solid with name, envelope and status. Framework's Expansion Card and battery import
-  completely; their 45 MB, 168-solid mainboard is census-only and its full import is
-  unverified.
+  completely. Their 45 MB, 168-solid mainboard imports **163 of 168 solids in 952 s
+  (15.9 min) in a release build** — all 168 names match OpenCascade, 147 of the 168
+  envelopes to within 0.05 mm; curved bodies' envelopes come from chord vertices and
+  under-report the true extreme by up to 2.5 mm, so a keep-out taken from them must be
+  inflated. Use the census when only envelopes are needed: it is seconds, not minutes.
 - **Fatigue data is thin and says so.** Only PLA has measured printed S-N; across-layer
   fatigue is unknown for every material and the runner refuses rather than guess.
 
