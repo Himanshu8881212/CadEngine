@@ -7,6 +7,69 @@ Current-state summary and open frontier live in CLAUDE.md; the falsifiable
 scorecard in docs/BAR.md; deep friction write-ups in campaign/friction/ENGINE.md
 (moved there from docs/FRICTION.md on 2026-09-03).
 
+OP + DIGEST 2026-09-04 (`solid_from_mesh` — op #162; and two "missing capabilities" that
+were only missing from the digest). Three friction items were re-opened; **only one needed
+an engine change.** The other two were digest holes — one capability had been fixed a wave
+earlier and never reached `campaign/digests/`, the other was never missing at all — and
+that is the more dangerous class, because a silent doc hole produces confident wrong work
+instead of a refusal.
+
+1. **`solid_from_mesh {in}` — a REAL gap, now closed.** `kernel_brep::solid_from_mesh`
+   and `kernel_model::reverse::mesh_to_solid` existed and were used internally by
+   `hybrid_boolean` / `shell_to_solid`, but nothing on the 161-op JSON surface could
+   reach them, so a mesh — a scan, a TPMS block, a `hybrid_boolean` fuse — could never
+   re-enter the exact world to be booleaned, filleted or exported as STEP
+   (`campaign/friction/jar_top_seed_singulator.md`
+   F17; the *gating* half of that entry was closed earlier by the mesh-value wave).
+   The op takes a bound MESH value (`import_mesh`, `implicit`, `tpms`,
+   `gyroid_block`, `hybrid_boolean`, `mesh_carve`, `shell`) and binds a validated B-rep.
+   **It is a FACETED WRAP, not analytic refitting** — one planar face per triangle,
+   coplanar neighbours coalesced, no surface reconstruction: a cylinder comes back as
+   flats and the STEP it writes carries those flats. Every receipt says so
+   (`route: "mesh_wrap"`, `surfaces: "planar_facets"`, `analytic_surfaces: false`,
+   `provenance: "faceted_wrap_of_mesh"`, plus `input_triangles` / `input_watertight` /
+   `input_volume` / `faces` / `volume` / `volume_conserved` / the validity verdict).
+   Executed: a 60×40×8 box through STL → **6** faces at 19200.0 mm³ exactly; a Ø20
+   `implicit` sphere at voxel 0.6 → **10,440** faces, every one `plane`. Refusals are
+   loud — an open soup fails `invalid_geometry` with the boundary-edge counts either side
+   of the weld (`validate` keeps telling the truth), and a SOLID input fails `wrong_type`
+   rather than being silently downgraded to facets. Three tests in
+   `crates/kernel-api/tests/implicit_wave.rs`. OP_COUNT 161 → **162** (109 → 110 without
+   `catalog`); `discover.rs` regenerated.
+2. **`cone` `top_radius` — a DIGEST gap that shipped a wrong part.** The engine gained it
+   in the T8 fix wave (`campaign/fixlog/A-kernel-api.md`), in direct response to the
+   friction entry — but `campaign/digests/ops_core.md`, the file OPERATOR_BRIEF tells a
+   model to author from, was never updated and mentioned it **zero** times, and the
+   friction entry stayed `open`. The fix landed and stopped propagating: a campaign wrote
+   a chute meant to open
+   r 6 → r 11 and got a spike. Executed at `radius 6, height 12, segments 64`: with
+   `top_radius: 11` → `exact_volume` 2802.300647 mm³; without → 452.389342 mm³. **84 %
+   apart, and both are `valid: true, genus: 0`** — no topological gate catches it, only a
+   volume gate does. Now documented in §4 with the worked frustum, the trap stated
+   explicitly, and the case added to the "Gate does NOT catch" list.
+3. **The implicit grammar CAN express a helix** — the friction claim
+   ("`mod(z − k·atan2(y,x))`; that grammar cannot express it") was false when written.
+   `atan2 {y,x}` and Euclidean `mod {a,b}` are two of the 16 scalar ops in
+   `crates/kernel-implicit/src/expr_sdf.rs`, the confusion was CSG-combinator position vs
+   scalar position, and `tests/implicit.rs::pure_json_helical_thread_bolt_matches_rust_reference`
+   already builds a real M10×1.5 ISO thread as pure JSON and meshes it watertight within
+   2 % of the Rust reference. Nothing was added; the resolution records the full function
+   table so the next reader does not have to guess. Lipschitz safety is unaffected —
+   `expr_sdf` never assumed 1-Lipschitz, it requires a declared `lipschitz_bound` and
+   normalises by it.
+
+A digest-wide sweep (all 162 ops' params vs all five digests) found the rest, all now
+documented: `pressure_angle_deg` on `spur_gear`/`internal_gear`/`gear_rack` (default 20 —
+a mating parameter no gate cross-checks between two parts), `thread_ridge`'s
+`{major_d, pitch}` non-ISO form, `asm_solve`'s `max_residual`/`allow_unconverged` (the
+latter can launder an unconverged solve), and a new ops_core §10a for the reverse-bridge
+family (`hybrid_boolean` / `offset_solid` / `shell_solid` / `solid_from_implicit` /
+`solid_from_mesh`) — **four of which appeared in no digest at all**. The digest's claim
+that `import_mesh` "binds nothing — meshes never enter the solid environment" was already
+stale and is corrected. Behavioural proof: `framework_system/l12_mini_case` and
+`magic_system/uphill_roller` re-run green with all 20 `parts/*.stl` + `cad/*.step`
+byte-identical.
+
 LICENSING + STRUCTURE 2026-09-04 (the physics moved IN-TREE; `tools/ACE_REVISION` retired).
 The five FEA-class analyzers imported a Python package `engine` from a separate, private
 repository at `~/Work/ACE`, bootstrapped by putting `ACE_ROOT` on `sys.path`. Two things

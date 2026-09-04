@@ -75,6 +75,7 @@ pub fn op_tag(op: &OpKind) -> &'static str {
 		OpKind::OffsetSolid { .. } => "offset_solid",
 		OpKind::ShellSolid { .. } => "shell_solid",
 		OpKind::SolidFromImplicit { .. } => "solid_from_implicit",
+		OpKind::SolidFromMesh { .. } => "solid_from_mesh",
 		OpKind::ThinWall { .. } => "thin_wall",
 		OpKind::MinLigament { .. } => "min_ligament",
 		OpKind::SampleDensityGrid { .. } => "sample_density_grid",
@@ -295,6 +296,7 @@ pub const OP_NAMES: &[&str] = &[
 	"offset_solid",
 	"shell_solid",
 	"solid_from_implicit",
+	"solid_from_mesh",
 	"thin_wall",
 	"min_ligament",
 	"sample_density_grid",
@@ -453,11 +455,11 @@ pub const OP_NAMES: &[&str] = &[
 /// Number of supported ops in a default build (`catalog` feature on). Kept in lockstep with
 /// the `OpKind` variant count via [`op_tag`].
 #[cfg(feature = "catalog")]
-pub const OP_COUNT: usize = 161;
+pub const OP_COUNT: usize = 162;
 
 /// Number of supported ops with the `catalog` feature compiled out (`--no-default-features`).
 #[cfg(not(feature = "catalog"))]
-pub const OP_COUNT: usize = 109;
+pub const OP_COUNT: usize = 110;
 
 /// Wire tags of the ops behind the `catalog` cargo feature. Always compiled — even when the
 /// feature is off — so the interpreter can name the feature in its `unknown_op` refusal
@@ -830,6 +832,9 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "expr", ty: "object", required: true, doc: "The implicit expression tree (same grammar as the `implicit` op).", aliases: &[] },
 		ParamSpec { name: "voxel", ty: "number", required: true, doc: "Extraction voxel size (mm) — also the chord fidelity of every face.", aliases: &[] },
 		ParamSpec { name: "domain", ty: "object", required: false, doc: "Explicit meshing box; default: the tree's own (finite) bounds.", aliases: &[] },
+	]),
+	("solid_from_mesh", &[
+		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "The id of a bound MESH value (a solid is already exact — refused).", aliases: &[] },
 	]),
 	("thin_wall", &[
 		ParamSpec { name: "in", ty: "id-ref", required: false, doc: "A bound solid id (exclusive with `expr`).", aliases: &[] },

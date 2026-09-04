@@ -1017,6 +1017,35 @@ pub enum OpKind {
 		/// Explicit meshing box; default: the tree's own (finite) bounds.
 		domain: Option<DomainSpec>,
 	},
+	/// **Reverse bridge, mesh entry** (`kernel_model::reverse::mesh_to_solid`,
+	/// over `kernel_brep::solid_from_mesh`): wrap a bound MESH — an
+	/// `import_mesh`ed STL/3MF, or any mesh-valued body already in the program
+	/// (`implicit`, `tpms`, `gyroid_block`, `hybrid_boolean`, `mesh_carve`,
+	/// `shell`) — as a validated B-rep solid, so it can enter the exact planar
+	/// booleans, the fillet/chamfer features and `export_step`. The sibling of
+	/// `solid_from_implicit`, entered from a mesh that already exists instead of
+	/// from a field that still has to be extracted.
+	///
+	/// **This is a FACETED WRAP, not analytic refitting.** One planar face per
+	/// triangle (exactly-coplanar neighbours coalesced into multi-loop planar
+	/// faces), NO surface reconstruction of any kind: a tessellated cylinder
+	/// comes back as N `Surface::Plane` facets, never a `Surface::Cylinder`, and
+	/// the STEP it exports carries those flats. Accuracy is the input mesh's
+	/// accuracy — the wrap adds nothing and recovers nothing. The measures say
+	/// so in every receipt (`route: "mesh_wrap"`, `surfaces: "planar_facets"`,
+	/// `analytic_surfaces: false`); gate on them if a downstream claim depends
+	/// on exact geometry.
+	///
+	/// Loud, never silent: a mesh that is not a closed 2-manifold (an open soup,
+	/// a leaky scan) is REFUSED with its boundary/non-manifold edge counts —
+	/// `validate` keeps telling the truth about the wrap, so an open input wraps
+	/// to an open shell and never gets bound. The wrap is additionally gated on
+	/// volume conservation (|solid − mesh| ≤ 1e-6 relative).
+	SolidFromMesh {
+		/// The id of a bound MESH value (a solid is already exact — refused).
+		#[serde(rename = "in")]
+		input: String,
+	},
 	/// SAMPLED thin-wall census (`kernel_model::reverse::thin_wall_report`) of a
 	/// bound solid (`in`, lifted through the winding-number SDF) or an implicit
 	/// `expr` tree — exactly one. Reports the thinnest local wall estimate

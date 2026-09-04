@@ -1,8 +1,9 @@
 # ops_core.md — Exact-B-rep Work-Order Cookbook (LMCAD `kernel-api`)
 
 Digest of `campaign/DESIGN_GUIDE.md` §1–§10 + §21/§23 and `API.md`, cross-checked
-against the live binary on 2026-09-03: the interpreter dispatches **161 ops**, of
-which 109 are compiled in a `--no-default-features` build (the other 52 are the
+against the live binary on 2026-09-03 (and re-counted 2026-09-04, when
+`solid_from_mesh` was added): the interpreter dispatches **162 ops**, of
+which 110 are compiled in a `--no-default-features` build (the other 52 are the
 hardware-catalog ops behind the default-on `catalog` feature — `docs/OP_USAGE.md`).
 Every snippet marked "VERIFIED" was executed against
 `"/Users/himanshu/Work/New-LMCAD/cad engine/target/release/kernel-api"` during
@@ -128,6 +129,7 @@ loft/sweep/patterns executed live):
 {"id": "c",  "op": "cylinder", "base": [0,0,0], "axis": [0,0,1], "radius": 3.5, "height": 10, "segments": 32}
 {"id": "s",  "op": "sphere", "center": [0,0,20], "radius": 6, "u": 32, "v": 16}
 {"id": "co", "op": "cone", "base": [0,0,0], "axis": [0,0,1], "radius": 5, "height": 12, "segments": 32}
+{"id": "fr", "op": "cone", "base": [0,0,0], "axis": [0,0,1], "radius": 6, "height": 12, "top_radius": 11, "segments": 64}
 {"id": "t",  "op": "torus", "center": [0,0,0], "axis": [0,0,1], "major": 20, "minor": 5, "ring_segments": 48, "tube_segments": 24}
 {"id": "e",  "op": "extrude", "profile": [[0,0],[30,0],[30,10],[10,10],[10,25],[0,25]], "height": 6}
 {"id": "ew", "op": "extrude_with_holes", "outer": [[0,0],[40,0],[40,30],[0,30]], "holes": [[[10,10],[20,10],[20,20],[10,20]]], "height": 6}
@@ -139,6 +141,31 @@ loft/sweep/patterns executed live):
 
 Constructor notes:
 - Defaults: cylinder/cone segments 32; sphere u32/v16; torus 48/24; revolve 64.
+- **`cone` takes an optional `top_radius` — WITHOUT it you get a spike.** Bare
+  `cone` tapers `radius` → a point at `height`. With `top_radius` you get the
+  FRUSTUM the same taper cuts at `height`: a draughted boss, a chamfered
+  spigot, a tapered stand-off, a chute. `top_radius` may be larger than
+  `radius` (the frustum flares outward) or smaller (it narrows); it must
+  **differ** from `radius` — equal radii are a cylinder and the op refuses
+  rather than emit a cone surface with no apex. `top_radius: 0` = a true cone.
+  The lateral surface carries exact `cone` face tags either way, so
+  `exact_volume` reads `provenance: "analytic"`.
+
+  > **SILENT-WRONG-GEOMETRY TRAP — a campaign shipped the wrong part to it.**
+  > Omitting `top_radius` when you meant a frustum is not an error: it builds a
+  > perfectly valid cone with a *fraction* of the material. `validate` says
+  > `valid: true`, the genus check says `genus: 0`, `list_faces` looks right —
+  > **every topological gate passes on the wrong solid.** VERIFIED, `radius: 6,
+  > height: 12`, `segments: 64`:
+  >
+  > | program | `exact_volume` | analytic | `validate` |
+  > |---|---:|---:|---|
+  > | with `"top_radius": 11` | 2802.300647 mm³ | πh/3·(R²+Rr+r²) = 2802.300647 | valid, genus 0 |
+  > | without it (a spike) | 452.389342 mm³ | πr²h/3 = 452.389342 | valid, genus 0 |
+  >
+  > The two differ by 84 % and **nothing but a volume gate catches it.** Put an
+  > `exact_volume_within` (or an `assert` volume window) on every cone you
+  > intended to be truncated. Measure what you mean.
 - `extrude`: negative `height` extrudes down. `extrude_with_holes`: hole loops
   must lie **strictly inside** `outer` (see silent trap below); genus = hole
   count. `extrude_tapered`: **convex profiles only**, no holes.
@@ -159,7 +186,9 @@ revolve apex. Gate does NOT catch (silent, gate = topology check only):
    documented domain.
 3. Hole loop crossing `outer` → valid topology, **wrong volume** (can exceed
    the blank!).
-Tripwire for all three: an `assert` volume window. **Measure what you mean.**
+4. `cone` without `top_radius` when you meant a frustum → a spike, valid and
+   genus 0, 84 % less material in the executed case above.
+Tripwire for all four: an `assert` volume window. **Measure what you mean.**
 
 ## 5. Sketches & the constraint solver
 
@@ -404,12 +433,88 @@ across two different `--out-dir`s.
 | `export_step` | `in`, `file` | — | STEP **AP203** with EXACT analytic surfaces (plane/cylinder/sphere/cone/torus, circular edges as CIRCLE) — not a mesh; no tessellation, no routing. Product name = file stem. Untagged faces export as planar patches |
 | `export_threaded` | `in`, `m`, `length`, `z0?`, `internal?`, `voxel?=pitch/8`, `file` | `route`, `volume_delta_vs_body`, ... | the ONLY way to fuse/cut a real ISO thread (exact union would self-intersect). Thread axis is world +Z through origin. `voxel` > pitch/6 refused. Internal is a print-practical male-form+0.4mm-crest-clearance approximation, NOT ISO female form |
 | `import_step` | `file`, `mode?="strict"` | `shells`, `genus`, `faces`, `volume`, `freeform_faces`; tolerant adds `mode`, `uncertainty_mm`, `solids_total/imported/skipped`, `faces_skipped/repaired`, `solids[]`, `skipped[]`, `repaired[]` | BINDS an exact B-rep (tags kept). **strict**: first unreadable face fails the op; every brep in its LOCAL frame, one multi-shell solid. **`"mode":"tolerant"`** (vendor files): per-face failures are flat-repaired or skipped and REPORTED; EVERY solid instance of the file is listed in `solids[]` as `{name, path, entity, status: imported\|skipped, bbox_min, bbox_max, bbox_source: brep\|edges, faces, faces_repaired, faces_skipped, reason?}` with its PRODUCT name and assembly-PLACED envelope (from entity geometry even when the B-rep failed); `skipped[]`/`repaired[]` are `{entity, kind, solid, reason}`; the body is the compound of the imported instances; zero imported → `invalid_geometry` with the counts in the message. Trim vertices snap to their B-spline patch within the file's own uncertainty (10× in tolerant); holes on curved analytic faces and off-phase/partial sphere-torus regions import on the exact surface |
-| `import_mesh` | `file` (.stl/.obj/.3mf/.ply), `heal?`, `out?` | full check_mesh receipt; `volume` only iff watertight | **binds nothing** — meshes never enter the solid environment |
-| `mesh_carve` | `in`, `file`, `bool`, `voxel?=0.3`, `out` | `route: "voxel_implicit"`, ... | boolean a solid vs a mesh FILE through the voxel half; writes a file, binds nothing |
+| `import_mesh` | `file` (.stl/.obj/.3mf/.ply), `heal?`, `out?` | full check_mesh receipt; `volume` only iff watertight | binds a **mesh value** (not a solid): gateable by `validate`/`volume`/`bounding_box`/`mesh_components`/`support_report`/`clearance`/`assert*`, all stamping `source: "mesh"`. To make it a SOLID you must name `solid_from_mesh` (§10a) — nothing promotes it silently |
+| `mesh_carve` | `in`, `file`, `bool`, `voxel?=0.3`, `out` | `route: "voxel_implicit"`, ... | boolean a solid vs a mesh FILE through the voxel half; writes `out` AND binds the result as a **mesh value** (chain `solid_from_mesh`, §10a, to get back to exact) |
 
 Program exports fail on leaky; **assembly instance exports do NOT** (receipt
 carries `watertight: false`, exit stays 0 — your policy layer must gate).
 OBJ/glTF/AP242: Rust surface only.
+
+## 10a. Getting a MESH back into the exact world — the reverse-bridge family
+
+Four of these five ops appeared in **no digest at all** until 2026-09-04 (the
+fifth, `solid_from_mesh`, was added that day), which is why campaigns kept
+concluding "the field/mesh half is a one-way street". It is not — but the way
+back is **faceted**, and that is the whole risk. Read the limit before you use
+any of them.
+
+| op | params | binds | route |
+|---|---|---|---|
+| `hybrid_boolean` | `in` (solid), `bool`, `field`? XOR `file`?, `voxel?=0.3`, `out` (required) | **mesh** + writes `out` | `"exact_stitch"` \| `"voxel_healed"` |
+| `offset_solid` | `in`, `delta`, `voxel?=0.3` | **solid** (faceted) | `"voxel"` |
+| `shell_solid` | `in`, `thickness`, `voxel?=0.3` | **solid** (faceted) | `"voxel"` |
+| `solid_from_implicit` | `expr`, `voxel`, `domain?` | **solid** (faceted) | `"voxel"` |
+| `solid_from_mesh` | `in` (a **mesh** value) | **solid** (faceted) | `"mesh_wrap"` |
+
+`hybrid_boolean` binds its result as a MESH (it did not always — old friction
+logs say "binds no geometry"; that is stale). So the full chain from a
+self-intersecting exact union to an exact, gateable, STEP-exportable body is
+`hybrid_boolean` → `solid_from_mesh` → `export_step`.
+
+**THE LIMIT — say it in the README, never launder it.** All four
+solid-binding ops produce a **faceted wrap: one planar face per triangle**
+(exactly-coplanar neighbours coalesced), with **no analytic surface
+reconstruction of any kind**. A cylinder that goes through comes back as N
+`Surface::Plane` facets, never a `Surface::Cylinder`. Consequences you must
+plan for:
+
+- `export_step` on the result writes those flats. It is a real STEP file; it
+  is **not** STEP-quality analytic geometry.
+- `measure_dimension {"kind":"diameter"}` and the fillet/chamfer edge
+  witnesses read curvature — they will not find a bore that is now 64 planes.
+  Measure BEFORE the crossing, or measure on the mesh.
+- Face counts explode: a Ø20 sphere at voxel 0.6 is 10,440 triangles →
+  **10,440 faces** (nothing coalesces on a curved body). Fine voxel on a big
+  part = a huge solid and a huge STEP.
+- The receipts say all of this: gate on
+  `{"route": "mesh_wrap"|"voxel", "surfaces": "planar_facets",
+  "analytic_surfaces": false, "faceted": true}` rather than asserting exactness.
+
+`solid_from_mesh` (2026-09-04) is the entry point from a mesh you already
+hold — an `import_mesh`ed STL/3MF/OBJ/PLY, or any mesh-valued body
+(`implicit`, `tpms`, `gyroid_block`, `hybrid_boolean`, `mesh_carve`, `shell`).
+VERIFIED file round trip — box → STL → mesh → solid → exact cut → STEP;
+12 triangles coalesce back to the box's 6 planar faces, volume exactly 19200:
+
+```json
+{"ops": [
+  {"id": "blank", "op": "box", "min": [0,0,0], "max": [60,40,8]},
+  {"id": "out",   "op": "export_stl", "in": "blank", "file": "blank.stl"},
+  {"id": "back",  "op": "import_mesh", "file": "blank.stl"},
+  {"id": "solid", "op": "solid_from_mesh", "in": "back"},
+  {"id": "pin",   "op": "cylinder", "base": [30,20,-1], "axis": [0,0,1], "radius": 5, "height": 10},
+  {"id": "bored", "op": "difference", "a": "solid", "b": "pin"},
+  {"id": "step",  "op": "export_step", "in": "bored", "file": "bored.step"}
+]}
+```
+```json
+{"id": "solid", "measures": {"route": "mesh_wrap", "surfaces": "planar_facets",
+ "analytic_surfaces": false, "provenance": "faceted_wrap_of_mesh", "faceted": true,
+ "source": "back", "input_triangles": 12, "input_watertight": true,
+ "input_volume": 19200.0, "faces": 6, "volume": 19200.0, "volume_conserved": true,
+ "closed": true, "manifold": true, "shells": 1, "genus": 0}}
+```
+
+Both refusals are loud, neither is silent:
+- an **open soup** has no inside to wrap — `invalid_geometry` naming the
+  boundary/non-manifold edge counts before and after the weld. `validate`
+  keeps telling the truth: a closed 2-manifold mesh wraps to a closed solid,
+  an open one wraps to an open shell and is never bound;
+- a **solid** input — `wrong_type`. It is already exact; wrapping it would
+  trade its analytic faces for facets, and the op will not do that silently.
+
+The wrap is additionally gated on volume conservation (`|solid − mesh| ≤ 1e-6`
+relative), so a coalesce that moved geometry is a refusal, never a corruption.
 
 ## 11. `load_part` + minimal `.lmcpart`
 

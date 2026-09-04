@@ -3,7 +3,7 @@
 //! The 2026-07-29 implicit wave on the JSON op surface (Mission D): strut
 //! lattices, `pipe_path`, Hershey text, `displace` textures, `{"grid": …}`
 //! NPY grade sources, the voxel-route solid ops (`offset_solid` /
-//! `shell_solid` / `solid_from_implicit`) and the interrogation probes
+//! `shell_solid` / `solid_from_implicit` / `solid_from_mesh`) and the probes
 //! (`thin_wall` / `min_ligament`) — every op exercised end-to-end through
 //! `run_program` with a measured pin, and every refusal provoked for real
 //! (machine-matchable `ErrorKind` + message needles). No direct Rust geometry
@@ -469,6 +469,128 @@ fn roundtrip_strut_lattice_to_solid_to_step() {
 		"BCC 2×2×2 block (cell 10, r 1.6): bound volume {vol:.1} mm³ ({:.1}% solid, executed pin ≈39.8% / 3184.2 mm³ at voxel 0.5), closed+manifold, conserved, STEP {step_written} bytes — {r:#?}",
 		vol / 80.0
 	);
+	let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `solid_from_mesh` (green): the FILE round trip an operator actually walks —
+/// a B-rep box is exported to STL, read back with `import_mesh` (it is a MESH
+/// value from there on), wrapped into the exact world, cut by an exact planar
+/// boolean and written to STEP. Two things are pinned: the wrap is exact for a
+/// planar body (coplanar facets coalesce back to the box's 6 faces and the
+/// volume is the analytic 60×40×8 to 1e-6), and the wrapped value really is a
+/// B-rep operand — the `difference` and `export_step` downstream of it are the
+/// two things a bare mesh cannot do.
+#[test]
+fn solid_from_mesh_round_trips_a_box_through_a_file_into_step() {
+	let dir = out_dir("mesh_wrap_box");
+	let r = run(
+		&dir,
+		json!([
+			{"id": "blank", "op": "box", "min": [0, 0, 0], "max": [60, 40, 8]},
+			{"id": "out",   "op": "export_stl", "in": "blank", "file": "blank.stl"},
+			{"id": "back",  "op": "import_mesh", "file": "blank.stl"},
+			{"id": "solid", "op": "solid_from_mesh", "in": "back"},
+			{"id": "pin",   "op": "cylinder", "base": [30, 20, -1], "axis": [0, 0, 1], "radius": 5, "height": 10},
+			{"id": "bored", "op": "difference", "a": "solid", "b": "pin"},
+			{"id": "val",   "op": "validate", "in": "bored"},
+			{"id": "step",  "op": "export_step", "in": "bored", "file": "bored.step"}
+		]),
+	);
+	assert!(r.ok, "box → STL → mesh → solid → cut → STEP must run green end to end: {r:#?}");
+	let vol = num(&r, "solid", "volume");
+	let step_written = entry(&r, "step").file.as_deref().map(|f| std::fs::metadata(f).map(|m| m.len()).unwrap_or(0)).unwrap_or(0);
+	assert!(
+		(vol - 19_200.0).abs() < 1e-6
+			&& measure(&r, "solid", "faces") == &json!(6)
+			&& measure(&r, "solid", "input_triangles") == &json!(12)
+			&& measure(&r, "solid", "route") == &json!("mesh_wrap")
+			&& measure(&r, "solid", "volume_conserved") == &json!(true)
+			&& measure(&r, "solid", "source") == &json!("back")
+			&& measure(&r, "val", "closed") == &json!(true)
+			&& measure(&r, "val", "genus") == &json!(1)
+			&& step_written > 0,
+		"wrapped 60×40×8 box: volume {vol} (analytic 19200), 12 triangles coalesced to 6 planar faces, cut to genus 1, STEP {step_written} bytes — {r:#?}"
+	);
+	let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `solid_from_mesh` — THE HONEST LIMIT, pinned so it can never be quietly
+/// re-claimed as something better. A meshed Ø20 sphere wraps to a solid whose
+/// every face is a `plane`: one per triangle, nothing coalesced (a curved body
+/// has no exactly-coplanar neighbours) and NOTHING refitted — no
+/// `Surface::Sphere` is recovered, because this op does no surface
+/// reconstruction at all. The receipt says exactly that
+/// (`surfaces: "planar_facets"`, `analytic_surfaces: false`) and `list_faces`
+/// independently confirms it, so a caller gating on either cannot mistake the
+/// result for STEP-quality analytic geometry. Volume is the MESH's volume, not
+/// the sphere's: the wrap adds no accuracy it was not handed.
+#[test]
+fn solid_from_mesh_wraps_a_curved_body_as_flats_and_says_so() {
+	let dir = out_dir("mesh_wrap_faceted");
+	let r = run(
+		&dir,
+		json!([
+			{"id": "field", "op": "implicit", "voxel": 0.6,
+			 "expr": {"shape": "sphere", "center": [0, 0, 0], "radius": 10.0}},
+			{"id": "solid", "op": "solid_from_mesh", "in": "field"},
+			{"id": "faces", "op": "list_faces", "in": "solid"}
+		]),
+	);
+	assert!(r.ok, "a watertight implicit sphere mesh must wrap: {r:#?}");
+	let tris = num(&r, "field", "triangles");
+	let faces = num(&r, "solid", "faces");
+	let mesh_vol = num(&r, "field", "volume");
+	let solid_vol = num(&r, "solid", "volume");
+	let kinds: Vec<&str> =
+		measure(&r, "faces", "faces").as_array().expect("list_faces array").iter().filter_map(|f| f["type"].as_str()).collect();
+	let non_planar = kinds.iter().filter(|k| **k != "plane").count();
+	assert!(
+		measure(&r, "solid", "surfaces") == &json!("planar_facets")
+			&& measure(&r, "solid", "analytic_surfaces") == &json!(false)
+			&& measure(&r, "solid", "provenance") == &json!("faceted_wrap_of_mesh")
+			&& measure(&r, "solid", "input_watertight") == &json!(true)
+			&& non_planar == 0
+			&& faces == tris
+			&& (solid_vol - mesh_vol).abs() < 1e-6,
+		"faceted wrap of a Ø20 sphere mesh: {tris} triangles → {faces} faces, {non_planar} of {} non-planar (must be 0), volume {solid_vol} = mesh {mesh_vol} — {r:#?}",
+		kinds.len()
+	);
+	let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `solid_from_mesh` refusals — both loud, neither silent. An OPEN soup (a
+/// single triangle: 3 boundary edges) has no inside to wrap, and the refusal
+/// carries the edge counts before and after the weld; a SOLID input is already
+/// exact, and wrapping it would trade its analytic faces for facets, so the op
+/// declines rather than perform a silent downgrade.
+#[test]
+fn solid_from_mesh_refuses_an_open_soup_and_an_already_exact_solid() {
+	let dir = out_dir("mesh_wrap_refusals");
+	std::fs::write(
+		dir.join("open.stl"),
+		"solid s\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 10 0 0\nvertex 0 10 0\nendloop\nendfacet\nendsolid s\n",
+	)
+	.expect("write open stl");
+	let open = run(
+		&dir,
+		json!([
+			{"id": "soup", "op": "import_mesh", "file": "open.stl"},
+			{"id": "wrap", "op": "solid_from_mesh", "in": "soup"}
+		]),
+	);
+	// import_mesh binds it and TELLS the truth (watertight false, 3 boundary
+	// edges); the wrap is where it stops.
+	assert!(entry(&open, "soup").ok && measure(&open, "soup", "watertight") == &json!(false), "open mesh must import: {open:#?}");
+	assert_refusal(&open, "wrap", ErrorKind::InvalidGeometry, &["not watertight", "boundary edges remain"]);
+
+	let solid_in = run(
+		&dir,
+		json!([
+			{"id": "blank", "op": "box", "min": [0, 0, 0], "max": [10, 10, 10]},
+			{"id": "wrap",  "op": "solid_from_mesh", "in": "blank"}
+		]),
+	);
+	assert_refusal(&solid_in, "wrap", ErrorKind::WrongType, &["already an exact solid", "only wraps a MESH"]);
 	let _ = std::fs::remove_dir_all(&dir);
 }
 

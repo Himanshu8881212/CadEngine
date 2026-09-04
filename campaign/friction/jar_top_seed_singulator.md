@@ -212,7 +212,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F7 — `cone` is a true cone, never a frustum, and there is no frustum constructor (2026-08-07)
 - severity: minor
 - surface: cone
-- status: open
+- status: fixed — engine by fixlog A-kernel-api §T8 (`cone.top_radius`); digest by RESOLUTIONS 2026-09-04 in this file
 - symptom: `{"op":"cone","base":[21,0,-9.6],"axis":[0,0,-1],"radius":6.0,
   "height":5.5}` was written to open a chute OUT from r 6.00 to r 10.975. It
   actually cut a spike tapering to a POINT. Exit 0, `valid: true`, genus as
@@ -477,7 +477,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F17 — a `hybrid_boolean` result cannot be gated: it binds no geometry, and nothing can re-bind it (2026-08-08)
 - severity: blocker
 - surface: hybrid_boolean
-- status: open
+- status: fixed — RESOLUTIONS 2026-09-04 in this file (`solid_from_mesh` op added; the helix sub-claim was already false)
 - symptom: `parts/housing_top_threaded.stl` is the file this campaign actually prints
   (exact body + real 70-450 helical thread). It could not carry a single `assert`.
   Attaching `validate` to the fuse result gives, verbatim:
@@ -543,3 +543,143 @@ untouched; every workaround lives inside the campaign directory.
   still interferes (overlap 60.853 mm³), so the control did not weaken.
 - ask: report a facet-uncertainty bound next to `distance`, or warn when
   `distance == 0.0` on faceted operands.
+
+---
+
+## RESOLUTIONS 2026-09-04
+
+Three items from this file were re-opened deliberately. **Two of the three were
+never engine gaps at all** — the capability was already in the binary and the
+digest a model is told to author from did not mention it. That is the more
+dangerous failure of the two, because it produces confident wrong work instead
+of a refusal, and it is why the fixes below are mostly documentation.
+
+### F7 — `cone` frustum: the ENGINE was fixed a wave ago; the DIGEST never was
+
+`cone` takes an optional `top_radius` ("Radius of the flat top face (mm)"). It
+was added by the T8 fix wave in direct response to this entry — see
+`campaign/fixlog/A-kernel-api.md` §T8, "Additive; omitted or 0 = the historic
+true cone byte-for-byte … built by revolving the trapezoid so the lateral band
+keeps its exact `Surface::Cone` tag" — and it is in
+`crates/kernel-api/src/program.rs`, in `API.md`, and reported by
+`{"op":"describe","name":"cone"}`.
+
+**But `campaign/digests/ops_core.md` mentioned it zero times**, and this entry
+was left `open`. So the fix landed and then stopped propagating: a model
+authoring from the digest — which `campaign/OPERATOR_BRIEF.md` tells it to do —
+still learned "cone tapers to a point" and would still ship the spike this
+entry describes. A fix that does not reach the digest is not a fix a campaign
+can use.
+
+Fixed in `campaign/digests/ops_core.md` §4: `top_radius` documented in the
+constructor notes with a worked frustum in the minimal-JSON block, and the trap
+called out with executed numbers (`radius: 6, height: 12, segments: 64`):
+
+| program | `exact_volume` | analytic | `validate` |
+|---|---:|---:|---|
+| `"top_radius": 11` | 2802.300647 mm³ | πh/3·(R²+Rr+r²) = 2802.300647 | valid, genus 0 |
+| omitted (a spike) | 452.389342 mm³ | πr²h/3 = 452.389342 | valid, genus 0 |
+
+84 % apart, both `valid: true`, both `genus: 0`. The digest now says in the
+section itself that **`validate` and the genus check will not catch this — only
+a volume gate will**, and the case is item 4 of §4's "Gate does NOT catch"
+list. `top_radius` may be larger than `radius` (flaring) or smaller; equal
+radii are refused.
+
+### F17a — mesh→solid: REAL gap, `solid_from_mesh` op added
+
+The claim "No mesh->solid op exists anywhere in the 161-op surface" was true
+and was checked correctly. `kernel_brep::solid_from_mesh` and the better
+`kernel_model::reverse::mesh_to_solid` (weld → wrap → coalesce → validate →
+volume-conservation gate) both existed and were used internally by
+`hybrid_boolean` and `shell_to_solid`; neither was reachable from JSON.
+
+Added `solid_from_mesh {in}` (op #162, core, family "voxel-route solid ops").
+`in` is a bound **mesh** value — an `import_mesh`ed STL/3MF/OBJ/PLY, or any
+mesh-valued body (`implicit`, `tpms`, `gyroid_block`, `hybrid_boolean`,
+`mesh_carve`, `shell`) — and it binds a validated B-rep `Solid`, so the fused
+threaded body this campaign shipped can now enter the exact planar booleans,
+the fillet/chamfer features and `export_step`. (Two separate things were
+missing when this was written, and only one of them is closed here: `validate`
+on a MESH became possible earlier, in the mesh-value wave — `hybrid_boolean`
+now binds `EnvValue::Mesh` and the entry's "binds no geometry" quote is stale.
+What `solid_from_mesh` adds is the crossing into the EXACT world, which the
+mesh-value wave deliberately did not do.)
+
+**The honest limit, stated in the receipt so it cannot be missed.** It is a
+FACETED WRAP, not analytic refitting: one planar face per triangle (coplanar
+neighbours coalesced), no surface reconstruction of any kind. A cylinder comes
+back as flats. Every receipt carries `route: "mesh_wrap"`,
+`surfaces: "planar_facets"`, `analytic_surfaces: false`,
+`provenance: "faceted_wrap_of_mesh"`, plus `input_triangles`,
+`input_watertight`, `input_volume`, `faces`, `volume`, `volume_conserved` and
+the full validity verdict. Executed: a 60×40×8 box round-tripped through STL
+wraps to **6** faces at volume 19200.0 exactly (planar body, facets coalesce);
+a Ø20 `implicit` sphere at voxel 0.6 wraps to **10,440** faces, one per
+triangle, every one `"type": "plane"` under `list_faces`. Both refusals are
+loud: an open soup is `invalid_geometry` with the boundary-edge counts before
+and after the weld (`validate` keeps telling the truth — an open mesh wraps to
+an open shell and is never bound), and a **solid** input is `wrong_type`,
+because it is already exact and wrapping it would silently trade analytic faces
+for facets.
+
+Docs: `API.md` (`### solid_from_mesh`), `campaign/digests/ops_core.md` §10a
+(new — it also documents `hybrid_boolean` / `offset_solid` / `shell_solid` /
+`solid_from_implicit`, which appeared in **no** digest at all), and
+`docs/OP_USAGE.md` (marked `—`, not `0`: it postdates that census).
+Tests: `crates/kernel-api/tests/implicit_wave.rs`, three cases —
+`solid_from_mesh_round_trips_a_box_through_a_file_into_step`,
+`…_wraps_a_curved_body_as_flats_and_says_so`,
+`…_refuses_an_open_soup_and_an_already_exact_solid`.
+
+The digest also claimed `import_mesh` "**binds nothing** — meshes never enter
+the solid environment". That was already false (mesh values have been bindable
+and gateable since the mesh-value wave) and is corrected in the same table.
+
+### F17b — "a helical thread is `mod(z − k·atan2(y,x))`; that grammar cannot express it": FALSE, and it was false when written
+
+This sub-claim is what made F17 look structural. It is not true of the
+`expr_sdf` scalar-field grammar, only of the CSG **combinator** grammar the
+campaign happened to be typing into — the error it quotes
+(`unknown combinator 'max'`) is the parser saying "`max` is a scalar op, and
+you are in combinator position", not "there is no `max`".
+
+Ground truth, read from the source rather than guessed
+(`crates/kernel-implicit/src/expr_sdf.rs` `enum Expr`, exposed by
+`crates/kernel-api/src/implicit.rs` `SCALAR_OPS`) — the **complete** function
+table, 16 scalar ops plus `"x"`/`"y"`/`"z"` and bare-number constants:
+
+| kind | ops |
+|---|---|
+| arithmetic | `add {a,b}`, `sub`, `mul`, `div`, `neg {arg}` |
+| selection | `min {a,b}`, `max {a,b}`, `clamp {value,lo,hi}` (non-panicking, returns `hi` if `lo > hi`) |
+| transcendental | `sqrt {arg}`, `sin`, `cos`, **`atan2 {y,x}`** (radians, standard argument order) |
+| wrap | **`mod {a,b}`** — Euclidean (`rem_euclid`), result in `[0,\|b\|)`; the doc comment says outright "the helical-unwrap idiom needs the non-negative branch" |
+| norms | `abs {arg}`, `length2 {a,b}`, `length3 {a,b,c}` |
+
+So `atan2` and a modulo were both already there — nothing was added for this,
+and nothing needed to be. The Lipschitz question the ask raises is real but
+already answered by the design: `expr_sdf` does not assume its expression is
+1-Lipschitz, it **requires the author to declare** a `lipschitz_bound` and
+normalises by it (`distance(p) = expr(p)/lipschitz_bound`). An unsound
+declaration is caught by the narrow-band mesher's own guard, or avoided with
+`"mesher": "manifold"` (dense, assumes only continuity). Adding a dedicated
+`helix` primitive would therefore have bought nothing and cost a second way to
+say the same thing.
+
+The idiom is documented in `campaign/digests/implicit_recipes.md` §5 with the
+Lipschitz accounting (`|∇(z − kθ)| ≤ √(1 + (k/r)²)`; the guide's M10 stud
+declares 1.7 against a measured sup of 1.602), and it is PROVEN by an existing
+test that does exactly what the ask asks for:
+`crates/kernel-api/tests/implicit.rs::pure_json_helical_thread_bolt_matches_rust_reference`
+builds a real single-start M10×1.5 ISO-form thread as a pure-JSON scalar field
+(`u = mod(z − pitch·atan2(y,x)/2π + P/2 − z0, P) − P/2`, four flank half-planes
+under `max`), meshes it watertight at voxel 0.08, and pins it within 2 % of the
+Rust reference `Sdf`. No new test was written because writing a second one
+would have added a duplicate, not a proof.
+
+**Lesson for the next model, and the reason F7 and F17b cost real days:** the
+digests are not the surface. When the digest is silent about something, that is
+evidence about the digest, not about the engine —
+`{"op":"describe","name":"<op>"}` is compile-forced complete and cannot drift.
+Check there before recording a capability as missing.

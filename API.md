@@ -168,10 +168,12 @@ Ops that accept a bound mesh wherever they accept a solid: `validate`,
 `assert_disjoint`, and `assert` (its mesh-meaningful checks). Their measures
 carry `"source": "solid"` or `"source": "mesh"` so the two are never confused.
 
-This does **not** add a mesh→B-rep conversion. A mesh value stays a mesh; the
-only field→exact route remains the explicit `solid_from_implicit` reverse
-bridge, which says `route: "voxel"` on its own receipt. Handing a mesh to an op
-that needs exact geometry is a loud `wrong_type`.
+This does **not** add an IMPLICIT mesh→B-rep conversion. A mesh value stays a
+mesh unless the author names one of the two crossing ops, and both are labelled
+faceted in their own receipts: `solid_from_implicit` (re-mesh a field, then
+wrap; `route: "voxel"`) and `solid_from_mesh` (wrap a mesh already in hand;
+`route: "mesh_wrap"`). Neither refits analytic surfaces. Handing a mesh to any
+other op that needs exact geometry stays a loud `wrong_type`.
 
 A complete gate on a print file:
 
@@ -228,7 +230,7 @@ A failing program looks like:
 | kind | when |
 |---|---|
 | `parse` | the program file is not valid JSON, or not `{"ops": [...]}` shaped (reported on id `$program`) |
-| `unknown_op` | `op` names none of the 161 operations below |
+| `unknown_op` | `op` names none of the 162 operations below |
 | `duplicate_id` | two ops share an `id` |
 | `missing_ref` | `in`/`a`/`b`/`sketch` names no prior result (or names a measure/export op, which binds nothing) |
 | `wrong_type` | the reference resolved to the wrong kind (e.g. a sketch where a solid is needed) |
@@ -309,12 +311,12 @@ reference gearbox did exactly this for both its flat and its nested report —
 
 # Op reference
 
-161 ops (mechanical count of `OpKind` — `describe` enumerates them all,
+162 ops (mechanical count of `OpKind` — `describe` enumerates them all,
 including the 13 assembly ops): solid constructors, sketch ops, booleans,
 features/transforms, measures, assertions, exports/imports, implicit/hybrid
-ops (including the voxel-route solid ops `offset_solid` / `shell_solid` /
-`solid_from_implicit` and the interrogation probes `thin_wall` /
-`min_ligament`), the native-format loader, the curated library, 48 standard
+ops (including the reverse-bridge solid ops `offset_solid` / `shell_solid` /
+`solid_from_implicit` / `solid_from_mesh` and the interrogation probes
+`thin_wall` / `min_ligament`), the native-format loader, the curated library, 48 standard
 parts, 13 standard feature cuts, design-math lookups, the hole wizard — and
 the **in-program assembly surface** (`asm_*` + `gear_train_poses`, next
 section after Implicit/hybrid).
@@ -323,7 +325,7 @@ section after Implicit/hybrid).
 parts no shipped campaign has used, their catalog feature cuts, the parts
 library (`library_*`), the lattice ops `gyroid_block` / `tpms`, and
 `sketch_extrude` — are compiled behind the `catalog` cargo feature of
-`kernel-api`. A default build (and every release binary) has all 161 ops;
+`kernel-api`. A default build (and every release binary) has all 162 ops;
 `cargo build -p kernel-api --no-default-features` compiles the 52 out,
 `describe` then enumerates 109, and a program that names one of them is
 refused with `unknown_op` and a message saying it is behind the `catalog`
@@ -1954,11 +1956,15 @@ Measures: `route` (`"voxel_implicit"`), `triangles`, `watertight`, `volume`,
 ONE direction. Any exact solid (or mesh) can *enter* the implicit world
 losslessly enough to compute with — the winding-number bridge (`MeshSdf`) lifts
 it to a field, and `hybrid_boolean` can even keep the untouched exact faces
-verbatim. Coming *back* there is now exactly ONE door, and it is honest about
-what it is: `solid_from_implicit` (reverse bridge v1, below) wraps a field-born
-mesh into a **faceted** B-rep `Solid` — one planar face per surviving triangle,
-volume-conservation gated, route `"voxel"` — so a lattice can re-enter exact
-planar booleans and `export_step`. What NEVER happens is analytic recovery: a
+verbatim. Coming *back* there are exactly TWO doors — the same door, entered
+from a field or from a mesh — and both are honest about what they are.
+`solid_from_implicit` (reverse bridge v1, below) meshes a field-born tree and
+wraps it into a **faceted** B-rep `Solid` (route `"voxel"`);
+`solid_from_mesh` (below) wraps a mesh you already hold — an imported STL, or
+any mesh-valued body in the program (route `"mesh_wrap"`). Both are one planar
+face per surviving triangle and volume-conservation gated, so a lattice or a
+scan can re-enter exact planar booleans and `export_step`. What NEVER happens
+through either door is analytic recovery: a
 voxelized cylinder comes back as N planar facets, not a `Surface::Cylinder`
 (field → analytic boundary reconstruction is the industry-wide unsolved
 problem; recovery is the ledgered v2), so curvature-reading ops downstream of
@@ -2840,6 +2846,100 @@ Executed refusal — a domain the field never crosses:
 ```json
 {"kind": "invalid_param",
  "message": "op 'ghost': implicit_to_solid: the field has no surface inside Aabb { min: Vec3(50.0, 50.0, 50.0), max: Vec3(60.0, 60.0, 60.0) } at voxel 0.5 (or the lattice exceeded the mesher's cell cap) — nothing to bridge"}
+```
+
+### `solid_from_mesh`
+**Reverse bridge, mesh entry** (`kernel_model::reverse::mesh_to_solid`, over
+`kernel_brep::solid_from_mesh`) — the sibling of `solid_from_implicit`,
+entered from a mesh you already have instead of from a field that still has to
+be extracted. `in` is a bound **mesh** value: an `import_mesh`ed STL/3MF/OBJ/PLY,
+or any mesh-valued body already in the program (`implicit`, `tpms`,
+`gyroid_block`, `hybrid_boolean`, `mesh_carve`, `shell`). It binds a validated
+B-rep `Solid`, so a mesh can finally enter the exact planar booleans, the
+fillet/chamfer features and `export_step`.
+
+**The honest limit, and it is the whole risk of this op: it is a FACETED WRAP,
+not analytic refitting.** One planar face per triangle (adjacent
+exactly-coplanar facets coalesced into multi-loop faces), and **no surface
+reconstruction of any kind**. A tessellated cylinder comes back as N
+`Surface::Plane` facets, never a `Surface::Cylinder`; the STEP it exports
+carries those flats; a fillet placed on it follows facet edges, not a curve.
+Accuracy is exactly the input mesh's accuracy — the wrap adds nothing and
+recovers nothing. This is **not** STEP-quality geometry, and every receipt says
+so: `route: "mesh_wrap"`, `surfaces: "planar_facets"`,
+`analytic_surfaces: false`. Gate on those if a downstream claim depends on
+exact surfaces. (Analytic quadric recovery is `mesh_to_solid_recovered` in
+`kernel-model` — reverse-bridge v2, not on the op surface.)
+
+Loud, never silent. A mesh that is not a closed 2-manifold has no inside to
+wrap: it is refused with its boundary/non-manifold edge counts before and after
+the weld, so `validate` keeps telling the truth (a closed 2-manifold mesh wraps
+to a closed solid; an open soup wraps to an open shell and is never bound). The
+wrap is additionally gated on **volume conservation** (`|solid − mesh| ≤ 1e-6`
+relative). A **solid** input is refused too: it is already exact, and wrapping
+it would trade its analytic faces for facets — a silent downgrade this op will
+not perform.
+
+| param | type | required | meaning |
+|---|---|---|---|
+| `in` | id-ref | yes | id of a bound **mesh** value (a solid is refused — see above) |
+
+Measures: `route` (`"mesh_wrap"`), `surfaces` (`"planar_facets"`),
+`analytic_surfaces` (always `false`), `provenance`
+(`"faceted_wrap_of_mesh"`), `faceted`, `source` (the input id),
+`input_triangles`, `input_watertight`, `input_volume`, `faces`, `volume`,
+`volume_conserved`, `closed`, `manifold`, `shells`, `genus`.
+`input_watertight` describes the mesh **as handed in**: `false` there on a
+successful op means the input had non-manifold/boundary edges and a 1e-5 weld
+closed them — the wrap succeeded on the welded mesh, and you are being told so
+rather than left to assume the file was clean. `faces` vs `input_triangles` is
+how much coalescing happened: equal means none (a curved body), far fewer means
+the body was planar.
+
+Executed — the file round trip (a box out to STL, back as a mesh, wrapped, cut
+by an exact boolean, written as STEP). Twelve triangles coalesce back to the
+box's six planar faces and the volume is the analytic 19200 mm³ exactly,
+because the body was planar to begin with:
+
+```json
+{"ops": [
+  {"id": "blank", "op": "box", "min": [0,0,0], "max": [60,40,8]},
+  {"id": "out",   "op": "export_stl", "in": "blank", "file": "blank.stl"},
+  {"id": "back",  "op": "import_mesh", "file": "blank.stl"},
+  {"id": "solid", "op": "solid_from_mesh", "in": "back"},
+  {"id": "pin",   "op": "cylinder", "base": [30,20,-1], "axis": [0,0,1], "radius": 5, "height": 10},
+  {"id": "bored", "op": "difference", "a": "solid", "b": "pin"},
+  {"id": "step",  "op": "export_step", "in": "bored", "file": "bored.step"}
+]}
+```
+
+```json
+{"id": "solid", "ok": true,
+ "measures": {"analytic_surfaces": false, "closed": true, "faces": 6,
+              "faceted": true, "genus": 0, "input_triangles": 12,
+              "input_volume": 19200.0, "input_watertight": true,
+              "manifold": true, "provenance": "faceted_wrap_of_mesh",
+              "route": "mesh_wrap", "shells": 1, "source": "back",
+              "surfaces": "planar_facets", "volume": 19200.0,
+              "volume_conserved": true}}
+```
+
+A CURVED body is where the limit bites, and the receipt shows it: an
+`implicit` Ø20 sphere at voxel 0.6 meshes to 10440 triangles and wraps to
+**10440 planar faces** — nothing coalesces (no two facets of a sphere are
+exactly coplanar) and nothing is refitted. `list_faces` on the result returns
+`"type": "plane"` 10440 times. The whole chain (both greens and both refusals)
+is pinned in `tests/implicit_wave.rs`.
+
+Executed refusals — an open soup, and an already-exact solid:
+
+```json
+{"kind": "invalid_geometry",
+ "message": "op 'wrap': mesh_to_solid: mesh is not watertight even after weld(0.00001): 3 non-manifold/boundary edges remain (was 3 before weld, 1 triangles) — repair the mesh (weld/fill_holes/make_manifold) or re-mesh before bridging"}
+```
+```json
+{"kind": "wrong_type",
+ "message": "op 'wrap' param 'in': 'blank' is already an exact solid — 'solid_from_mesh' only wraps a MESH (import_mesh / implicit / tpms / gyroid_block / hybrid_boolean / mesh_carve / shell). Wrapping a solid would replace its analytic faces with planar facets; use it directly instead"}
 ```
 
 ### `thin_wall`
