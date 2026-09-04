@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.95.0  # pinned; see rust-toolchain.toml
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2

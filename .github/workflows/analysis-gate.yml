@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.95.0  # pinned; see rust-toolchain.toml
       - uses: Swatinem/rust-cache@v2
 
       # The runner-contract gate does not just read source: nine of its forty
@@ -37,22 +37,36 @@ jobs:
       - name: Build the engine the runners shell out to
         run: cargo build -p kernel-api --release
 
+      # The contract checks execute real analyzers, and those import numpy/scipy.
+      # Without them every behavioural check fails as "internal" (an ImportError
+      # surfacing as a runner error) — the second half of why this job went red
+      # on 2026-09-03. Same hash-locked set the physics-gate installs, so the
+      # hosted and self-hosted jobs agree on versions.
+      - name: Install/verify hash-locked Python dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          pipx install uv || pip install uv
+          uv venv --python 3.11 .analysis-venv
+          uv pip install --python .analysis-venv/bin/python --require-hashes -r tools/requirements-analysis.lock
+          echo "ANALYSIS_PYTHON=$PWD/.analysis-venv/bin/python" >> "$GITHUB_ENV"
+
       - name: Analyzer registry and provenance contracts
         run: |
-          python3 tools/check_ci_security.py
-          python3 tools/check_ci_security.py --self-test
-          python3 tools/analyzer_registry.py --check
-          python3 tools/analyzer_registry.py --check-contract
-          python3 tools/analyzer_registry.py --demo
-          python3 tools/analyzer_registry.py
+          "$ANALYSIS_PYTHON" tools/check_ci_security.py
+          "$ANALYSIS_PYTHON" tools/check_ci_security.py --self-test
+          "$ANALYSIS_PYTHON" tools/analyzer_registry.py --check
+          "$ANALYSIS_PYTHON" tools/analyzer_registry.py --check-contract
+          "$ANALYSIS_PYTHON" tools/analyzer_registry.py --demo
+          "$ANALYSIS_PYTHON" tools/analyzer_registry.py
 
       # Hermetic (stdlib-only) validation pins of the Validated rules engines.
       # The ACE physics pins run on the self-hosted physics-gate; these two need
       # no numpy, so the hosted job re-proves them on every PR.
       - name: Rules-engine validation pins (stdlib, hermetic)
         run: |
-          python3 tools/validation/tolerance_stack_validation.py
-          python3 tools/validation/production_check_validation.py
+          "$ANALYSIS_PYTHON" tools/validation/tolerance_stack_validation.py
+          "$ANALYSIS_PYTHON" tools/validation/production_check_validation.py
 
       # The 2026-09-02 re-organisation left a forwarding shim at every old
       # flat path (tools/<name>.py -> tools/{analyzers,publish,validation,tests}/).
