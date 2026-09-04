@@ -30,6 +30,131 @@ pub(crate) fn self_intersection_json(w: &kernel_core::mesh::SelfIntersection) ->
 	})
 }
 
+/// Surface gap below which `clearance` calls the pair TOUCHING. Faceted
+/// operands cannot resolve a gap finer than this, so it is a contact report,
+/// never an interference claim.
+const CONTACT_EPS: f64 = 1e-6;
+/// Shared material below which an overlap is arrangement noise rather than
+/// interference. Scaled to nothing in particular on purpose: the exact route
+/// returns a clean `0.0` for disjoint pairs, and the faceted route's residue on
+/// coplanar contact is ~1e-12 mm³.
+const OVERLAP_EPS: f64 = 1e-9;
+/// Per-operand triangle budget for the FACETED overlap fallback. The mesh
+/// boolean wraps every triangle as a face of an exact arrangement, so its cost
+/// grows fast; above this a `clearance` query would stop being a measure a
+/// campaign can afford to run in a loop. A 128-segment cylinder is ~520
+/// triangles and a typical posed part 2–20 k, so this clears real work by an
+/// order of magnitude while still refusing the 23 k-face STEP imports that
+/// motivated the cap (friction jar_top_seed_singulator F6).
+const FACETED_OVERLAP_TRI_BUDGET: usize = 200_000;
+
+/// `clearance`'s `overlap_volume` and the provenance/reason that must travel
+/// with it. `value: None` is a REFUSAL and always carries a `reason` naming why
+/// — this repo's doctrine is that a measure which cannot be produced is a
+/// refusal with a cause, never a silent null.
+pub(crate) struct OverlapMeasure {
+	pub(crate) value: Option<f64>,
+	/// `"analytic"` (exact boolean + `exact_volume`), `"faceted"` (mesh boolean
+	/// of the tessellated operands at `tol`), or `"unavailable"`.
+	pub(crate) provenance: &'static str,
+	pub(crate) reason: Option<String>,
+}
+
+/// The shared material of two operands, by the strongest route that actually
+/// works on them — the decision ladder `clearance` used to short-circuit into a
+/// bare `null`.
+///
+/// 1. **Analytic.** Two exact solids with no coincident-fit hazard go through
+///    `kernel_brep::overlap_volume` — a direct `intersection` measured with
+///    `exact_volume`, so a curved overlap reads at its true value. This is
+///    exactly what campaigns were hand-rolling as `intersection` +
+///    `exact_volume` because the op would not do it for them.
+/// 2. **Faceted.** Otherwise the mesh boolean of the already-tessellated
+///    operands. This covers the two cases that produced every `null` in the
+///    field:
+///    - the **coincident-fit hazard** (V4), where the EXACT arrangement across
+///      a flush/press-fit face pair can grind for CPU-minutes. The hazard is a
+///      property of the analytic faces; the mesh route co-refines triangles and
+///      does not have it, so the number is recoverable — as an estimate.
+///      This case is not exotic: two bodies that overlap while both standing on
+///      z=0 share coplanar faces, and six live campaign receipts were nulled by
+///      it.
+///    - a bound **MESH** operand, which carries no exact boolean but does have
+///      an inside as long as it closes.
+/// 3. **Unavailable.** Only when there is genuinely no volume to compute: an
+///    operand that does not close (no inside, so no shared material is
+///    definable) or one too large to afford the mesh boolean inside a measure.
+///    Both say so by name.
+///
+/// The bounding boxes are checked first, so the overwhelmingly common
+/// separated pair costs one box test and never runs a boolean at all.
+pub(crate) fn overlap_measure(ta: &Measurable<'_>, tb: &Measurable<'_>, ma: &Mesh, mb: &Mesh, hazard: bool, tol: f64) -> OverlapMeasure {
+	if let (Measurable::Solid(sa), Measurable::Solid(sb)) = (ta, tb) {
+		if !hazard {
+			if let Some(v) = kernel_brep::overlap_volume(sa, sb) {
+				return OverlapMeasure { value: Some(v), provenance: "analytic", reason: None };
+			}
+		}
+	}
+	// Why we are on the faceted route — named on the receipt, never implied.
+	let cause = if hazard {
+		"the operands share a flush/press-fit face pair (`coincident_fit_hazard`), and the EXACT intersection across such a pair is the known boolean-hang case (V4)"
+	} else if matches!(ta, Measurable::Mesh(_)) || matches!(tb, Measurable::Mesh(_)) {
+		"at least one operand is a bound MESH, which carries no exact boolean"
+	} else {
+		"the exact boolean intersection did not produce a measurable body for this operand pair"
+	};
+	faceted_overlap(ma, mb, cause, tol)
+}
+
+/// The faceted half of the ladder: the mesh boolean of two tessellations, or a
+/// named refusal. `cause` says why the analytic route was not taken.
+fn faceted_overlap(ma: &Mesh, mb: &Mesh, cause: &str, tol: f64) -> OverlapMeasure {
+	let why = format!(
+		"{cause} — `overlap_volume` is therefore the FACETED mesh-boolean volume of the operands tessellated at tol {tol} mm, an estimate whose error is the facet chord error, not the analytic overlap. When the exact number decides the fit, gate `exact_volume` on an explicit `intersection` body, or bracket it with the grown-gauge method (digest ops_core §11b)"
+	);
+	let faceted = |v: f64| OverlapMeasure { value: Some(v), provenance: "faceted", reason: Some(why.clone()) };
+	// Separated operands share nothing — the answer is exactly 0 and no boolean
+	// is run. This is what keeps `clearance` cheap on the common case, and the
+	// reason says a box test is what produced the zero rather than implying a
+	// boolean that never ran.
+	let (ba, bb) = (ma.aabb(), mb.aabb());
+	if ma.triangle_count() == 0 || mb.triangle_count() == 0 || !ba.is_valid() || !bb.is_valid() || !ba.intersection(bb).is_valid() {
+		return OverlapMeasure {
+			value: Some(0.0),
+			provenance: "faceted",
+			reason: Some(format!(
+				"{cause} — the operands' tessellated bounding boxes are disjoint at tol {tol} mm, so they share no material and `overlap_volume` is 0 without running a boolean"
+			)),
+		};
+	}
+	for (m, side) in [(ma, "a"), (mb, "b")] {
+		let boundary = m.boundary_edge_count();
+		if boundary > 0 {
+			return OverlapMeasure {
+				value: None,
+				provenance: "unavailable",
+				reason: Some(format!(
+					"operand '{side}' has {boundary} boundary edge(s) — an open surface encloses no volume, so there is no shared material to measure. `distance` above is still exact for the surfaces. Close it (`import_mesh` with `heal: true`, or the voxel route) to get an overlap_volume"
+				)),
+			};
+		}
+	}
+	for (m, side) in [(ma, "a"), (mb, "b")] {
+		let tris = m.triangle_count();
+		if tris > FACETED_OVERLAP_TRI_BUDGET {
+			return OverlapMeasure {
+				value: None,
+				provenance: "unavailable",
+				reason: Some(format!(
+					"operand '{side}' tessellates to {tris} triangles, over the {FACETED_OVERLAP_TRI_BUDGET}-triangle budget this measure allows for the faceted mesh boolean — computing it here would make `clearance` unaffordable to run in a loop. Coarsen `tol`, simplify the operand to the surfaces the claim is about, or take the number from an explicit `intersection` + `exact_volume` where you can pay for it"
+				)),
+			};
+		}
+	}
+	faceted(kernel_brep::mesh_intersection(ma, mb).signed_volume().abs())
+}
+
 /// Validate the two knobs of the connectivity oracle. Shared by `mesh_components`
 /// and `assert`, so the gate and its diagnostic can never be tuned differently.
 pub(crate) fn connectivity_tolerances(op_id: &str, tol: f64, weld_tol: f64) -> Result<(), OpError> {
@@ -561,58 +686,35 @@ pub(crate) fn exec(
 			let ma = ta.mesh(tol);
 			let mb = tb.mesh(tol);
 			let distance = ma.min_distance(&mb);
-			// overlap_volume runs an EXACT boolean intersection, so it needs two exact
-			// solids, and it is skipped on the coincident-fit hazard (a press-fit) so a
-			// clearance query can't trigger the coincident-fit boolean hang (V4).
-			// `overlap_volume: null` used to arrive with no explanation attached —
-			// a null that does not say why is indistinguishable from a bug, so the
-			// reason is now a first-class field and is never absent when the value is.
-			let (overlap, hazard, reason) = match (&ta, &tb) {
-				(Measurable::Solid(sa), Measurable::Solid(sb)) => {
-					let hazard = kernel_brep::detect_coincident_fit(sa, sb);
-					if hazard {
-						(None, true, Some("coincident_fit_hazard: the operands share a flush/press-fit face pair, and the exact intersection across it is the known boolean-hang case (V4) — measure the fit analytically (measure_dimension diameter) instead"))
-					} else {
-						match kernel_brep::overlap_volume(sa, sb) {
-							Some(v) => (Some(v), false, None),
-							// The exact arrangement can fail on posed/near-degenerate
-							// pairs while the meshes overlap plainly (friction
-							// folding_book_stand F5: `overlap_volume: null` on an
-							// interfering posed pair). Fall back to the mesh-level
-							// boolean of the already-tessellated operands — a faceted
-							// estimate, labelled as such, instead of a null.
-							None => {
-								let common = kernel_brep::mesh_intersection(&ma, &mb);
-								let v = common.signed_volume().abs();
-								(
-									Some(v),
-									false,
-									Some("the exact boolean intersection did not produce a measurable body for this operand pair — `overlap_volume` is the FACETED mesh-boolean volume of the tessellated operands at `tol` (an estimate, not the analytic overlap); gate `exact_volume` on an explicit `intersection` body when the exact number matters"),
-								)
-							}
-						}
-					}
-				}
-				_ => (
-					None,
-					false,
-					Some("overlap_volume needs two exact solids; at least one operand is a bound MESH, which carries no exact boolean — `distance` is measured on the meshes and is the honest answer here"),
-				),
+			let hazard = match (&ta, &tb) {
+				(Measurable::Solid(sa), Measurable::Solid(sb)) => kernel_brep::detect_coincident_fit(sa, sb),
+				_ => false,
 			};
-			// With no overlap volume the only evidence is the surface gap. A gap of
-			// exactly 0 on faceted operands is CONTACT within the faceting, not proof
-			// of interpenetration, so it is reported as such rather than as a boolean.
-			let interfering = overlap.map(|v| v > 1e-9).unwrap_or(distance < 1e-6);
+			let overlap = overlap_measure(&ta, &tb, &ma, &mb, hazard, tol);
+			// `interfering` is the OVERLAP's verdict whenever an overlap number
+			// exists, so the boolean and the number on the same receipt can never
+			// disagree. Contact is reported separately: a gap of exactly 0 on
+			// faceted operands is surfaces MEETING within the faceting, which is
+			// not proof of shared material.
+			let contact = distance < CONTACT_EPS;
+			let interfering = match overlap.value {
+				Some(v) => v > OVERLAP_EPS,
+				// No number at all: the surface gap is the only evidence there is,
+				// and it is reported as the weaker claim it is.
+				None => contact,
+			};
 			let mut m = json!({
 				"distance": distance,
 				"interfering": interfering,
-				"overlap_volume": overlap,
+				"contact": contact,
+				"overlap_volume": overlap.value,
+				"overlap_volume_provenance": overlap.provenance,
 				"coincident_fit_hazard": hazard,
 				"tol": tol,
 				"provenance": "faceted",
 				"source": [ta.source(), tb.source()],
 			});
-			if let Some(r) = reason {
+			if let Some(r) = overlap.reason {
 				m["overlap_volume_reason"] = json!(r);
 			}
 			Ok(Outcome::measures(m))

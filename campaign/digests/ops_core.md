@@ -346,7 +346,7 @@ Provenance fields are carried per receipt (VERIFIED live).
 | `wall_thickness` | `in`, `flag_below` (required), `exclude_wedge_deg?` | `min_thickness`, `p05_thickness`, `median_thickness`, `thin_area`, `sampled_triangles`, `samples`, `thin_witness` (≤8 thinnest flagged samples, `{"at":[x,y,z],"thickness":t}`); with `exclude_wedge_deg` also `thin_area_wedge`, `thin_area_total`, `thin_wedge_witness`. Area-uniform deterministic sampling (mirror images agree to ≈1 %). Judge by `thin_area` + percentiles, locate with `thin_witness`; a dovetail lip / cone rim is a knife-edge wedge — `exclude_wedge_deg: 75` moves readings whose ray exits through an edge-adjacent face at a convex dihedral < 75° to `thin_area_wedge` (parallel walls never qualify); `min_thickness` is edge noise |
 | `draft_analysis` | `in`, `pull`, `min_deg` | `min_draft_deg`, `low_draft_area`, `undercut_area`; walls parallel to pull = 0° |
 | `coincident_fit` | `a`, `b` | `coincident_fit` (bool) — near-coincident-face hazard CLASS pre-scan (1e-3 rad / 0.05 mm), O(faces²), safe on pairs that would hang a boolean |
-| `clearance` | `a`, `b`, `tol?` | `distance`, `interfering` (bool), `overlap_volume` (mm³), `coincident_fit_hazard`, `provenance: "faceted"` — the interference measure that does NOT fail on overlap (VERIFIED: overlapping boxes → interfering true, overlap_volume 27.0, exit 0). **`distance` is only trustworthy for SEPARATED pairs — see §11b for the nested-pair failure and the blessed fallback** |
+| `clearance` | `a`, `b`, `tol?` | `distance`, `interfering` (bool), `contact` (bool), `overlap_volume` (mm³), `overlap_volume_provenance` (`analytic`\|`faceted`\|`unavailable`), `overlap_volume_reason`, `coincident_fit_hazard`, `provenance: "faceted"` — the interference measure that does NOT fail on overlap. **`overlap_volume` is never a bare null** (VERIFIED 2026-09-04: cubes overlapping 1×10×10 → 100.0 exactly; Ø10 cylinders on 8 mm centres → 81.23 faceted vs the closed-form 81.75; abutting cubes → 0.0 with `contact: true, interfering: false`). `interfering` is `overlap_volume > 0` whenever a number exists, so the flag and the number cannot disagree. **`distance` is faceted and under-reads curved gaps — see §11b** |
 | `support_report` | `in`, `build_dir? = [0,0,1]`, `overhang_deg? = 45` | `support_free`, `bed_area`, `bridge_area`, `steep_area`, `total_area`, `max_bridge_span`, `provenance: "faceted"`. One orientation per call; areas only, no locations. **`describe` ships EMPTY `doc` strings for both params — the semantics below are measured, not documented by the binary.** See §11a |
 
 Discovery (bind nothing, VERIFIED):
@@ -647,6 +647,50 @@ is the evidence, not a failure to hide. The result is `[0.29, 0.31]` mm with
 **analytic** provenance — tighter than the faceted 0.2711 and on the right
 side of the truth. Use the faceted `distance` for "does it clear"; use the
 bracket whenever a few percent decides the fit.
+
+## 11c. `overlap_volume` is never a bare null — fixed 2026-09-04
+
+The doctrine (DELIVERABLE_SPEC §2.11) hangs every must-NOT-fit claim on
+`overlap_volume`, and the op used to withhold it exactly when the claim was
+being made. `coincident_fit_hazard` fires on **any** flush face pair, which two
+bodies overlapping while both stand on z=0 always have, so the ORDINARY
+interference case returned `interfering: true` with `overlap_volume: null` — a
+verdict the op could not compute. Seven live campaign receipts carried that
+null, four of them negative controls. Campaigns responded by hand-rolling
+`intersection` + `exact_volume`; that is now what the op does for you.
+
+**Every `clearance` receipt now carries `overlap_volume_provenance`:**
+
+| value | route | when |
+|---|---|---|
+| `analytic` | exact `intersection` + `exact_volume`, π-exact on curved overlaps | two solids, no hazard |
+| `faceted` | mesh boolean of the operands tessellated at `tol` | `coincident_fit_hazard`, or the exact intersection produced no body, or a bound MESH operand |
+| `unavailable` | `null`, and only here | an operand with boundary edges (open ⇒ no inside), or over the 200 000-triangle budget for the faceted boolean |
+
+`overlap_volume_reason` accompanies `faceted` and `unavailable` and names the
+cause. Verified live:
+
+```
+cubes overlapping 1 x 10 x 10       -> 100.0        faceted   (both stand on z=0)
+O10 cylinders, 8 mm centres         ->  81.2328     faceted   (closed form 81.7503, -0.6 %)
+tube + coaxial pin, 0.30 mm gap     ->   0.0        analytic
+cubes ABUTTING at one face          ->   0.0        faceted   contact true, interfering FALSE
+single-triangle mesh vs a cube      -> null         unavailable  "3 boundary edge(s) ..."
+```
+
+**`interfering` is now the overlap's verdict**, not the distance's: it is
+`overlap_volume > 0` whenever a number exists, so the flag and the number on one
+receipt cannot contradict each other. The new `contact` bool carries what
+`interfering` used to smuggle — `distance < 1e-6`, the surfaces MEETING within
+the faceting. **Touching is not interference.** A negative control that pushes
+two bodies until they merely abut now reads `contact: true, interfering: false,
+overlap_volume: 0.0`; gate such a control on `contact`, or push it to a real
+embed (≥ 0.9 mm is the standing advice) and gate `overlap_volume`. Only when
+the provenance is `unavailable` does `interfering` fall back to `contact`.
+
+A `faceted` overlap is an estimate — quote it with its provenance, exactly as
+with `distance`. When a few percent decides the fit, use the grown-gauge
+bracket in §11b or an explicit `intersection` + `exact_volume`.
 
 ## 12. Design-math lookups (bind nothing; numbers in `measures`)
 
