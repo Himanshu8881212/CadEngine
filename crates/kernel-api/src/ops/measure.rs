@@ -115,10 +115,18 @@ fn faceted_overlap(ma: &Mesh, mb: &Mesh, cause: &str, tol: f64) -> OverlapMeasur
 	);
 	let faceted = |v: f64| OverlapMeasure { value: Some(v), provenance: "faceted", reason: Some(why.clone()) };
 	// Separated operands share nothing — the answer is exactly 0 and no boolean
-	// is run. This is also what keeps `clearance` cheap on the common case.
+	// is run. This is what keeps `clearance` cheap on the common case, and the
+	// reason says a box test is what produced the zero rather than implying a
+	// boolean that never ran.
 	let (ba, bb) = (ma.aabb(), mb.aabb());
 	if ma.triangle_count() == 0 || mb.triangle_count() == 0 || !ba.is_valid() || !bb.is_valid() || !ba.intersection(bb).is_valid() {
-		return faceted(0.0);
+		return OverlapMeasure {
+			value: Some(0.0),
+			provenance: "faceted",
+			reason: Some(format!(
+				"{cause} — the operands' tessellated bounding boxes are disjoint at tol {tol} mm, so they share no material and `overlap_volume` is 0 without running a boolean"
+			)),
+		};
 	}
 	for (m, side) in [(ma, "a"), (mb, "b")] {
 		let boundary = m.boundary_edge_count();

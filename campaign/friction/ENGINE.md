@@ -727,3 +727,112 @@ sweep's verdict beside it so the blind spot is visible in the run log rather
 than inferred. General rule, consistent with the existing guidance: a sweep is
 for FREE-RUN proofs (`contacts == 0 && crossings == 0`); anything asserting
 that something does NOT fit belongs on the exact oracle.
+
+---
+
+## #28 — `clearance.overlap_volume` was `null` on the ORDINARY interference case — FIXED 2026-09-04
+
+**Severity: was major (a verdict the op could not compute). Fixed in-engine at
+the maintainer's request; campaign rules lifted for that work.**
+
+Across 22 campaigns `clearance` is named 28 times in this corpus and
+`overlap_volume` 20 — more than any op but `validate` — and nearly every entry
+ends the same way: the author abandoned `clearance` for must-not-touch proofs
+and hand-rolled `intersection` + `exact_volume` instead. A first-class op that
+campaigns route around is a defect, not a preference. Two distinct complaints
+were tangled together in those reports; they had different fates.
+
+### The false positive on disjoint curved pairs — was already fixed, now PINNED
+
+`distance: 0.0` / `interfering: true` on provably disjoint nested pairs
+(iso9409 F2, prosthetic_wrist F1, jar_top F11) was fixed **2026-08-08** and is
+documented in digest §11b. Re-reproduced clean on 2026-09-04 across the cases
+that broke it, and pinned in
+`crates/kernel-api/tests/clearance_interference.rs` so it cannot regress:
+
+```
+Ø11.4 pin coaxial in a Ø12 bore (true 0.300)      -> 0.29964  interfering false
+the same pair posed 37° about [1,0.3,0.2]         -> 0.29964  interfering false
+Ø20 ball in a Ø20.6 spherical cavity (true 0.300) -> 0.29941  interfering false
+jar_top's r16 column in an r16.5999 scallop,
+  36 segments (true 0.5999; used to read 0.0)     -> 0.54353  interfering false
+```
+
+The residual is the documented faceted **under-read**, bounded by the inscribed
+sagitta `r·(1 − cos(π/n))` — conservative, and it is *why* §11b exists. It bites
+only when the sagitta exceeds the design gap: a 0.05 mm gap between 16-segment
+Ø12 features (sagitta 0.115 mm) reads as real facet overlap, because the facets
+really do cross. That reading is now quantified rather than merely asserted —
+see below.
+
+### `overlap_volume: null` — the live defect, now fixed
+
+`clearance` consulted `detect_coincident_fit` first and, on `true`, returned
+`overlap_volume: null` without attempting anything. The guard is right about
+the EXACT route (the B-rep arrangement across two near-coincident analytic faces
+can grind for CPU-minutes, audit V4) but it is a hazard **class** scan, and the
+class is enormous: **any** flush face pair trips it, which two bodies that
+overlap while both stand on z=0 always have. So the guard fired on the ordinary
+interference case, and the op reported `interfering: true` beside a volume it
+had not computed — the exact silent-mode class the campaign doctrine gates
+against, and the reason DELIVERABLE_SPEC §2.11's must-NOT-fit claims kept
+landing on hand-rolled booleans.
+
+**Six live campaign receipts carried that null**, three of them negative
+controls that exist to quantify interference.
+
+The hazard is a property of the *analytic* faces. The triangle arrangement does
+not share it, so the number was recoverable all along — as an estimate, which is
+precisely what the hand-rolled fallbacks were. The op now walks a ladder and
+always says which rung it used, in `overlap_volume_provenance`:
+
+| provenance | route | when |
+|---|---|---|
+| `analytic` | exact `intersection` + `exact_volume` | two solids, no hazard |
+| `faceted` | mesh boolean of the operands tessellated at `tol` | hazard, or the exact intersection produced no body, or a bound MESH operand |
+| `unavailable` | `null`, and only here | an operand with boundary edges (open ⇒ no inside), or over the 200 000-triangle faceted budget |
+
+`overlap_volume_reason` names the cause for both `faceted` and `unavailable`.
+**There is no longer any path to a bare null.** Separated operands
+short-circuit on a bounding-box test and run no boolean at all, so the common
+case costs what it always did (four `clearance` ops including two mesh
+booleans: 0.07 s wall).
+
+### What the receipts now guarantee
+
+- `overlap_volume` is a number, or `null` with `overlap_volume_provenance:
+  "unavailable"` and a reason naming which of the two genuine causes applies.
+- `overlap_volume_provenance` is on **every** `clearance` receipt.
+- `interfering` is `overlap_volume > 0` whenever a number exists, so the flag
+  and the number on one receipt can no longer contradict each other. Only an
+  `unavailable` overlap falls back to `distance < 1e-6`.
+- `contact` (new) is `distance < 1e-6` — the surfaces MEETING within the
+  faceting. **Touching is not interference.** Two cubes sharing a face read
+  `contact: true, interfering: false, overlap_volume: 0.0`.
+
+### Consequence for campaign authors
+
+- Must-NOT-fit negative controls can gate `overlap_volume` directly again;
+  `intersection` + `exact_volume` remains the stronger receipt when the number
+  is load-bearing, and is still what §11b's grown-gauge bracket uses.
+- A control that pushes two bodies only until they ABUT now reads
+  `interfering: false`. Gate it on `contact`, or push it to a real embed
+  (≥ 0.9 mm remains the standing advice) and gate `overlap_volume`.
+- A `faceted` overlap is an estimate — quote it with its provenance, exactly as
+  with `distance`. Comparing it against the sagitta band `r·(1 − cos(π/n))` is
+  now how you tell a tessellation artefact from real interference.
+
+### Verification
+
+`crates/kernel-api/tests/clearance_interference.rs` (5 tests) asserts against
+closed-form overlaps: cubes overlapping 1×10×10 → **100.0** exactly; Ø10
+cylinders on 8 mm centres → **81.2328** faceted against the closed-form
+**81.7503** (−0.6 %). Workspace behavioural proof on the four gate campaigns
+(`framework_system/l12_mini_case`, `magic_system/uphill_roller`,
+`school_system/folding_book_stand`, `school_system/rated_desk_hook`): ALL GATES
+GREEN, every `parts/*.stl` and `cad/*.step` byte-identical, and **not one
+`distance` or `interfering` value moved**. The nulls became real numbers —
+`folding_book_stand`'s capture control `cap_yp` `null → 393.49 mm³`,
+`cap_xp`/`cap_xm` `null → 137.99 mm³` each, closing that campaign's F5, and its
+`hinge_coupon`/`stand` clearance gates `null → 0.0` at an unchanged
+`interfering: false`.
