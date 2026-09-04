@@ -30,6 +30,13 @@ jobs:
     timeout-minutes: 120
     env:
       LMCAD_REQUIRE_REPRODUCIBLE_ANALYSIS: '1'
+      # A 2-core hosted runner is several times slower than a dev machine. These
+      # are hang guards, not physics: with the dev-machine defaults, three
+      # compute-heavy pins (both Kt ladders and the SIMP optimisation) ran out of
+      # wall clock here and blocked while all ten passed locally. Widened so the
+      # runner's speed cannot decide whether the physics validates.
+      LMCAD_PIN_TIMEOUT_S: '3600'
+      LMCAD_WALL_BUDGET_S: '3000'
       PYTHONPATH: ''
       PYTHONNOUSERSITE: '1'
     steps:

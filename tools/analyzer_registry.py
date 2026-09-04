@@ -409,8 +409,14 @@ def run_pin(pin_file: str) -> dict:
         return {"pin": pin_file, "ran": False, "passed": False, "exit_code": None,
                 "tail": "pin file missing"}
     try:
+        # Wall-clock guards are protection against a hang, NOT part of the physics.
+        # A 2-core hosted runner is several times slower than a dev machine, so a
+        # fixed budget makes a correct pin look broken there (it did: three pins
+        # blocked in CI on 2026-09-04 while all ten passed locally). Tunable, with
+        # the same default as before.
+        timeout = float(os.environ.get("LMCAD_PIN_TIMEOUT_S", "900"))
         proc = subprocess.run([_pin_python(), str(path)], capture_output=True,
-                              text=True, timeout=900)
+                              text=True, timeout=timeout)
     except FileNotFoundError as exc:
         return {"pin": pin_file, "ran": False, "passed": False, "exit_code": None,
                 "tail": f"interpreter unavailable: {exc}"}

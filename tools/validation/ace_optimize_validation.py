@@ -85,7 +85,8 @@ def main() -> None:
 	with open(job_path, "w") as f:
 		json.dump(job, f)
 	out = subprocess.run([sys.executable, str(_layout.find_tool("ace_optimize_runner.py")), job_path],
-	                     capture_output=True, text=True, timeout=600)
+	                     capture_output=True, text=True,
+	                     timeout=float(os.environ.get("LMCAD_PIN_TIMEOUT_S", "600")))
 	last = ""
 	for line in out.stdout.splitlines():
 		if line.strip():
