@@ -13,6 +13,31 @@ names + bounding boxes with OpenCascade (`vendor/occ_extract.py`) and modelling 
 as an inflated-box envelope. A `bbox_only`/`tolerant` import mode that returns solids' AABBs
 and names without needing the B-rep would have saved a day.
 
+**RESOLVED in the engine — and now MEASURED, 2026-09-04.** `mode: "tolerant"` shipped and
+the mainboard's *full* import (not just the census) was left unverified because a debug
+build was too slow to settle it. Run in a **release** build it completes:
+
+| | measured |
+|---|---|
+| wall time | **952 s (15.9 min)**, 950 s user — single-threaded, peak RSS ≈ 1.4 GB |
+| solids listed / imported / skipped | **168 / 163 / 5** |
+| face repairs | 81 `ADVANCED_FACE` flat-repaired, 4 unreadable |
+| bound body | 221 shells, 602 921 faces, faceted volume 70 308.7 mm³ |
+| names vs OpenCascade | **all 168 match** (124 distinct names over 168 instances; none missing, none extra) |
+| per-solid envelopes vs OpenCascade | 147 / 168 within 0.05 mm; 18 within 0.5 mm; 3 beyond, worst **2.478 mm** |
+| overall body envelope | within **0.018 mm** of OCC's overall AABB |
+
+The envelope error is one-sided: every census box sits *inside* the OpenCascade box (worst
+overshoot 0.041 mm, i.e. none outside the 0.05 mm band). The outliers are curved bodies
+whose envelope is measured from the reconstructed chord vertices rather than the true
+surface extreme — a keep-out derived from `solids[*].bbox_*` is therefore slightly
+optimistic on rounded parts and must be inflated, exactly as this campaign already did.
+The 5 skipped solids are still listed with name and `bbox_source: "edges"`: one hits an
+unsupported arc-bounded loop, four reconstruct faces that do not close (genus 6–40).
+
+So the campaign's inflated-box workaround was the right call at the time, but the honest
+statement now is "163 of 168 solids reconstruct in ~16 min in release", not "unverified".
+
 ## F2 — `import_mesh {heal}` cannot heal the vendor STL
 
 "still not watertight after healing (non_manifold_edges=1070)" on the OpenCascade mesh of
