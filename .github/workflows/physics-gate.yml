@@ -59,6 +59,12 @@ jobs:
       - name: Build the engine the pins analyse
         run: cargo build -p kernel-api --release
 
+      # gmsh (the tet mesher behind ace_fea_tet) links libGLU even when meshing
+      # headlessly, and the runner image does not ship it:
+      # "OSError: libGLU.so.1: cannot open shared object file".
+      - name: System libraries gmsh links against
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libglu1-mesa
+
       - name: Install/verify hash-locked Python dependencies
         shell: bash
         run: |

@@ -19,6 +19,13 @@ out/
 
 # default scratch out-dir for the Python analysis layer (tools/analyzers/*)
 engine_out/
+
+# CI builds its hash-locked interpreter here (physics-gate, analysis-gate). It
+# MUST be ignored: the pins run under LMCAD_REQUIRE_REPRODUCIBLE_ANALYSIS=1,
+# which refuses release-grade analysis from a dirty checkout — and an untracked
+# venv sitting in the worktree is exactly that. The gate was right; the workflow
+# was dirtying the thing it checks.
+.analysis-venv/
 # pre-2026-09 name of the same scratch tree (LMCAD Studio, removed 2026-09-03)
 studio_out/
 __pycache__/
