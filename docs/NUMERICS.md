@@ -262,7 +262,7 @@ B-rep `Solid` and a mesh or implicit-field operand. Its numerical contract:
   crossing a 40 mm face) — the arrangement then fails validation and the call
   self-demotes to `Healed` with that reason. Box/cylinder scans, enclosed
   scans, and field operands crossing only part-scale faces (the gyroid flange)
-  stitch exactly; both behaviors are pinned in `hybrid.rs` tests.
+  stitch exactly; both behaviors are pinned in `crates/kernel-model/src/hybrid.rs` tests.
 
 ## Tolerant modeling (opt-in)
 
