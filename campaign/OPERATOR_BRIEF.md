@@ -415,7 +415,19 @@ Stock reality: 0.4 mm nozzle, **256 mm bed** (gate `bounding_box` with
 - Sweeps prove free motion ONLY — blind to steady interference. Must-NOT-fit
   claims belong on exact `overlap_volume` in the posed failure attitude.
 - Hit an engine/tool/doc bug? Log it per the friction protocol in
-  `DELIVERABLE_SPEC.md`. **Never edit engine or tools source.**
+  `DELIVERABLE_SPEC.md` §4 — and every item carries `severity:`
+  (blocker/major/minor/papercut), `surface:` (the rollup key) and `status:`.
+  **Never edit engine or tools source.**
+- **Check the friction record before you burn a day, and again before you
+  declare done.** `docs/FRICTION_INDEX.md` is the generated rollup of all
+  ~190 logged items, most-repeated surface first; it is how you find out that
+  the thing fighting you has already fought five other campaigns and has a
+  known workaround. `python3 tools/friction_index.py --surface <op-or-tool>`
+  answers "has anyone hit this before" in one command. When you hit a known
+  one, your own dated entry says `recurrence of: <file>#<id>`, and
+  DELIVERABLE_SPEC §5.13 makes the final self-check list those ids. Recurrence
+  is the signal the maintainer prioritises on: an item six campaigns re-hit is
+  a specification for a fix, one nobody re-hits is a complaint.
 
 ## 9. Deep-dive pointer table
 
@@ -430,6 +442,7 @@ Stock reality: 0.4 mm nozzle, **256 mm bed** (gate `bounding_box` with
 | what each campaign must ship | `campaign/DELIVERABLE_SPEC.md` (the contract) |
 | how the August 2026 rounds went (slate, verdicts, fix report, re-baseline runbook) — records, NOT binding | `campaign/history/` (README indexes each document) |
 | the engine-wide friction record: every known papercut, its status, the open frontier | `campaign/friction/ENGINE.md` (per-campaign logs are the other files in that folder) |
+| "has anyone hit this before?" — every logged item rolled up by surface, worst severity first, with the repeat count | `docs/FRICTION_INDEX.md`; `python3 tools/friction_index.py --surface <op>` |
 | the two connectivity oracles, the weld-scale limit, the two constructible oracle-NCs | `DELIVERABLE_SPEC` §2.2 + §2.13; `digests/ops_core.md` "ENGINE UPDATE" |
 | `support_report` semantics (`describe` ships empty docs) | `digests/ops_core.md` §11a; `DELIVERABLE_SPEC` §2.5; DESIGN_GUIDE §22 |
 | `clearance` on nested pairs + the grown-gauge bracket | `digests/ops_core.md` §11b; `DELIVERABLE_SPEC` §2.11 |

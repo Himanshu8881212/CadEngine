@@ -1,6 +1,9 @@
 # friction — rated_desk_hook
 
 ## F1 — tools_cookbook.md production_check example predates the creep-table gate (2026-08-27)
+- severity: minor
+- surface: campaign/digests/tools_cookbook.md
+- status: fixed — RESOLUTIONS 2026-08-27 in this file, digest updated
 - symptom: `production_check.py` with `load_character.sustained: true` and no
   duration returned `ok:false`, creep rule `allowable_mpa: 0.0, SF: 0.0`,
   `refusal_kind: "creep_duration_required"`, exit 2 — verbatim detail:
@@ -20,6 +23,9 @@
   is doc drift, not a bug.
 
 ## F2 — MCP render_views sandbox rejects campaign paths (2026-08-27)
+- severity: minor
+- surface: studio/mcp
+- status: fixed — RESOLUTIONS 2026-08-27 (dual-root resolve); superseded 2026-09-03, studio/MCP removed
 - symptom: `mcp__lmcad__render_views` with
   `stl: school_system/rated_desk_hook/parts/rated_desk_hook_desk29.stl` →
   "stl '...' not found under the out dir '.../studio_out/mcp'".

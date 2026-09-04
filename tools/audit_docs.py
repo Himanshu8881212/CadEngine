@@ -29,6 +29,13 @@ Check classes (each independently reported, each independently self-tested):
   claim         every .rs file cited as PROOF ("pinned by", "repro", "gated
                 by", anything under tests/) must exist AND contain a #[test]
                 (or a fn main, for examples/).
+  friction      docs/FRICTION_INDEX.md is GENERATED from campaign/friction/*.md
+                by tools/friction_index.py. This class regenerates it in memory
+                and reports a byte difference, so a rollup that no longer
+                matches the logs it summarises is a doc-drift finding like any
+                other. It also reports friction items missing the `severity:`
+                or `surface:` field the friction contract requires
+                (campaign/DELIVERABLE_SPEC.md, FRICTION PROTOCOL).
 
 Ground rules this tool follows (they are also its honest limits):
 
@@ -77,7 +84,8 @@ import tempfile
 from pathlib import Path
 
 SEVERITY = {"info": 0, "warn": 1, "error": 2}
-CLASSES = ["op-count", "op-family", "op-doc", "path", "section", "symbol", "claim"]
+CLASSES = ["op-count", "op-family", "op-doc", "path", "section", "symbol", "claim",
+	"friction"]
 
 # the operator manual moved to campaign/ on 2026-09-03 (campaign/ = how the model
 # must work; docs/ = what the engine is). One constant, so the corpus list, the
@@ -906,6 +914,85 @@ def _first_existing(repo, tok, doc_rel):
 
 
 # --------------------------------------------------------------------------- #
+# check 8 — the generated friction rollup
+# --------------------------------------------------------------------------- #
+
+FRICTION_INDEX_REL = "docs/FRICTION_INDEX.md"
+FRICTION_GEN_REL = "tools/friction_index.py"
+
+
+def _load_friction_index(repo):
+	"""Import the generator that lives in the tree being audited (so a fixture
+	or a copied tree checks itself, not this checkout)."""
+	gen = repo.root / FRICTION_GEN_REL
+	if not gen.is_file() or not (repo.root / "campaign" / "friction").is_dir():
+		return None
+	import importlib.util
+	spec = importlib.util.spec_from_file_location("_lmcad_friction_index", gen)
+	if spec is None or spec.loader is None:
+		return None
+	mod = importlib.util.module_from_spec(spec)
+	spec.loader.exec_module(mod)
+	return mod
+
+
+def check_friction(repo, stats):
+	out = []
+	try:
+		fi = _load_friction_index(repo)
+	except Exception as e:					# a broken generator is itself a finding
+		return [Finding("friction", "error", FRICTION_GEN_REL, 0,
+			f"friction index generator failed to load: {e}")]
+	if fi is None:
+		return out
+	try:
+		items = fi.parse_all(repo.root)
+	except Exception as e:
+		return [Finding("friction", "error", FRICTION_GEN_REL, 0,
+			f"friction logs could not be parsed: {e}")]
+	if not items:
+		return out
+	stats["friction"] = len(items)
+
+	ungraded = [i for i in items if i.severity not in fi.SEVERITIES]
+	if ungraded:
+		out.append(Finding("friction", "error", FRICTION_INDEX_REL, 0,
+			f"{len(ungraded)} friction item(s) carry no `severity:` field "
+			"(the friction contract requires one on every item)",
+			"; ".join(f"{i.rel}:{i.line} {i.ident}" for i in ungraded[:8])
+			+ (" …" if len(ungraded) > 8 else "")))
+	nosurf = [i for i in items if i.severity != "note" and not i.surface]
+	if nosurf:
+		out.append(Finding("friction", "error", FRICTION_INDEX_REL, 0,
+			f"{len(nosurf)} friction item(s) carry no `surface:` field, so they "
+			"cannot be rolled up",
+			"; ".join(f"{i.rel}:{i.line} {i.ident}" for i in nosurf[:8])
+			+ (" …" if len(nosurf) > 8 else "")))
+
+	dest = repo.root / FRICTION_INDEX_REL
+	try:
+		expected = fi.render(repo.root, items)
+	except Exception as e:
+		return out + [Finding("friction", "error", FRICTION_GEN_REL, 0,
+			f"friction index could not be rendered: {e}")]
+	if not dest.is_file():
+		out.append(Finding("friction", "error", FRICTION_INDEX_REL, 0,
+			"the generated friction rollup is MISSING",
+			"run `python3 tools/friction_index.py`"))
+		return out
+	have = dest.read_text(encoding="utf-8")
+	if have != expected:
+		diff = list(difflib.unified_diff(have.splitlines(), expected.splitlines(),
+			"on disk", "regenerated", lineterm="", n=0))
+		out.append(Finding("friction", "error", FRICTION_INDEX_REL, 0,
+			"the generated friction rollup is STALE: it no longer matches "
+			"campaign/friction/*.md",
+			"run `python3 tools/friction_index.py`; first difference: "
+			+ next((l for l in diff[2:] if l.strip()), "(whitespace only)")))
+	return out
+
+
+# --------------------------------------------------------------------------- #
 # driver
 # --------------------------------------------------------------------------- #
 
@@ -945,6 +1032,7 @@ def audit(root, all_docs=False, min_claim=40, verbose_skips=False, only=None):
 	findings += check_sections(repo, docs, guide, stats)
 	findings += check_symbols(repo, docs, stats)
 	findings += check_claims(repo, docs, stats)
+	findings += check_friction(repo, stats)
 
 	if only:
 		findings = [f for f in findings if f.cls in only]
@@ -1280,6 +1368,9 @@ def self_test(root, verbose=False):
 				"| booleans (4) | union, difference, intersection, union_all |",
 				"| booleans (4) | union, difference, intersection, union_alll |"),
 				"union_alll"),
+			("friction", lambda r: _inject(Path(r) / FRICTION_INDEX_REL,
+				"## Corpus", "## Corpus\n\nhand-edited line the generator would never write"),
+				"stale"),
 		]
 		for cls, mutate, token in real_injections:
 			with tempfile.TemporaryDirectory() as tmp2:

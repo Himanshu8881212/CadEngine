@@ -1,6 +1,9 @@
 # FRICTION — cubesat_1u_dev_frame
 
 ## F1 — `difference` refuses a solid that carries BOTH end chamfers and a vertical-edge fillet (2026-08-07)
+- severity: major
+- surface: difference
+- status: open
 - symptom: `{"kind":"invalid_geometry","message":"op 'n': difference failed validate():
   closed=false manifold=false genus=2 euler_characteristic=-1 shells=2 — refusing to
   bind an invalid solid"}`.  The cutter is a plain box removing a corner prism from a
@@ -42,6 +45,9 @@
   z=62 plane.  No difference op touches a rail.  (`programs/gen_part.py`, rails section.)
 
 ## F2 — `chamfer_edge_near` refuses the two top edges incident to a reflex corner (2026-08-07)
+- severity: blocker
+- surface: chamfer_edge_near
+- status: open
 - symptom: `{"kind":"invalid_geometry","message":"op 'tc2': chamfer_edge_near failed
   validate(): closed=false manifold=false genus=1 ..."}` when chamfering the top-face
   edges of an extruded L-section at the edges that meet the concave (reflex) vertex.
@@ -61,6 +67,9 @@
 
 ## F3 — `solid_from_implicit` has no `mesher` parameter, so TPMS fields cannot reliably
 enter the exact solid environment (2026-08-07)
+- severity: major
+- surface: solid_from_implicit
+- status: open
 - symptom: `{"kind":"invalid_geometry","message":"op 'g0': mesh_to_solid: mesh is not
   watertight even after weld(0.00001): 91 non-manifold/boundary edges remain (was 91
   before weld, 309200 triangles)"}` for a gyroid sheet at cell 5.0 mm / voxel 0.4, and
@@ -83,6 +92,9 @@ enter the exact solid environment (2026-08-07)
   face-count/STEP-size budget that forced corner gussets instead of full-height panels.
 
 ## F4 — parity-fill voxelizers report a phantom 9-voxel "sealed void" inside solid material (2026-08-07)
+- severity: major
+- surface: tools/analyzers/voxelize_stl.py
+- status: open
 - symptom: `air_topology_audit.py` on the shipped, exact-route, watertight STL returns
   `{"ok": true, "components": 2, "sizes_cm3": [1058.79, 0.01], ...}` — a second internal-air
   component. The same phantom appears in `voxelize_stl.py`'s independent 3-D parity grid:
@@ -111,6 +123,9 @@ enter the exact solid environment (2026-08-07)
   (both harness teardrops <-> board bay = true) are the part of it that is load-bearing.
 
 ## F5 — ace_fea's default Jacobi-CG cannot solve a 3e5-DOF frame, and a hung solve is indistinguishable from a slow one (2026-08-07)
+- severity: major
+- surface: tools/analyzers/ace_fea_runner.py
+- status: open
 - symptom: `ace_fea_runner.py` on the shipped frame at the campaign's declared 1.0 mm grid
   (shape [100,100,114], 81198 active elements, 346938 DOF, `direct_solver_max_dof: 0` = the
   documented default "always Jacobi-CG") produced **no output and no receipt after 30 minutes**
@@ -138,6 +153,9 @@ enter the exact solid environment (2026-08-07)
   assumed away.
 
 ## F6 — doc drift: ace_fatigue's stress block must be NESTED under "stress", and param_optimize's command timeout is undocumented (2026-08-07)
+- severity: minor
+- surface: campaign/digests/tools_cookbook.md
+- status: open
 - symptom (a): a fatigue job written exactly as the cookbook's schema line reads
   (`"sigma_ref_mpa": 4.15` at the top level) is refused with
   `{"ok": false, "error": "JobError: stress block required: {npy,...} or {sigma_ref_mpa} or {sigma_ref_pa}"}`.
@@ -160,6 +178,9 @@ enter the exact solid environment (2026-08-07)
   the cost is that the first failure looks like a broken job rather than a doc gap.
 
 ## F7 — analysis_sheet.py view panels crash with a bare KeyError when a load has no `label` (2026-08-07)
+- severity: major
+- surface: tools/publish/analysis_sheet.py
+- status: open
 - symptom: `python3 tools/analysis_sheet.py job.json` died with
   `File ".../tools/analysis_sheet.py", line 155, in view_panel: lw_px = rs.text_w_px(ld["label"], ...)`
   → `KeyError: 'label'`. No job-validation message, no hint which panel or which load; the tool
@@ -177,6 +198,9 @@ enter the exact solid environment (2026-08-07)
   receipt `{"ok": true, "panels": 4}`.
 
 ## F8 — analysis_sheet field panels have no unit conversion of their own (2026-08-07)
+- severity: major
+- surface: campaign/digests/tools_cookbook.md
+- status: open
 - symptom: the A3 stress panel's colour bar read `1.92e+07 MPa` while the panel's declared
   `"unit": "MPa"` was taken verbatim — the ace_fea `stress_field.npy` is in **Pa**, and `unit` is a
   label only, not a conversion. A sheet published without noticing would have overstated every
@@ -191,6 +215,9 @@ enter the exact solid environment (2026-08-07)
   panel max now reads 19.2 MPa vs `receipts/fea_railload.json` `max_von_mises_pa` 19228245.6.
 
 ## F9 — `ace_buckling` load_factors are not bit-reproducible, so a receipt-generated document cannot be byte-stable (2026-08-08, independent verification pass)
+- severity: minor
+- surface: tools/analyzers/ace_buckling_runner.py
+- status: open
 - symptom: two runs of the identical job on identical geometry return
   `load_factors[0] = 0.5378860166137663` and `0.5378860166135455` (rel 4e-13).
   Every derived headline number (`critical_load_N`, `design_critical_load_n`)
@@ -212,6 +239,9 @@ enter the exact solid environment (2026-08-07)
   deterministic starting vector in the eigensolver.
 
 ## F10 — `rerun_physics.py` progress is invisible when stdout is redirected (2026-08-08, verification pass)
+- severity: papercut
+- surface: campaign scripts
+- status: open
 - symptom: `python3 programs/rerun_physics.py > log 2>&1` writes nothing to `log`
   until the whole ~25-minute run ends (Python block-buffers a pipe), so a
   long run is indistinguishable from a hung one — the same failure mode the
@@ -223,6 +253,9 @@ enter the exact solid environment (2026-08-07)
   track progress. `python3 -u` would fix it campaign-side.
 
 ## F11 — `air_topology_audit.py` ignores the job's `receipt` key (2026-08-08, repair pass)
+- severity: major
+- surface: tools/analyzers/air_topology_audit.py
+- status: open
 - symptom: `programs/physics/a10_airtopo_nc6_plugged.json` carries a top-level
   `"receipt": "<abs path>"` key, exactly like the `tolerance_stack` /
   `joint_check` / `production_check` jobs in this campaign do. Those tools honour
@@ -251,6 +284,9 @@ enter the exact solid environment (2026-08-07)
   key is left in the job file as documentation of intent. No tool source touched.
 
 ## F12 — `field_triage.creep_allowable()` takes a material DICT, not a material NAME (2026-08-08, repair pass)
+- severity: minor
+- surface: tools/field_triage.py
+- status: open
 - symptom: the obvious call from the campaign side,
   `field_triage.creep_allowable("pla", 23.0, 720.0)`, raises
   `AttributeError: 'str' object has no attribute 'get'` at

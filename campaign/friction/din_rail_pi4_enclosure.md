@@ -4,6 +4,9 @@ Stage 2 logged none. Stage 3 hit two rough edges, both worked around inside the
 campaign directory. Engine and tools source untouched.
 
 ## F1 — tolerance_stack.py CHAIN mode leaks a raw KeyError instead of refusing (2026-08-07)
+- severity: minor
+- surface: tools/analyzers/tolerance_stack.py
+- status: open
 - symptom: a CHAIN job with `"closes": {"min_required": 1.0}` (no
   `max_allowed`) returns, as its whole receipt,
   `{"ok": false, "error": "KeyError: 'max_allowed'"}` — and the persisted
@@ -25,6 +28,9 @@ campaign directory. Engine and tools source untouched.
   `programs/gen_tolerance_stacks.py`. Cost: one full 19-job re-run, ~10 min.
 
 ## F2 — production_check.py reports a temperature RATIO in the same `SF` field as stress rules (2026-08-07)
+- severity: major
+- surface: tools/analyzers/production_check.py
+- status: open
 - symptom: for every job in this campaign the `temp` rule reports
   `"SF": 1.375` (= 55 C softening / 40 C service) with `"allowable_mpa": 0.0`.
   Selecting "the governing rule" as `min(rules, key=SF)` — the obvious reading —
@@ -54,6 +60,9 @@ campaign directory. Engine and tools source untouched.
   defect — the healed route is a documented, honestly-labelled outcome.
 
 ## F3 — sweep_check.py reports `failed_stations: null` on a FAILING sweep (2026-08-07)
+- severity: minor
+- surface: tools/analyzers/sweep_check.py
+- status: open
 - symptom: a sweep that genuinely interferes returns a receipt whose top-level
   fields read `{"ok": false, ... }` with `failed_stations` **null**, e.g.
   verbatim from `receipts/sweep_lid_slide.json` (pre-fix run):
@@ -80,6 +89,9 @@ campaign directory. Engine and tools source untouched.
   `bounding_box`), which named the interfering feature from its bbox.
 
 ## F4 — render_sheet.py header: overlay legend collides with the meta line (2026-08-07)
+- severity: papercut
+- surface: tools/publish/render_sheet.py
+- status: open
 - symptom: on a 5-STL overlay with a long combined title the swatch legend
   drawn INSIDE the header band runs underneath the right-aligned meta string,
   so `base_shell`, `lid` and `th35_gauge` overprint
@@ -99,6 +111,9 @@ campaign directory. Engine and tools source untouched.
   sheets (1 STL each) have no legend and are unaffected.
 
 ## F5 — kernel-api report echoes the `--out-dir`-resolved file path, so program reports are not byte-reproducible across equivalent out-dir spellings (2026-08-08, found by independent verification)
+- severity: major
+- surface: kernel-api cli
+- status: partial — campaign pinned its CWD (F5 addendum); the report still echoes the caller's out-dir spelling
 - symptom: re-running the README "Reproducing" step 1 exactly as documented
   (`"$K" run "$PART/programs/part_program.json" --out-dir "$PART"`) produces a
   `receipts/part_program_report.json` that differs from the committed one on
@@ -123,6 +138,9 @@ campaign directory. Engine and tools source untouched.
   or tool source touched.
 
 ## F5 addendum — resolved campaign-side by pinning the CWD (2026-08-08)
+- severity: note
+- surface: kernel-api cli
+- status: fixed — campaign README pins `cd "$PART"` + `--out-dir "."`; reports cmp-clean
 - The campaign's README "Reproducing" block now opens with `cd "$PART"` and
   passes `--out-dir "."` on every `kernel-api run`. That is the spelling the
   committed reports were generated with, so the documented commands now
@@ -134,6 +152,9 @@ campaign directory. Engine and tools source untouched.
   a workaround, not a fix.
 
 ## F6 — campaign-side defect, not engine: a job's relative `out` path resolved against the CWD (2026-08-08)
+- severity: minor
+- surface: campaign scripts
+- status: fixed — latch_statics.py `_resolve()` resolves relative job paths against the part directory
 - symptom: `python3 "$PART/programs/latch_statics.py" "$PART/programs/latch_statics_job.json"`
   run from the repo root died with
   `FileNotFoundError: [Errno 2] No such file or directory: 'receipts/latch_statics.json'`,
@@ -151,6 +172,9 @@ campaign directory. Engine and tools source untouched.
   now pins its CWD.
 
 ## F7 — ace_buckling_runner.py accepts a purely TENSILE load case and returns a positive buckling factor instead of refusing (2026-08-08)
+- severity: major
+- surface: tools/analyzers/ace_buckling_runner.py
+- status: open
 - symptom: `programs/refusal_buckling_tension.json` clamps a 12 x 12 x 16 mm
   prism at `z <= 0.5` and applies 40 N along `[0,0,1]` at `z >= 15.5` — pure
   tension, no compressive stress anywhere in the applied direction. The runner
@@ -182,6 +206,9 @@ campaign directory. Engine and tools source untouched.
   The tool-side fix is the maintainer's.
 
 ## F8 — DELIVERABLE_SPEC §2's connectivity-oracle example is not constructible with this kernel (2026-08-08)
+- severity: major
+- surface: campaign/DELIVERABLE_SPEC.md
+- status: open
 - symptom: §2 asks for "a split-body variant that the connectivity gate catches
   while `shells` still reads 1". Every route tried reports `shells: 2` as well:
   - boolean-severing the shipped foot (`programs/oracle_severed_program.json`)
@@ -206,6 +233,9 @@ campaign directory. Engine and tools source untouched.
   contradiction filed per §4.
 
 ## F9 — tools/param_optimize.py writes `evals` as an int while the surrounding roll-ups treat it as a list (2026-08-08, reported by independent verification)
+- severity: papercut
+- surface: tools/analyzers/param_optimize.py
+- status: open
 - symptom: `receipts/optimize_latch_receipt.json` carries `"evals": 72` — a
   count. An auditor's roll-up script that did `len(receipt["evals"])`, which is
   the natural reading for a key named `evals` and the shape other receipt

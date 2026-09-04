@@ -49,6 +49,9 @@ the workspace test suite (`crates/kernel-api/tests/asm.rs` for `.lmcasm`,
 ---
 
 ## 1. [BLOCKER] `.lmcasm` has no executable public surface
+- severity: blocker
+- surface: kernel-api cli
+- status: fixed — RESOLVED-w6, kernel-api asm subcommand
 
 > **STATUS: RESOLVED-w6.** `kernel-api asm <file.lmcasm> [--base-dir D]
 > [--out-dir O] [--tol] [--voxel] [--window]` loads the file, re-solves mates
@@ -83,6 +86,9 @@ Suggestion: `kernel-api check-asm <file.lmcasm>` (load + residual + BOM + report
 `load_assembly` as an op binding instances as solids.
 
 ## 2. [MAJOR] Assembly clearance/interference APIs silently ignore B-rep-only parts
+- severity: major
+- surface: clearance
+- status: fixed — RESOLVED-w6, assembly checks now mesh B-rep-only instances
 
 > **STATUS: RESOLVED-w6.** `Assembly::clearance`/`interferences` now mesh every
 > instance through the exact-preferring route (B-rep documents tessellated
@@ -119,6 +125,9 @@ Suggestion: route `Instance::mesh` through the hybrid helper (B-rep tessellation
 document is B-rep-only), or at minimum return an error/flag instead of an empty mesh.
 
 ## 3. [MAJOR] No general rigid pose in the program surface (only `rotate_z` + `translate`)
+- severity: major
+- surface: pose
+- status: fixed — RESOLVED-w6, new pose op
 
 > **STATUS: RESOLVED-w6.** New `pose` op: `{"op": "pose", "in": X, "rotate":
 > {"axis": [x,y,z], "degrees": d, "center": [x,y,z]?}, "translate": [x,y,z]?}`
@@ -145,6 +154,9 @@ Suggestion: a `transform` op taking the same 12-float affine the `.lmcpart` `Tra
 feature already uses.
 
 ## 4. [MAJOR] Proving NON-interference exits 1: empty boolean results are op failures
+- severity: major
+- surface: assert_disjoint
+- status: fixed — RESOLVED-w6, assert_disjoint is the exit-0 non-interference proof
 
 > **STATUS: RESOLVED-w6.** `assert_disjoint {a, b, min_clearance?, tol?}` is the
 > exit-0 non-interference proof (measured surface distance must EXCEED
@@ -178,6 +190,9 @@ Suggestion: an `assert_disjoint {a, b}` measure op, or `"allow_empty": true` on 
 binding an explicit empty + `"empty": true` measure.
 
 ## 5. [MAJOR] No assertions in programs: measures are recorded, never checked
+- severity: major
+- surface: assert
+- status: fixed — RESOLVED-w6, assert op family
 
 > **STATUS: RESOLVED-w6.** New `assert` op (kind `assert_failed` on unmet
 > intent, execution stops, exit 1): `volume_within {target, abs|percent}`,
@@ -196,6 +211,9 @@ Suggestion: optional `"expect"` block per measure op (e.g. `{"op": "validate",
 "expect": {"genus": 6, "shells": 1}}`) failing the op on mismatch.
 
 ## 6. [MAJOR] Catalog spur gears export STL via `voxel_healed` (exact tessellation leaks)
+- severity: major
+- surface: kernel tessellation
+- status: partial — gears measured route: exact post-w6; residual voxel_healed on housing_base is #19, DEFERRED to the triangulator owner
 
 > **STATUS: RESOLVED for gears (measured 2026-06-11 on post-w6 main).** The
 > z=60 wheel now exports `route: exact` at 5 534 triangles; in the full
@@ -220,6 +238,9 @@ Evidence — the run report for `p_gear_s1_wheel.json` (a campaign output, not c
 (housing_base, a 64-feature part, exports `route: exact` at 63 856 triangles.)
 
 ## 7. [MAJOR] The two authoring surfaces are unequal where it hurts
+- severity: major
+- surface: API.md
+- status: partial — op aliases and API.md conventions done; Document-side feature parity DEFERRED to the catalog agent
 
 > **STATUS: PARTIALLY RESOLVED-w6 / rest DEFERRED.** Done on the op/doc side:
 > `bore_d` (the Document field name) is now a serde alias on the
@@ -254,6 +275,9 @@ Evidence: compare `crates/kernel-model/tests/fixtures/pre_w6_parts/shaft_input.l
 op form `{"op": "shaft", "d": 8, "length": 73, "keyway": {...}}`.
 
 ## 8. [MAJOR] `bearing_seat` and `bolt_circle` exist in the kernel but on no public surface
+- severity: major
+- surface: bearing_seat
+- status: partial — RESOLVED-w6 for the ops; the rolling-bearing catalog part is still open
 
 > **STATUS: RESOLVED-w6 (ops).** `bearing_seat {in, at, axis, bearing,
 > segments?}` (603/608/625/688/6000/6001/6804; echoes pocket Ø/depth and
@@ -273,6 +297,9 @@ explicit holes. Relatedly there is no rolling-bearing catalog **part** on either
 Evidence: `grep -c bearing kernel-api/src/interp.rs` → 0.
 
 ## 9. [MINOR] Hole-wizard cuts don't report the table dimensions they used
+- severity: minor
+- surface: counterbore_hole
+- status: fixed — RESOLVED-w6, hole-wizard ops echo their ISO/DIN table rows as measures
 
 > **STATUS: RESOLVED-w6.** Every hole-wizard op now echoes its ISO/DIN table
 > row as measures: `clearance_hole` → `clearance_d`; `counterbore_hole` → +
@@ -293,6 +320,9 @@ Suggestion: echo the spec as measures, like `iso286_fit` already does:
 `{"clearance_d": 4.5, "counterbore_d": 8.0, "counterbore_depth": 4.8}`.
 
 ## 10. [MINOR] No face-seal O-ring gland; AS568-only and the table is too small for housings
+- severity: minor
+- surface: o_ring_groove
+- status: open
 
 > **STATUS: DEFERRED (w6).** Needs a new gland feature + metric-cord table in
 > `kernel_model::parts` (`parts/**` is owned by the catalog agent, not the w6
@@ -307,6 +337,9 @@ to be a hand-built racetrack groove (two rounded-rect prisms differenced, 2.7 ×
 Evidence: `crates/kernel-model/tests/fixtures/pre_w6_parts/housing_lid.lmcpart` features "groove ring outer/inner".
 
 ## 11. [MINOR] Heat-set inserts: boss-only, no pocket-only variant
+- severity: minor
+- surface: heatset_spec
+- status: partial — heatset_spec table query landed; the pocket-only feature variant is DEFERRED
 
 > **STATUS: PARTIALLY RESOLVED-w6 / rest DEFERRED.** The Ruthex table is now
 > queryable: `heatset_spec {m}` returns `pilot_d`, `insert_length`,
@@ -322,6 +355,9 @@ flange pockets are plain `drill` features with the pilot Ø hardcoded from readi
 `inserts.rs`. (The boss op itself worked nicely for the 4 accessory bosses on the floor.)
 
 ## 12. [MINOR] `iso286_fit` covers 7 hole-basis fits only
+- severity: minor
+- surface: iso286_fit
+- status: open
 
 > **STATUS: DEFERRED (w6).** Shaft-basis and bearing-class fits are new rows in
 > `kernel_model::parts::fits` (`parts/**` is owned by the catalog agent, not
@@ -332,6 +368,9 @@ No shaft-basis fits, no bearing-class fits (k5/j5, N7/P7 housings). Bearing seat
 documented with H7/k6 and H7/h6 as nearest proxies (`programs/check_fits.json`).
 
 ## 13. [MINOR] `load_part` resolves relative paths against `--out-dir`, not the program file
+- severity: minor
+- surface: load_part
+- status: fixed — RESOLVED-w6, the CLI resolves against the program file's directory
 
 > **STATUS: RESOLVED-w6.** Through the CLI, relative `load_part` paths now
 > resolve against the PROGRAM FILE's directory — programs are relocatable and
@@ -347,6 +386,9 @@ Suggestion: resolve against the program file's directory (like `.lmcasm` `path` 
 resolve against the assembly's directory — the two native formats already disagree).
 
 ## 14. [MINOR] `Transform.xform` (Affine3A) serde format is undocumented
+- severity: minor
+- surface: API.md
+- status: fixed — RESOLVED-w6, API.md documents the 12-float column-major layout
 
 > **STATUS: RESOLVED-w6.** API.md's Native formats section now documents the
 > 12-float column-major layout (`[x_axis·3, y_axis·3, z_axis·3,
@@ -361,6 +403,9 @@ it. Same for quaternion order (`[x,y,z,w]`) in `.lmcasm` poses (that one IS show
 format.rs docs).
 
 ## 15. [MINOR] Catalog gear bores/keyways carry no analytic surface tags
+- severity: minor
+- surface: spur_gear
+- status: open
 
 > **STATUS: DEFERRED (w6).** Fix belongs in the gear builders
 > (`kernel_model::parts::gears` — tag the bore polygon's facets with their
@@ -375,6 +420,9 @@ loss on the catalog's flagship part.
 Evidence: `out/report_p_gear_s1_pinion.txt` (`vol == xvol`) vs `out/report_p_shaft_input.txt`.
 
 ## 16. [MINOR] No n-ary union / group op
+- severity: minor
+- surface: union_all
+- status: fixed — RESOLVED-w6, union_all op
 
 > **STATUS: RESOLVED-w6.** `union_all {in: [ids…]}` folds any number of solids
 > (≥ 2, loud otherwise); with `assert {shells: N}` an N-body disjointness
@@ -385,6 +433,9 @@ with bookkeeping ids (`u0..u6`) — `programs/check_envelopes.json`. A `union_al
 [...]}` (or a `shells`-aware `group`) would make disjointness checks one op.
 
 ## 17. [MINOR] `wall_thickness.min_thickness` is corner noise in practice
+- severity: minor
+- surface: wall_thickness
+- status: fixed — RESOLVED-w6 (reporting), p05 and median thickness percentiles added
 
 > **STATUS: RESOLVED-w6 (reporting).** `wall_thickness` now reports
 > `p05_thickness` and `median_thickness` over the finite per-triangle samples
@@ -400,6 +451,9 @@ Evidence: `out/report_p_housing_base.txt` (`min_thickness 0.0024`, `thin_area 21
 the 2156 mm² is real: the M3 boss walls are 2.0 < my 2.4 flag, by table design).
 
 ## 18. [NOTE] What worked better than expected (for balance)
+- severity: note
+- surface: kernel booleans
+- status: fixed — w6 disposition NOTE, kept as balancing evidence, no action needed
 
 > **STATUS: NOTE (no action needed).** Kept as the balancing evidence.
 
@@ -417,6 +471,9 @@ the 2156 mm² is real: the M3 boss walls are 2.0 < my 2.4 flag, by table design)
   grouped correctly (spacer variants split by their `len` parameter).
 
 ## 19. [MAJOR, found w6] housing_base exact tessellation regressed to leaky post-Wave-5
+- severity: major
+- surface: kernel tessellation
+- status: open
 
 > **STATUS: OPEN (kernel tessellation — outside the w6 friction-pass ownership;
 > needs the triangulator owner).** Found while replacing `asmcheck` with the
@@ -443,6 +500,9 @@ EVERY pipeline run through the exact layer (`pose` + `union` +
 pattern, not the file: DESIGN_GUIDE §10.3.
 
 ## 20. [MAJOR, found by the cold-start audit] Edge features after booleans fragment the next witness resolution
+- severity: major
+- surface: chamfer_edge_near
+- status: fixed — CLOSED 2026-07-30, coalesce_coplanar plus provenance-preserving rebuild
 
 > **STATUS: CLOSED 2026-07-30.** Both halves are done. The fragmentation half
 > landed 2026-07-28 as `coalesce_coplanar` (plane groups merged across shared
@@ -479,6 +539,9 @@ face re-coalescing after booleans/features — same family as the open
 "curved-face re-tagging after cuts" frontier item.
 
 ## 21. [MINOR, found by the cold-start audit] Hole wizard has zero edge-proximity awareness
+- severity: minor
+- surface: countersink_hole
+- status: fixed — CLOSED 2026-07-29, holes::min_ligament advisory echo
 
 An M4 countersink placed tangent to the plate edge and 0.25 mm from a prong
 raised nothing — no warning measure, no failure. The cut is honest geometry;
@@ -488,6 +551,9 @@ gate + volume window after every wizard cut). Fix direction: a
 `min_ligament` measure in the wizard echo.
 
 ## 22. [NOTE, found building Studio Wave IDE-1] Kernel-surface gaps the IDE hit
+- severity: note
+- surface: kernel-api cli
+- status: open
 
 Five findings from wrapping the kernel in a server, one positive:
 1. Catalog-built `.lmcpart` recipes bake every dimension as a `Literal` —
@@ -506,6 +572,9 @@ Five findings from wrapping the kernel in a server, one positive:
    the right one-call surface for honest viewport meshes.
 
 ## #23 — notch-sliver boolean overlap mis-stitches (checked ops refuse) — 2026-07-02
+- severity: minor
+- surface: kernel booleans
+- status: open
 
 Isolated repro (`kernel-brep/tests/recovery_needle_weld.rs::notch_sliver_overlap_refuses_honestly`):
 a dovetail-notched plate overlapping a bowtie key as two disjoint 0.4-wide
@@ -591,6 +660,9 @@ Still open:
 ---
 
 ## #24 — `valid` + `watertight` + every dimensional gate can all pass on a part that is in TWO PIECES — 2026-07-31
+- severity: major
+- surface: mesh_components
+- status: fixed — digest F11 fix log 2026-08-06, mesh_components op plus assert {components: N}
 
 **Severity: major.** Found building the DRILL HOOK campaign
 (drill_hook.rs, then under `crates/kernel-model/examples/`, parked uncompiled in
@@ -645,6 +717,9 @@ promote under the rule-of-two.
 ---
 
 ## #25 — `overlap_volume` refuses at ONE offset while its neighbours resolve — 2026-07-31
+- severity: minor
+- surface: overlap_volume
+- status: open
 
 **Severity: minor (characterised, worked around honestly).**
 
@@ -674,6 +749,9 @@ diagnostic loop restored around `body_keepout`.
 ---
 
 ## #26 — a structural tie the exact B-rep has, the FEA's voxel grid can lose — and that is a DESIGN signal, not just a solver artefact — 2026-07-31
+- severity: note
+- surface: tools/analyzers/ace_fea_runner.py
+- status: open
 
 **Severity: note (a useful heuristic, earned the hard way).**
 
@@ -708,6 +786,9 @@ skipped.
 ---
 
 ## #27 — `sweep_check` cannot see a STEADY interference that never produces a near pose — 2026-07-31
+- severity: minor
+- surface: tools/analyzers/sweep_check.py
+- status: open
 
 **Severity: minor (documented limitation, concrete repro).**
 
