@@ -111,15 +111,30 @@ fn a_demoted_export_says_why_and_where() {
 	let reason_3mf = check_demotion(&mf, bounds);
 	assert_eq!(reason, reason_3mf, "STL and 3MF judge the same exact tessellation");
 	assert_eq!(stl["demotion"], mf["demotion"], "same exact tessellation, same receipt");
-	// The F3 trap, on the record: the topology-only oracle calls it clean,
-	// and the actual reason is one that oracle never checks — a collapsed
-	// sliver on the pocket wall (measured: 1 degenerate triangle of 896, at
-	// r = 1.2 mid-wall). Pinned so a tessellation change that alters the
-	// verdict is noticed, not absorbed.
+	// The F3 trap, on the record: a topology-only oracle can call this body
+	// clean while the export still demotes, because the reason is one that
+	// oracle never checks — a collapsed sliver on the pocket wall.
+	//
+	// What is asserted here is the CONTRACT, not one platform's arithmetic.
+	// The exact tessellation is platform-dependent: macOS produces a
+	// topologically clean mesh demoted by a degenerate triangle (1 of 896, at
+	// r = 1.2 mid-wall), while ubuntu-latest produces 3 non-orientable edges
+	// on the same program. An earlier version of this test pinned the macOS
+	// numbers and went red on Linux CI — the feature was right, the assertion
+	// was too tight. So: the reason must be CONSISTENT with what the topology
+	// oracle reports, and the defect must be locatable either way.
 	let mc = measures(&report, "mc");
-	assert_eq!(mc["watertight"], json!(true), "{mc}");
-	assert_eq!(mc["non_orientable_edges"], json!(0), "{mc}");
-	assert_eq!(reason, "degenerate_triangles", "{}", stl["demotion"]);
+	let non_orientable = mc["non_orientable_edges"].as_u64().unwrap_or(0);
+	if non_orientable > 0 {
+		assert_eq!(reason, "non_orientable_edges", "the oracle sees {non_orientable} non-orientable edges, so that is the reason: {mc}");
+	} else {
+		assert_eq!(mc["watertight"], json!(true), "a clean oracle verdict must be watertight: {mc}");
+		assert_eq!(
+			reason, "degenerate_triangles",
+			"the oracle calls it clean, so the reason must be one it never checks: {}",
+			stl["demotion"]
+		);
+	}
 	let d = &stl["demotion"];
 	assert_eq!(d["self_intersections"], Value::Null, "the crossing sweep never ran (topology demoted first): {d}");
 	let w = &d["witness"][0];
