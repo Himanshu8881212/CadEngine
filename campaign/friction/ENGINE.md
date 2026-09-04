@@ -778,7 +778,7 @@ had not computed — the exact silent-mode class the campaign doctrine gates
 against, and the reason DELIVERABLE_SPEC §2.11's must-NOT-fit claims kept
 landing on hand-rolled booleans.
 
-**Six live campaign receipts carried that null**, three of them negative
+**Seven live campaign receipts carried that null**, four of them negative
 controls that exist to quantify interference.
 
 The hazard is a property of the *analytic* faces. The triangle arrangement does
@@ -830,9 +830,18 @@ cylinders on 8 mm centres → **81.2328** faceted against the closed-form
 **81.7503** (−0.6 %). Workspace behavioural proof on the four gate campaigns
 (`framework_system/l12_mini_case`, `magic_system/uphill_roller`,
 `school_system/folding_book_stand`, `school_system/rated_desk_hook`): ALL GATES
-GREEN, every `parts/*.stl` and `cad/*.step` byte-identical, and **not one
-`distance` or `interfering` value moved**. The nulls became real numbers —
-`folding_book_stand`'s capture control `cap_yp` `null → 393.49 mm³`,
-`cap_xp`/`cap_xm` `null → 137.99 mm³` each, closing that campaign's F5, and its
-`hinge_coupon`/`stand` clearance gates `null → 0.0` at an unchanged
-`interfering: false`.
+GREEN, all 30 `parts/*.stl` + `cad/*.step` byte-identical, and across their
+**181 `clearance` receipt blocks not one `distance`, `interfering` or
+`coincident_fit_hazard` value moved**. Exactly the seven nulls became real
+numbers, every block gained `contact` and a provenance (174 `analytic`,
+7 `faceted`), and **zero nulls remain**:
+
+```
+folding_book_stand  nc_capture cap_yp   null -> 393.4912 mm³   (F5 closed)
+folding_book_stand  nc_capture cap_xp   null -> 137.9881
+folding_book_stand  nc_capture cap_xm   null -> 137.9885
+l12_mini_case       ctrl_cage_push clr   null -> 474.5054
+folding_book_stand  hinge_coupon g_gap   null ->   0.0        interfering false, unchanged
+folding_book_stand  stand g_gap_pl       null ->   0.0        interfering false, unchanged
+l12_mini_case       cage_on_tray clr     null ->   0.0        interfering false, unchanged
+```

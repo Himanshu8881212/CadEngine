@@ -550,8 +550,8 @@ The doctrine (DELIVERABLE_SPEC §2.11) hangs every must-NOT-fit claim on
 being made. `coincident_fit_hazard` fires on **any** flush face pair, which two
 bodies overlapping while both stand on z=0 always have, so the ORDINARY
 interference case returned `interfering: true` with `overlap_volume: null` — a
-verdict the op could not compute. Six live campaign receipts carried that null,
-three of them negative controls. Campaigns responded by hand-rolling
+verdict the op could not compute. Seven live campaign receipts carried that
+null, four of them negative controls. Campaigns responded by hand-rolling
 `intersection` + `exact_volume`; that is now what the op does for you.
 
 **Every `clearance` receipt now carries `overlap_volume_provenance`:**
