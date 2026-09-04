@@ -1,14 +1,20 @@
-"""Shared harness for the ACE physics runners (fea / modal / buckling).
+"""Shared harness for the physics runners (fea / modal / buckling).
 
 Every ace_*_runner.py is a standalone stdout-receipt script, but the boot block
-(ACE on the path, the LMCAD kernel-api env default), the log/emit helpers, and
-the geometry-loading contract are byte-identical across all three — they were
-"kept in sync by hand" and had already drifted in comments. This is the ONE
-source of truth. Importing it runs the boot side effects (ACE_ROOT onto sys.path,
-LMCAD_KERNEL_API default), so a runner must `from _ace import ...` before it
-touches `engine.*`. Receipt/job schemas are unchanged: this only de-duplicates.
-`selector_receipts` is deliberately NOT here — fea's and buckling's versions
-genuinely differ, so each keeps its own.
+(the solver package on the path, the LMCAD kernel-api env default), the log/emit
+helpers, and the geometry-loading contract are byte-identical across all three —
+they were "kept in sync by hand" and had already drifted in comments. This is the
+ONE source of truth. Importing it runs the boot side effects (tools/ and
+tools/analyzers onto sys.path, LMCAD_KERNEL_API default), so a runner must
+`from _ace import ...` before it touches `physics.*`. Receipt/job schemas are
+unchanged: this only de-duplicates. `selector_receipts` is deliberately NOT here
+— fea's and buckling's versions genuinely differ, so each keeps its own.
+
+The solvers themselves live IN THIS REPO at `tools/analyzers/physics/` (moved
+out of the ACE project on 2026-09-04; they stay Apache-2.0 — see that
+directory's NOTICE and LICENSE-APACHE-2.0). There is no external checkout and
+no `ACE_ROOT` any more: the pinned revision of the physics is this repository's
+own history.
 """
 from __future__ import annotations
 
@@ -25,10 +31,9 @@ import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]  # tools/analyzers/_ace.py -> repo root
-ACE_ROOT = os.environ.get("ACE_ROOT", os.path.expanduser("~/Work/ACE"))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+PHYSICS_ROOT = Path(__file__).resolve().parent / "physics"  # the in-tree solver package
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # tools/analyzers: `import physics`
 sys.path.insert(0, str(REPO_ROOT / "tools"))  # _receipt / provenance live at tools/ top level
-sys.path.insert(0, ACE_ROOT)
 os.environ.setdefault(
     "LMCAD_KERNEL_API", str(REPO_ROOT / "target" / "release" / "kernel-api")
 )
@@ -45,9 +50,11 @@ from _receipt import (  # noqa: E402,F401  — re-exported so runners import one
     run_cli,
 )
 
-ACE_INSTALL_HINT = (
-    "ACE package not importable — install it into the interpreter named by "
-    "ACE_PYTHON: `pip install -e ~/Work/ACE` (or set ACE_ROOT)."
+PHYSICS_INSTALL_HINT = (
+    "the in-tree solver package tools/analyzers/physics/ could not be imported — "
+    "it needs numpy and scipy: `pip install --require-hashes -r "
+    "tools/requirements-analysis.lock`. (Nothing external is required any more; "
+    "the solvers moved into this repository on 2026-09-04.)"
 )
 
 
@@ -77,7 +84,7 @@ def load_geometry(job: dict, out_dir: Path):
         rho = np.load(job["npy"]).astype(np.float32)
         log(f"loaded density grid {rho.shape} from {job['npy']}")
     else:
-        from engine.lmcad import sample_part
+        from physics.sampling import sample_part
 
         shape = tuple(int(n) for n in job["shape"])
         rho = sample_part(
@@ -94,7 +101,7 @@ def build_region_kind(job: dict, shape, voxel: float, origin):
     regions = job.get("regions")
     if not regions:
         return None  # the solver skips the override — same as all-design
-    from engine.lmcad import region_kind_from_regions
+    from physics.sampling import region_kind_from_regions
 
     return region_kind_from_regions(regions, shape, voxel, origin)
 
@@ -174,20 +181,18 @@ def _git_identity(path: str | Path) -> dict:
 
 
 def runtime_provenance(job: dict) -> dict:
-    """Exact solver/runtime identity; optionally enforce an ACE commit pin."""
+    """Exact solver/runtime identity.
+
+    The solver used to live in a separate ACE checkout, so this pinned its
+    commit against `tools/ACE_REVISION`. Since 2026-09-04 the physics is in
+    THIS repository (`tools/analyzers/physics/`), so the solver's revision IS
+    `lmcad.commit` and the external pin is retired — a clean LMCAD checkout is
+    now the whole reproducibility claim, which is also what lets a hosted
+    runner make it.
+    """
     if isinstance(job.get("_runtime_provenance"), dict):
         return job["_runtime_provenance"]
-    ace = _git_identity(ACE_ROOT)
     lmcad = _git_identity(REPO_ROOT)
-    expected = str(job.get("ace_commit") or os.environ.get("LMCAD_ACE_COMMIT") or "").strip()
-    pin_file = REPO_ROOT / "tools" / "ACE_REVISION"
-    if not expected and pin_file.exists():
-        expected = pin_file.read_text().strip().splitlines()[0]
-    if expected and ace.get("commit") != expected:
-        raise Refusal(
-            "ace_commit_mismatch",
-            f"ACE commit is {ace.get('commit')!r}, but the job/release pin requires {expected!r}.",
-            expected=expected, actual=ace.get("commit"))
     packages = {}
     package_sources = {}
     for name in ("numpy", "scipy", "gmsh", "matplotlib"):
@@ -208,9 +213,9 @@ def runtime_provenance(job: dict) -> dict:
     source_hashes = {}
     for path in (
         Path(__file__), REPO_ROOT / "tools" / "provenance.py",
-        Path(ACE_ROOT) / "engine" / "verify" / "fea.py",
-        Path(ACE_ROOT) / "engine" / "verify" / "fea_tet.py",
-        Path(ACE_ROOT) / "engine" / "verify" / "mesh_ir.py",
+        PHYSICS_ROOT / "fea.py",
+        PHYSICS_ROOT / "fea_tet.py",
+        PHYSICS_ROOT / "mesh_ir.py",
     ):
         if path.exists():
             source_hashes[str(path)] = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
@@ -221,9 +226,7 @@ def runtime_provenance(job: dict) -> dict:
     )
     pythonpath = os.environ.get("PYTHONPATH", "").strip()
     reproducible = bool(
-        ace.get("available") and not ace.get("dirty")
-        and lmcad.get("available") and not lmcad.get("dirty")
-        and (not expected or ace.get("commit") == expected)
+        lmcad.get("available") and not lmcad.get("dirty")
         and lock_hash and modules_in_prefix and not pythonpath
     )
     result = {
@@ -232,7 +235,17 @@ def runtime_provenance(job: dict) -> dict:
         "platform": platform.platform(), "packages": packages,
         "package_sources": package_sources, "python_prefix": prefix,
         "pythonpath_set": bool(pythonpath), "modules_in_python_prefix": modules_in_prefix,
-        "ace": ace, "lmcad": lmcad, "expected_ace_commit": expected,
+        # `ace` / `expected_ace_commit` were removed on 2026-09-04 when the
+        # solver moved in-tree: there is no second checkout to identify, and a
+        # key that always said "not available" would be worse than none.
+        # `physics` names where the solver now is; `lmcad.commit` IS its
+        # revision, and `source_hashes` pins its exact bytes.
+        "physics": {
+            "package": str(PHYSICS_ROOT.relative_to(REPO_ROOT)),
+            "in_tree": PHYSICS_ROOT.is_dir(),
+            "license": "Apache-2.0 (see tools/analyzers/physics/NOTICE)",
+        },
+        "lmcad": lmcad,
         "dependency_lock": lock_hash, "source_hashes": source_hashes,
         "reproducible": reproducible,
     }
@@ -241,7 +254,8 @@ def runtime_provenance(job: dict) -> dict:
     if strict and not reproducible:
         raise Refusal(
             "non_reproducible_environment",
-            "release-grade analysis requires clean ACE and LMCAD checkouts plus "
+            "release-grade analysis requires a clean LMCAD checkout (which now "
+            "carries the solver itself, tools/analyzers/physics/) plus "
             "tools/requirements-analysis.lock; this runtime does not satisfy that contract.",
             runtime_environment=result)
     job["_runtime_provenance"] = result
@@ -249,11 +263,11 @@ def runtime_provenance(job: dict) -> dict:
 
 
 def convergence_receipt(res: dict) -> dict:
-    """An HONEST structured convergence receipt from ACE's actual return.
-    ACE's static/modal solvers use scipy CG at rtol 1e-8 and RAISE on
+    """An HONEST structured convergence receipt from the solver's actual return.
+    The static/modal solvers use scipy CG at rtol 1e-8 and RAISE on
     non-convergence, so a returned result provably meets that tolerance; the
     solver method + DOF count + the solver note are all real. Per-iteration
-    count is not exposed by ACE's return — stated, not invented."""
+    count is not exposed by the solver's return — stated, not invented."""
     notes = res.get("notes", []) or []
     solver_notes = [n for n in notes if "solve" in n.lower() or "cg" in n.lower()]
     iterative = any(("iterative" in n.lower()) or ("cg" in n.lower()) for n in solver_notes)
@@ -350,7 +364,7 @@ def element_centres_mm(idx, voxel: float, origin):
 
 def _selected_centroid(sel, occ, voxel, origin):
     import numpy as np
-    from engine.verify.selectors import resolve_selector
+    from physics.selectors import resolve_selector
     mask = resolve_selector(sel, occ.shape, voxel, origin) & occ
     n = int(mask.sum())
     if n == 0:
@@ -369,7 +383,7 @@ def selector_catch_audit(job: dict, occ, voxel: float, origin) -> list[dict]:
     looked converged). The precedent for auditing selectors already exists at
     the other end of the range — the "suspiciously broad" note at >30% — so
     this closes the zero end."""
-    from engine.verify.selectors import resolve_selector
+    from physics.selectors import resolve_selector
     rows = []
     for group in ("fixtures", "loads"):
         for i, entry in enumerate(job.get(group, []) or []):

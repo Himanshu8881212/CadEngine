@@ -72,8 +72,11 @@ jobs:
           "$ANALYSIS_PYTHON" tools/analyzer_registry.py
 
       # Hermetic (stdlib-only) validation pins of the Validated rules engines.
-      # The ACE physics pins run on the self-hosted physics-gate; these two need
-      # no numpy, so the hosted job re-proves them on every PR.
+      # The physics pins (fea / fea_tet / modal / buckling / optimize) are minutes
+      # of FEA each, so they stay on the self-hosted physics-gate — but since the
+      # solver moved in-tree (tools/analyzers/physics/, 2026-09-04) they no longer
+      # NEED that runner: any box with the locked numpy/scipy can run them.
+      # These two need no numpy at all, so the hosted job re-proves them per PR.
       - name: Rules-engine validation pins (stdlib, hermetic)
         run: |
           "$ANALYSIS_PYTHON" tools/validation/tolerance_stack_validation.py

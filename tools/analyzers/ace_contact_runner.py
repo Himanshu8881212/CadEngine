@@ -8,7 +8,7 @@ guilty until its benchmark gates (tools/test_ace_contact_fatigue.py) are green.
 
 WHY A BEAM AND NOT THE HOUSE VOXEL FEA
 --------------------------------------
-`tools/ace_fea_runner.py` (ACE `engine.verify.reference_fea`) is LINEAR: small
+`tools/ace_fea_runner.py` (the in-tree `physics.reference_fea`) is LINEAR: small
 strain AND small displacement, no contact. The features this solver exists for
 — snap-fit cantilevers, living hinges, latch arms, press-fit lips — routinely
 deflect 3-5 mm on a 15 mm arm (~10-30% of span, tip rotations 10-30 deg). At

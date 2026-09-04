@@ -18,15 +18,16 @@ ACE's own docstring says 10-30% high on coarse meshes — this geometry measures
 better than that). The first factor is a degenerate PAIR (square section — two
 identical bending planes); the pin uses the smallest.
 
-Run:  ACE_PYTHON (default ~/miniconda3/bin/python3) this file.
+Run:  python3 this file (numpy + scipy only; the solver is in-tree).
 Exit: 0 iff all assertions hold; nonzero with a message otherwise.
 """
 import math
 import os, sys
 import numpy as np
 
-sys.path.insert(0, os.environ.get("ACE_ROOT", os.path.expanduser("~/Work/ACE")))
-from engine.verify import reference_buckling  # noqa: E402
+sys.path.insert(0, os.path.join(  # tools/analyzers: the in-tree solver package
+	os.path.dirname(os.path.abspath(__file__)), os.pardir, "analyzers"))
+from physics import reference_buckling  # noqa: E402
 
 L, b, h = 60.0, 6.0, 6.0
 E, NU, P = 2.2e9, 0.37, 100.0

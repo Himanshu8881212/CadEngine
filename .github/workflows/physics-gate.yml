@@ -33,14 +33,11 @@ jobs:
           persist-credentials: false
           clean: true
 
-      - name: Verify the immutable ACE pin before executing analysis
-        shell: bash
-        run: |
-          set -euo pipefail
-          expected="$(tr -d '[:space:]' < tools/ACE_REVISION)"
-          actual="$(git -C "${ACE_ROOT:-$HOME/Work/ACE}" rev-parse HEAD)"
-          test "$actual" = "$expected"
-          test -z "$(git -C "${ACE_ROOT:-$HOME/Work/ACE}" status --porcelain)"
+      # The solver used to live in a separate ACE checkout, so this job began by
+      # verifying that checkout against tools/ACE_REVISION. Since 2026-09-04 the
+      # physics is IN THIS REPOSITORY (tools/analyzers/physics/, Apache-2.0 —
+      # see its NOTICE), so the pin is the protected main SHA checked out above:
+      # there is no second repository left to drift.
 
       - name: Install/verify hash-locked Python dependencies
         shell: bash

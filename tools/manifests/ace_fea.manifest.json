@@ -2,7 +2,7 @@
   "schema": "lmcad.manifest.v1",
   "analyzer": "ace_fea",
   "analyzer_version": "1.0.0",
-  "title": "hex8 linear-elastic reference FEA (engine.verify.reference_fea)",
+  "title": "hex8 linear-elastic reference FEA (physics.reference_fea)",
   "governing_equations": [
     {
       "name": "linear static equilibrium",

@@ -3,9 +3,9 @@
 
 Standalone job runner (``python3 tools/ace_fea_runner.py job.json``)
 running ACE's benchmark-validated hex8 linear-elastic solver
-(``engine.verify.reference_fea``) on geometry built by the LMCAD kernel.
+(``physics.reference_fea``) on geometry built by the LMCAD kernel.
 
-Usage:  <ACE_PYTHON> ace_fea_runner.py <job.json>
+Usage:  python3 ace_fea_runner.py <job.json>
 
 Job JSON (all geometry in mm, physics in SI):
     out_dir            REQUIRED  directory for field .npy outputs
@@ -14,7 +14,7 @@ Job JSON (all geometry in mm, physics in SI):
     GEOMETRY, one of:
       ops + solid + shape [+ supersample=2]   LMCAD JSON ops; `solid` names the
                                               op id sampled onto the grid via
-                                              engine.lmcad.sample_part
+                                              physics.sampling.sample_part
       npy                                     absolute path of an existing
                                               (nx,ny,nz) float density .npy
     regions            optional  [{kind: frozen|fixed|design|void, selector}]
@@ -84,8 +84,8 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/: the shared contracts + the layout map
 import _layout  # noqa: E402
 _layout.add_import_paths()  # tools/, tools/analyzers, tools/publish — sibling-style imports keep working after the 2026-09-02 move
-from _ace import (  # noqa: E402  — importing runs the boot side effects (ACE on path, kernel-api env)
-    ACE_INSTALL_HINT,
+from _ace import (  # noqa: E402  — importing runs the boot side effects (physics package on path, kernel-api env)
+    PHYSICS_INSTALL_HINT,
     apply_warnings,
     build_region_kind,
     determinism_block,
@@ -112,8 +112,8 @@ def selector_receipts(job: dict, rho, kind, voxel: float, origin):
     """Per-selector node-count receipts: (fixtures, loads, extra notes).
 
     Resolves every fixture/load ``region_selector`` with ACE's own selector
-    engine (``engine.verify.selectors.resolve_selector``), intersects it with
-    the same active-element mask the solve uses (``engine.verify.fea._occupancy``
+    engine (``physics.selectors.resolve_selector``), intersects it with
+    the same active-element mask the solve uses (``physics.fea._occupancy``
     — reused directly so the receipt counts EXACTLY what the FEA loaded or
     clamped), and counts the grid nodes touching the selected active elements
     via the public ``element_mask_to_node_ids``. A selector catching 0 already
@@ -122,8 +122,8 @@ def selector_receipts(job: dict, rho, kind, voxel: float, origin):
     3x-wrong benchmark), so any load selector covering > 30% of all active
     elements gets a "suspiciously broad" note appended to the receipts.
     """
-    from engine.verify.fea import _occupancy  # the solve's own activity rule
-    from engine.verify.selectors import element_mask_to_node_ids, resolve_selector
+    from physics.fea import _occupancy  # the solve's own activity rule
+    from physics.selectors import element_mask_to_node_ids, resolve_selector
 
     simp = job.get("simp_penalty")
     floor = float(job.get("density_floor", 0.02)) if simp is not None else None
@@ -162,7 +162,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     import numpy as np
-    from engine.verify.fea import _occupancy, reference_fea
+    from physics.fea import _occupancy, reference_fea
 
     rho, origin, voxel, sample_s = load_geometry(job, out_dir)
     kind = build_region_kind(job, rho.shape, voxel, origin)
@@ -248,4 +248,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    run_cli("ace_fea", main, install_hint=ACE_INSTALL_HINT)
+    run_cli("ace_fea", main, install_hint=PHYSICS_INSTALL_HINT)

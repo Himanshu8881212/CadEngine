@@ -3,7 +3,7 @@
 
 Standalone job runner (``python3 tools/ace_buckling_runner.py job.json``) —
 and importable as a library (:func:`run_buckling_job`) — running ACE's independent hex8 eigenvalue-buckling solver
-(``engine.verify.reference_buckling``) on geometry built by the LMCAD kernel:
+(``physics.reference_buckling``) on geometry built by the LMCAD kernel:
 
   1. static pre-stress solve  K u = F  under the manifest's reference load;
   2. geometric (initial-stress) stiffness K_g assembled from the recovered
@@ -27,14 +27,14 @@ any of those calibration sets, hence the flat 0.5 recommendation — and for
 shell-like modes (inspect the mode!) even 0.5 can be UNconservative.
 
 CROSS-SOLVER CONSISTENCY BY CONSTRUCTION: after the buckling solve this
-runner re-runs the SAME static pass through ``engine.verify.reference_fea``
+runner re-runs the SAME static pass through ``physics.reference_fea``
 — the exact function behind tools/ace_fea_runner.py — with the same
 geometry/loads/fixtures/solver settings, and ships its displacement/stress
 fields as prestress receipts (prestress_disp_field.npy /
 prestress_stress_field.npy). tools/test_ace_modal_buckling.py gates that
 these receipts agree with an ace_fea_runner.py run of the same manifest.
 
-Usage:  <ACE_PYTHON> ace_buckling_runner.py <job.json>
+Usage:  python3 ace_buckling_runner.py <job.json>
 
 Job JSON (all geometry in mm, physics in SI):
 	out_dir            REQUIRED  directory for job artifacts
@@ -42,7 +42,7 @@ Job JSON (all geometry in mm, physics in SI):
 	origin_mm          optional  world coord of grid node (0,0,0); default [0,0,0]
 	GEOMETRY, one of:
 	  ops + solid + shape [+ supersample=2]   LMCAD JSON ops via
-											  engine.lmcad.sample_part
+											  physics.sampling.sample_part
 	  npy                                     absolute path of an existing
 											  (nx,ny,nz) float density .npy
 	  stl + shape                             watertight STL, parity-filled onto
@@ -122,8 +122,8 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/: the shared contracts + the layout map
 import _layout  # noqa: E402
 _layout.add_import_paths()  # tools/, tools/analyzers, tools/publish — sibling-style imports keep working after the 2026-09-02 move
-from _ace import (  # noqa: E402  — importing runs the boot side effects (ACE on path, kernel-api env)
-	ACE_INSTALL_HINT,
+from _ace import (  # noqa: E402  — importing runs the boot side effects (physics package on path, kernel-api env)
+	PHYSICS_INSTALL_HINT,
 	apply_warnings,
 	build_region_kind,
 	compression_check,
@@ -206,8 +206,8 @@ def stl_to_npy(job: dict, out_dir: Path) -> None:
 def selector_receipts(job: dict, rho, kind, voxel: float, origin):
 	"""Per-selector node-count receipts (same recipe as ace_fea_runner's,
 	including the suspiciously-broad load note)."""
-	from engine.verify.fea import _occupancy
-	from engine.verify.selectors import element_mask_to_node_ids, resolve_selector
+	from physics.fea import _occupancy
+	from physics.selectors import element_mask_to_node_ids, resolve_selector
 
 	occ = _occupancy(rho, kind, simp_floor=None)
 	n_active = int(occ.sum())
@@ -256,8 +256,8 @@ def run_buckling_job(job: dict) -> dict:
 	those into the {ok:false} JSON line. AI-callable: the benchmark suite
 	(tools/test_ace_modal_buckling.py) imports and pins this function."""
 	import numpy as np
-	from engine.verify import reference_buckling
-	from engine.verify.fea import reference_fea
+	from physics import reference_buckling
+	from physics.fea import reference_fea
 
 	job = dict(job)
 	yield_mpa = _yield_mpa_if_known(job.get("material"))
@@ -272,7 +272,7 @@ def run_buckling_job(job: dict) -> dict:
 	# --- ADMISSIBILITY, BEFORE the solve (T13) --------------------------------
 	# Refusals are cheap and must fire before minutes of eigensolve, and before
 	# any receipt that could be mistaken for a design number exists.
-	from engine.verify.fea import _occupancy
+	from physics.fea import _occupancy
 	occ = _occupancy(rho, kind, simp_floor=None)
 	catch = selector_catch_audit(job, occ, voxel, origin)
 	refuse_empty_selectors(catch)
@@ -401,4 +401,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-	run_cli("ace_buckling", main, install_hint=ACE_INSTALL_HINT)
+	run_cli("ace_buckling", main, install_hint=PHYSICS_INSTALL_HINT)

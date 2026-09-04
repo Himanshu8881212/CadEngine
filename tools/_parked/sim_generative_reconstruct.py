@@ -40,7 +40,7 @@ peak stress is marginally less sharp than fully-curved elements would read —
 still a real body-fitted conforming-mesh verification, vastly better than the
 voxel staircase.
 
-Run:  ACE_ROOT=~/Work/ACE <ACE_PYTHON> sim_generative_reconstruct.py
+Run:  python3 sim_generative_reconstruct.py
 Exit: 0 iff the chain ran and produced an honest receipt (a residual meshing
       limit is a REPORTED finding, not a tool failure); nonzero only if the
       SIMP half or the reconstruction invariants themselves break.
@@ -55,8 +55,8 @@ import numpy as np
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TOOLS)
-ACE_ROOT = os.environ.get("ACE_ROOT", os.path.expanduser("~/Work/ACE"))
-os.environ.setdefault("ACE_ROOT", ACE_ROOT)
+sys.path.insert(0, os.path.join(  # tools/analyzers: the in-tree solver package
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, "analyzers"))
 PY_EXE = sys.executable
 
 # Reuse the SIMP-run helper, subprocess-isolated runner, and problem constants
@@ -155,8 +155,8 @@ def tet_solve_probe(stl: str, elem: float, clamp_x: float, load_x: float) -> Non
 	quality passes), gates positive Jacobians via mesh.check(), then
 	reference_fea_tet with the SAME material/load/support. Prints ONE JSON line
 	(the contract), exit 0."""
-	from engine.verify.fea_tet import reference_fea_tet
-	from engine.verify.mesh_ir import mesh_stl
+	from physics.fea_tet import reference_fea_tet
+	from physics.mesh_ir import mesh_stl
 
 	try:
 		mesh = mesh_stl(stl, elem_size_mm=elem, order=2,

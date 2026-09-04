@@ -12,7 +12,7 @@
     {
       "name": "SIMP interpolation",
       "expr": "E_e = floor + rho_e^p (E0 - floor),  p = 3 by default",
-      "description": "Penalized element modulus drives intermediate densities toward 0/1; the FEA underneath is the pinned engine.verify.reference_fea (see ace_fea manifest)."
+      "description": "Penalized element modulus drives intermediate densities toward 0/1; the FEA underneath is the pinned physics.reference_fea (see ace_fea manifest)."
     },
     {
       "name": "optimality-criteria update + cone filter",

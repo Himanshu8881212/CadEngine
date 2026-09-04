@@ -1,0 +1,50 @@
+tools/analyzers/physics/ — origin and license
+=============================================
+
+The Python sources in this directory did NOT originate in LMCAD. They were
+moved here, verbatim, from a separate project:
+
+    ACE — Autonomous Computational Engineer
+    Copyright 2026 The ACE Authors
+    Licensed under the Apache License, Version 2.0
+
+    Source commit: f9202e727cbca8d33a2488eb9d3efa2e8d7ee6d0
+    Moved into LMCAD on: 2026-09-04
+
+LMCAD as a whole is MIT-licensed. THIS DIRECTORY IS NOT. Every .py file in
+`tools/analyzers/physics/` remains under the Apache License, Version 2.0, a
+full copy of which sits beside this file as `LICENSE-APACHE-2.0`. The Apache
+license and this attribution travel with the code: if you redistribute LMCAD,
+you must keep both, and you must keep the "NOTICE" text below in any
+derivative distribution that includes these files.
+
+Nothing here was relicensed. The move changed only:
+
+  * file locations — ACE `engine/verify/*.py` became `physics/*.py`, and ACE
+    `engine/lmcad.py` (the LMCAD geometry bridge) became `physics/sampling.py`;
+  * the module paths named in `import` statements and docstrings
+    (`engine.verify.X` -> `physics.X`, `engine.lmcad` -> `physics.sampling`);
+  * two docstring sentences in `sampling.py` and `printability.py` that
+    described the geometry backend as PicoGK — LMCAD is the geometry authority
+    for this code now;
+  * the `_DEFAULT_KERNEL` fallback in `sampling.py`, which was an absolute path
+    into a developer's LMCAD checkout and is now relative to this repository.
+
+The numerics are untouched.
+
+
+NOTICE (from the upstream ACE distribution)
+-------------------------------------------
+
+ACE — Autonomous Computational Engineer
+Copyright 2026 The ACE Authors
+
+This product is licensed under the Apache License, Version 2.0
+(see LICENSE-APACHE-2.0).
+
+The upstream ACE NOTICE additionally attributes LEAP 71 PicoGK, LEAP 71
+ShapeKernel, LEAP 71 LatticeLibrary and Microsoft SkillOpt. NONE of those
+components are present in, vendored by, or imported by the files in this
+directory — the moved code depends only on numpy and scipy (with optional,
+lazily imported gmsh / trimesh / pyamg). They are named here only so the
+upstream attribution chain is not silently broken.

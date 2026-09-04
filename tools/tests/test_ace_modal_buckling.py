@@ -270,7 +270,7 @@ def main() -> int:  # noqa: PLR0915 — a linear benchmark script reads best lin
 	# apply (same imported K/M assembly, independent eigensolve layer).
 	# =====================================================================
 	print("== G4: runner eigensolve == ACE reference_modal ==")
-	from engine.verify import reference_modal
+	from physics import reference_modal
 	rho_grid = np.ones((80, 8, 4), dtype=np.float32)
 	t0 = time.monotonic()
 	ace = reference_modal(rho_grid, None, 0.75, MAT, CLAMP_X0, n_modes=8)
@@ -461,7 +461,7 @@ def main() -> int:  # noqa: PLR0915 — a linear benchmark script reads best lin
 
 	# =====================================================================
 	# GATE 10 — cross-solver consistency: the buckling pre-stress pass vs
-	# ace_fea_runner on the SAME manifest. Both invoke engine.verify.
+	# ace_fea_runner on the SAME manifest. Both invoke physics.
 	# reference_fea with identical inputs and solver settings (consistency by
 	# construction), and this gate re-proves it at the RUNNER level: fields
 	# and scalars must agree to solver determinism.

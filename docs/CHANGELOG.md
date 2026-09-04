@@ -7,6 +7,31 @@ Current-state summary and open frontier live in CLAUDE.md; the falsifiable
 scorecard in docs/BAR.md; deep friction write-ups in campaign/friction/ENGINE.md
 (moved there from docs/FRICTION.md on 2026-09-03).
 
+LICENSING + STRUCTURE 2026-09-04 (the physics moved IN-TREE; `tools/ACE_REVISION` retired).
+The five FEA-class analyzers imported a Python package `engine` from a separate, private
+repository at `~/Work/ACE`, bootstrapped by putting `ACE_ROOT` on `sys.path`. Two things
+followed, both bad: a GitHub-hosted runner could not import it at all
+(`ModuleNotFoundError: No module named 'engine'`, which is why `analysis-gate` was red),
+and the revision the receipts pinned (`tools/ACE_REVISION` = ACE
+`f9202e727cbca8d33a2488eb9d3efa2e8d7ee6d0`) existed on one laptop, so nobody could
+reproduce a shipped FEA number. The solver source — 4,219 lines, numpy + scipy only — now
+lives at `tools/analyzers/physics/`: ACE `engine/verify/{fea,buckling,fea_tet,convergence,
+printability,selectors,mesh_ir,dfam,__init__}.py` became `physics/*.py`, and ACE
+`engine/lmcad.py` (the LMCAD geometry bridge) became `physics/sampling.py`. **It is
+Apache-2.0 inside an MIT repository and was NOT relicensed**: the directory carries
+`LICENSE-APACHE-2.0` and a `NOTICE` naming ACE, the copyright, the source commit and
+every change the move made (module paths, two PicoGK docstring sentences, one hard-coded
+absolute kernel path). `ACE_ROOT`/`ACE_PYTHON` are gone from the runners, the pins, the
+workflows and the docs; the physics-gate no longer verifies an external checkout and
+`runtime_provenance` no longer emits `ace`/`expected_ace_commit` — `lmcad.commit` IS the
+solver's revision now, and `source_hashes` pins its bytes. Proof: `--check-contract`
+reaches 40/40 in a hash-locked `uv` venv with no ACE on the path (and with
+`ACE_ROOT=/nonexistent`); the five analyzers keep their Validated tier with the same
+pins passing the same numbers (`ace_fea` −11.2 % / −5.9 %, `ace_modal` +4.0 % / +0.9 %);
+and all four maintained campaigns re-run green with every `parts/*.stl` and `cad/*.step`
+byte-identical and every FEA/buckling/optimize receipt identical outside its
+wall-clock and `runtime_environment` blocks.
+
 STRUCTURE 2026-09-03 (`interp.rs` split — pure refactor, zero behaviour change).
 `crates/kernel-api/src/interp.rs` was 4,912 lines: the program loop, the environment,
 every shared helper and all 161 op bodies in one file — the file an agent reads most

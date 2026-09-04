@@ -19,7 +19,7 @@ about to design a part, start there and come back here for a contract.
 | [`MANIFEST_SCHEMA.md`](MANIFEST_SCHEMA.md) | `lmcad.manifest.v1` — the falsifiable spec format an analyzer must ship to be tiered |
 | [`OP_USAGE.md`](OP_USAGE.md) | the op census: which of the 161 dispatched ops shipped campaigns actually named, and the evidence behind the `catalog` cargo feature |
 | [`FIELD_REPORTS.md`](FIELD_REPORTS.md) | what happened to printed parts in the real world — the physical half of the flywheel |
-| [`ACE_INTEGRATION.md`](ACE_INTEGRATION.md) | how the ACE topology-optimization stack and the LMCAD geometry side are wired together |
+| [`ACE_INTEGRATION.md`](ACE_INTEGRATION.md) | the physics moved in-tree (`tools/analyzers/physics/`, Apache-2.0 inside an MIT repo) — why, what the package is, and how ACE and LMCAD divide the work now |
 | [`CHANGELOG.md`](CHANGELOG.md) | the dated capability and root-cause-fix ledger |
 
 Also here: `test_doc_contracts.py`, which checks the claims these documents make

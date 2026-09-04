@@ -393,8 +393,11 @@ KNOWN_LIMITATIONS = [
 
 
 def _pin_python() -> str:
-    """The interpreter the ACE pins need (miniconda with ACE installed)."""
-    return os.environ.get("ACE_PYTHON", sys.executable)
+    """The interpreter the pins need. Since the physics moved in-tree
+    (tools/analyzers/physics/, 2026-09-04) that is just an interpreter carrying
+    the locked numpy/scipy — by default the one running this registry.
+    LMCAD_ANALYSIS_PYTHON overrides (CI points it at the hash-locked venv)."""
+    return os.environ.get("LMCAD_ANALYSIS_PYTHON", sys.executable)
 
 
 def run_pin(pin_file: str) -> dict:
@@ -931,7 +934,7 @@ def _main(argv=None) -> int:
     ap.add_argument("--check", action="store_true", help="CI gate: exit 1 on any violation")
     ap.add_argument("--run-pins", action="store_true",
                     help="EXECUTE every Validated analyzer's pins; exit 1 on an "
-                         "un-run or non-known-issue failure (needs ACE_PYTHON)")
+                         "un-run or non-known-issue failure")
     ap.add_argument("--demo", action="store_true", help="read-only stamp() demo on one analyzer")
     ap.add_argument("--tier", metavar="NAME",
                     help="machine-queryable tier of ONE analyzer: prints a one-line "

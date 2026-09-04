@@ -27,7 +27,7 @@ Measured 2026-07-17 (pinned here): compliance 3.671e-02 -> 5.554e-03 J
 (x6.61 stiffer than the uniform-0.4 start), as-built/solid deflection
 ratio 1.58, volume_fraction_achieved 0.400.
 
-Run:  ACE_PYTHON (default ~/miniconda3/bin/python3) this file.
+Run:  python3 this file (numpy + scipy only; the solver is in-tree).
 Exit: 0 iff all assertions hold; nonzero with a message otherwise.
 """
 import json
@@ -38,8 +38,9 @@ import tempfile
 
 import numpy as np
 
-sys.path.insert(0, os.environ.get("ACE_ROOT", os.path.expanduser("~/Work/ACE")))
-from engine.verify import reference_fea  # noqa: E402
+sys.path.insert(0, os.path.join(  # tools/analyzers: the in-tree solver package
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, "analyzers"))
+from physics import reference_fea  # noqa: E402
 
 TOOLS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # tools/
 sys.path.insert(0, TOOLS)

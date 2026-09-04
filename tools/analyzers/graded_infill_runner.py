@@ -11,8 +11,8 @@ overhangs, no internal supports) — a claim to verify per part: the
 ops-surface ``support_report`` audits B-rep solids and refuses imported
 meshes, so check the exported mesh in a slicer support preview.
 
-Usage:  <ACE_PYTHON> graded_infill_runner.py <job.json>
-        <ACE_PYTHON> graded_infill_runner.py --selftest
+Usage:  python3 graded_infill_runner.py <job.json>
+        python3 graded_infill_runner.py --selftest
 
 Job JSON (geometry in mm):
     out_dir       REQUIRED  directory for .npy/.stl outputs
