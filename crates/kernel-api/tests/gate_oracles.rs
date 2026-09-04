@@ -103,6 +103,12 @@ fn d_ok(r: &Report) -> &Report {
 }
 
 /// A `null` that does not say WHY is indistinguishable from a bug (T5).
+///
+/// Tightened 2026-09-04: a bound MESH operand no longer *produces* a null. A
+/// closed mesh has an inside, so the overlap is measurable on the faceted
+/// route; what the receipt owes is the provenance and the reason, which it
+/// still carries. The null case that remains is a genuine one — an operand
+/// with boundary edges encloses no volume — and it is asserted below.
 #[test]
 fn a_null_overlap_volume_always_carries_its_reason() {
 	let d = dir("t5c");
@@ -116,10 +122,32 @@ fn a_null_overlap_volume_always_carries_its_reason() {
 		]),
 	);
 	assert!(r.ok, "clearance must accept a bound mesh — {r:#?}");
-	assert_eq!(measure(&r, "cl", "overlap_volume"), Value::Null, "{r:#?}");
+	assert_eq!(num(&r, "cl", "overlap_volume"), 0.0, "a CLOSED mesh operand still has an inside — {r:#?}");
+	assert_eq!(measure(&r, "cl", "overlap_volume_provenance"), json!("faceted"), "{r:#?}");
 	let reason = measure(&r, "cl", "overlap_volume_reason");
-	assert!(reason.as_str().unwrap_or("").contains("exact solids"), "{r:#?}");
+	assert!(reason.as_str().unwrap_or("").contains("bound MESH"), "the faceted route names its cause — {r:#?}");
 	assert_eq!(num(&r, "cl", "distance"), 10.0, "{r:#?}");
+
+	// The surviving null: an OPEN surface has no inside, so there is no shared
+	// material to report — and it says exactly that.
+	std::fs::write(
+		d.join("open.stl"),
+		"solid o\nfacet normal 0 0 1\nouter loop\nvertex 0 0 5\nvertex 10 0 5\nvertex 10 10 5\nendloop\nendfacet\nendsolid o\n",
+	)
+	.unwrap();
+	let r = run(
+		&d,
+		json!([
+			{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
+			{"id":"open","op":"import_mesh","file":"open.stl"},
+			{"id":"cl","op":"clearance","a":"a","b":"open"}
+		]),
+	);
+	assert!(r.ok, "an open operand is still measurable for distance — {r:#?}");
+	assert_eq!(measure(&r, "cl", "overlap_volume"), Value::Null, "{r:#?}");
+	assert_eq!(measure(&r, "cl", "overlap_volume_provenance"), json!("unavailable"), "{r:#?}");
+	let reason = measure(&r, "cl", "overlap_volume_reason");
+	assert!(reason.as_str().unwrap_or("").contains("boundary edge"), "the null names its cause — {r:#?}");
 	let _ = std::fs::remove_dir_all(&d);
 }
 

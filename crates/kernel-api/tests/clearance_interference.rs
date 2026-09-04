@@ -163,7 +163,7 @@ fn a_bound_mesh_operand_still_yields_an_overlap_volume() {
 		&dir,
 		json!([
 			{"id":"src","op":"box","min":[9,0,0],"max":[19,10,10]},
-			{"id":"stl","op":"export_stl","in":"src","out":"cube.stl"},
+			{"id":"stl","op":"export_stl","in":"src","file":"cube.stl"},
 			{"id":"m","op":"import_mesh","file":"cube.stl"},
 			{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
 			{"id":"cl","op":"clearance","a":"a","b":"m","tol":0.01}
@@ -204,10 +204,6 @@ fn an_unavailable_overlap_volume_names_its_reason() {
 	assert!(m["overlap_volume"].is_null(), "an open mesh encloses no volume — {r:#?}");
 	let reason = text(&r, "cl", "overlap_volume_reason").unwrap_or("");
 	assert!(reason.contains("boundary edge"), "a null MUST name its reason, got {reason:?} — {r:#?}");
-	assert_eq!(
-		text(&r, "cl", "overlap_volume_provenance"),
-		Some("unavailable"),
-		"an absent measure declares itself absent — {r:#?}"
-	);
+	assert_eq!(text(&r, "cl", "overlap_volume_provenance"), Some("unavailable"), "an absent measure declares itself absent — {r:#?}");
 	let _ = std::fs::remove_dir_all(&dir);
 }

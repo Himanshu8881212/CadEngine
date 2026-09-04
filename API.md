@@ -1401,10 +1401,10 @@ MEASURING twin of `assert_disjoint` (this op never fails a program; gate it with
 | `a`, `b` | ids | yes | two prior solids **or bound meshes** |
 | `tol` | number | no | measurement chord tolerance in mm (default `0.01`) |
 
-Measures: `distance` (minimum surface gap, mm), `interfering`,
-`overlap_volume`, `coincident_fit_hazard`, `tol`, `source`,
-`provenance: "faceted"`, and `overlap_volume_reason` whenever `overlap_volume`
-is `null`.
+Measures: `distance` (minimum surface gap, mm), `interfering`, `contact`,
+`overlap_volume`, `overlap_volume_provenance`, `coincident_fit_hazard`, `tol`,
+`source`, `provenance: "faceted"`, and `overlap_volume_reason` whenever the
+overlap did not come from the exact route.
 
 ```json
 {"id": "gap", "op": "clearance", "a": "bore", "b": "pin",
@@ -1422,19 +1422,37 @@ kernel actually holds. For a nominal-geometry number use `measure_dimension`
 with `kind: "diameter"` on both features (`provenance: "analytic"`), which is a
 stronger receipt than any faceted distance.
 
-**`interfering` and `overlap_volume`.** `overlap_volume` is the volume of the
-exact boolean intersection and needs two exact SOLIDS. It is `null` — with
-`overlap_volume_reason` saying which of the three cases applies — when:
+**`overlap_volume` is always a number or a named refusal.** It is the shared
+material of the two operands in mm³, taken by the strongest route that works on
+them, and `overlap_volume_provenance` always says which:
 
-- `coincident_fit_hazard` is true (the operands share a flush/press-fit face
-  pair, and the exact intersection across it is the known boolean-hang case);
-- the exact intersection produced no measurable body for the pair;
-- at least one operand is a bound mesh.
+| `overlap_volume_provenance` | how it was measured | when |
+|---|---|---|
+| `analytic` | exact boolean `intersection` + `exact_volume` — π-exact on curved overlaps | two exact solids, no `coincident_fit_hazard` |
+| `faceted` | mesh boolean of the operands tessellated at `tol`; error is the facet chord error | `coincident_fit_hazard` is true, or the exact intersection produced no measurable body, or an operand is a bound MESH |
+| `unavailable` | `overlap_volume` is `null` | only when there is genuinely no volume: an operand with boundary edges (open, so no inside), or one over the 200 000-triangle budget for the faceted boolean |
 
-When `overlap_volume` is `null`, `interfering` degrades to `distance < 1e-6`,
-which reads CONTACT as interference. Read `distance` in that case, or gate
-`exact_volume` on an explicit `intersection` body — the tessellation-independent
-route.
+`overlap_volume_reason` accompanies both `faceted` and `unavailable` and names
+the specific cause. It is never a bare `null`: a measure that cannot be produced
+is a refusal with a reason.
+
+The `faceted` route matters more than it sounds. `coincident_fit_hazard` fires
+on any flush face pair, which two bodies that overlap while both standing on
+z=0 always have — so the ordinary interference case used to return nothing at
+all. The hazard is a property of the *analytic* faces (the exact arrangement
+across a press-fit pair can grind for CPU-minutes, audit V4); the triangle
+arrangement does not share it, so the number is recoverable as an estimate.
+Quote a `faceted` overlap with its provenance, and when a few percent decides
+the fit take the number from an explicit `intersection` + `exact_volume`, or
+bracket it with the grown-gauge method.
+
+**`interfering` vs `contact`.** `interfering` is `overlap_volume > 0` whenever
+an overlap number exists, so the boolean and the number on the same receipt can
+never disagree. `contact` is `distance < 1e-6` — the surfaces MEET within the
+faceting. Two cubes sharing a face report `contact: true`, `interfering: false`,
+`overlap_volume: 0.0`: touching is not shared material. Only when
+`overlap_volume` is `unavailable` does `interfering` fall back to `contact`, the
+weaker claim, and the receipt says so.
 
 ## Assertions
 
