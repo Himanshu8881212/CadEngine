@@ -19,11 +19,37 @@ not a patch. Use the shape the existing files use:
 
 ```
 ## F<n> — one-line symptom (YYYY-MM-DD)
+- severity: blocker | major | minor | papercut
+- surface: <one op name, tool path, or named surface — the rollup key>
+- status: open | fixed — <what fixed it>
 - symptom: the exact error text or the wrong number
 - minimal repro: the smallest program/job that shows it
 - expected vs actual: what the doc/brief promised, what the binary did
 - workaround used: what you actually shipped, and its cost
+- recurrence of: <file>#<id>   ← only when you re-hit a known item
 ```
+
+The three machine-read fields (`severity`, `surface`, `status`) are the
+contract; the prose under them is the evidence. Definitions, in full, are
+DELIVERABLE_SPEC §4 — in one line each:
+
+| severity | means |
+|---|---|
+| `blocker` | could not proceed without a workaround that WEAKENS a shipped claim |
+| `major` | wrong / silent / missing behaviour, worked around, no claim weakened |
+| `minor` | cost time, no claim affected |
+| `papercut` | ergonomics only: message text, `--help`, naming, layout |
+| `note` | not friction — context kept for balance; excluded from index counts |
+
+`status` is `open`, `partial`, or `fixed — <the fix>`.
+
+`fixed` is a `status`, never a severity: a closed item keeps the grade it
+earned, because the grade is the record of what it cost. `surface` is one
+token — the op as spelled in program JSON, the tool's real path (not the
+`tools/*.py` shim), or a named surface like `kernel-api cli` — and it is what
+`docs/FRICTION_INDEX.md` groups on, so spelling it a new way hides a
+recurrence. `python3 tools/friction_index.py --surfaces` prints the tokens
+already in use; `--surface <token>` prints every item filed against one.
 
 An entry that a later fix round closes gets a `RESOLUTIONS` section appended
 naming the fix — the original entry is never edited away. Anything general

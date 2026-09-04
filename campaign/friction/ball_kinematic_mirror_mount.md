@@ -1,6 +1,9 @@
 # FRICTION — ball_kinematic_mirror_mount
 
 ## F1 — `validate.geometric_ok:false` on a solid every other gate calls clean (2026-08-07)
+- severity: major
+- surface: validate
+- status: open
 
 - symptom: the shipped platform reports
   `{"closed":true,"euler_characteristic":-8,"genus":5,"geometric_ok":false,"manifold":true,"shells":1,"valid":true}`
@@ -35,6 +38,9 @@
   minutes instead of ~30.
 
 ## F2 — `import_step` cannot read the file `export_step` just wrote (2026-08-07)
+- severity: major
+- surface: import_step
+- status: open
 
 - symptom: `{"op":"export_step","in":X,"file":"cad/frame.step"}` with `--out-dir .` writes
   `./cad/frame.step` (report `file` confirms), but the round-trip gate
@@ -54,6 +60,9 @@
   the same program. Costs a duplicate 2.5 MB / 12.5 MB file per part.
 
 ## F3 — cookbook says ace_fea body-load magnitude is N.m-3; the code reads it as N/kg (2026-08-07)
+- severity: major
+- surface: campaign/digests/tools_cookbook.md
+- status: open
 - symptom: `{"kind":"body","magnitude": 24328.8, "direction":[0,0,-1]}` (= 2 g x PLA density
   1240 kg/m3, i.e. N.m-3 per the digest) on a 9.27e-6 m3 platform produced
   `max_von_mises_pa = 92941359.7` (92.9 MPa) and `max_displacement_m = 1.4847e-3` — a 2 g
@@ -74,6 +83,9 @@
   correction and the citation inline (programs/gen_fea.py).
 
 ## F4 — tolerance_stack.py double-counts an ASYMMETRIC tolerance in the WORST-CASE band (2026-08-08)
+- severity: major
+- surface: tools/analyzers/tolerance_stack.py
+- status: open
 - symptom: a chain of A = 10.0 with `{"plus":0.0,"minus":0.10}` (dir +1) minus B = 9.0 with
   `"tol":0.0` (dir -1) returns `nominal_gap 0.95, worst_min 0.85, worst_max 0.95`.
   The true band is nominal 1.00, worst_min 0.90, worst_max 1.00.
@@ -95,6 +107,9 @@
   the hand-checked worst_min. Entries are in programs/gen_tol.py with this note inline.
 
 ## F5 — joint_check.py inverts its exit code: an internal KeyError exits 1, a real FAIL verdict exits 0 (2026-08-08)
+- severity: major
+- surface: tools/analyzers/joint_check.py
+- status: open
 - symptom: an out-of-table fastener size leaks a raw Python exception as the receipt
   and exits **1**, while a genuine `ok:false` engineering verdict exits **0**.
   Verbatim, size M6:
@@ -118,6 +133,9 @@
   closed form in `receipts/creep_gates.json`. No engine or tools source was touched.
 
 ## F6 — assembly_doc `explode.axis` must be a VECTOR; the digest omits that and the error is unhelpful (2026-08-08)
+- severity: minor
+- surface: campaign/digests/tools_cookbook.md
+- status: open
 - symptom: a job with `"explode": {"axis": "z", "auto": true, "gap_mm": 30}` dies with
   `{"ok": false, "error": "ValueError: could not convert string to float: 'z'"}` (exit 1).
   The message never names the offending key, so it reads like a bad number somewhere.
@@ -137,6 +155,9 @@
   OPERATOR_BRIEF already gives for this family of tools.)
 
 ## F7 — `run_stage3.py`'s `archive_pre_opt()` is not idempotent: a second run overwrites the stage-2 audit trail (2026-08-08, hostile verifier)
+- severity: major
+- surface: campaign scripts
+- status: open
 - symptom: running the README "Reproducing" step 3 (`python3 programs/run_stage3.py --date 2026-08-08`)
   `shutil.move`s the CURRENT `receipts/{fea_*,production_check_*,modal_frame_*,tol_*,contact_snap_insertion,preload_window,creep_gates,bounce_bound,fea_tet_*}.json`
   into `receipts/pre_opt/`, unconditionally, and rewrites `receipts/pre_opt/README.txt` with the
@@ -159,6 +180,9 @@
   A fix belongs in the campaign (guard `archive_pre_opt()` on `not os.path.exists(PRE)`), not in tools/.
 
 ## F8 — `run_stage3.py` blocks up to 90 min on an `ace_fea_tet` run the campaign already documents as un-completable (2026-08-08, hostile verifier)
+- severity: minor
+- surface: campaign scripts
+- status: open
 - symptom: `gen_tet.py` calls `L.run_tool("ace_fea_tet_runner.py", ..., timeout=5400)`. The campaign's own
   `receipts/fea_tet_platform_ATTEMPTED.json` records both attempts as resource-killed, so the documented
   Reproducing path spends 90 minutes producing a receipt that is thrown away.
@@ -170,6 +194,9 @@
   then proceeds and records the row as failed.
 
 ## F9 — the shared session scratchpad is concurrently written by other agents (2026-08-08, hostile verifier)
+- severity: minor
+- surface: session scratchpad
+- status: open
 - symptom: an out-of-tree snapshot taken at `<scratchpad>/baseline/` was partially overwritten by a
   different campaign's files (`iso9409_wedge_flexure_gripper` README/DESIGN/ANALYSIS, plus a whole
   `energy_system/turgo_runner` tree that briefly appeared INSIDE
@@ -180,6 +207,9 @@
   a sha manifest taken up front let the corruption be detected and the campaign restored exactly.
 
 ## F10 — `ace_modal` eigenfrequencies are not bit-reproducible: identical input, ~1e-13 relative drift (2026-08-08, repair pass)
+- severity: minor
+- surface: tools/analyzers/ace_modal_runner.py
+- status: open
 - symptom: re-running `python3 programs/gen_modal.py --voxel 1.6` on BYTE-IDENTICAL `parts/frame.stl`
   (cmp clean) and an unchanged job file produces a receipt that differs from the shipped one:
   `first_mode_hz` 541.6485954092889 -> 541.6485954092916, `1301.4020601137215` -> `1301.4020601136858`,
@@ -203,6 +233,9 @@
   bit-identical across re-runs. Only the clocks move.
 
 ## F11 — `physlib.run_tool`'s `timeout=` raises `TimeoutExpired`, so a timed-out analysis leaves NO receipt (2026-08-08, repair pass)
+- severity: major
+- surface: campaign scripts
+- status: partial — gen_tet.py guards its own call; physlib.run_tool still raises for every other caller
 - symptom: `physlib.run_tool` calls `subprocess.run(..., timeout=timeout)`. On timeout Python raises
   `subprocess.TimeoutExpired`, which propagates out of the calling generator: the program dies with a
   traceback and `L.save()` is never reached, so the failed row leaves no receipt at all — it VANISHES

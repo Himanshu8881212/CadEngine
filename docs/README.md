@@ -21,6 +21,7 @@ about to design a part, start there and come back here for a contract.
 | [`FIELD_REPORTS.md`](FIELD_REPORTS.md) | what happened to printed parts in the real world — the physical half of the flywheel |
 | [`ACE_INTEGRATION.md`](ACE_INTEGRATION.md) | the physics moved in-tree (`tools/analyzers/physics/`, Apache-2.0 inside an MIT repo) — why, what the package is, and how ACE and LMCAD divide the work now |
 | [`CHANGELOG.md`](CHANGELOG.md) | the dated capability and root-cause-fix ledger |
+| [`FRICTION_INDEX.md`](FRICTION_INDEX.md) | **generated** — every item in `campaign/friction/*.md` rolled up by the surface it hit, most-repeated first, with severity and fix status. The engine's work queue ordered by blast radius; regenerate with `python3 tools/friction_index.py` |
 
 Also here: `test_doc_contracts.py`, which checks the claims these documents make
 against the live binary and tools (`python3 docs/test_doc_contracts.py`), and

@@ -5,6 +5,9 @@ against the binary. Logged by the orchestrator for the fix phase. All are
 GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
 
 ## F1 — DESIGN_GUIDE Parts I–II stale vs binary (doc drift)
+- severity: minor
+- surface: campaign/DESIGN_GUIDE.md
+- status: fixed — F1 FIXED (docs), fix log 2026-08-06
 - symptom: guide §5.4/§9.2/§10.4 claim `loft`, `sweep`, `mirror`, `rotate_x/y`,
   `linear_pattern`, `polar_pattern`, `bounding_box`, `measure_dimension` do not
   exist on the JSON surface; all verified present and working (160 ops via
@@ -14,15 +17,29 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
   "op X does not exist" prose claims is a gap.
 
 ## F2 — `unknown_op` error string quotes stale op count
+- severity: papercut
+- surface: campaign/DESIGN_GUIDE.md
+- status: fixed — F2 FIXED (docs), §21.3/§23 now match the live binary message
 - symptom: error text says "116 supported ops"; `describe` reports 160.
 - fix shape: derive the count in the error message from the op table.
 
 ## F3 — DESIGN_GUIDE §18 stale on assembly runner (doc drift)
+- severity: minor
+- surface: campaign/DESIGN_GUIDE.md
+- status: fixed — F3 FIXED (docs), §18.2 gains the mates DOF and export:assembly_step rows
 - symptom: mates receipt now carries a DOF block (`rank`, `free_dof`,
   `verdict`) not in §18.1 body; runner auto-exports AP214 STEP
   (`export:assembly_step`) missing from the §18.2 table.
 
 ## F4 — analyzer registry vs solver cards tension
+- severity: minor
+- surface: tools/analyzer_registry.py
+- status: partial — ace_contact / ace_fatigue / ace_thermal are now registered
+  (Demonstrated / Cataloged / Demonstrated), and as of 2026-09-04 every one of
+  the 18 registered analyzers has a card in `tools/solvers/` whose Status line
+  states its registry tier verbatim, so "green suite" can no longer be read as
+  a tier. `audit_docs.py` is still unregistered — deliberately: it audits docs,
+  it does not analyze a part.
 - symptom: ace_contact / ace_fatigue / ace_thermal / audit_docs are
   analyzer-shaped with green benchmark suites but NOT registered in
   `tools/analyzer_registry.py` (its own warning). Solver cards read "green"
@@ -32,12 +49,18 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
   the tier explicitly.
 
 ## F5 — `bom_audit.py` is project-hardcoded, not generic
+- severity: minor
+- surface: tools/publish/bom_audit.py
+- status: open
 - symptom: hardcoded cyclo26/harmonic26/planetary26 STEP trees + fixed hardware
   table; unusable for any new campaign without editing source.
 - fix shape: job-file-driven generic tool (parts list + hardware table as
   input), keeping the old project file as an example job.
 
 ## F6 — silent acceptance of unknown op-level params (THE trap)
+- severity: major
+- surface: kernel-api cli
+- status: fixed — F6 FIXED 2026-08-06 (per-op warnings), made fatal invalid_param by the 2026-08-14 ruling
 - symptom: misspelled/unknown optional params are ignored; default stays in
   force; exit 0. Verified with `"bogus_param": 42`. Every digest flagged it as
   the biggest operator hazard; workaround is volume-window tripwires.
@@ -50,6 +73,9 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
   `receipts` keys and doc-comment keys inside ops, e.g. `"_comment"`).
 
 ## F7 — path resolution inconsistency across surfaces
+- severity: minor
+- surface: kernel-api cli
+- status: open
 - symptom (verified): `load_part.file` resolves relative to the program JSON's
   dir; `library_*` `dir` resolves relative to `--out-dir`; `.lmcasm` sources
   resolve against each asm file's own dir.
@@ -57,23 +83,35 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
   absolute path in each receipt so operators can see where it landed.
 
 ## F8 — assembly instance exports exit 0 when leaky (gate asymmetry)
+- severity: major
+- surface: export_stl
+- status: open
 - symptom: part-program `export_stl` fails the run if heal fails; assembly
   instance exports return exit 0 with `watertight:false` in the receipt.
 - fix shape: per-run flag or per-op param to promote leaky instance exports to
   failures; default behavior unchanged if that asymmetry is intentional.
 
 ## F9 — doc tools crash on `--help`
+- severity: papercut
+- surface: tools/publish/production_dossier.py
+- status: open
 - symptom: `production_dossier.py` / `render_sheet.py` / `assembly_doc.py`
   treat `--help` as a job file path and crash with a stack trace.
 - fix shape: argparse-standard `--help` printing the docstring job schema.
 
 ## F10 — `support_report` threshold knife-edge at modelled angles
+- severity: minor
+- surface: support_report
+- status: open
 - symptom: f32 comparison at `overhang_deg` exactly equal to a modelled face
   angle flickers (45° teardrop roof at default 45).
 - fix shape: documented epsilon band on the threshold + a receipt note when
   any face sits within ~1° of the threshold ("unresolved at this threshold").
 
 ## F11 — no JSON-surface single-body/connectivity gate
+- severity: major
+- surface: mesh_components
+- status: fixed — F11 FIXED 2026-08-06, mesh_components op plus assert {components: N}
 - symptom: the hardest silent failure (part severed into floating lumps) passes
   validate/watertight/volume and `shells==1`; the only in-tree check
   (`Mesh::is_one_body` / union-find component count) is Rust-only. JSON
@@ -82,11 +120,17 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
   volume) and an `assert` key (`components == N`) on the JSON surface.
 
 ## F12 — README creep-margin discrepancy uncaught by audit
+- severity: minor
+- surface: tools/audit_docs.py
+- status: open
 - symptom: card_magazine README quotes 124× in one place, generated ANALYSIS
   computes ~138× (gated ≥50×). Doc-audit does not diff prose numbers against
   generated receipts.
 
 ## F13 — kernel-api CLI usage error messaging (minor)
+- severity: minor
+- surface: kernel-api cli
+- status: open
 - symptom: bare `kernel-api prog.json` exits 1/2 without pointing at the `run`
   subcommand; three independent readers tripped on it.
 - fix shape: top-level usage error suggesting `run`/`asm` subcommands.

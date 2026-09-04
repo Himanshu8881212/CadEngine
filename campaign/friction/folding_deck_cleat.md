@@ -1,6 +1,9 @@
 # Friction log — folding_deck_cleat (marine)
 
 ## F1 — Concept card names catalog parts that do not exist in the binary (2026-08-06)
+- severity: major
+- surface: campaign/history/CONCEPTS.md
+- status: open
 - symptom: CONCEPTS.md §6 (marine) claims criterion (c) rests on "3 catalog items (4× ISO 10642 M5
   countersunk screws, ISO 2341 clevis pin, ISO 1234 split pin)". The binary's op catalogue (161 ops,
   enumerated via `{"op":"describe"}`) has NO `clevis_pin` and NO `split_pin` op. Fastener family ops
@@ -24,6 +27,9 @@
   the same probe). Recorded in DESIGN.md §2 and §10.
 
 ## F2 — Two `countersink_hole` cuts in one plate make the exact tessellation leak (2026-08-07)
+- severity: major
+- surface: kernel tessellation
+- status: open
 - symptom: with the DEFAULT `export_stl` tol (0.01) a plate carrying two or more M5 countersinks
   exports `{"route":"voxel_healed","triangles":108640}` (base plate: 382 436 triangles, 19 MB) even
   though `validate` says `closed=true manifold=true valid=true`. One countersink alone exports
@@ -46,6 +52,9 @@
   the emitted programs' `_why` comments.
 
 ## F3 — `clearance.distance` / `assert_disjoint` read 0 mm for a nested-but-disjoint body (2026-08-07)
+- severity: major
+- surface: clearance
+- status: open
 - symptom: the raised-latched cleat pose (horn sitting inside the base channel, provably apart)
   reports `{"distance":0.0,"interfering":false,"overlap_volume":0.0}`, and
   `assert_disjoint {a:base,b:horn,min_clearance:0.02}` FAILS with
@@ -64,6 +73,9 @@
   number (those two agree with the union oracle in every pose we ran).
 
 ## F4 — Gauge cylinder built in place along the bore axis refuses to union; the same cylinder POSED works (2026-08-07)
+- severity: major
+- surface: union
+- status: open
 - symptom: `{"op":"cylinder","base":[-18,-20,11],"axis":[0,1,0],"radius":3.0,...}` unioned with the
   base (Ø6.6 teardrop bores on the same axis, 0.284 mm clearance) fails
   `union failed validate(): closed=false manifold=false genus=17 euler_characteristic=-30 shells=2`.
@@ -78,6 +90,9 @@
 - workaround used: all gauge pins in `programs/nc_interference.json` are built on +Z and posed.
 
 ## F5 — ace_fea_tet: gmsh refuses ONE element size on a valid watertight STL (2026-08-07)
+- severity: minor
+- surface: tools/analyzers/ace_fea_tet_runner.py
+- status: open
 - symptom: `{"ok": false, "error": "Exception: Wrong topology of boundary mesh for parametrization"}`
   from `tools/ace_fea_tet_runner.py` on `parts/folding_deck_cleat_horn.stl` (1120 triangles,
   `export_stl` route `exact`, `watertight: true`, kernel `validate` closed/manifold/genus 1/shells 1)
@@ -95,6 +110,9 @@
   is un-meshable.
 
 ## F6 — `mesh_components` / `assert components:1` reports a STEP-IMPORTED body as many bodies (2026-08-07)
+- severity: blocker
+- surface: import_step
+- status: open
 
 - symptom: a solid re-entered with `import_step` reports `components: 10` (horn) and
   `components: 12` (base) while `validate` on the SAME id reports
@@ -141,6 +159,9 @@
   negative controls continue to use `union` + `assert shells == N`, which is unaffected.
 
 ## F7 — `tolerance_stack.py` writes the receipt path baked into the job, with no dry-run (2026-08-08, hostile-verification pass)
+- severity: major
+- surface: tools/analyzers/tolerance_stack.py
+- status: open
 - symptom: while probing gate falsifiability I copied `programs/tol_dog_stroke_chain.json` to
   `programs/_vfy_tol.json`, changed only `closes.min_required` 0.3 -> 3.0, and ran
   `python3 tools/tolerance_stack.py _vfy_tol.json`. The tool correctly returned
@@ -159,6 +180,9 @@
   falsifiability probes on tolerance stacks must snapshot `receipts/` first.
 
 ## F8 — solver receipts embed wall-clock `timings_s`, so they can never be byte-identical on re-run (2026-08-08, hostile-verification pass)
+- severity: minor
+- surface: tools/analyzers/ace_fea_runner.py
+- status: open
 - symptom: re-running the README "Reproducing" chain end to end reproduced every physical
   number exactly (`max_von_mises_pa` 39353001.39556958 identical to 16 digits on
   `fea_lc1_deck`), but `cmp` still reports the receipt files as different. The only differing
@@ -176,6 +200,9 @@
   reported "reproduces exactly" on that basis.
 
 ## F9 — `offset_solid` is unusably slow at a fine voxel on a 30 mm part (2026-08-08)
+- severity: major
+- surface: offset_solid
+- status: open
 - symptom: no error — the run simply does not finish. A three-op probe
   (`import_step` horn → `offset_solid delta 0.1/0.2/0.3, voxel 0.15` → pose/union/validate)
   was killed at **120 s** with no output. The same program with the default `voxel 0.3` was not

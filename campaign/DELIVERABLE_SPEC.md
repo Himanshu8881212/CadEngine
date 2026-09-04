@@ -454,17 +454,66 @@ When you hit an engine bug, tool crash, doc drift, or surprising refusal:
 
 ```markdown
 ## F<N> — <one-line title> (<date>)
+- severity: blocker | major | minor | papercut
+- surface: <the one op name, tool path, or named surface this is against>
+- status: open | fixed — <what fixed it, if fixed>
 - symptom: what happened, verbatim error/receipt line
 - minimal repro: smallest program.json / job.json + exact command line
 - expected vs actual: what the docs/digests promised vs what the binary did
 - workaround used: how the campaign proceeded (or "blocked")
 ```
 
+**`severity` is required on every item.** One word, no hedging:
+
+| severity | means |
+|---|---|
+| `blocker` | the campaign could not proceed without a workaround that WEAKENS a claim (a gate dropped, an oracle replaced by a weaker one, a dimension frozen by hand, a refusal shipped as "not done") |
+| `major` | wrong, silent, or missing behaviour — worked around at real cost, but no shipped claim was weakened |
+| `minor` | cost time, no claim affected: doc drift you had to disprove, a crash with an obvious retry, an undocumented required key |
+| `papercut` | ergonomics only — message text, `--help`, field naming, output layout. Nothing was wrong, it was just hostile |
+| `note` | **not friction.** Context or balancing evidence deliberately kept in the log ("what worked better than expected"). Excluded from every index count — do not use it to soften a real finding |
+
+`status` is `open`, `partial` (fixed in part, the rest named) or
+`fixed — <the fix>`.
+
+Two rules on top of the word:
+
+- Grade the item as it hit YOU, in the campaign that logged it. A `major` that
+  a later campaign hit as a `blocker` is a NEW entry in that campaign's file
+  with its own grade, not a rewrite of the old one.
+- **`fixed` is not a severity.** A closed item keeps the severity it had and
+  gains `status: fixed — <the fix>`. Downgrading an item because someone
+  eventually fixed it destroys the only record of what it cost.
+
+**`surface` is required, and it is the ROLLUP KEY** — it is how
+`docs/FRICTION_INDEX.md` notices that six campaigns hit one defect. Write
+exactly one token, and prefer the most specific one that is true:
+
+- an op, as spelled in program JSON: `difference`, `export_stl`, `union_all`
+- a tool, as a repo-relative path: `tools/analyzers/production_check.py`
+  (the real file, not the `tools/*.py` forwarding shim)
+- a named non-code surface: `kernel-api cli`, `API.md`, `campaign/DESIGN_GUIDE.md`,
+  `campaign/digests/tools_cookbook.md`
+- when it is genuinely the kernel and no single op: `kernel tessellation`,
+  `kernel booleans`, `mate solver`
+
+If your item spans two surfaces, name the one where the FIX would land. If you
+invent a new surface token, you are probably spelling an existing one
+differently — run `python3 tools/friction_index.py --surfaces` and pick from
+the list.
+
 - **You MUST NOT edit engine source or tools source.** Not `crates/`, not
   `tools/`, not the docs they gate. Workarounds live in YOUR campaign
   directory; fixes are the maintainer's job, informed by your friction file.
 - Doc-vs-binary contradictions count as friction (cite doc section and the
   verified behavior). Silent-ignore near-misses that cost you time count too.
+- **Before you log a new item, check whether it is an old one.** Read
+  `docs/FRICTION_INDEX.md` (generated; most-repeated surface first) and the
+  existing file for the surface you are about to name. A recurrence is still
+  logged as your own dated item — but it must say
+  `recurrence of: <file>#<id>` on its own line, so the index can count it as
+  the same defect biting again instead of as a new discovery. §5.13 makes you
+  state the recurrences in the final self-check.
 
 ## 5. Final self-check before declaring the campaign done
 
@@ -492,7 +541,18 @@ Run through in order; any "no" means not done:
    orientation, `route`/`watertight` receipts green (or noted).
 10. "What has NOT been done" section present and honest; publish copy (if
     any) written FROM receipts with both control numbers included.
-11. Friction entries appended for every issue hit; engine/tools source
-    untouched (`git status` on `crates/` and `tools/` is clean).
+11. Friction entries appended for every issue hit, each carrying `severity`,
+    `surface` and `status` per §4; engine/tools source untouched
+    (`git status` on `crates/` and `tools/` is clean).
 12. Directory matches §1 layout; no orphan scratch files; programs contain
     the embedded design record.
+13. **Recurrence stated.** The self-check names, BY ID, every pre-existing
+    friction item this campaign hit again — e.g. "re-hit
+    `campaign/friction/turgo_runner.md#F4` (`union_all`) and
+    `campaign/friction/ENGINE.md#6`". Each of those is also carried as a
+    `recurrence of:` line on this campaign's own dated item (§4). If the
+    campaign hit none, say "no recurrences" and mean it: run
+    `python3 tools/friction_index.py --surfaces` against the surfaces you
+    touched before you write that. A defect rediscovered in silence is a
+    defect nobody is counting — six independent reports of one broken
+    behaviour is a specification, one report is a complaint.

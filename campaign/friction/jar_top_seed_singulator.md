@@ -6,6 +6,9 @@ untouched; every workaround lives inside the campaign directory.
 ---
 
 ## F1 — `creep_allowable_mpa(T, hours)` is unreachable from the surface the brief tells campaigns to use (2026-08-06)
+- severity: major
+- surface: campaign/OPERATOR_BRIEF.md
+- status: fixed — OPERATOR_BRIEF §7 now calls `materials.creep_allowable_mpa(...)`, which exists at tools/analyzers/materials.py
 
 - **symptom**: `OPERATOR_BRIEF.md` §7 and `DELIVERABLE_SPEC.md` §2 gate 8 both
   instruct campaigns to "gate against `creep_allowable_mpa(T, hours)`". No such
@@ -42,6 +45,9 @@ untouched; every workaround lives inside the campaign directory.
 ---
 
 ## F2 — Python and Rust readers of the SAME creep table disagree above 55 °C; the Python one is the non-conservative direction (2026-08-06)
+- severity: major
+- surface: tools/field_triage.py
+- status: fixed — `creep_allowable` now delegates to `materials.creep_lookup` and REFUSES above the hottest tabulated tier
 
 - **symptom**: `kernel_model::materials::pla::creep_allowable_mpa` documents and
   implements a hard refusal above the hot tier —
@@ -94,6 +100,9 @@ untouched; every workaround lives inside the campaign directory.
 ---
 
 ## F3 — `production_check.py`'s creep rule contradicts the material record's creep table (2026-08-06, pre-recorded by the brief, re-confirmed here)
+- severity: major
+- surface: tools/analyzers/production_check.py
+- status: fixed — 2026-08-08 behavior change: the creep row reads `creep.sig_allow_mpa`, the 11 MPa scalar is demoted to `legacy_scalar_mpa`
 
 - **symptom**: `production_check.py` computes the sustained allowable as
   `yield × thermal.creep_sustained_fraction = 55.0 × 0.2 = 11.0 MPa`,
@@ -116,6 +125,9 @@ untouched; every workaround lives inside the campaign directory.
   entry.
 
 ## F4 — `union_all` over many mutually-disjoint cutter bodies does not complete (2026-08-07)
+- severity: major
+- surface: union_all
+- status: open
 - symptom: a program folding 13 mutually-disjoint cylinders into one cutter with
   `{"op":"union_all","in":[13 ids]}` produced no output in >120 s (killed twice;
   no error, no progress). The 13 bodies are pairwise disjoint except the 3
@@ -136,6 +148,9 @@ untouched; every workaround lives inside the campaign directory.
   mistaken for arbitrary style.
 
 ## F5 — export_step and import_step resolve `file` against DIFFERENT roots (2026-08-07)
+- severity: major
+- surface: import_step
+- status: open
 - symptom: `{"op":"export_step","in":X,"file":"cad/p.step"}` with
   `--out-dir .` writes `<partdir>/cad/p.step`, but the very next
   `{"op":"import_step","file":"cad/p.step"}` fails
@@ -158,6 +173,9 @@ untouched; every workaround lives inside the campaign directory.
   in README so the duplicate is not read as sloppiness.
 
 ## F6 — `clearance` returns `overlap_volume: null` on high-face-count STEP-imported operands (2026-08-07)
+- severity: blocker
+- surface: clearance
+- status: open
 - symptom: `{"op":"clearance","a":<wheel from import_step>,"b":<driver from
   import_step>,"tol":0.01}` returned
   `{"coincident_fit_hazard": true, "distance": 0.0, "interfering": true,
@@ -192,6 +210,9 @@ untouched; every workaround lives inside the campaign directory.
   0.0. The simplification is stated on the receipt, not hidden.
 
 ## F7 — `cone` is a true cone, never a frustum, and there is no frustum constructor (2026-08-07)
+- severity: minor
+- surface: cone
+- status: open
 - symptom: `{"op":"cone","base":[21,0,-9.6],"axis":[0,0,-1],"radius":6.0,
   "height":5.5}` was written to open a chute OUT from r 6.00 to r 10.975. It
   actually cut a spike tapering to a POINT. Exit 0, `valid: true`, genus as
@@ -208,6 +229,9 @@ untouched; every workaround lives inside the campaign directory.
   is about world Z only. Documented in `gen_housing_bottom.py` as defect D8.
 
 ## F8 — export/import path asymmetry also bites `import_mesh` (2026-08-07)
+- severity: major
+- surface: import_mesh
+- status: open
 - symptom: `{"op":"hybrid_boolean", ..., "out":"parts/housing_top_threaded.stl"}`
   wrote the file correctly, and the next op
   `{"op":"import_mesh","file":"../parts/housing_top_threaded.stl"}` failed
@@ -224,6 +248,9 @@ untouched; every workaround lives inside the campaign directory.
   can name) and the README "Reproducing" section copies the result to `parts/`.
 
 ## F9 — `ace_fea_tet_runner` refuses a kernel-exported watertight STL with an opaque gmsh error (2026-08-07)
+- severity: blocker
+- surface: tools/analyzers/ace_fea_tet_runner.py
+- status: open
 - symptom: `python3 tools/ace_fea_tet_runner.py programs/fea_tet_pin.json` prints
   exactly `{"ok": false, "error": "Exception: Singular matrix 3x3"}` and nothing on
   stderr. The STL is the campaign's own shipped `parts/driver_crank.stl`, which the
@@ -250,6 +277,9 @@ untouched; every workaround lives inside the campaign directory.
   into "the tet analysis was skipped".
 
 ## F10 — a 0.04 mm change to one cutter makes a LATER, 27 mm-distant boolean fail validate (2026-08-07)
+- severity: major
+- surface: difference
+- status: open
 - symptom: `part_geneva_wheel.json` builds (exit 0) with drop-window cutters of Ø10.70 and
   FAILS at op `s47` with `invalid_geometry: op 's47': difference failed validate():
   closed=false manifold=false genus=9 euler_characteristic=-17 shells=1 — refusing to bind
@@ -268,6 +298,9 @@ untouched; every workaround lives inside the campaign directory.
   amendment A14 in DESIGN.md §18.
 
 ## F11 — STEP round trip refuses a body the kernel itself calls valid, and the threshold is a 0.1 mm geometry change (2026-08-07)
+- severity: major
+- surface: step io
+- status: open
 - symptom: `part_housing_bottom.json` — the body passes `validate` (`valid:true,
   closed:true, manifold:true, genus:6, shells:1`), `export_stl` gives
   `route:"exact", watertight:true`, `export_step` succeeds — and then `import_step` on that
@@ -291,6 +324,9 @@ untouched; every workaround lives inside the campaign directory.
   and commented as such at the constant.
 
 ## F12 — `assembly_doc.py` refuses a legal job outright when the step prose is long, and the digest's `explode.axis` example is a string the tool cannot parse (2026-08-08)
+- severity: major
+- surface: tools/publish/assembly_doc.py
+- status: open
 - symptom: two separate stops in one tool.
   (a) `campaign/digests/tools_cookbook.md` §"assembly_doc.py" documents
   `explode` as `{axis, auto:true, gap_mm:8}` / `{axis, spacing_mm}` /
@@ -326,6 +362,9 @@ untouched; every workaround lives inside the campaign directory.
   The refusal is recorded here and in ANALYSIS.md; no number was dropped.
 
 ## F13 — `kernel-api asm` re-tessellates `mesh` instances ~18× denser on export, which makes `asm_contacts` intractable on a 5-part assembly (2026-08-08)
+- severity: blocker
+- surface: kernel-api cli
+- status: open
 - symptom: `kernel-api asm assembly/singulator.lmcasm --out-dir assembly/ --window 2.0`
   ran for **55 minutes wall / 33 minutes CPU** without producing its report, and
   was stopped. It got as far as writing every instance export and the merged
@@ -377,6 +416,9 @@ untouched; every workaround lives inside the campaign directory.
   are kept.)
 
 ## F14 — `tolerance_stack.py`'s job-level `receipt` path silently overrides the caller's output path and CLOBBERS a shipped receipt (2026-08-08, hostile-verifier pass)
+- severity: major
+- surface: tools/_receipt.py
+- status: fixed — a job-level `receipt` key that disagrees with the caller's destination now RAISES instead of clobbering
 - symptom: re-running the documented wire contract but sending the output somewhere
   else for diffing —
   `python3 programs/run_job.py "$T/tolerance_stack.py" programs/tol_wiper_gap.json /tmp/vr/tol_wiper_gap.json` —
@@ -397,6 +439,9 @@ untouched; every workaround lives inside the campaign directory.
   ALL 12 restored byte-identical. Take an md5 baseline before ANY verification run.
 
 ## F15 — ACE solver receipts embed a wall-clock timing field, so they can never be byte-reproducible (2026-08-08)
+- severity: minor
+- surface: tools/analyzers/_ace.py
+- status: open
 - symptom: `receipts/fea_*.json` and `receipts/buckling_neck.json` differ on every run.
   Two back-to-back identical runs of `programs/fea_wheel_lc4.json` diff by exactly one
   line: `"fea_s": 28.662` vs `"fea_s": 41.358`. Every physics number (`max_von_mises_pa`
@@ -410,6 +455,9 @@ untouched; every workaround lives inside the campaign directory.
   Reserve byte-identity checks for STL/STEP/PNG/CSV and for the deterministic tools.
 
 ## F16 — `describe {"name":"support_report"}` ships empty `doc` strings, so the `build_dir` sign convention is undocumented (2026-08-08)
+- severity: minor
+- surface: support_report
+- status: open
 - symptom: `describe` returns `{"name":"build_dir","type":"[x,y,z]","required":false,"doc":""}`.
   Nothing states whether `build_dir` is the print-up direction or the bed-normal
   direction, and the campaign's own files disagree (`analysis/DESIGN.md` §10 declares
@@ -427,6 +475,9 @@ untouched; every workaround lives inside the campaign directory.
   any `steep_area`/`max_bridge_span` reading.
 
 ## F17 — a `hybrid_boolean` result cannot be gated: it binds no geometry, and nothing can re-bind it (2026-08-08)
+- severity: blocker
+- surface: hybrid_boolean
+- status: open
 - symptom: `parts/housing_top_threaded.stl` is the file this campaign actually prints
   (exact body + real 70-450 helical thread). It could not carry a single `assert`.
   Attaching `validate` to the fuse result gives, verbatim:
@@ -469,6 +520,9 @@ untouched; every workaround lives inside the campaign directory.
   op. Today the engine can produce a print file it cannot gate.
 
 ## F18 — `clearance` on coarse inscribed cylinders reports an exact-contact 0.0 that is a faceting artefact (2026-08-08)
+- severity: major
+- surface: clearance
+- status: open
 - symptom: NC3's legal twin (`nc3_pass`, lock column r 16.00 inside a concave scallop
   cut at r 16.5999 — a 0.5999 mm design clearance) measured
   `{"distance": 0.0, "interfering": false, "overlap_volume": 0.0}`.

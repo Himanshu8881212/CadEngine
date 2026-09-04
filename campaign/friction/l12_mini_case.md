@@ -5,6 +5,9 @@ detour. Numbered F1… for the maintainer; the campaign's own defects log (desig
 in `framework_system/l12_mini_case/analysis/DESIGN.md`.
 
 ## F1 — `import_step` refuses real vendor STEPs (three out of three)
+- severity: blocker
+- surface: import_step
+- status: fixed — `mode: "tolerant"` shipped and MEASURED 2026-09-04, 163/168 solids in a release build
 
 Framework's mainboard STEP (45.6 MB, 168 solids) fails with "trim vertex does not lie on
 B-spline patch"; the battery with "inner loops on a curved analytic face"; the Expansion
@@ -39,12 +42,18 @@ So the campaign's inflated-box workaround was the right call at the time, but th
 statement now is "163 of 168 solids reconstruct in ~16 min in release", not "unverified".
 
 ## F2 — `import_mesh {heal}` cannot heal the vendor STL
+- severity: major
+- surface: import_mesh
+- status: open
 
 "still not watertight after healing (non_manifold_edges=1070)" on the OpenCascade mesh of
 the mainboard. Used for renders only (`assembly/scene/board_mesh.stl`, built by
 `vendor/board_mesh.py` outside the engine).
 
 ## F3 — exact-route export is facet-luck sensitive (again), now with two clean bisections  — DIAGNOSIS FIXED 2026-09-03
+- severity: major
+- surface: export_stl
+- status: partial — the `demotion` receipt field landed 2026-09-03; the facet-luck demotions themselves remain
 
 - Tray: the catch **ridges** on the long walls at crest bottom z ≥ 3.0 demote the export to
   `voxel_healed` *only when the plug windows in the end walls also exist* — 43 mm apart,
@@ -69,6 +78,9 @@ body's frame. The bisections above would have been a single receipt read. (The d
 themselves are still facet luck; the receipt now says where.)
 
 ## F4 — `wall_thickness` reads mirror-image dovetail grooves 5× apart  — FIXED 2026-09-03
+- severity: blocker
+- surface: wall_thickness
+- status: fixed — engine 2026-09-03: area-uniform sampler, `exclude_wedge_deg`, `thin_witness`
 
 Four identical floor grooves at x ±22/±90: the whole-tray thin_area reads 19.6 mm² with the
 ±22 pair, 101 mm² with the −90 groove and 19.6 with the +90 groove alone (min 0.037 vs 1.08).
@@ -86,11 +98,17 @@ locations. The campaign now gates the tray, foot rail and VESA frame with
 deleted.
 
 ## F5 — `clearance` on complex bodies: `overlap_volume` null
+- severity: major
+- surface: clearance
+- status: open
 
 Same as CONEJURE: require `interfering` only, then an exact `intersection` + `exact_volume`
 for the must-interfere controls.
 
 ## F6 — `ace_contact_runner` plane obstacle never engaged
+- severity: major
+- surface: tools/analyzers/ace_contact_runner.py
+- status: open
 
 A plane at the beam tip with `normal [0,-1]` and `motion [0,1]` reported penalty force
 400 N and zero tip motion/stress (the beam sat 0.02 inside the solid side and the plane
@@ -100,12 +118,18 @@ receipt's peak stress (Roark 8.1) in `programs/contact_eval.py`. A receipt field
 `tip_reaction_n` for prescribed-displacement supports would remove that derivation.
 
 ## F7 — `production_check` creep buckets 30 °C to the 55 °C cell
+- severity: minor
+- surface: tools/materials/pla.json
+- status: open
 
 `creep_lookup('PLA', 30, 8760)` → 0.5 MPa (bucket 55C). Conservative by design, but a
 23 → 55 °C jump with nothing in between turns a 30 °C wall mount into a fail. A 35 or 40 °C
 cell in `tools/materials/pla.json` would help every enclosure campaign.
 
 ## F8 — `render_views` on the assembled scene is tiny
+- severity: papercut
+- surface: tools/publish/render_views.py
+- status: open
 
 Four views of a 288 × 128 × 24 mm assembly render the model at ~15 % of the panel; a
 `zoom`/`fit` option or auto-fit to the largest view would make the hero usable directly.

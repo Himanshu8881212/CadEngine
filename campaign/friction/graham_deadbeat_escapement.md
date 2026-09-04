@@ -1,6 +1,9 @@
 # Friction — graham_deadbeat_escapement
 
 ## F1 — deep_groove_bearing catalog has no 623 (2026-08-14)
+- severity: major
+- surface: deep_groove_bearing
+- status: open
 - symptom: `{"op":"deep_groove_bearing","designation":"623"}` fails, verbatim:
   `op 'b623': deep_groove_bearing: '623' is not in the seat table (603, 608, 625, 688, 6000, 6001, 6804)`
 - minimal repro: `programs/catalog_refusals/refusal_bearing_623.json` →
@@ -15,6 +18,9 @@
   is an assembly IMPROVEMENT (axial register against the frame face). Not blocked.
 
 ## F2 — circlip_external / circlip_groove_external have no Ø3 (2026-08-14)
+- severity: major
+- surface: circlip_external
+- status: open
 - symptom: verbatim: `op 'clip': circlip_external: Ø3 is not in the DIN 471 table
   (supported: Ø8, 10, 12, 15, 20, 25, 30)` and
   `op 'grv': circlip_groove_external: Ø3 must be a DIN 471 size (Ø8, 10, 12, 15, 20, 25, 30) and the axis non-zero`
@@ -31,6 +37,9 @@
   captured by printed bearing cap + M3 screws. Not blocked.
 
 ## F3 — export_threaded is coarse-pitch-only; M8×0.75 cannot go through it (2026-08-14)
+- severity: major
+- surface: export_threaded
+- status: open
 - symptom: `export_threaded` takes `m` only (no `pitch` param); with `m: 8` it
   SUCCEEDS but produces pitch 1.25 (receipt `receipts/refusal_export_threaded_m8_fine.json`:
   `"pitch": 1.25`, `"m": 8.0`) — the wrong thread for the M8×0.75 rating pair.
@@ -46,6 +55,9 @@
   route; every thread op carries `require {pitch: 0.75}`. Not blocked.
 
 ## F4 — anchor export refuses: one self-intersection survives the voxel heal (2026-08-23)
+- severity: major
+- surface: export_stl
+- status: open
 - symptom: verbatim, `op 'g_stl': mesh is not manufacturing-ready even after the
   voxel heal (voxel 0.3 mm): boundary_edges=0, non_manifold_edges=0,
   non_orientable_edges=0, non_manifold_vertices=0, degenerate_triangles=0,
@@ -65,6 +77,9 @@
   receipts/probe_exit_strip.json.
 
 ## F5 — anchor cannot reach the `exact` export route at all (2026-08-23)
+- severity: blocker
+- surface: export_stl
+- status: open
 - symptom: `export_stl` on the anchor reports `route: "voxel_healed"` from the
   exit dead-face cut (`a3`) onward; `a1` and `a2` export `exact`.  The shipped
   STL is therefore a 216k-triangle REMESH of a part whose smallest working
@@ -83,6 +98,9 @@
   dimensional authority (round-trip 14603.835 vs 14604.394 exact).
 
 ## F6 — `union` fails validate() on a near-tangent posed pair (2026-08-23)
+- severity: major
+- surface: union
+- status: open
 - symptom: verbatim, `op 'u_S10': union failed validate(): closed=false
   manifold=false genus=3 euler_characteristic=-5 shells=1 — refusing to bind an
   invalid solid`, at station S10 only, while the same two solids union cleanly
@@ -97,6 +115,9 @@
   machine-checkable receipt for zero overlap.
 
 ## F7 — the "merged scene export refuses" note reads wider than the binary behaves (2026-08-23)
+- severity: major
+- surface: campaign/workflows/asmfinish.js
+- status: open
 - symptom: the campaign brief's KNOWN KERNEL DRIFT note says a post-2026-08-10
   kernel "refuses the FINAL merged scene-export op of an assembled attitude"
   when exact-contact seats or designed interference are present, and this
@@ -125,6 +146,9 @@
   works.
 
 ## F8 — production_dossier silently ignores a job-level `receipt` key (2026-08-23)
+- severity: minor
+- surface: tools/publish/production_dossier.py
+- status: open
 - symptom: `programs/dossier.json` carried
   `"receipt": ".../receipts/production_dossier.json"` (the key documented for
   `tools/bom_audit.py` and the _receipt.py rules). No such file was written and

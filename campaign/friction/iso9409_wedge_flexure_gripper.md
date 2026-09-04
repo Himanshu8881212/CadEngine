@@ -1,6 +1,9 @@
 # Friction — iso9409_wedge_flexure_gripper
 
 ## F1 — `mesh_components` counts one extra component per `extrude_with_holes` hole loop (2026-08-07)
+- severity: major
+- surface: mesh_components
+- status: open
 - symptom: a topologically perfect solid fails the mandatory single-body gate.
   `extrude_with_holes` (outer U-frame + 3 hole loops) reports
   `validate -> closed:true manifold:true valid:true genus:3 shells:1
@@ -40,6 +43,9 @@
   as D6 (engine-side, not a geometry defect). Engine and tools source untouched.
 
 ## F2 — `clearance` reports distance 0.0 / interfering:true / overlap_volume:null on provably disjoint curved-face pairs (2026-08-07)
+- severity: major
+- surface: clearance
+- status: open
 - symptom: for the posed palm+wedge pair (designed 0.30 mm radial gap between an
   O14 follower pin and its O14.6 cam-slot cap, and 0.30 mm between the wedge
   rails and the guide walls) `clearance` returns
@@ -72,6 +78,9 @@
   recorded as receipts but are never the authority. Engine/tools untouched.
 
 ## F3 — `tools_cookbook.md` puts the fatigue stress spec at the job top level; the runner requires a `stress` block (2026-08-07)
+- severity: minor
+- surface: campaign/digests/tools_cookbook.md
+- status: open
 - symptom: a job written from the cookbook's §1 ace_fatigue paragraph
   ("stress one of `{npy, unit?}` | `{sigma_ref_mpa}` | `{sigma_ref_pa}`") fails with
   `JobError: stress block required: {npy,...} or {sigma_ref_mpa} or {sigma_ref_pa}`
@@ -94,6 +103,9 @@
   `programs/gen_jobs.py`. Docs and tools untouched.
 
 ## F4 — `sweep_check` / `param_optimize.call_engine` write station programs to a SYSTEM temp dir, which makes `import_step` unusable in any swept template (2026-08-07)
+- severity: major
+- surface: tools/analyzers/param_optimize.py
+- status: fixed — `program_dir` added to call_engine and sweep_check, defaulting to out_dir then the job file's own directory
 - symptom: a sweep template containing
   `{"op":"import_step","file":"../_rt/wedge.step"}` fails at EVERY station with
   `invalid_param: op 'wedge': path '../_rt/wedge.step' must not contain '..'
@@ -120,6 +132,9 @@
   numbers, no second model. Engine and tools source untouched.
 
 ## F5 — `ace_fea_tet` aborts on a watertight, validate-clean STL when the surface carries slender triangles (2026-08-07)
+- severity: major
+- surface: tools/analyzers/ace_fea_tet_runner.py
+- status: open
 - symptom: `AssertionError: body-fitted mesh has a non-positive corner Jacobian
   (min -1.223e-04 mm^3) — inverted/degenerate element; ref-mesh` on an STL that
   the kernel itself certifies: `validate` -> `valid/closed/manifold`, `genus 0`,
@@ -144,6 +159,9 @@
   analysis/DESIGN.md 18 as D12's route, not laundered.
 
 ## F6 — blind `drill` leaves a 118 deg drill POINT that can breach the far face (2026-08-08)
+- severity: major
+- surface: drill
+- status: open
 - symptom: `{"op":"drill","at":[18,26.5,6],"axis":[0,0,-1],"d":20.6,"depth":2.5}` on a
   6.0 mm plate returned `ok:true` with measures
   `{"d":20.6,"depth":2.5,"kind":"blind","point_depth":8.688864375983872}` — the
@@ -167,6 +185,9 @@
   tools source touched.
 
 ## F7 — `tpms` writes its mesh under --out-dir but `hybrid_boolean` reads relative to the PROGRAM dir (2026-08-08)
+- severity: minor
+- surface: hybrid_boolean
+- status: open
 - symptom: a two-op program `{"op":"tpms",...,"file":"probe_lat.stl"}` followed by
   `{"op":"hybrid_boolean","in":"plate","file":"probe_lat.stl",...}` fails with
   `{"kind":"io","message":"op 'fuse': cannot read '/tmp/probe_lat.stl': No such
@@ -189,6 +210,9 @@
   engine or tools source touched.
 
 ## F8 — `voxelize_stl.py` has no staleness guard: `ace_fea`/`ace_modal`/`ace_thermal` silently consume an out-of-date density field (2026-08-08, independent verification)
+- severity: major
+- surface: tools/analyzers/voxelize_stl.py
+- status: fixed — voxelize_stl now stamps source_sha256 / geometry_hash `mesh:sha256:` into the sidecar and exits 1 when the field is stale
 - symptom: the shipped `analysis/fields/palm_v15.npy` carries **62552** solid voxels.
   Re-running the README's own command on the byte-identical `parts/palm.stl`
   (`python3 tools/voxelize_stl.py .../jobs/voxelize_palm_v15.json`) prints
@@ -214,6 +238,9 @@
   (or loudly warn) when the STL on disk no longer matches.
 
 ## F9 — `tolerance_stack.py` and `production_check.py` exit 0 on `ok: false` (2026-08-08, independent verification)
+- severity: minor
+- surface: tools/_receipt.py
+- status: fixed — `_receipt.run_cli` exit contract (0 pass / 1 could-not-run / 2 ran-and-failed) now wraps both tools
 - symptom: `python3 tools/tolerance_stack.py .../jobs/tol_i7_heatset.json; echo $?`
   prints `{"ok": false, ...}` then `0`. Same for `tol_i5_guide_centred`,
   `tol_i1_grip_a2`, and for `tools/production_check.py` on
@@ -230,6 +257,9 @@
   (Doc-vs-binary contradiction; the campaign README needs correcting, not the tool.)
 
 ## F10 — `render_sheet.py` resolves job-relative paths against the CWD, so the README's repo-root command line cannot rebuild the renders (2026-08-08, independent verification)
+- severity: minor
+- surface: tools/publish/render_sheet.py
+- status: fixed — `resolve_job_root()` resolves job-relative paths against the job/out dir, not only the CWD
 - symptom: from the repo root,
   `python3 tools/render_sheet.py "$P/programs/jobs/render_palm.json"` →
   `{"ok": false, "error": "FileNotFoundError: [Errno 2] No such file or directory: 'parts/palm.stl'"}`
@@ -247,6 +277,9 @@
   reproduce every PNG byte-identically (md5 unchanged).
 
 ## F11 — two receipts meshed from byte-identical program geometry shipped different `geometry_hash` values, and nothing noticed (2026-08-08, repair pass)
+- severity: major
+- surface: tools/analyzers/_ace.py
+- status: open
 - symptom: `receipts/modal_finger_v04.json` shipped
   `n_active_elements 29544`, `geometry_hash program:sha256:bbb26f8d9c9c…`
   while `receipts/buckling_slice_v04.json` shipped

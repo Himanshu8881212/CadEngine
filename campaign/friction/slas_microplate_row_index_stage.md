@@ -1,6 +1,9 @@
 # FRICTION — slas_microplate_row_index_stage
 
 ## F1 — the boolean tessellator self-intersects on a tangential union, silently (2026-08-08)
+- severity: major
+- surface: kernel booleans
+- status: open
 - symptom: `validate` on `guide_bridge` returned
   `{"valid": true, "closed": true, "manifold": true, "shells": 1,
     "geometric_ok": false,
@@ -28,6 +31,9 @@
   campaign. Sliver gone, area exact by shoelace.
 
 ## F2 — polygon arc pitch: FINER tessellation makes booleans WORSE, ~120x slower (2026-08-08)
+- severity: major
+- surface: kernel booleans
+- status: open
 - symptom: with the polygon teardrop above, cutting 12 bores through the beam:
   `arc_deg 5.0` -> `geometric_ok false`, `self_intersection.pairs 6`, 87 s;
   `arc_deg 10.0` -> `geometric_ok false`, pairs 1;
@@ -45,6 +51,9 @@
   and the reason are shipped in `programs/parts_bridge.py`.
 
 ## F3 — `support_report` reports a flat ceiling as BRIDGING, so `steep_area == 0.0` cannot falsify it (2026-08-08)
+- severity: major
+- surface: campaign/DELIVERABLE_SPEC.md
+- status: open
 - symptom: `guide_bridge` at `build_dir [0,0,1]` (upright: a 144 mm flat arch
   ceiling) reports `steep_area: 0.0, support_free: true`, together with
   `bridge_area: 4851.324590233379, max_bridge_span: 19.428146362304688`.
@@ -65,6 +74,9 @@
   gates `max_bridge_span` as well as `steep_area`.
 
 ## F4 — `kernel-api asm` on a mesh-sourced `.lmcasm` is very slow (2026-08-08)
+- severity: major
+- surface: kernel-api cli
+- status: open
 - symptom: `asm_save` writes instance sources as MESHES
   (`{"source": {"mesh": "parts/base_rail.stl"}}`, 88 888 triangles for the
   rail). Re-running the saved file with
@@ -90,6 +102,9 @@
   the critical path of any claim.
 
 ## F5 — ace_fea_tet reports a gmsh PLC refusal as `internal` / exit 1, not a refusal / exit 2 (2026-08-08)
+- severity: major
+- surface: tools/analyzers/ace_fea_tet_runner.py
+- status: open
 - symptom: `python3 tools/ace_fea_tet_runner.py <job> --out <receipt>` on a
   kernel-exported STL that the kernel itself signs off (`route: exact`,
   `watertight: true`, `two_manifold: true`, `shells 1`, `components 1`) returns
@@ -113,6 +128,9 @@
   misclassification. No deliverable depends on A6; it was budgeted as a MAYBE.
 
 ## F6 — a design dimension was silently acting as a printer rule in our own gate suite (2026-08-08)
+- severity: minor
+- surface: campaign/DELIVERABLE_SPEC.md
+- status: open
 - symptom: `geom.gate_suite` defaulted `wall_thickness.flag_below` and the
   `p05_thickness` minimum to `F["pawl_arm_t"]`. That was 1.60 mm in stage 2 -
   numerically identical to the house four-perimeter rule - so the coupling was
@@ -129,6 +147,9 @@
   `gate_suite`; all seven bodies re-run. Recorded in ANALYSIS.md s2.
 
 ## F7 — `bom_audit` matches ANY quoted string in the STEP, so a natural `name_pattern` sweeps up AP203 keywords (2026-08-08)
+- severity: major
+- surface: tools/publish/bom_audit.py
+- status: open
 - symptom: `bom_audit.py` with `"name_pattern": "[a-z][a-z0-9_]+"` on a
   6-body assembly reported 8 findings, none of them about our parts:
   `station_A: axis x347 is NOT in the unified BOM`,
@@ -159,6 +180,9 @@
   proven able to fail.
 
 ## F8 — `assembly_doc` title block clips a long `project` string instead of shrinking or wrapping it (2026-08-08)
+- severity: papercut
+- surface: tools/publish/assembly_doc.py
+- status: open
 - symptom: with `"project": "slas_microplate_row_index_stage"` (31 chars) the
   PROJECT cell of the title block renders the text overflowing the left page
   border — the first characters are cut off by the sheet edge in
@@ -177,6 +201,9 @@
   affected.
 
 ## F9 — kernel rebuilt 2026-08-10 now refuses `asm_export` on intentionally-interpenetrating NC scenes, breaking end-to-end re-run of the fail poses (2026-08-14)
+- severity: major
+- surface: asm_export
+- status: fixed — engine round 4 (2026-08-23), RETIRED note in this file
 - symptom: `kernel-api run programs/pose_nc3_halfstep_fail.json` (unchanged
   since 2026-08-08, receipt on disk `ok true`) now exits **1**: every measure
   op still passes and `iv_pawl_rack` reproduces `overlap_volume 17.82` mm3
@@ -218,6 +245,9 @@
   See the campaign BUILD_LOG 2026-08-24 entry.
 
 ## F10 — F9's scope is wider: the 2026-08-10 kernel refuses scene export on the LEGAL poses and the assembly too, not just the NC fail attitudes (2026-08-14)
+- severity: major
+- surface: asm_export
+- status: fixed — engine round 4 (2026-08-23), RETIRED note in this file
 - symptom: during the stage-4 self-check fresh re-run, `kernel-api run` on
   `programs/assembly.json` and on 18 of the 19 non-NC3-control pose programs
   (all unchanged since 2026-08-08, shipped receipts all `ok true`) now exits
@@ -263,6 +293,9 @@
   must stay green through their scene export). See BUILD_LOG 2026-08-24.
 
 ## F11 — tool receipts under the post-2026-08-10 toolchain carry a new envelope schema, so `core_digest` no longer matches the shipped 2026-08-08 receipts even though every measured value is bit-identical (2026-08-14)
+- severity: major
+- surface: tools/_receipt.py
+- status: open
 - symptom: the stage-4 self-check re-ran 37 tool jobs (6 production_check, 4
   fatigue, 2 contact, 3 fea, 2 optimize, 20 tolerance_stack) with `--out` to a
   scratch dir and compared `determinism.core_digest` against the shipped

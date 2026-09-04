@@ -1,6 +1,9 @@
 # friction — folding_book_stand
 
 ## F1 — union with a face coincident to a hole's inner wall fails; the same coincide on an outer face succeeds (2026-08-27)
+- severity: major
+- surface: union_all
+- status: fixed — RESOLUTIONS 2026-08-27: rotation-entry snapping + union_all contact-degree fold order
 - symptom: `union_all` including a carrier block whose face exactly
   coincided with the inner wall of an `extrude_with_holes` window failed
   `invalid_geometry: union_all failed validate(): closed=false
@@ -14,6 +17,9 @@
 - workaround used: embed 1.0 mm into the plate instead of coinciding.
 
 ## F2 — shallow (0.35 mm) embed slivers HANG the exact STL tessellator; no timeout, no receipt (2026-08-27)
+- severity: major
+- surface: export_stl
+- status: fixed — RESOLUTIONS 2026-08-27: f64 piercing predicate + heal-voxel time budget
 - symptom: `export_stl` (exact route) on a panel whose knuckles embedded
   0.35 mm into the plate edge ran > 8 CPU-minutes at 100 % without
   producing output; kill left no report. Same geometry with a 1.5 mm embed
@@ -28,6 +34,9 @@
   single profiles where possible.
 
 ## F3 — box-vs-posed-prism unions fail position-dependently; sequential unions fragment until one dies (2026-08-27)
+- severity: major
+- surface: union
+- status: fixed — RESOLUTIONS 2026-08-27: rotation-entry snapping + union_all contact-degree fold order
 - symptom: identical knuckle+neck unions at different x offsets: first
   succeeded, second failed `invalid_geometry` (genus 1, shells 1). An
   arc-relieved carrier profile that exported fine alone and a plate that
@@ -46,6 +55,9 @@
   chamfering the LEG plate corner instead of arc-relieving the carrier.
 
 ## F4 — export_stl of POSED solids hangs (2026-08-27)
+- severity: major
+- surface: export_stl
+- status: fixed — RESOLUTIONS 2026-08-27: f64 piercing predicate + heal-voxel time budget
 - symptom: exporting the deployed-configuration union (bodies rotated
   -111..-233° about x) or even a SINGLE posed body hung > 60 s at 100 %
   CPU; the same bodies in print pose export in < 0.3 s.
@@ -56,6 +68,9 @@
   proceeded.
 
 ## F5 — `clearance.overlap_volume` is null for some interfering posed pairs (2026-08-27)
+- severity: blocker
+- surface: clearance
+- status: fixed — RESOLUTIONS 2026-08-27: faceted mesh-boolean fallback reported as overlap_volume_reason
 - symptom: capture-NC clearance ops on interfering posed bodies returned
   `interfering: true` with `overlap_volume: null`, so a
   `require {overlap_volume: {min: ...}}` failed with "min/max/within need

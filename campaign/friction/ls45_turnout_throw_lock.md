@@ -1,6 +1,9 @@
 # Friction — ls45_turnout_throw_lock
 
 ## F1 — ACE runners leak a `tmp*.json` scratch program into `out_dir`, one per run, forever (2026-08-08)
+- severity: major
+- surface: tools/analyzers/physics/sampling.py
+- status: open
 
 - symptom: after each `rebuild.sh`, `receipts/fea/<job>/` gains one more
   unreferenced, mode-0600 file named `tmp<random>.json`. Eight had accumulated
@@ -56,6 +59,9 @@
   `.npy` files beside it) or unlink the program after the run.
 
 ## F2 — 2026-08-10 engine rebuild breaks exact-route STL export of multi-loop planar faces (2026-08-14)
+- severity: major
+- surface: export_stl
+- status: open
 - context: the campaign was green through Stage 4 on 2026-08-08 (2 consecutive
   byte-identical rebuilds). `target/release/kernel-api` was REBUILT 2026-08-10
   12:09 from a working tree with uncommitted crates/ modifications (git status
@@ -103,6 +109,9 @@
   though it passed before 2026-08-10.
 
 ## F3 — same 2026-08-10 rebuild: asm_export refuses the merged scene of any SEATED assembly (2026-08-14)
+- severity: blocker
+- surface: asm_export
+- status: fixed — RETIRED 2026-08-24, round-4 engine (2026-08-23) exports the merged scene as a diagnostic
 - symptom: all five kinematic state programs, unchanged since the 2026-08-08
   green run, now exit 1 at `asm_export`. Verbatim (S0):
   `op 'export': refusing manufacturing output: boundary_edges=0,

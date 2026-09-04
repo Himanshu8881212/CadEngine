@@ -1,6 +1,9 @@
 # FRICTION — turgo_runner (energy_system)
 
 ## F1 — `validate.geometric_ok` false-positives on polar patterns of off-axis tubes (2026-08-07)
+- severity: major
+- surface: validate
+- status: open
 
 - **symptom**: the shipped part reports
   `"geometric_ok": false` inside `validate` while every other check on the same
@@ -73,6 +76,9 @@
   to be load-bearing, exposing it in `assert`).
 
 ## F2 — ace_fea_tet: sliver facets refuse the mesher, and the retry ABORTS the process (2026-08-07)
+- severity: major
+- surface: tools/analyzers/ace_fea_tet_runner.py
+- status: open
 - symptom: two distinct failures meshing the same stall sub-model.
   (a) true geometry (bucket + hub patch with the real r=30 cylindrical disk rim):
       `{"ok": false, "error": "Exception: PLC Error:  A segment and a facet intersect at point"}`
@@ -98,6 +104,9 @@
   recorded in receipts/refusals.json and quoted in ANALYSIS.md rather than hidden.
 
 ## F3 — param_optimize: a constraint with `max: 0.0` crashes the whole run (2026-08-07)
+- severity: major
+- surface: tools/analyzers/param_optimize.py
+- status: open
 - symptom: `{"ok": false, "error": "float division by zero"}` after two successful evals.
   Source: tools/param_optimize.py line 217, `penalty += v / c["max"] - 1.0`.
 - minimal repro: any job with `"constraints":[{"expr":"<anything>","max":0.0}]`.
@@ -109,6 +118,9 @@
   in the full gate suite on the chosen optimum, which is where they belong anyway.
 
 ## F4 — derived_model.py: `--selftest` is hard-wired to the exemplar (2026-08-07)
+- severity: minor
+- surface: tools/analyzers/derived_model.py
+- status: open
 - symptom: `python3 programs/jet_force_model.py --selftest` ->
   `KeyError: 'overshoot_pct'` at tools/derived_model.py line 411, AFTER correctly running and
   passing all four of MY model's gates.
@@ -122,6 +134,9 @@
   self_check.passed true). No claim depends on --selftest.
 
 ## F5 — ace_modal: no memory-lean eigensolver path; 360k dof needs >10 GB (2026-08-07)
+- severity: major
+- surface: tools/analyzers/ace_modal_runner.py
+- status: open
 - symptom: ace_modal on the full runner at voxel 0.75 mm (84575 active elements, ~360k dof)
   reached 9.8 GB RSS and 50% CPU after 25 min wall / 7.6 min CPU — i.e. it was swapping, on a
   24 GB machine shared by 6 agents. Killed. At 1.1 mm (111k dof) the same job takes 64 s.
@@ -137,6 +152,9 @@
   0.55 mm full-part grid is still pinned (physics/turgo_055.npy) for the ace_fea path.
 
 ## F6 — `clearance`: `distance` reads 0.0 for an ENCLOSED, non-touching pair (2026-08-08)
+- severity: major
+- surface: clearance
+- status: open
 - symptom: a solid fully inside a tube, nowhere near it, reports
   `{"distance": 0.0, "interfering": false, "overlap_volume": 0.0}`. The boolean verdict is
   right; the NUMBER a free-motion receipt would quote is wrong (it should be the annular gap).
@@ -167,6 +185,9 @@
   separation number. Both watches ship; programs/gen_stage4.py records the reason inline.
 
 ## F7 — `import_step` cannot survive template-materialising tools (sweep_check, dim_suggest) (2026-08-08)
+- severity: major
+- surface: tools/analyzers/param_optimize.py
+- status: open
 - symptom: every station of a sweep_check job failed with
   `op 'part_raw': cannot read '/var/folders/t0/1mzcwf550j5bjb7ntwp817zr0000gn/T/roundtrip_source.step': No such file or directory (os error 2)`
   — 73/73 stations, `"stations": 0` in every watch. dim_suggest.py fails identically on the same
@@ -188,6 +209,9 @@
   programs/dims_source.json (part_program.json minus the export/import tail).
 
 ## F8 — the documented `runner.py job | tail -1 > receipt.json` idiom DESTROYS a good receipt when a solve is interrupted (2026-08-08)
+- severity: major
+- surface: campaign/digests/tools_cookbook.md
+- status: open
 - symptom: `tools_cookbook.md` prescribes capturing ACE-runner receipts as
   `python3 tools/ace_modal_runner.py job.json | tail -1 > receipts/x_receipt.json`.
   The shell truncates the target at LAUNCH and `tail` writes only at EOF, so a solve that is
@@ -212,6 +236,9 @@
   cookbook idiom (it is the documented one); the hazard is recorded here and in README.
 
 ## F9 — `assert` accepts only 8 checks, so four DELIVERABLE_SPEC §2 gates cannot be in-program gates (2026-08-08, independent verification pass)
+- severity: blocker
+- surface: assert
+- status: open
 - symptom: adding `{"id":"gate_supports","op":"assert","in":"part","steep_area":0.0}` to
   `programs/part_program.json` returns, verbatim:
   `unknown param 'steep_area' — 'assert' does not accept it, so it was IGNORED and the default
@@ -234,6 +261,9 @@
   engine-side fix is an `assert` that accepts the support/wall/bbox/export measures.
 
 ## F10 — `ace_fea_tet` (superlu_direct) is not bit-deterministic, so derived receipts cannot regenerate byte-identically (2026-08-08, independent verification pass)
+- severity: minor
+- surface: tools/analyzers/ace_fea_tet_runner.py
+- status: open
 - symptom: re-running the shipped stall job reproduces the peak to 1.6e-15 relative but not to
   the bit: `max_von_mises_pa` = `12853964.502047122` on the re-run vs `12853964.502047101` in
   `receipts/tet_stall_b_receipt.json` (and `12853964.502047331` in the run that produced the
@@ -251,6 +281,9 @@
   instead of `cmp`; all 12 differing fields agree to <2e-13 relative.
 
 ## F11 — `shells == 1` with `components >= 2` is not constructible, and `mesh_components` is the WEAKER of the two (2026-08-08, repair pass)
+- severity: blocker
+- surface: campaign/DELIVERABLE_SPEC.md
+- status: open
 
 - symptom: `DELIVERABLE_SPEC` §2.2 tells every campaign to prove the
   connectivity gate on "a split-body variant that the connectivity gate
@@ -318,6 +351,9 @@
   `mesh_components` parameter so a campaign can tighten it.
 
 ## F12 — the `ace_fea_tet` rigid-clamp peak does not converge, and nothing in the tooling says so at the point of use (2026-08-08, repair pass)
+- severity: major
+- surface: tools/analyzers/ace_fea_tet_runner.py
+- status: open
 
 - symptom: `tools/ace_fea_tet_runner.py`'s docstring warns that "the reported
   peak is still nodal-recovered and mesh-dependent — refine elem_size_mm to
