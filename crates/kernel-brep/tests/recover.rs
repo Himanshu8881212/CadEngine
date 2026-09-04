@@ -108,8 +108,12 @@ fn detagged_cylinder_recovers_carrier_and_merges_sectors() {
 			&& err_out < 4.0 * err_in
 			&& validate(&rec).is_valid()
 			&& tessellate_default(&rec).is_watertight()
-			&& rep2 == kernel_brep::recover::RecoveryReport { faces_before: rec.face_count(), faces_after: rec2.face_count(), ..Default::default() }
-			&& rec2.face_count() == rec.face_count(),
+			&& rep2
+				== kernel_brep::recover::RecoveryReport {
+					faces_before: rec.face_count(),
+					faces_after: rec2.face_count(),
+					..Default::default()
+				} && rec2.face_count() == rec.face_count(),
 		"detagged 384-seg cylinder recovery: report {rep:?} (want 1 cylinder, faces {before} → 4 = 2 half-wrap chart sectors + 2 caps; \
 		 the pre-2026-07-30 boundary-only tessellation pinned 60), \
 		 fitted r {radius:.12} (truth {truth_r}, bar 1e-4), |axis·Z| {axis_align:.15}, origin off-axis {origin_off_axis:.3e} mm, \
@@ -316,11 +320,12 @@ fn builder_cylinder_is_a_structural_no_op() {
 		out.face_count() == solid.face_count()
 			&& out.vertex_count() == solid.vertex_count()
 			&& out.edge_count() == solid.edge_count()
-			&& rep == kernel_brep::recover::RecoveryReport {
-				faces_before: solid.face_count(),
-				faces_after: solid.face_count(),
-				..Default::default()
-			},
+			&& rep
+				== kernel_brep::recover::RecoveryReport {
+					faces_before: solid.face_count(),
+					faces_after: solid.face_count(),
+					..Default::default()
+				},
 		"an already-analytic builder cylinder must pass through unchanged: {} faces / {} verts / {} edges in, \
 		 {} / {} / {} out, report {rep:?}",
 		solid.face_count(),

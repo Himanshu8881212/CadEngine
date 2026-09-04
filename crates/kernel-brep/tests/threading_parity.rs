@@ -36,8 +36,8 @@
 
 use kernel_brep::math::{DAffine3, DVec2, DVec3};
 use kernel_brep::{
-	cuboid, cylinder, difference, exact_volume, extrude, extrude_with_holes, intersection, revolve, sphere, union,
-	validate, volume, Solid, VertexId,
+	cuboid, cylinder, difference, exact_volume, extrude, extrude_with_holes, intersection, revolve, sphere, union, validate, volume, Solid,
+	VertexId,
 };
 
 // --- Canonical byte-level serialization ---------------------------------------
@@ -174,8 +174,11 @@ fn fuzz_mirror_chain(seed: u64) -> Solid {
 	let mut body = base(&mut rng, 100.0);
 	for _ in 0..3 {
 		let op = rng.u(3);
-		let operand = base(&mut rng, 45.0)
-			.transformed(DAffine3::from_translation(DVec3::new(rng.f(-25.0, 25.0), rng.f(-25.0, 25.0), rng.f(-25.0, 25.0))));
+		let operand = base(&mut rng, 45.0).transformed(DAffine3::from_translation(DVec3::new(
+			rng.f(-25.0, 25.0),
+			rng.f(-25.0, 25.0),
+			rng.f(-25.0, 25.0),
+		)));
 		body = match op {
 			0 => union(&body, &operand),
 			1 => difference(&body, &operand),
@@ -195,13 +198,7 @@ fn fuzz_mirror_chain(seed: u64) -> Solid {
 /// segments + six 48-segment bolt drills) — the profile workload from the
 /// implementation notes, ~0.3 s sequential on the dev machine.
 fn heavy_revolve_drill_chain() -> Solid {
-	let profile = [
-		DVec2::new(10.0, 0.0),
-		DVec2::new(40.0, 0.0),
-		DVec2::new(40.0, 7.0),
-		DVec2::new(39.0, 8.0),
-		DVec2::new(10.0, 8.0),
-	];
+	let profile = [DVec2::new(10.0, 0.0), DVec2::new(40.0, 0.0), DVec2::new(40.0, 7.0), DVec2::new(39.0, 8.0), DVec2::new(10.0, 8.0)];
 	let mut body = revolve(&profile, 256);
 	body = difference(&body, &cylinder(DVec3::new(0.0, 0.0, -1.0), DVec3::Z, 12.0, 10.0, 128));
 	for k in 0..6 {
@@ -221,10 +218,7 @@ fn sect77_style_chain() -> Solid {
 	for &(x, y) in &[(-22.0, -12.0), (22.0, -12.0), (0.0, 13.0)] {
 		body = difference(&body, &cylinder(DVec3::new(x, y, -1.0), DVec3::Z, 2.5, 8.0, 24));
 	}
-	let slot = extrude(
-		&[DVec2::new(-2.0, -25.0), DVec2::new(2.0, -25.0), DVec2::new(2.0, -6.0), DVec2::new(-2.0, -6.0)],
-		20.0,
-	);
+	let slot = extrude(&[DVec2::new(-2.0, -25.0), DVec2::new(2.0, -25.0), DVec2::new(2.0, -6.0), DVec2::new(-2.0, -6.0)], 20.0);
 	difference(&body, &slot.transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, -1.0))))
 }
 
@@ -251,12 +245,7 @@ const CORPUS: &[Case] = &[
 		name: "revolve_union_boss",
 		expect_engaged: true,
 		build: || {
-			let profile = [
-				DVec2::new(12.0, 0.0),
-				DVec2::new(34.0, 0.0),
-				DVec2::new(34.0, 9.0),
-				DVec2::new(12.0, 9.0),
-			];
+			let profile = [DVec2::new(12.0, 0.0), DVec2::new(34.0, 0.0), DVec2::new(34.0, 9.0), DVec2::new(12.0, 9.0)];
 			union(&revolve(&profile, 96), &cylinder(DVec3::new(0.0, 0.0, 4.0), DVec3::Z, 20.0, 22.0, 96))
 		},
 	},

@@ -8,8 +8,8 @@
 //! the Rust schema) whenever `python3` is available — skipped with a LOUD
 //! banner, never silently, when it is not.
 
-use kernel_brep::math::DVec3;
 use kernel_brep::cuboid;
+use kernel_brep::math::DVec3;
 use kernel_model::process::{coupons, DfmFinding, FdmProfile, Process, ProcessError, HOLE_BORE_CROSSOVER_D};
 use std::process::Command;
 
@@ -39,11 +39,7 @@ fn conservative_default_values_pinned_with_provenance() {
 			"conservative_default.{field} = {got}, pinned at {want} — this value is FROZEN provenance ({why}); changing it means the fallback no longer matches what was proven in print"
 		);
 	}
-	assert_eq!(
-		p.name, "conservative_default",
-		"fallback profile must be named for what it is, got '{}'",
-		p.name
-	);
+	assert_eq!(p.name, "conservative_default", "fallback profile must be named for what it is, got '{}'", p.name);
 	p.validate().expect("the conservative default must pass its own range validation");
 }
 
@@ -83,38 +79,23 @@ fn profile_schema_refuses_unknown_missing_and_insane() {
 	// Unknown field (a typo) must refuse — silent default fallback is the footgun.
 	let typo = p.to_json().replace("xy_clearance_free", "xy_clearence_free");
 	let e = FdmProfile::from_json(&typo).expect_err("typo'd field name must refuse");
-	assert!(
-		matches!(e, ProcessError::Schema { .. }),
-		"typo refusal should be a Schema error, got: {e}"
-	);
+	assert!(matches!(e, ProcessError::Schema { .. }), "typo refusal should be a Schema error, got: {e}");
 	// Missing field must refuse (no serde defaults on the schema).
 	let missing = p.to_json().replace("  \"min_wall\": 1.2,\n", "");
-	assert!(
-		FdmProfile::from_json(&missing).is_err(),
-		"a profile missing min_wall must refuse to load"
-	);
+	assert!(FdmProfile::from_json(&missing).is_err(), "a profile missing min_wall must refuse to load");
 	// Range violation must refuse with the offending field named.
 	let mut bad = p.clone();
 	bad.min_wall = -0.4;
 	let e = bad.validate().expect_err("negative min_wall must refuse");
-	assert!(
-		e.to_string().contains("min_wall") && e.to_string().contains("-0.4"),
-		"range refusal must name field and value, got: {e}"
-	);
+	assert!(e.to_string().contains("min_wall") && e.to_string().contains("-0.4"), "range refusal must name field and value, got: {e}");
 	// tight > free is inconsistent.
 	let mut swapped = p.clone();
 	swapped.xy_clearance_tight = 0.5;
-	assert!(
-		swapped.validate().is_err(),
-		"tight clearance 0.5 > free 0.25 must refuse"
-	);
+	assert!(swapped.validate().is_err(), "tight clearance 0.5 > free 0.25 must refuse");
 	// Placeholder names must never become profile files.
 	let mut anon = p.clone();
 	anon.name = "PLACEHOLDER_RENAME_ME".into();
-	assert!(
-		matches!(anon.validate(), Err(ProcessError::BadName(_))),
-		"placeholder profile names must refuse"
-	);
+	assert!(matches!(anon.validate(), Err(ProcessError::BadName(_))), "placeholder profile names must refuse");
 }
 
 // ---- fit helpers -----------------------------------------------------------------
@@ -129,10 +110,7 @@ fn fit_helpers_pinned_on_known_cases() {
 		"fit_free_shaft_r(37.3) = {r_to}, want 37.05 — RESPOOL's R_TO = RI − C_R with RI 37.3, C_R 0.25; the helper IS that formula as data"
 	);
 	let stub = p.fit_tight_shaft_r(4.0);
-	assert!(
-		(stub - 3.95).abs() < 1e-12,
-		"fit_tight_shaft_r(4.0) = {stub}, want 3.95 — DRYBOX's STUB_R for the 608's 4.0 mm bore radius"
-	);
+	assert!((stub - 3.95).abs() < 1e-12, "fit_tight_shaft_r(4.0) = {stub}, want 3.95 — DRYBOX's STUB_R for the 608's 4.0 mm bore radius");
 	// Bore-side recommendations for the coupon pin:
 	assert!(
 		(p.fit_tight_bore_d(6.0) - 6.1).abs() < 1e-12 && (p.fit_free_bore_d(6.0) - 6.5).abs() < 1e-12,
@@ -191,10 +169,7 @@ fn sibling_processes_refuse_loudly() {
 			"{name} refusal must name itself, say 'not implemented' and 'declared sibling', got: {msg}"
 		);
 		let e2 = sib.dfm_checks(&plate).expect_err("sibling must refuse dfm_checks()");
-		assert!(
-			e2.to_string().contains("not implemented"),
-			"{name} dfm_checks refusal must be loud, got: {e2}"
-		);
+		assert!(e2.to_string().contains("not implemented"), "{name} dfm_checks refusal must be loud, got: {e2}");
 	}
 	// Casting's refusal must point at the piece that DOES exist today.
 	let msg = Process::Casting.fdm_profile().expect_err("casting refuses").to_string();
@@ -202,11 +177,7 @@ fn sibling_processes_refuse_loudly() {
 		msg.contains("draft_analysis"),
 		"casting refusal must direct callers to kernel_brep::draft_analysis (the existing castability half), got: {msg}"
 	);
-	assert_eq!(
-		Process::Fdm(FdmProfile::conservative_default()).name(),
-		"fdm",
-		"process names are stable identifiers"
-	);
+	assert_eq!(Process::Fdm(FdmProfile::conservative_default()).name(), "fdm", "process names are stable identifiers");
 }
 
 // ---- DFM checks ------------------------------------------------------------------
@@ -225,10 +196,7 @@ fn dfm_checks_flag_defects_and_pass_good_parts() {
 	// A fat cube passes every implemented check.
 	let cube = cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(20.0, 20.0, 20.0));
 	let clean = p.dfm_checks(&cube);
-	assert!(
-		clean.is_empty(),
-		"a 20 mm cube must audit clean under the conservative profile, got {clean:?}"
-	);
+	assert!(clean.is_empty(), "a 20 mm cube must audit clean under the conservative profile, got {clean:?}");
 	// An over-bed part must flag bed_fit with the extents in the detail.
 	let huge = cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(300.0, 20.0, 20.0));
 	let findings = p.dfm_checks(&huge);
@@ -301,11 +269,7 @@ fn ingest_self_test_round_trips_a_perfect_printer() {
 	if python3().is_none() {
 		return;
 	}
-	let out = Command::new("python3")
-		.arg(ingest_tool())
-		.arg("--self-test")
-		.output()
-		.expect("spawn python3");
+	let out = Command::new("python3").arg(ingest_tool()).arg("--self-test").output().expect("spawn python3");
 	let stdout = String::from_utf8_lossy(&out.stdout);
 	assert!(
 		out.status.success() && stdout.contains("\"self_test\": \"PASS\""),
@@ -320,16 +284,10 @@ fn ingest_embedded_nominals_match_rust_consts() {
 	if python3().is_none() {
 		return;
 	}
-	let out = Command::new("python3")
-		.arg(ingest_tool())
-		.arg("--print-nominals")
-		.output()
-		.expect("spawn python3");
+	let out = Command::new("python3").arg(ingest_tool()).arg("--print-nominals").output().expect("spawn python3");
 	assert!(out.status.success(), "--print-nominals must exit 0");
 	let v: serde_json::Value = serde_json::from_slice(&out.stdout).expect("nominals JSON parses");
-	let arr = |key: &str| -> Vec<f64> {
-		v[key].as_array().unwrap_or(&Vec::new()).iter().map(|x| x.as_f64().unwrap()).collect()
-	};
+	let arr = |key: &str| -> Vec<f64> { v[key].as_array().unwrap_or(&Vec::new()).iter().map(|x| x.as_f64().unwrap()).collect() };
 	assert!(
 		v["coupons_version"].as_u64() == Some(coupons::VERSION as u64)
 			&& arr("holes_d") == coupons::HOLE_LADDER_D
@@ -352,14 +310,18 @@ fn ingest_synthetic_measurements_load_back_through_rust_schema() {
 	// A realistic imperfect printer: holes 0.12 undersized, bore 0.07 under,
 	// seam 0.06, elephant 0.16 radial, bridges die past 15, 0.8 wall fails,
 	// fan clean through 50°.
-	let holes: serde_json::Map<String, serde_json::Value> = coupons::HOLE_LADDER_D
-		.iter()
-		.map(|d| (fmt_g(*d), serde_json::json!(d - 0.12)))
-		.collect();
+	let holes: serde_json::Map<String, serde_json::Value> =
+		coupons::HOLE_LADDER_D.iter().map(|d| (fmt_g(*d), serde_json::json!(d - 0.12))).collect();
 	let fit: serde_json::Map<String, serde_json::Value> = coupons::FIT_BORE_D
 		.iter()
 		.map(|d| {
-			let class = if *d < 6.25 { "no_go" } else if *d < 6.35 { "press" } else { "free" };
+			let class = if *d < 6.25 {
+				"no_go"
+			} else if *d < 6.35 {
+				"press"
+			} else {
+				"free"
+			};
 			(fmt_g(*d), serde_json::json!(class))
 		})
 		.collect();
@@ -383,13 +345,7 @@ fn ingest_synthetic_measurements_load_back_through_rust_schema() {
 	let _ = std::fs::create_dir_all(&dir);
 	let meas = dir.join("measurements.json");
 	std::fs::write(&meas, serde_json::to_string_pretty(&m).unwrap()).expect("write measurements");
-	let out = Command::new("python3")
-		.arg(ingest_tool())
-		.arg(&meas)
-		.arg("--out")
-		.arg(&dir)
-		.output()
-		.expect("spawn python3");
+	let out = Command::new("python3").arg(ingest_tool()).arg(&meas).arg("--out").arg(&dir).output().expect("spawn python3");
 	let stdout = String::from_utf8_lossy(&out.stdout);
 	assert!(
 		out.status.success(),
@@ -397,8 +353,7 @@ fn ingest_synthetic_measurements_load_back_through_rust_schema() {
 		String::from_utf8_lossy(&out.stderr)
 	);
 	let prof_path = dir.join("synthetic_a1_pla.json");
-	let p = FdmProfile::load(prof_path.to_str().unwrap())
-		.expect("python-written profile must load through the Rust FdmProfile schema");
+	let p = FdmProfile::load(prof_path.to_str().unwrap()).expect("python-written profile must load through the Rust FdmProfile schema");
 	let pinned: [(&str, f64, f64); 9] = [
 		// (nominal − measured) = 0.12 everywhere ⇒ mean 0.12
 		("hole_diameter_comp", p.hole_diameter_comp, 0.12),

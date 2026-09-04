@@ -36,8 +36,8 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 
 use kernel_brep::math::{DAffine3, DVec2, DVec3};
 use kernel_brep::{
-	cuboid, cylinder, difference, extrude, extrude_with_holes, fillet_edge, intersection, sphere, union, validate,
-	EdgeName, FaceName, FaceSource, Solid, Validity,
+	cuboid, cylinder, difference, extrude, extrude_with_holes, fillet_edge, intersection, sphere, union, validate, EdgeName, FaceName,
+	FaceSource, Solid, Validity,
 };
 
 /// First seed of the corpus; chain `i` uses seed `BASE_SEED + i`, so the N=2000 deep
@@ -217,19 +217,13 @@ fn gen_base(rng: &mut Rng, scale: f64) -> (Solid, String) {
 			let r = rng.f(0.2, 0.4) * scale;
 			let h = rng.f(0.5, 1.0) * scale;
 			let segs = 8 + rng.u(25); // 8..=32
-			(
-				cylinder(DVec3::new(0.0, 0.0, -h * 0.5), DVec3::Z, r, h, segs),
-				format!("cylinder r={r:.1} h={h:.1} segs={segs}"),
-			)
+			(cylinder(DVec3::new(0.0, 0.0, -h * 0.5), DVec3::Z, r, h, segs), format!("cylinder r={r:.1} h={h:.1} segs={segs}"))
 		}
 		2 => {
 			let n = 5 + rng.u(6); // 5..=10
 			let r = rng.f(0.25, 0.5) * scale;
 			let h = rng.f(0.3, 0.8) * scale;
-			(
-				extrude(&gen_convex_polygon(rng, r, n), h),
-				format!("extrude {n}-gon r={r:.1} h={h:.1}"),
-			)
+			(extrude(&gen_convex_polygon(rng, r, n), h), format!("extrude {n}-gon r={r:.1} h={h:.1}"))
 		}
 		3 => {
 			let n = 5 + rng.u(6);
@@ -250,10 +244,7 @@ fn gen_base(rng: &mut Rng, scale: f64) -> (Solid, String) {
 					regular_ngon(d * a.cos(), d * a.sin(), hr, 8 + rng.u(5))
 				})
 				.collect();
-			(
-				extrude_with_holes(&outer, &holes, h),
-				format!("extrude_with_holes {n}-gon r={r:.1} h={h:.1} holes={nh}"),
-			)
+			(extrude_with_holes(&outer, &holes, h), format!("extrude_with_holes {n}-gon r={r:.1} h={h:.1} holes={nh}"))
 		}
 		_ => {
 			let r = rng.f(0.25, 0.5) * scale;
@@ -355,10 +346,7 @@ struct ChainResult {
 }
 
 fn validity_summary(v: &Validity) -> String {
-	format!(
-		"closed={} manifold={} genus={} shells={} χ={}",
-		v.closed, v.manifold, v.genus, v.shells, v.euler_characteristic
-	)
+	format!("closed={} manifold={} genus={} shells={} χ={}", v.closed, v.manifold, v.genus, v.shells, v.euler_characteristic)
 }
 
 fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
@@ -447,12 +435,7 @@ fn run_chain(seed: u64, verbose: bool) -> ChainResult {
 					return ChainResult { attempts, failure: None, ended_empty: true };
 				}
 				if !v.is_valid() {
-					return fail(
-						op_index,
-						kind,
-						format!("{} {desc} → invalid: {}", kind.name(), validity_summary(&v)),
-						attempts,
-					);
+					return fail(op_index, kind, format!("{} {desc} → invalid: {}", kind.name(), validity_summary(&v)), attempts);
 				}
 				if verbose {
 					println!("  op {op_index}: {} {desc} → ok ({})", kind.name(), validity_summary(&v));
@@ -617,13 +600,7 @@ fn fuzz_2000_feature_chains_deep_corpus() {
 fn fuzz_chains_meet_the_level6_bar() {
 	let r = run_corpus(2000);
 	print_report(&r);
-	assert!(
-		r.pass_rate() >= 99.0,
-		"Level-6 bar not met: {:.1}% < 99.0% ({} of {} chains failed)",
-		r.pass_rate(),
-		r.failures.len(),
-		r.n
-	);
+	assert!(r.pass_rate() >= 99.0, "Level-6 bar not met: {:.1}% < 99.0% ({} of {} chains failed)", r.pass_rate(), r.failures.len(), r.n);
 }
 
 /// The nine Level-6 residual seeds — the ONLY chains of the deterministic N=2000
@@ -656,17 +633,10 @@ fn residual_level6_seeds_stay_fixed() {
 	let failures: Vec<String> = RESIDUAL_SEEDS
 		.iter()
 		.filter_map(|&seed| {
-			run_chain(seed, false)
-				.failure
-				.map(|f| format!("seed={seed} op={} [{}]: {}", f.op_index, f.kind.name(), f.detail))
+			run_chain(seed, false).failure.map(|f| format!("seed={seed} op={} [{}]: {}", f.op_index, f.kind.name(), f.detail))
 		})
 		.collect();
-	assert!(
-		failures.is_empty(),
-		"formerly-failing Level-6 residual seeds regressed ({} of 9):\n{}",
-		failures.len(),
-		failures.join("\n")
-	);
+	assert!(failures.is_empty(), "formerly-failing Level-6 residual seeds regressed ({} of 9):\n{}", failures.len(), failures.join("\n"));
 }
 
 /// The Level-9 evidence corpus (BAR.md: "≥99.5% on a 10k-chain fuzz corpus"):
@@ -728,17 +698,10 @@ fn residual_level9_seeds_stay_fixed() {
 	let failures: Vec<String> = RESIDUAL_SEEDS
 		.iter()
 		.filter_map(|&seed| {
-			run_chain(seed, false)
-				.failure
-				.map(|f| format!("seed={seed} op={} [{}]: {}", f.op_index, f.kind.name(), f.detail))
+			run_chain(seed, false).failure.map(|f| format!("seed={seed} op={} [{}]: {}", f.op_index, f.kind.name(), f.detail))
 		})
 		.collect();
-	assert!(
-		failures.is_empty(),
-		"formerly-failing Level-9 residual seeds regressed ({} of 2):\n{}",
-		failures.len(),
-		failures.join("\n")
-	);
+	assert!(failures.is_empty(), "formerly-failing Level-9 residual seeds regressed ({} of 2):\n{}", failures.len(), failures.join("\n"));
 }
 
 /// Reproduce one chain verbosely from the `FUZZ_SEED` env var:

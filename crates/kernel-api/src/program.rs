@@ -452,11 +452,7 @@ pub enum OpKind {
 	/// Linear extrusion of a closed CCW XY profile along +Z.
 	Extrude { profile: Vec<[f64; 2]>, height: f64 },
 	/// Extrusion of an outer profile with hole loops.
-	ExtrudeWithHoles {
-		outer: Vec<[f64; 2]>,
-		holes: Vec<Vec<[f64; 2]>>,
-		height: f64,
-	},
+	ExtrudeWithHoles { outer: Vec<[f64; 2]>, holes: Vec<Vec<[f64; 2]>>, height: f64 },
 	/// Drafted extrusion: walls slope inward by `draft_deg` (convex profiles only).
 	ExtrudeTapered { profile: Vec<[f64; 2]>, height: f64, draft_deg: f64 },
 	/// Full 360° revolution of an `(r, z)` profile about the Z axis.

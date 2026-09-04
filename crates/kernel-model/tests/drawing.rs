@@ -24,9 +24,9 @@
 use kernel_brep::math::{DVec2, DVec3};
 use kernel_brep::{coalesce_coplanar, cuboid, cylinder, difference, drill, HoleDepth, Solid};
 use kernel_model::drawing::{
-	auto_dimensions, bores, bosses, cylindrical_features, measure_dimension, project_view, section_view, Axis, CylKind, DimKind, DimRequest, Drawing,
-	DrawingError, FixedTolerance, TitleBlock, View, ViewDir, ViewEntity, ViewOptions, Visibility, HLR_NOTE, MAX_HLR_SAMPLES, M_BORE_D, M_BORE_DEPTH,
-	M_BORE_POS, M_COAX_WALL, M_EXTENT, PROVENANCE_NOTE,
+	auto_dimensions, bores, bosses, cylindrical_features, measure_dimension, project_view, section_view, Axis, CylKind, DimKind,
+	DimRequest, Drawing, DrawingError, FixedTolerance, TitleBlock, View, ViewDir, ViewEntity, ViewOptions, Visibility, HLR_NOTE,
+	MAX_HLR_SAMPLES, M_BORE_D, M_BORE_DEPTH, M_BORE_POS, M_COAX_WALL, M_EXTENT, PROVENANCE_NOTE,
 };
 
 // --- fixtures --------------------------------------------------------------------
@@ -79,7 +79,9 @@ fn sorted_segments(v: &View) -> Vec<[f64; 4]> {
 			_ => None,
 		})
 		.collect();
-	out.sort_by(|x, y| x.iter().zip(y.iter()).find_map(|(a, b)| a.partial_cmp(b).filter(|o| o.is_ne())).unwrap_or(std::cmp::Ordering::Equal));
+	out.sort_by(|x, y| {
+		x.iter().zip(y.iter()).find_map(|(a, b)| a.partial_cmp(b).filter(|o| o.is_ne())).unwrap_or(std::cmp::Ordering::Equal)
+	});
 	out
 }
 
@@ -93,7 +95,9 @@ fn sorted_circles(v: &View) -> Vec<[f64; 3]> {
 			_ => None,
 		})
 		.collect();
-	out.sort_by(|x, y| x.iter().zip(y.iter()).find_map(|(a, b)| a.partial_cmp(b).filter(|o| o.is_ne())).unwrap_or(std::cmp::Ordering::Equal));
+	out.sort_by(|x, y| {
+		x.iter().zip(y.iter()).find_map(|(a, b)| a.partial_cmp(b).filter(|o| o.is_ne())).unwrap_or(std::cmp::Ordering::Equal)
+	});
 	out
 }
 
@@ -208,11 +212,7 @@ fn bore_diameters_and_positions_are_the_exact_analytic_measures() {
 fn a_coaxial_wall_is_the_difference_of_two_analytic_radii() {
 	let t = tube();
 	let feats = cylindrical_features(&t);
-	assert_eq!(
-		feats.iter().filter(|f| f.kind == CylKind::Bore).count(),
-		1,
-		"the tube has exactly one bore, got features {feats:?}"
-	);
+	assert_eq!(feats.iter().filter(|f| f.kind == CylKind::Bore).count(), 1, "the tube has exactly one bore, got features {feats:?}");
 	assert_eq!(bosses(&t).len(), 1, "the tube has exactly one round boss (its own Ø40 outside)");
 	let d = measure_dimension(&t, &DimRequest::CoaxialWall(0)).expect("a Ø20 bore inside a Ø40 boss has a determinable wall");
 	assert!(
@@ -272,17 +272,10 @@ fn dimensioning_a_bore_that_does_not_exist_refuses_loudly() {
 		other => panic!("expected FeatureNotFound for a non-existent bore, got {other:?}"),
 	}
 	let msg = err.to_string();
-	assert!(
-		msg.contains("never invents a dimension value"),
-		"the refusal message must say why there is no number, got '{msg}'"
-	);
+	assert!(msg.contains("never invents a dimension value"), "the refusal message must say why there is no number, got '{msg}'");
 	// And the same request on a position / depth refuses identically — no path
 	// through the API produces a fabricated value for a missing feature.
-	for req in [
-		DimRequest::BoreDepth(7),
-		DimRequest::BorePosition { index: 7, axis: Axis::X },
-		DimRequest::CoaxialWall(7),
-	] {
+	for req in [DimRequest::BoreDepth(7), DimRequest::BorePosition { index: 7, axis: Axis::X }, DimRequest::CoaxialWall(7)] {
 		assert!(
 			matches!(measure_dimension(&s, &req), Err(DrawingError::FeatureNotFound { .. })),
 			"{req:?} on a 2-bore plate must refuse with FeatureNotFound"
@@ -307,7 +300,8 @@ fn a_wall_with_no_enclosing_boss_refuses_rather_than_guessing() {
 #[test]
 fn a_bore_has_no_position_along_its_own_axis() {
 	let s = drilled_plate();
-	let err = measure_dimension(&s, &DimRequest::BorePosition { index: 0, axis: Axis::Z }).expect_err("a +Z bore has no located Z position");
+	let err =
+		measure_dimension(&s, &DimRequest::BorePosition { index: 0, axis: Axis::Z }).expect_err("a +Z bore has no located Z position");
 	assert!(
 		matches!(&err, DrawingError::NotDeterminable { measure, .. } if *measure == M_BORE_POS),
 		"expected NotDeterminable naming the position measure, got {err:?}"
@@ -317,7 +311,8 @@ fn a_bore_has_no_position_along_its_own_axis() {
 #[test]
 fn a_section_plane_that_misses_the_solid_refuses() {
 	let s = drilled_plate();
-	let err = section_view(&s, DVec3::new(0.0, 0.0, 500.0), DVec3::Z, 2.0, "Z-Z").expect_err("a plane 500 mm above a 10 mm plate cuts nothing");
+	let err =
+		section_view(&s, DVec3::new(0.0, 0.0, 500.0), DVec3::Z, 2.0, "Z-Z").expect_err("a plane 500 mm above a 10 mm plate cuts nothing");
 	assert!(matches!(err, DrawingError::EmptySection { .. }), "expected EmptySection, got {err:?}");
 	assert!(err.to_string().contains("cuts no material"), "the refusal must say what happened, got '{err}'");
 }
@@ -325,12 +320,10 @@ fn a_section_plane_that_misses_the_solid_refuses() {
 #[test]
 fn absurd_section_parameters_refuse() {
 	let s = drilled_plate();
-	for (pitch, normal, field) in [(0.0, DVec3::Z, "hatch_pitch"), (f64::NAN, DVec3::Z, "hatch_pitch"), (2.0, DVec3::ZERO, "plane_normal")] {
+	for (pitch, normal, field) in [(0.0, DVec3::Z, "hatch_pitch"), (f64::NAN, DVec3::Z, "hatch_pitch"), (2.0, DVec3::ZERO, "plane_normal")]
+	{
 		let err = section_view(&s, DVec3::new(0.0, 0.0, 5.0), normal, pitch, "A-A").expect_err("an impossible section must refuse");
-		assert!(
-			matches!(&err, DrawingError::BadInput { field: f, .. } if *f == field),
-			"expected BadInput on '{field}', got {err:?}"
-		);
+		assert!(matches!(&err, DrawingError::BadInput { field: f, .. } if *f == field), "expected BadInput on '{field}', got {err:?}");
 	}
 }
 
@@ -340,11 +333,8 @@ fn absurd_section_parameters_refuse() {
 fn hidden_line_removal_removes_the_back_of_a_box_and_the_arithmetic_is_pinned() {
 	let bx = cuboid(DVec3::ZERO, DVec3::new(80.0, 40.0, 10.0));
 	let hlr = project_view(&bx, ViewDir::Front, &ViewOptions::default());
-	let wire = project_view(
-		&bx,
-		ViewDir::Front,
-		&ViewOptions { hidden_line_removal: false, merge_collinear: false, ..ViewOptions::default() },
-	);
+	let wire =
+		project_view(&bx, ViewDir::Front, &ViewOptions { hidden_line_removal: false, merge_collinear: false, ..ViewOptions::default() });
 	// A cuboid has 12 edges. Seen from the front, 4 run along the sight and
 	// project to points (counted nowhere); of the remaining 8, the 4 on the near
 	// face are visible and the 4 on the far face are occluded by it.
@@ -494,10 +484,7 @@ fn section_of_a_tube_cuts_two_walls_and_hatches_only_the_material() {
 			"hatch segment {i} runs through {mid:?}, which is outside the cut material (|u| ∈ [10, 20], v ∈ [0, 30]) — hatching the bore would draw material that is not there"
 		);
 		let dir = (*b - *a).normalize();
-		assert!(
-			(dir.x.abs() - dir.y.abs()).abs() < 1e-9,
-			"hatch segment {i} runs {dir:?}, but section hatching is 45°"
-		);
+		assert!((dir.x.abs() - dir.y.abs()).abs() < 1e-9, "hatch segment {i} runs {dir:?}, but section hatching is 45°");
 	}
 }
 
@@ -598,18 +585,12 @@ fn the_sheet_states_the_hidden_line_limitation_in_its_own_output() {
 		text.contains(HLR_NOTE),
 		"the rendered SVG must carry the hidden-line note VERBATIM — a drawing that silently omits hidden detail is a trap. Sheet text was:\n{text}"
 	);
-	assert!(
-		text.contains(PROVENANCE_NOTE),
-		"the rendered SVG must state where its numbers come from. Sheet text was:\n{text}"
-	);
+	assert!(text.contains(PROVENANCE_NOTE), "the rendered SVG must state where its numbers come from. Sheet text was:\n{text}");
 	assert!(
 		text.contains("GENERAL TOLERANCE +/-0.200 mm (source: test fixture)"),
 		"the units/tolerance note must carry the caller-supplied value AND its source. Sheet text was:\n{text}"
 	);
-	assert!(
-		text.contains("DIMENSION SCHEDULE"),
-		"the auditable dimension schedule must be on the sheet. Sheet text was:\n{text}"
-	);
+	assert!(text.contains("DIMENSION SCHEDULE"), "the auditable dimension schedule must be on the sheet. Sheet text was:\n{text}");
 	let dxf = sheet.to_dxf();
 	assert!(
 		dxf.contains("VISIBLE EDGES ONLY"),
@@ -628,10 +609,7 @@ fn the_dimension_schedule_carries_every_value_with_its_measure() {
 			"the schedule must show '{row}' so a reader can audit where the number came from. Sheet text was:\n{text}"
 		);
 	}
-	assert!(
-		text.contains("\u{d8}8.000 | diameter"),
-		"the Ø8 bore must appear in the schedule as a diameter. Sheet text was:\n{text}"
-	);
+	assert!(text.contains("\u{d8}8.000 | diameter"), "the Ø8 bore must appear in the schedule as a diameter. Sheet text was:\n{text}");
 	assert!(text.contains("80.000 | linear"), "the 80 mm extent must appear in the schedule");
 }
 
@@ -676,10 +654,8 @@ fn svg_is_byte_identical_across_two_independent_builds() {
 	assert!(a.starts_with("<svg xmlns="), "the SVG must be a bare, self-describing document");
 	assert!(a.contains("width=\"420.0000mm\""), "the sheet is A3 landscape in real millimetres");
 	// Fixed-decimal formatting is what makes it stable: no exponents, no −0.
-	let exponent = a
-		.as_bytes()
-		.windows(3)
-		.any(|w| w[0].is_ascii_digit() && (w[1] == b'e' || w[1] == b'E') && (w[2] == b'-' || w[2] == b'+'));
+	let exponent =
+		a.as_bytes().windows(3).any(|w| w[0].is_ascii_digit() && (w[1] == b'e' || w[1] == b'E') && (w[2] == b'-' || w[2] == b'+'));
 	assert!(!exponent, "no coordinate may be written in exponent form — shortest-round-trip formatting is not byte-stable");
 	assert!(!a.contains("\"-0.0000\""), "negative zero must be normalized away");
 	assert!(!a.contains(">-0.000<"), "negative zero must be normalized away in dimension text too");
@@ -714,4 +690,3 @@ fn a_sheet_with_no_geometry_still_renders_its_notes() {
 	assert!(text.contains(HLR_NOTE), "even an empty sheet states its limitation. Got:\n{text}");
 	assert_eq!(sheet.scale_text(), "1:1", "an empty sheet has nothing to scale");
 }
-

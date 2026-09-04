@@ -6,16 +6,12 @@
 //! [`Node`] tree whose booleans are `min`/`max` on signed distances. Hand the
 //! whole tree to a mesher (`kernel_core::surface_nets`) to get a watertight mesh.
 
-pub mod grid_field;
-pub mod sparse;
-pub mod strut;
-pub mod text;
-pub mod texture;
 pub mod dual_contour;
 pub mod expr_sdf;
 pub mod fast_winding;
 pub mod features;
 pub mod grid;
+pub mod grid_field;
 pub mod lattice;
 pub mod manifold_dc;
 pub mod mesh_boolean;
@@ -24,6 +20,10 @@ pub mod narrow_band;
 pub mod ops;
 pub mod primitives;
 pub mod redistance;
+pub mod sparse;
+pub mod strut;
+pub mod text;
+pub mod texture;
 pub mod voronoi;
 
 pub use dual_contour::dual_contour;
@@ -87,8 +87,12 @@ mod tests {
 	fn circular_pattern_makes_a_ring() {
 		// Six Ø4 spheres on a ring of radius 12 (a full 2π/6 step) — disjoint → 6×.
 		let v1 = vol(&Node::primitive(Sphere::new(Vec3::new(12.0, 0.0, 0.0), 2.0)), 0.15);
-		let ring = Node::primitive(Sphere::new(Vec3::new(12.0, 0.0, 0.0), 2.0))
-			.circular_pattern(Vec3::ZERO, Vec3::Z, std::f32::consts::TAU / 6.0, 6);
+		let ring = Node::primitive(Sphere::new(Vec3::new(12.0, 0.0, 0.0), 2.0)).circular_pattern(
+			Vec3::ZERO,
+			Vec3::Z,
+			std::f32::consts::TAU / 6.0,
+			6,
+		);
 		let v6 = vol(&ring, 0.15);
 		assert!((v6 - 6.0 * v1).abs() / (6.0 * v1) < 0.05, "6-ring vol {v6} vs {}", 6.0 * v1);
 		// The ring wraps to the −x side too.
@@ -112,9 +116,17 @@ mod tests {
 		// SAME branch — they previously disagreed (1e-12 vs 1e-18) and flipped sign.
 		let p = Vec3::new(0.5, 0.0, 0.0);
 		let cyl = Cylinder::new(Vec3::ZERO, Vec3::new(1e-7, 0.0, 0.0), 1.0);
-		assert_eq!(cyl.distance(p).signum() as f64, cyl.distance64(p.as_dvec3()).signum(), "cylinder branch disagrees near a degenerate axis");
+		assert_eq!(
+			cyl.distance(p).signum() as f64,
+			cyl.distance64(p.as_dvec3()).signum(),
+			"cylinder branch disagrees near a degenerate axis"
+		);
 		let cone = Cone::new(Vec3::ZERO, Vec3::new(1e-7, 0.0, 0.0), 1.0, 1.0);
-		assert_eq!(cone.distance(p).signum() as f64, cone.distance64(p.as_dvec3()).signum(), "cone branch disagrees near a degenerate axis");
+		assert_eq!(
+			cone.distance(p).signum() as f64,
+			cone.distance64(p.as_dvec3()).signum(),
+			"cone branch disagrees near a degenerate axis"
+		);
 		// (#12/#14) Gyroid with zero frequency must be finite, not NaN poisoning the grid.
 		let g = Gyroid::new(Aabb::from_center_half_extent(Vec3::ZERO, Vec3::splat(5.0)), 0.0, 0.1);
 		assert!(g.distance(Vec3::new(1.0, 2.0, 3.0)).is_finite(), "gyroid scale=0 produced non-finite");
@@ -171,8 +183,8 @@ mod tests {
 		// kernel-model's voxel_path_unions_a_tilted_box_watertight.)
 		let half = 20.0;
 		let region = Aabb::from_center_half_extent(Vec3::ZERO, Vec3::splat(half));
-		let lattice = Node::primitive(Gyroid::new(region, 0.35, 0.30))
-			.intersection(Node::primitive(Cuboid::new(Vec3::ZERO, Vec3::splat(half))));
+		let lattice =
+			Node::primitive(Gyroid::new(region, 0.35, 0.30)).intersection(Node::primitive(Cuboid::new(Vec3::ZERO, Vec3::splat(half))));
 		let mesh = manifold_dual_contour(&lattice, region, Resolution::VoxelSize(0.8));
 		let vol = mesh.signed_volume();
 		let bb = mesh.aabb();
@@ -203,13 +215,19 @@ mod tests {
 		// the implicit half, the signature organic workflow done correctly.
 		let half = 20.0;
 		let region = Aabb::from_center_half_extent(Vec3::ZERO, Vec3::splat(half));
-		let lattice = Node::primitive(Gyroid::new(region, 0.35, 0.6)).intersection(Node::primitive(Cuboid::new(Vec3::ZERO, Vec3::splat(half))));
+		let lattice =
+			Node::primitive(Gyroid::new(region, 0.35, 0.6)).intersection(Node::primitive(Cuboid::new(Vec3::ZERO, Vec3::splat(half))));
 		let mesh = manifold_dual_contour(&lattice, region, Resolution::VoxelSize(0.8));
 		let r = check_mesh(&mesh);
 		let vol = mesh.signed_volume().abs();
 		let cube_vol = 8.0 * (half as f64).powi(3);
 		assert!(
-			mesh.is_watertight() && r.non_manifold_edges == 0 && r.boundary_edges == 0 && mesh.triangle_count() > 5000 && vol > 0.01 * cube_vol && vol < 0.6 * cube_vol,
+			mesh.is_watertight()
+				&& r.non_manifold_edges == 0
+				&& r.boundary_edges == 0
+				&& mesh.triangle_count() > 5000
+				&& vol > 0.01 * cube_vol
+				&& vol < 0.6 * cube_vol,
 			"watertight gyroid lattice: wt={} nme={} bnd={} tris={} vol={vol} (cube {cube_vol})",
 			mesh.is_watertight(),
 			r.non_manifold_edges,
@@ -222,11 +240,7 @@ mod tests {
 	fn difference_removes_volume() {
 		// 20mm cube minus a Ø8 cylindrical hole straight through it.
 		let cube = Node::primitive(Cuboid::new(Vec3::ZERO, Vec3::splat(10.0)));
-		let hole = Node::primitive(Cylinder::new(
-			Vec3::new(0.0, -11.0, 0.0),
-			Vec3::new(0.0, 11.0, 0.0),
-			4.0,
-		));
+		let hole = Node::primitive(Cylinder::new(Vec3::new(0.0, -11.0, 0.0), Vec3::new(0.0, 11.0, 0.0), 4.0));
 		let part = cube.difference(hole);
 		let v = vol(&part, 0.4);
 		let expected = 20.0f64.powi(3) - std::f64::consts::PI * 4.0f64.powi(2) * 20.0;
@@ -236,8 +250,7 @@ mod tests {
 	#[test]
 	fn translate_preserves_volume() {
 		let s = Node::primitive(Sphere::new(Vec3::ZERO, 8.0));
-		let moved = Node::primitive(Sphere::new(Vec3::ZERO, 8.0))
-			.transform(Affine3A::from_translation(Vec3::new(5.0, -3.0, 2.0)));
+		let moved = Node::primitive(Sphere::new(Vec3::ZERO, 8.0)).transform(Affine3A::from_translation(Vec3::new(5.0, -3.0, 2.0)));
 		let a = vol(&s, 0.3);
 		let b = vol(&moved, 0.3);
 		assert!((a - b).abs() / a < 0.01, "translation changed volume: {a} vs {b}");

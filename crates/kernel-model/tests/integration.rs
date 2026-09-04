@@ -9,9 +9,7 @@
 use kernel_brep::math::DVec3;
 use kernel_brep::{cuboid, tessellate_default};
 use kernel_core::{check_mesh, make_manifold, Mesh, Resolution};
-use kernel_implicit::{
-	dual_contour_narrowband, surface_nets, Cylinder, MeshSdf, Node, Sdf, Sphere, Vec3, VoxelGrid,
-};
+use kernel_implicit::{dual_contour_narrowband, surface_nets, Cylinder, MeshSdf, Node, Sdf, Sphere, Vec3, VoxelGrid};
 use kernel_model::{BooleanOp, Dim, Document, Feature};
 
 #[test]

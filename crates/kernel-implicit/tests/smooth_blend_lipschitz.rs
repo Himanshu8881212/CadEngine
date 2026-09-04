@@ -34,8 +34,5 @@ fn smooth_blends_stay_one_lipschitz() {
 	}
 	let gi = max_gradient_magnitude(&a().smooth_intersection(b(), 2.0));
 	let gd = max_gradient_magnitude(&a().smooth_difference(b(), 2.0));
-	assert!(
-		gi <= 1.01 && gd <= 1.01,
-		"smooth_intersection / smooth_difference must stay <=1-Lipschitz: inter={gi} diff={gd}"
-	);
+	assert!(gi <= 1.01 && gd <= 1.01, "smooth_intersection / smooth_difference must stay <=1-Lipschitz: inter={gi} diff={gd}");
 }

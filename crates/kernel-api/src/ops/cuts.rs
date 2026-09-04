@@ -40,23 +40,25 @@ pub(crate) fn exec(
 		#[cfg(feature = "catalog")]
 		OpKind::CirclipGrooveExternal { input, at, axis, shaft_d } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
-			let solid = parts::circlip_groove_external(s, dv3(at), dv3(axis), shaft_d).ok_or_else(|| {
-				err(
+			let solid =
+				parts::circlip_groove_external(s, dv3(at), dv3(axis), shaft_d).ok_or_else(|| {
+					err(
 					ErrorKind::InvalidParam,
 					format!("op '{op_id}': circlip_groove_external: Ø{shaft_d} must be a DIN 471 size ({DIN471_SIZES}) and the axis non-zero"),
 				)
-			})?;
+				})?;
 			bind_solid(op_id, "circlip_groove_external", solid)
 		}
 		#[cfg(feature = "catalog")]
 		OpKind::CirclipGrooveInternal { input, at, axis, bore_d } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
-			let solid = parts::circlip_groove_internal(s, dv3(at), dv3(axis), bore_d).ok_or_else(|| {
-				err(
+			let solid =
+				parts::circlip_groove_internal(s, dv3(at), dv3(axis), bore_d).ok_or_else(|| {
+					err(
 					ErrorKind::InvalidParam,
 					format!("op '{op_id}': circlip_groove_internal: Ø{bore_d} must be a DIN 472 size ({DIN472_SIZES}) and the axis non-zero"),
 				)
-			})?;
+				})?;
 			bind_solid(op_id, "circlip_groove_internal", solid)
 		}
 		#[cfg(feature = "catalog")]

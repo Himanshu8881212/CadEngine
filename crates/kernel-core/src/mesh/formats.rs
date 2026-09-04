@@ -215,8 +215,8 @@ impl Mesh {
 	}
 
 	fn parse_ascii_stl(bytes: &[u8]) -> io::Result<Mesh> {
-		let text = std::str::from_utf8(bytes)
-			.map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "STL is neither valid binary nor ASCII"))?;
+		let text =
+			std::str::from_utf8(bytes).map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "STL is neither valid binary nor ASCII"))?;
 		let mut mesh = Mesh::new();
 		let mut verts: Vec<Vec3> = Vec::with_capacity(3);
 		let mut normal = Vec3::ZERO;
@@ -328,11 +328,7 @@ impl Mesh {
 			// `scenes`/`nodes` arrays would violate the glTF 2.0 minItems:1 schema).
 			return glb_container(b"{\"asset\":{\"version\":\"2.0\",\"generator\":\"LMCAD hybrid kernel\"}}", &[]);
 		}
-		let normals = if self.normals.len() == n_verts && n_verts > 0 {
-			self.normals.clone()
-		} else {
-			self.area_weighted_normals()
-		};
+		let normals = if self.normals.len() == n_verts && n_verts > 0 { self.normals.clone() } else { self.area_weighted_normals() };
 
 		// Binary buffer: [positions][normals][indices] (all naturally 4-aligned).
 		let mut bin: Vec<u8> = Vec::with_capacity(n_verts * 24 + n_idx * 4);
@@ -380,9 +376,21 @@ impl Mesh {
 			{{\"buffer\":0,\"byteOffset\":{no},\"byteLength\":{nl},\"target\":34962}},\
 			{{\"buffer\":0,\"byteOffset\":{io},\"byteLength\":{il},\"target\":34963}}],\
 			\"buffers\":[{{\"byteLength\":{bl}}}]}}",
-			nv = n_verts, ni = n_idx, po = pos_off, pl = pos_len, no = nrm_off, nl = nrm_len,
-			io = idx_off, il = idx_len, bl = bin.len(),
-			mnx = mn.x, mny = mn.y, mnz = mn.z, mxx = mx.x, mxy = mx.y, mxz = mx.z,
+			nv = n_verts,
+			ni = n_idx,
+			po = pos_off,
+			pl = pos_len,
+			no = nrm_off,
+			nl = nrm_len,
+			io = idx_off,
+			il = idx_len,
+			bl = bin.len(),
+			mnx = mn.x,
+			mny = mn.y,
+			mnz = mn.z,
+			mxx = mx.x,
+			mxy = mx.y,
+			mxz = mx.z,
 		);
 		glb_container(json.as_bytes(), &bin)
 	}
@@ -450,7 +458,6 @@ impl Mesh {
 	}
 }
 
-
 /// Each `<{tag} …/>`-or-`<{tag} …>` element of `xml`, as the substring from the tag to its
 /// closing `>`. A trailing boundary check (the char after the name must be whitespace, `/`
 /// or `>`) keeps `<vertex` from matching inside `<vertices>`. Tolerant enough for the
@@ -498,6 +505,3 @@ pub(crate) fn xml_attr_f32(elem: &str, name: &str) -> Option<f32> {
 pub(crate) fn xml_attr_u32(elem: &str, name: &str) -> Option<u32> {
 	xml_attr(elem, name).and_then(|s| s.trim().parse().ok())
 }
-
-
-

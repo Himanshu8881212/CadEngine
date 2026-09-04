@@ -73,12 +73,7 @@ fn tet_faces(v: &[usize; 4]) -> [[usize; 3]; 4] {
 		f.sort_unstable();
 		f
 	};
-	[
-		sorted([v[1], v[2], v[3]]),
-		sorted([v[0], v[2], v[3]]),
-		sorted([v[0], v[1], v[3]]),
-		sorted([v[0], v[1], v[2]]),
-	]
+	[sorted([v[1], v[2], v[3]]), sorted([v[0], v[2], v[3]]), sorted([v[0], v[1], v[3]]), sorted([v[0], v[1], v[2]])]
 }
 
 /// Circumcenter and squared circumradius of the tetrahedron `(a, b, c, d)`, or
@@ -95,8 +90,7 @@ fn circumsphere(a: DVec3, b: DVec3, c: DVec3, d: DVec3, flat_det: f64) -> Option
 		return None;
 	}
 	// o = circumcenter − a (Cramer's rule for the equidistance system).
-	let o = (ba.length_squared() * ca.cross(da) + ca.length_squared() * da.cross(ba) + da.length_squared() * ba.cross(ca))
-		/ (2.0 * det);
+	let o = (ba.length_squared() * ca.cross(da) + ca.length_squared() * da.cross(ba) + da.length_squared() * ba.cross(ca)) / (2.0 * det);
 	let center = a + o;
 	let r2 = o.length_squared();
 	if center.is_finite() && r2.is_finite() {
@@ -188,12 +182,8 @@ pub fn voronoi_struts(seeds: &[Vec3], min: Vec3, max: Vec3) -> Vec<(Vec3, Vec3)>
 	// A regular tet on four alternating cube corners at ±s: its inradius is
 	// s·√3/3 ≈ 5.8·extent ≫ extent, so every seed sits strictly inside it.
 	let s = extent * 10.0;
-	let super_verts = [
-		center + DVec3::new(s, s, s),
-		center + DVec3::new(s, -s, -s),
-		center + DVec3::new(-s, s, -s),
-		center + DVec3::new(-s, -s, s),
-	];
+	let super_verts =
+		[center + DVec3::new(s, s, s), center + DVec3::new(s, -s, -s), center + DVec3::new(-s, s, -s), center + DVec3::new(-s, -s, s)];
 	let base = n; // super-vertices occupy indices n..n+4
 	pts.extend_from_slice(&super_verts);
 	let flat_det = FLAT_DET_REL * extent.powi(3).max(1e-12);
@@ -224,8 +214,8 @@ pub fn voronoi_struts(seeds: &[Vec3], min: Vec3, max: Vec3) -> Vec<(Vec3, Vec3)>
 		}
 		let mut boundary: Vec<[usize; 3]> = face_count.into_iter().filter(|&(_, c)| c == 1).map(|(f, _)| f).collect();
 		boundary.sort_unstable(); // determinism, independent of HashMap order
-		// Delete the cavity: swap_remove in descending index order is safe
-		// because it only ever pulls a tail (higher-index, non-cavity) tet down.
+							// Delete the cavity: swap_remove in descending index order is safe
+							// because it only ever pulls a tail (higher-index, non-cavity) tet down.
 		bad.sort_unstable();
 		for &ti in bad.iter().rev() {
 			tets.swap_remove(ti);
@@ -297,9 +287,7 @@ mod tests {
 			*s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
 			((*s >> 33) as f32) / ((1u64 << 31) as f32)
 		}
-		(0..n)
-			.map(|_| Vec3::new(lo + (hi - lo) * next(seed), lo + (hi - lo) * next(seed), lo + (hi - lo) * next(seed)))
-			.collect()
+		(0..n).map(|_| Vec3::new(lo + (hi - lo) * next(seed), lo + (hi - lo) * next(seed), lo + (hi - lo) * next(seed))).collect()
 	}
 
 	#[test]
@@ -308,9 +296,16 @@ mod tests {
 		// probe: a symmetric point set must produce a NON-EMPTY, box-contained
 		// edge graph, and every emitted strut must lie inside the clip box.
 		let seeds = vec![
-			Vec3::new(-5.0, -5.0, -5.0), Vec3::new(5.0, -5.0, -5.0), Vec3::new(-5.0, 5.0, -5.0), Vec3::new(5.0, 5.0, -5.0),
-			Vec3::new(-5.0, -5.0, 5.0), Vec3::new(5.0, -5.0, 5.0), Vec3::new(-5.0, 5.0, 5.0), Vec3::new(5.0, 5.0, 5.0),
-			Vec3::new(0.0, 0.0, 0.0), Vec3::new(2.0, 1.0, -1.0),
+			Vec3::new(-5.0, -5.0, -5.0),
+			Vec3::new(5.0, -5.0, -5.0),
+			Vec3::new(-5.0, 5.0, -5.0),
+			Vec3::new(5.0, 5.0, -5.0),
+			Vec3::new(-5.0, -5.0, 5.0),
+			Vec3::new(5.0, -5.0, 5.0),
+			Vec3::new(-5.0, 5.0, 5.0),
+			Vec3::new(5.0, 5.0, 5.0),
+			Vec3::new(0.0, 0.0, 0.0),
+			Vec3::new(2.0, 1.0, -1.0),
 		];
 		let (lo, hi) = (Vec3::splat(-6.0), Vec3::splat(6.0));
 		let struts = voronoi_struts(&seeds, lo, hi);
@@ -321,11 +316,7 @@ mod tests {
 				&& b.cmpge(lo - Vec3::splat(eps)).all()
 				&& b.cmple(hi + Vec3::splat(eps)).all()
 		});
-		assert!(
-			!struts.is_empty() && inside,
-			"symmetric cube cloud: {} struts, all-inside-box={inside}",
-			struts.len()
-		);
+		assert!(!struts.is_empty() && inside, "symmetric cube cloud: {} struts, all-inside-box={inside}", struts.len());
 	}
 
 	#[test]

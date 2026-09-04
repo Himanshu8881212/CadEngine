@@ -71,7 +71,10 @@ mod tests {
 			let expected = area * len;
 			let vol = volume(&s).abs();
 			assert!(
-				v.closed && v.manifold && v.genus == 0 && tessellate_default(&s).is_watertight() && (vol - expected).abs() / expected < 0.05,
+				v.closed
+					&& v.manifold && v.genus == 0
+					&& tessellate_default(&s).is_watertight()
+					&& (vol - expected).abs() / expected < 0.05,
 				"spring Ø{wire_d}/Ø{outer_d} p{pitch} × {turns}: want watertight genus-0 ~{expected:.0}mm³; got {v:?} wt={} vol={vol:.0}",
 				tessellate_default(&s).is_watertight()
 			);

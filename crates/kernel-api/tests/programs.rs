@@ -22,11 +22,7 @@ fn out_dir(name: &str) -> PathBuf {
 
 /// The report entry for op `id` (panics with the report when absent).
 fn entry<'r>(report: &'r Report, id: &str) -> &'r OpReport {
-	report
-		.ops
-		.iter()
-		.find(|o| o.id == id)
-		.unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
+	report.ops.iter().find(|o| o.id == id).unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
 }
 
 /// True when `path` exists and is non-empty.
@@ -414,10 +410,7 @@ fn catalog_and_hole_error_paths_are_structured() {
 	);
 
 	// (c) A shaft keyway outside the DIN 6885-1 diameter range.
-	let r = run_program(
-		r#"{"ops": [{"id": "s", "op": "shaft", "d": 200, "length": 50, "keyway": {"length": 20, "offset": 5}}]}"#,
-		&dir,
-	);
+	let r = run_program(r#"{"ops": [{"id": "s", "op": "shaft", "d": 200, "length": 50, "keyway": {"length": 20, "offset": 5}}]}"#, &dir);
 	let e = r.ops[0].error.as_ref().expect("error entry");
 	assert!(
 		!r.ok && e.kind == ErrorKind::InvalidParam && e.message.contains("DIN 6885-1"),
@@ -730,8 +723,11 @@ fn cli_prints_report_and_exit_codes() {
 	let dir = out_dir("cli");
 	let ok_path = dir.join("ok.json");
 	let bad_path = dir.join("bad.json");
-	std::fs::write(&ok_path, r#"{"ops": [{"id": "b", "op": "box", "min": [0,0,0], "max": [5,5,5]}, {"id": "v", "op": "volume", "in": "b"}]}"#)
-		.expect("write ok program");
+	std::fs::write(
+		&ok_path,
+		r#"{"ops": [{"id": "b", "op": "box", "min": [0,0,0], "max": [5,5,5]}, {"id": "v", "op": "volume", "in": "b"}]}"#,
+	)
+	.expect("write ok program");
 	std::fs::write(&bad_path, r#"{"ops": [{"id": "u", "op": "union", "a": "nope", "b": "nope2"}]}"#).expect("write bad program");
 
 	let run = |path: &Path| {
@@ -777,7 +773,11 @@ fn pose_op_applies_general_rigid_pose() {
 	]});
 	let report = run_program(&serde_json::to_string(&program).expect("serialize"), &dir);
 	let com = |id: &str| -> Vec<f64> {
-		entry(&report, id).measures.as_ref().map(|m| m["center_of_mass"].as_array().expect("com array").iter().map(|x| x.as_f64().expect("number")).collect()).unwrap_or_default()
+		entry(&report, id)
+			.measures
+			.as_ref()
+			.map(|m| m["center_of_mass"].as_array().expect("com array").iter().map(|x| x.as_f64().expect("number")).collect())
+			.unwrap_or_default()
 	};
 	let (c1, c2) = (com("m1"), com("m2"));
 	// Rx(−90°): (x, y, z) → (x, z, −y), so com (5, 10, 1) → (5, 1, −10); +[0,0,30] → (5, 1, 20).
@@ -1127,16 +1127,11 @@ fn fillet_edge_near_records_which_edge_the_witness_chose() {
 	let re = |r: &Report| entry(r, "f").measures.as_ref().and_then(|m| m.get("resolved_edge").cloned());
 	let m = re(&report).unwrap_or_default();
 	let faces = m["faces"].as_array().cloned().unwrap_or_default();
-	let well_formed = faces.len() == 2
-		&& faces.iter().all(|f| f["operand"].is_string() && f["source_face"].is_u64());
+	let well_formed = faces.len() == 2 && faces.iter().all(|f| f["operand"].is_string() && f["source_face"].is_u64());
 	let dist = m["witness_distance"].as_f64().unwrap_or(f64::NAN);
 	let limit = m["max_distance"].as_f64().unwrap_or(f64::NAN);
 	assert!(
-		report.ok
-			&& well_formed
-			&& dist.is_finite()
-			&& limit.is_finite()
-			&& re(&report) == re(&rerun), // same face-pair identity on rerun → comparable
+		report.ok && well_formed && dist.is_finite() && limit.is_finite() && re(&report) == re(&rerun), // same face-pair identity on rerun → comparable
 		"fillet_edge_near resolved_edge: faces={faces:?} witness_distance={dist} max_distance={limit} \
 		 well_formed={well_formed} stable_on_rerun={} report={report:#?}",
 		re(&report) == re(&rerun)

@@ -168,10 +168,7 @@ impl std::fmt::Display for ProcessError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			ProcessError::NotImplemented { process, note } => {
-				write!(
-					f,
-					"{process} process profile not implemented — declared sibling, see kernel_model::process module doc{note}"
-				)
+				write!(f, "{process} process profile not implemented — declared sibling, see kernel_model::process module doc{note}")
 			}
 			ProcessError::Io { path, err } => write!(f, "profile I/O failed at '{path}': {err}"),
 			ProcessError::Schema { path, err } => {
@@ -321,10 +318,22 @@ impl FdmProfile {
 			return Err(ProcessError::BadName(self.name.clone()));
 		}
 		let checks: [(&'static str, f64, f64, f64, &'static str); 13] = [
-			("xy_clearance_tight", self.xy_clearance_tight, -0.2, 2.0, "a press fit beyond 0.2 mm interference or 2 mm gap is a measurement error"),
+			(
+				"xy_clearance_tight",
+				self.xy_clearance_tight,
+				-0.2,
+				2.0,
+				"a press fit beyond 0.2 mm interference or 2 mm gap is a measurement error",
+			),
 			("xy_clearance_free", self.xy_clearance_free, 0.0, 2.0, "a free fit needs a non-negative clearance under 2 mm"),
 			("z_clearance", self.z_clearance, 0.0, 2.0, "axial clearance must be 0–2 mm"),
-			("hole_diameter_comp", self.hole_diameter_comp, -1.0, 1.0, "a hole compensation beyond ±1 mm is a measurement error, not a printer"),
+			(
+				"hole_diameter_comp",
+				self.hole_diameter_comp,
+				-1.0,
+				1.0,
+				"a hole compensation beyond ±1 mm is a measurement error, not a printer",
+			),
 			("bore_comp", self.bore_comp, -1.0, 1.0, "a bore compensation beyond ±1 mm is a measurement error, not a printer"),
 			("first_layer_comp", self.first_layer_comp, 0.0, 2.0, "elephant-foot budget is a non-negative radial flare under 2 mm"),
 			("seam_allowance", self.seam_allowance, 0.0, 1.0, "a seam bump beyond 1 mm is a measurement error"),
@@ -362,8 +371,7 @@ impl FdmProfile {
 	/// Parse a profile from [`to_json`](Self::to_json) bytes and range-check
 	/// it. Unknown or missing fields are hard errors, never silent defaults.
 	pub fn from_json(json: &str) -> Result<FdmProfile, ProcessError> {
-		let p: FdmProfile =
-			serde_json::from_str(json).map_err(|err| ProcessError::Schema { path: "<inline>".to_string(), err })?;
+		let p: FdmProfile = serde_json::from_str(json).map_err(|err| ProcessError::Schema { path: "<inline>".to_string(), err })?;
 		p.validate()?;
 		Ok(p)
 	}
@@ -384,8 +392,7 @@ impl FdmProfile {
 	/// Load and range-check a profile from `path`.
 	pub fn load(path: &str) -> Result<FdmProfile, ProcessError> {
 		let text = std::fs::read_to_string(path).map_err(|err| ProcessError::Io { path: path.to_string(), err })?;
-		let p: FdmProfile =
-			serde_json::from_str(&text).map_err(|err| ProcessError::Schema { path: path.to_string(), err })?;
+		let p: FdmProfile = serde_json::from_str(&text).map_err(|err| ProcessError::Schema { path: path.to_string(), err })?;
 		p.validate()?;
 		Ok(p)
 	}
@@ -493,10 +500,7 @@ impl FdmProfile {
 				check: "support_steep",
 				measured: rep.steep_area,
 				limit: 0.0,
-				detail: format!(
-					"{:.1} mm² needs support at the {:.0}° threshold{}",
-					rep.steep_area, self.max_unsupported_angle, wher
-				),
+				detail: format!("{:.1} mm² needs support at the {:.0}° threshold{}", rep.steep_area, self.max_unsupported_angle, wher),
 			});
 		}
 		if rep.max_bridge_span > self.max_bridge {
@@ -504,10 +508,7 @@ impl FdmProfile {
 				check: "bridge_span",
 				measured: rep.max_bridge_span,
 				limit: self.max_bridge,
-				detail: format!(
-					"widest flat bridge {:.1} mm exceeds the profile's {:.1} mm",
-					rep.max_bridge_span, self.max_bridge
-				),
+				detail: format!("widest flat bridge {:.1} mm exceeds the profile's {:.1} mm", rep.max_bridge_span, self.max_bridge),
 			});
 		}
 		let walls = m.wall_thickness(self.min_wall);

@@ -5,9 +5,7 @@
 //! correctness is not asserted for degenerate shapes — only that the kernel
 //! stays well-defined.
 
-use kernel_implicit::{
-	surface_nets, Capsule, Cone, Cuboid, Cylinder, Node, Resolution, Sdf, Sphere, Torus, Vec3,
-};
+use kernel_implicit::{surface_nets, Capsule, Cone, Cuboid, Cylinder, Node, Resolution, Sdf, Sphere, Torus, Vec3};
 use proptest::prelude::*;
 
 const PROBES: [Vec3; 5] = [

@@ -82,8 +82,7 @@ pub fn bridged_counterbore(solid: &Solid, at: DVec3, axis: DVec3, m: f64, throug
 	let (e1, e2) = super::perp_basis(a);
 	let frame = DMat3::from_cols(e1, e2, a);
 	// Counterbore pocket: 1 mm proud of the face down to the table depth.
-	let pocket = cylinder(DVec3::ZERO, DVec3::Z, cb_d * 0.5, cb_t + 1.0, 48)
-		.transformed(DAffine3::from_mat3_translation(frame, at - a));
+	let pocket = cylinder(DVec3::ZERO, DVec3::Z, cb_d * 0.5, cb_t + 1.0, 48).transformed(DAffine3::from_mat3_translation(frame, at - a));
 	// Clearance bore: starts `bridge` below the pocket floor, exits 1 mm past the
 	// far face — the membrane in between is the sacrificial bridge.
 	let bore_start = cb_t + bridge;
@@ -102,7 +101,8 @@ mod tests {
 	fn check(s: &Solid, want_genus: i64) -> (bool, String) {
 		let v = validate(s);
 		let ok = v.closed
-			&& v.manifold && v.genus == want_genus
+			&& v.manifold
+			&& v.genus == want_genus
 			&& tessellate_default(s).is_watertight()
 			&& tessellate_adaptive_tol(s, 0.01).is_watertight();
 		(ok, format!("{v:?} wt={} adaptive_wt={}", tessellate_default(s).is_watertight(), tessellate_adaptive_tol(s, 0.01).is_watertight()))

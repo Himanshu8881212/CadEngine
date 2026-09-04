@@ -14,9 +14,7 @@
 //! numerically on every run. See campaign/friction/ENGINE.md #23.
 
 use kernel_brep::math::{DVec2, DVec3};
-use kernel_brep::{
-	cone, cuboid, cylinder, difference, extrude, tessellate_default, try_intersection, union, validate,
-};
+use kernel_brep::{cone, cuboid, cylinder, difference, extrude, tessellate_default, try_intersection, union, validate};
 use std::f64::consts::FRAC_PI_2;
 
 fn v(x: f64, y: f64, z: f64) -> DVec3 {
@@ -29,19 +27,13 @@ fn chained_union_difference_plate_meshes_watertight() {
 	let mut s = cuboid(v(-50.0, 0.0, 0.0), v(50.0, 130.0, 4.0));
 	// two dovetail rails (male profile, embedded 0.5)
 	for rx in [-20.0f64, 20.0] {
-		let prof: Vec<DVec2> = [
-			(rx - 2.8, 3.5),
-			(rx + 2.8, 3.5),
-			(rx + 2.8, 4.0),
-			(rx + 4.21, 6.35),
-			(rx - 4.21, 6.35),
-			(rx - 2.8, 4.0),
-		]
-		.iter()
-		.map(|&(x, z)| DVec2::new(x, z))
-		.collect();
-		let rail = extrude(&prof, 118.0)
-			.transformed(kernel_brep::math::DAffine3::from_translation(v(0.0, 122.0, 0.0)) * kernel_brep::math::DAffine3::from_rotation_x(FRAC_PI_2));
+		let prof: Vec<DVec2> = [(rx - 2.8, 3.5), (rx + 2.8, 3.5), (rx + 2.8, 4.0), (rx + 4.21, 6.35), (rx - 4.21, 6.35), (rx - 2.8, 4.0)]
+			.iter()
+			.map(|&(x, z)| DVec2::new(x, z))
+			.collect();
+		let rail = extrude(&prof, 118.0).transformed(
+			kernel_brep::math::DAffine3::from_translation(v(0.0, 122.0, 0.0)) * kernel_brep::math::DAffine3::from_rotation_x(FRAC_PI_2),
+		);
 		s = union(&s, &rail);
 	}
 	// fence
@@ -67,31 +59,15 @@ fn notch_sliver_overlap_refuses_honestly() {
 	// Socket-notched plate (opening 6, root 9, depth 2.5) lifted 1.0 over a
 	// centred bowtie key: the true overlap is two disjoint 0.4-wide parallelogram
 	// strips, 25 long — volume 2 × (0.4 × 1.35) × 25 = 27.
-	let plate_prof: Vec<DVec2> = [
-		(-20.0, 1.0),
-		(-3.0, 1.0),
-		(-4.5, 3.5),
-		(4.5, 3.5),
-		(3.0, 1.0),
-		(20.0, 1.0),
-		(20.0, 7.0),
-		(-20.0, 7.0),
-	]
-	.iter()
-	.map(|&(x, y)| DVec2::new(x, y))
-	.collect();
+	let plate_prof: Vec<DVec2> = [(-20.0, 1.0), (-3.0, 1.0), (-4.5, 3.5), (4.5, 3.5), (3.0, 1.0), (20.0, 1.0), (20.0, 7.0), (-20.0, 7.0)]
+		.iter()
+		.map(|&(x, y)| DVec2::new(x, y))
+		.collect();
 	let plate = extrude(&plate_prof, 25.0);
-	let bowtie: Vec<DVec2> = [
-		(-2.8, 0.0),
-		(-4.21, 2.35),
-		(4.21, 2.35),
-		(2.8, 0.0),
-		(4.21, -2.35),
-		(-4.21, -2.35),
-	]
-	.iter()
-	.map(|&(x, y)| DVec2::new(x, y))
-	.collect();
+	let bowtie: Vec<DVec2> = [(-2.8, 0.0), (-4.21, 2.35), (4.21, 2.35), (2.8, 0.0), (4.21, -2.35), (-4.21, -2.35)]
+		.iter()
+		.map(|&(x, y)| DVec2::new(x, y))
+		.collect();
 	// The key overshoots both plate caps by 1 (the project-wide pierce idiom —
 	// EXACTLY coincident end caps are the known coincident-face degeneracy and
 	// break the difference route too).

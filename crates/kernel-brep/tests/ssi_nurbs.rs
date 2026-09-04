@@ -24,18 +24,8 @@ fn bilinear(c00: DVec3, c01: DVec3, c10: DVec3, c11: DVec3) -> NurbsSurface {
 #[test]
 fn two_flat_nurbs_patches_intersect_in_a_line() {
 	// A: the z = 0 patch. B: the z = x patch. Both span x,y ∈ [−2,2].
-	let a = bilinear(
-		DVec3::new(-2.0, -2.0, 0.0),
-		DVec3::new(-2.0, 2.0, 0.0),
-		DVec3::new(2.0, -2.0, 0.0),
-		DVec3::new(2.0, 2.0, 0.0),
-	);
-	let b = bilinear(
-		DVec3::new(-2.0, -2.0, -2.0),
-		DVec3::new(-2.0, 2.0, -2.0),
-		DVec3::new(2.0, -2.0, 2.0),
-		DVec3::new(2.0, 2.0, 2.0),
-	);
+	let a = bilinear(DVec3::new(-2.0, -2.0, 0.0), DVec3::new(-2.0, 2.0, 0.0), DVec3::new(2.0, -2.0, 0.0), DVec3::new(2.0, 2.0, 0.0));
+	let b = bilinear(DVec3::new(-2.0, -2.0, -2.0), DVec3::new(-2.0, 2.0, -2.0), DVec3::new(2.0, -2.0, 2.0), DVec3::new(2.0, 2.0, 2.0));
 	let (fa, fb) = (NurbsField::new(&a, 6), NurbsField::new(&b, 6));
 	let opts = SsiOptions { seed_samples: 12, step: 0.05, ..Default::default() };
 	let lines = intersect_surfaces(&fa, &fb, DVec3::splat(-2.1), DVec3::splat(2.1), &opts);
@@ -78,18 +68,8 @@ fn nurbs_foot_projection_is_scale_invariant() {
 fn saddle_nurbs_meets_a_plane_in_a_curved_intersection() {
 	// Saddle (hyperbolic paraboloid) z = (x+2)(y+2)/4, cut by the plane z = 1, gives
 	// the curved branch (x+2)(y+2) = 4.
-	let saddle = bilinear(
-		DVec3::new(-2.0, -2.0, 0.0),
-		DVec3::new(-2.0, 2.0, 0.0),
-		DVec3::new(2.0, -2.0, 0.0),
-		DVec3::new(2.0, 2.0, 4.0),
-	);
-	let plane = bilinear(
-		DVec3::new(-2.0, -2.0, 1.0),
-		DVec3::new(-2.0, 2.0, 1.0),
-		DVec3::new(2.0, -2.0, 1.0),
-		DVec3::new(2.0, 2.0, 1.0),
-	);
+	let saddle = bilinear(DVec3::new(-2.0, -2.0, 0.0), DVec3::new(-2.0, 2.0, 0.0), DVec3::new(2.0, -2.0, 0.0), DVec3::new(2.0, 2.0, 4.0));
+	let plane = bilinear(DVec3::new(-2.0, -2.0, 1.0), DVec3::new(-2.0, 2.0, 1.0), DVec3::new(2.0, -2.0, 1.0), DVec3::new(2.0, 2.0, 1.0));
 	let (fs, fp) = (NurbsField::new(&saddle, 7), NurbsField::new(&plane, 5));
 	let opts = SsiOptions { seed_samples: 14, step: 0.04, ..Default::default() };
 	let lines = intersect_surfaces(&fs, &fp, DVec3::splat(-2.05), DVec3::splat(2.05), &opts);

@@ -341,13 +341,7 @@ impl TriangleBvh {
 
 	/// Recursively build the node covering `order[start..end]`, returning its
 	/// node index.
-	fn build_range(
-		&mut self,
-		start: usize,
-		end: usize,
-		bounds: &[Aabb],
-		centroids: &[Vec3],
-	) -> usize {
+	fn build_range(&mut self, start: usize, end: usize, bounds: &[Aabb], centroids: &[Vec3]) -> usize {
 		let mut node_bounds = Aabb::empty();
 		for &tid in &self.order[start..end] {
 			node_bounds = node_bounds.union(bounds[tid]);
@@ -355,13 +349,7 @@ impl TriangleBvh {
 
 		let count = end - start;
 		let node_index = self.nodes.len();
-		self.nodes.push(BvhNode {
-			bounds: node_bounds,
-			start,
-			end,
-			left: None,
-			right: None,
-		});
+		self.nodes.push(BvhNode { bounds: node_bounds, start, end, left: None, right: None });
 
 		if count <= BVH_LEAF_SIZE {
 			return node_index;
@@ -393,9 +381,7 @@ impl TriangleBvh {
 		let mid = start + count / 2;
 		// Partial sort: place the median element so [start..mid] <= [mid..end].
 		self.order[start..end]
-			.select_nth_unstable_by(count / 2, |&a, &b| {
-				axis_val(a).partial_cmp(&axis_val(b)).unwrap_or(std::cmp::Ordering::Equal)
-			});
+			.select_nth_unstable_by(count / 2, |&a, &b| axis_val(a).partial_cmp(&axis_val(b)).unwrap_or(std::cmp::Ordering::Equal));
 
 		// Guard against a degenerate split (all centroids equal) → keep as leaf.
 		if mid == start || mid == end {
@@ -498,10 +484,7 @@ fn self_intersection_count(mesh: &Mesh) -> usize {
 	// carry distinct indices). Without this, every shared edge between duplicated
 	// vertices would register as a false self-intersection.
 	let canon = canonical_ids(mesh);
-	let tris_canon: Vec<[u32; 3]> = tris
-		.iter()
-		.map(|t| [canon[t[0] as usize], canon[t[1] as usize], canon[t[2] as usize]])
-		.collect();
+	let tris_canon: Vec<[u32; 3]> = tris.iter().map(|t| [canon[t[0] as usize], canon[t[1] as usize], canon[t[2] as usize]]).collect();
 
 	// Per-triangle vertex positions, bounds and centroids; degenerate triangles
 	// get an empty box so the BVH never visits them.
@@ -646,11 +629,7 @@ fn canonical_ids(mesh: &Mesh) -> Vec<u32> {
 	let mut map: HashMap<(i64, i64, i64), u32> = HashMap::new();
 	let mut ids = vec![0u32; mesh.positions.len()];
 	for (i, p) in mesh.positions.iter().enumerate() {
-		let key = (
-			(p.x as f64 * inv).round() as i64,
-			(p.y as f64 * inv).round() as i64,
-			(p.z as f64 * inv).round() as i64,
-		);
+		let key = ((p.x as f64 * inv).round() as i64, (p.y as f64 * inv).round() as i64, (p.z as f64 * inv).round() as i64);
 		let next = map.len() as u32;
 		ids[i] = *map.entry(key).or_insert(next);
 	}
@@ -659,7 +638,7 @@ fn canonical_ids(mesh: &Mesh) -> Vec<u32> {
 
 /// True if the two triangles reference any common vertex index.
 fn shares_vertex(a: [u32; 3], b: [u32; 3]) -> bool {
-	for & va in &a {
+	for &va in &a {
 		for &vb in &b {
 			if va == vb {
 				return true;
@@ -858,11 +837,7 @@ fn coplanar_tri_tri(n: Vec3, t1: [Vec3; 3], t2: [Vec3; 3]) -> bool {
 /// consistently — naive `f32` could return a wrong sign and make the
 /// self-intersection test disagree with itself across the triangle's edges.
 fn orient2d(a: [f32; 2], b: [f32; 2], c: [f32; 2]) -> f32 {
-	let s = crate::predicates::orient2d(
-		[a[0] as f64, a[1] as f64],
-		[b[0] as f64, b[1] as f64],
-		[c[0] as f64, c[1] as f64],
-	);
+	let s = crate::predicates::orient2d([a[0] as f64, a[1] as f64], [b[0] as f64, b[1] as f64], [c[0] as f64, c[1] as f64]);
 	if s > 0.0 {
 		1.0
 	} else if s < 0.0 {
@@ -878,9 +853,7 @@ fn segments_intersect_2d(p1: [f32; 2], p2: [f32; 2], q1: [f32; 2], q2: [f32; 2])
 	let d2 = orient2d(q1, q2, p2);
 	let d3 = orient2d(p1, p2, q1);
 	let d4 = orient2d(p1, p2, q2);
-	if ((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0))
-		&& ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0))
-	{
+	if ((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0)) && ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0)) {
 		return true;
 	}
 	// Colinear / touching endpoints.
@@ -892,10 +865,7 @@ fn segments_intersect_2d(p1: [f32; 2], p2: [f32; 2], q1: [f32; 2], q2: [f32; 2])
 
 /// True if colinear point `p` lies within the bounding box of segment `a`–`b`.
 fn on_segment_2d(a: [f32; 2], b: [f32; 2], p: [f32; 2]) -> bool {
-	p[0] >= a[0].min(b[0])
-		&& p[0] <= a[0].max(b[0])
-		&& p[1] >= a[1].min(b[1])
-		&& p[1] <= a[1].max(b[1])
+	p[0] >= a[0].min(b[0]) && p[0] <= a[0].max(b[0]) && p[1] >= a[1].min(b[1]) && p[1] <= a[1].max(b[1])
 }
 
 /// True if 2-D point `p` lies inside (or on the border of) triangle `t`.
@@ -916,12 +886,7 @@ mod tests {
 	/// faces, every edge shared by exactly two faces.
 	fn tetrahedron() -> Mesh {
 		let mut m = Mesh::new();
-		m.positions = vec![
-			Vec3::new(0.0, 0.0, 0.0),
-			Vec3::new(1.0, 0.0, 0.0),
-			Vec3::new(0.0, 1.0, 0.0),
-			Vec3::new(0.0, 0.0, 1.0),
-		];
+		m.positions = vec![Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0)];
 		// Faces wound consistently (the exact orientation is irrelevant for
 		// topology, but we keep it sane).
 		m.indices = vec![
@@ -1020,10 +985,7 @@ mod tests {
 		m.positions.push(Vec3::new(8.5, 8.3, 1.0));
 		m.positions.push(Vec3::new(8.7, 8.9, 0.0));
 		m.push_triangle(base, base + 1, base + 2);
-		assert!(
-			m.has_self_intersection(),
-			"an upright triangle piercing the grid interior must be detected by the BVH path"
-		);
+		assert!(m.has_self_intersection(), "an upright triangle piercing the grid interior must be detected by the BVH path");
 	}
 
 	#[test]
@@ -1064,22 +1026,14 @@ mod tests {
 		];
 		m.indices = vec![0, 1, 2, 3, 4, 5];
 		let report = check_mesh(&m);
-		assert!(
-			report.self_intersections >= 1,
-			"crossing '+' triangles must report a self-intersection, got {:?}",
-			report
-		);
+		assert!(report.self_intersections >= 1, "crossing '+' triangles must report a self-intersection, got {:?}", report);
 	}
 
 	#[test]
 	fn degenerate_triangle_is_counted() {
 		let mut m = Mesh::new();
 		// Three colinear points → zero-area triangle.
-		m.positions = vec![
-			Vec3::new(0.0, 0.0, 0.0),
-			Vec3::new(1.0, 0.0, 0.0),
-			Vec3::new(2.0, 0.0, 0.0),
-		];
+		m.positions = vec![Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(2.0, 0.0, 0.0)];
 		m.indices = vec![0, 1, 2];
 		let report = check_mesh(&m);
 		assert_eq!(report.degenerate_triangles, 1, "colinear triangle must be degenerate: {:?}", report);
@@ -1092,10 +1046,10 @@ mod tests {
 		// form two separate fans.
 		let mut m = Mesh::new();
 		m.positions = vec![
-			Vec3::new(0.0, 0.0, 0.0), // 0 — shared apex
-			Vec3::new(1.0, 1.0, 0.0), // 1
-			Vec3::new(1.0, -1.0, 0.0), // 2
-			Vec3::new(-1.0, 1.0, 0.0), // 3
+			Vec3::new(0.0, 0.0, 0.0),   // 0 — shared apex
+			Vec3::new(1.0, 1.0, 0.0),   // 1
+			Vec3::new(1.0, -1.0, 0.0),  // 2
+			Vec3::new(-1.0, 1.0, 0.0),  // 3
 			Vec3::new(-1.0, -1.0, 0.0), // 4
 		];
 		m.indices = vec![
@@ -1103,11 +1057,7 @@ mod tests {
 			0, 3, 4, // fan B around 0 (neighbours 3,4) — disjoint from A
 		];
 		let report = check_mesh(&m);
-		assert_eq!(
-			report.non_manifold_vertices, 1,
-			"the shared apex must be flagged as non-manifold: {:?}",
-			report
-		);
+		assert_eq!(report.non_manifold_vertices, 1, "the shared apex must be flagged as non-manifold: {:?}", report);
 	}
 
 	#[test]
@@ -1115,19 +1065,14 @@ mod tests {
 		// Three triangles sharing one edge (0-1): a "fin" / T-junction edge.
 		let mut m = Mesh::new();
 		m.positions = vec![
-			Vec3::new(0.0, 0.0, 0.0), // 0
-			Vec3::new(1.0, 0.0, 0.0), // 1
-			Vec3::new(0.0, 1.0, 0.0), // 2
-			Vec3::new(0.0, 0.0, 1.0), // 3
+			Vec3::new(0.0, 0.0, 0.0),  // 0
+			Vec3::new(1.0, 0.0, 0.0),  // 1
+			Vec3::new(0.0, 1.0, 0.0),  // 2
+			Vec3::new(0.0, 0.0, 1.0),  // 3
 			Vec3::new(0.0, -1.0, 0.0), // 4
 		];
-		m.indices = vec![
-			0, 1, 2,
-			0, 1, 3,
-			0, 1, 4,
-		];
+		m.indices = vec![0, 1, 2, 0, 1, 3, 0, 1, 4];
 		let report = check_mesh(&m);
 		assert_eq!(report.non_manifold_edges, 1, "edge 0-1 shared by 3 faces: {:?}", report);
 	}
 }
-

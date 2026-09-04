@@ -131,15 +131,7 @@ impl DesignVar {
 			}
 			_ => {
 				let n = continuous_levels.max(2);
-				(0..n)
-					.map(|k| {
-						if k + 1 == n {
-							self.max
-						} else {
-							self.min + k as f64 * (self.max - self.min) / (n - 1) as f64
-						}
-					})
-					.collect()
+				(0..n).map(|k| if k + 1 == n { self.max } else { self.min + k as f64 * (self.max - self.min) / (n - 1) as f64 }).collect()
 			}
 		}
 	}
@@ -682,12 +674,7 @@ impl<'e> Study<'e> {
 				});
 			};
 			if !v.is_finite() {
-				return Err(StudyError::NonFiniteValue {
-					params: params.clone(),
-					kind: "objective",
-					name: o.name.clone(),
-					value: v,
-				});
+				return Err(StudyError::NonFiniteValue { params: params.clone(), kind: "objective", name: o.name.clone(), value: v });
 			}
 			objectives.insert(o.name.clone(), v);
 		}
@@ -703,12 +690,7 @@ impl<'e> Study<'e> {
 				});
 			};
 			if !v.is_finite() {
-				return Err(StudyError::NonFiniteValue {
-					params: params.clone(),
-					kind: "constraint",
-					name: c.name.clone(),
-					value: v,
-				});
+				return Err(StudyError::NonFiniteValue { params: params.clone(), kind: "constraint", name: c.name.clone(), value: v });
 			}
 			constraints.insert(c.name.clone(), v);
 			violation += c.violation(v);
@@ -879,13 +861,7 @@ impl<'e> Study<'e> {
 		}
 	}
 
-	fn report<'s>(
-		&'s self,
-		strategy: Strategy,
-		evaluations: Vec<EvaluationRecord>,
-		stop_reason: &str,
-		balanced: bool,
-	) -> StudyReport<'s> {
+	fn report<'s>(&'s self, strategy: Strategy, evaluations: Vec<EvaluationRecord>, stop_reason: &str, balanced: bool) -> StudyReport<'s> {
 		let feasible_count = evaluations.iter().filter(|r| r.feasible).count();
 		let mut best_per_objective = BTreeMap::new();
 		for o in &self.objectives {
@@ -970,11 +946,7 @@ pub fn pareto_front(records: &[EvaluationRecord], objectives: &[Objective]) -> V
 		}
 		strictly
 	};
-	feasible
-		.iter()
-		.filter(|r| !feasible.iter().any(|other| dominates(other, r)))
-		.map(|r| r.index)
-		.collect()
+	feasible.iter().filter(|r| !feasible.iter().any(|other| dominates(other, r))).map(|r| r.index).collect()
 }
 
 /// Range-normalized **main effect** of every variable on every objective.
@@ -993,11 +965,7 @@ pub fn pareto_front(records: &[EvaluationRecord], objectives: &[Objective]) -> V
 /// which you have); (3) it describes the sampled BOX, not the neighbourhood of
 /// the optimum; (4) it is normalized by this study's own objective range, so it
 /// compares variables within one study and nothing across studies.
-fn main_effects(
-	vars: &[DesignVar],
-	objectives: &[Objective],
-	records: &[EvaluationRecord],
-) -> BTreeMap<String, BTreeMap<String, f64>> {
+fn main_effects(vars: &[DesignVar], objectives: &[Objective], records: &[EvaluationRecord]) -> BTreeMap<String, BTreeMap<String, f64>> {
 	let mut out = BTreeMap::new();
 	for v in vars {
 		// Group indices by the variable's exact level (bit key, first-appearance
@@ -1036,8 +1004,7 @@ fn main_effects(
 				mean_lo = mean_lo.min(mean);
 				mean_hi = mean_hi.max(mean);
 			}
-			let effect =
-				if groups.len() >= 2 && range > 0.0 && mean_hi.is_finite() { (mean_hi - mean_lo) / range } else { 0.0 };
+			let effect = if groups.len() >= 2 && range > 0.0 && mean_hi.is_finite() { (mean_hi - mean_lo) / range } else { 0.0 };
 			per_objective.insert(o.name.clone(), effect);
 		}
 		out.insert(v.name.clone(), per_objective);
@@ -1348,14 +1315,7 @@ pub struct BestDesign {
 /// let best = gate_study("shipped wall = study optimum", &report, "m", &shipped, 1e-9, &mut ok);
 /// # let _ = best;
 /// ```
-pub fn gate_study(
-	label: &str,
-	report: &StudyReport<'_>,
-	objective: &str,
-	shipped: &Params,
-	tol: f64,
-	ok: &mut bool,
-) -> Option<BestDesign> {
+pub fn gate_study(label: &str, report: &StudyReport<'_>, objective: &str, shipped: &Params, tol: f64, ok: &mut bool) -> Option<BestDesign> {
 	let best = match report.best(objective) {
 		Ok(b) => b,
 		Err(e) => {

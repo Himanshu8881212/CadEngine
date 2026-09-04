@@ -64,13 +64,16 @@ fn nested_coaxial_pair_with_a_real_gap_measures_it() {
 	assert_eq!(measure(&r, "cl", "overlap_volume"), json!(0.0), "{r:#?}");
 
 	// …and `assert_disjoint` can now prove the register clears.
-	let r = run(&d, json!([
-		{"id":"blk","op":"cylinder","base":[0,0,0],"axis":[0,0,1],"radius":25,"height":20},
-		{"id":"cb","op":"cylinder","base":[0,0,10],"axis":[0,0,1],"radius":17.1,"height":11},
-		{"id":"body","op":"difference","a":"blk","b":"cb"},
-		{"id":"spig","op":"cylinder","base":[0,0,11],"axis":[0,0,1],"radius":16.8,"height":8},
-		{"id":"gap","op":"assert_disjoint","a":"body","b":"spig","min_clearance":0.05}
-	]));
+	let r = run(
+		&d,
+		json!([
+			{"id":"blk","op":"cylinder","base":[0,0,0],"axis":[0,0,1],"radius":25,"height":20},
+			{"id":"cb","op":"cylinder","base":[0,0,10],"axis":[0,0,1],"radius":17.1,"height":11},
+			{"id":"body","op":"difference","a":"blk","b":"cb"},
+			{"id":"spig","op":"cylinder","base":[0,0,11],"axis":[0,0,1],"radius":16.8,"height":8},
+			{"id":"gap","op":"assert_disjoint","a":"body","b":"spig","min_clearance":0.05}
+		]),
+	);
 	assert!(r.ok, "assert_disjoint must pass on a genuinely clearing register — {r:#?}");
 	let _ = std::fs::remove_dir_all(&d);
 }
@@ -80,11 +83,14 @@ fn nested_coaxial_pair_with_a_real_gap_measures_it() {
 #[test]
 fn interpenetrating_solids_still_read_zero() {
 	let d = dir("t5b");
-	let r = run(&d, json!([
-		{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
-		{"id":"b","op":"box","min":[5,5,5],"max":[15,15,15]},
-		{"id":"cl","op":"clearance","a":"a","b":"b"}
-	]));
+	let r = run(
+		&d,
+		json!([
+			{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
+			{"id":"b","op":"box","min":[5,5,5],"max":[15,15,15]},
+			{"id":"cl","op":"clearance","a":"a","b":"b"}
+		]),
+	);
 	assert_eq!(num(d_ok(&r), "cl", "distance"), 0.0, "{r:#?}");
 	assert_eq!(measure(&r, "cl", "interfering"), json!(true), "{r:#?}");
 	assert!((num(&r, "cl", "overlap_volume") - 125.0).abs() < 1e-9, "{r:#?}");
@@ -100,12 +106,15 @@ fn d_ok(r: &Report) -> &Report {
 #[test]
 fn a_null_overlap_volume_always_carries_its_reason() {
 	let d = dir("t5c");
-	let r = run(&d, json!([
-		{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
-		{"id":"stl","op":"export_stl","in":"a","file":"a.stl"},
-		{"id":"b","op":"box","min":[20,0,0],"max":[30,10,10]},
-		{"id":"cl","op":"clearance","a":"stl","b":"b"}
-	]));
+	let r = run(
+		&d,
+		json!([
+			{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
+			{"id":"stl","op":"export_stl","in":"a","file":"a.stl"},
+			{"id":"b","op":"box","min":[20,0,0],"max":[30,10,10]},
+			{"id":"cl","op":"clearance","a":"stl","b":"b"}
+		]),
+	);
 	assert!(r.ok, "clearance must accept a bound mesh — {r:#?}");
 	assert_eq!(measure(&r, "cl", "overlap_volume"), Value::Null, "{r:#?}");
 	let reason = measure(&r, "cl", "overlap_volume_reason");
@@ -233,12 +242,15 @@ fn a_connectivity_count_on_a_cracked_measurement_surface_is_refused() {
 	assert_eq!(measure(&r, "mc", "watertight"), json!(false), "{r:#?}");
 
 	// A solid whose tessellation IS closed is measured, not refused.
-	let r = run(&d, json!([
-		{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
-		{"id":"b","op":"box","min":[3,3,5],"max":[7,7,11]},
-		{"id":"t","op":"difference","a":"a","b":"b"},
-		{"id":"mc","op":"mesh_components","in":"t","require":{"components":1,"watertight":true}}
-	]));
+	let r = run(
+		&d,
+		json!([
+			{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
+			{"id":"b","op":"box","min":[3,3,5],"max":[7,7,11]},
+			{"id":"t","op":"difference","a":"a","b":"b"},
+			{"id":"mc","op":"mesh_components","in":"t","require":{"components":1,"watertight":true}}
+		]),
+	);
 	assert!(r.ok, "a boolean pocket must still measure — {r:#?}");
 	let _ = std::fs::remove_dir_all(&d);
 }
@@ -256,16 +268,19 @@ fn a_print_file_always_has_a_gate() {
 	// the EXACT export route — an upgrade this test must witness, not resist:
 	// the mesh-value gating chain below works identically on either route, and
 	// `route: "exact"` is now the pinned truth for a trivially exact part.
-	let r = run(&d, json!([
-		{"id":"p","op":"extrude_with_holes","outer":[[0,0],[40,0],[40,20],[0,20]],
-		 "holes":[[[5,5],[10,5],[10,10],[5,10]]],"height":5},
-		{"id":"stl","op":"export_stl","in":"p","file":"p.stl","require":{"watertight":true}},
-		{"id":"one","op":"mesh_components","in":"stl","require":{"components":1,"watertight":true}},
-		{"id":"bed","op":"bounding_box","in":"stl","envelope":[256,256,256],"require":{"fits_within":true}},
-		{"id":"sup","op":"support_report","in":"stl","require":{"steep_area":{"max":0.0}}},
-		{"id":"val","op":"validate","in":"stl","require":{"closed":true,"manifold":true}},
-		{"id":"gate","op":"assert","in":"stl","components":1,"closed":true}
-	]));
+	let r = run(
+		&d,
+		json!([
+			{"id":"p","op":"extrude_with_holes","outer":[[0,0],[40,0],[40,20],[0,20]],
+			 "holes":[[[5,5],[10,5],[10,10],[5,10]]],"height":5},
+			{"id":"stl","op":"export_stl","in":"p","file":"p.stl","require":{"watertight":true}},
+			{"id":"one","op":"mesh_components","in":"stl","require":{"components":1,"watertight":true}},
+			{"id":"bed","op":"bounding_box","in":"stl","envelope":[256,256,256],"require":{"fits_within":true}},
+			{"id":"sup","op":"support_report","in":"stl","require":{"steep_area":{"max":0.0}}},
+			{"id":"val","op":"validate","in":"stl","require":{"closed":true,"manifold":true}},
+			{"id":"gate","op":"assert","in":"stl","components":1,"closed":true}
+		]),
+	);
 	assert!(r.ok, "the print file must be fully gateable — {r:#?}");
 	assert_eq!(measure(&r, "stl", "route"), json!("exact"), "a holed plate is trivially exact now — {r:#?}");
 	assert_eq!(measure(&r, "one", "source"), json!("mesh"), "{r:#?}");
@@ -278,29 +293,38 @@ fn a_print_file_always_has_a_gate() {
 #[test]
 fn a_mesh_is_never_promoted_to_a_solid() {
 	let d = dir("t10b");
-	let r = run(&d, json!([
-		{"id":"p","op":"box","min":[0,0,0],"max":[10,10,10]},
-		{"id":"stl","op":"export_stl","in":"p","file":"p.stl"},
-		{"id":"bad","op":"assert","in":"stl","genus":0}
-	]));
+	let r = run(
+		&d,
+		json!([
+			{"id":"p","op":"box","min":[0,0,0],"max":[10,10,10]},
+			{"id":"stl","op":"export_stl","in":"p","file":"p.stl"},
+			{"id":"bad","op":"assert","in":"stl","genus":0}
+		]),
+	);
 	let msg = failure(&r, "bad", ErrorKind::WrongType);
 	assert!(msg.contains("needs a bound SOLID"), "{msg}");
 
 	// An op that needs exact geometry refuses a mesh with a `wrong_type`.
-	let r = run(&d, json!([
-		{"id":"p","op":"box","min":[0,0,0],"max":[10,10,10]},
-		{"id":"stl","op":"export_stl","in":"p","file":"p.stl"},
-		{"id":"cut","op":"difference","a":"stl","b":"p"}
-	]));
+	let r = run(
+		&d,
+		json!([
+			{"id":"p","op":"box","min":[0,0,0],"max":[10,10,10]},
+			{"id":"stl","op":"export_stl","in":"p","file":"p.stl"},
+			{"id":"cut","op":"difference","a":"stl","b":"p"}
+		]),
+	);
 	let msg = failure(&r, "cut", ErrorKind::WrongType);
 	assert!(msg.contains("is a mesh"), "{msg}");
 
 	// A leaky mesh has no enclosed volume — a refusal, not a plausible number.
-	let r = run(&d, json!([
-		{"id":"p","op":"box","min":[0,0,0],"max":[10,10,10]},
-		{"id":"stl","op":"export_stl","in":"p","file":"p.stl"},
-		{"id":"v","op":"volume","in":"stl"}
-	]));
+	let r = run(
+		&d,
+		json!([
+			{"id":"p","op":"box","min":[0,0,0],"max":[10,10,10]},
+			{"id":"stl","op":"export_stl","in":"p","file":"p.stl"},
+			{"id":"v","op":"volume","in":"stl"}
+		]),
+	);
 	assert!(r.ok, "a watertight export DOES have a volume — {r:#?}");
 	assert_eq!(num(&r, "v", "volume"), 1000.0, "{r:#?}");
 	assert_eq!(measure(&r, "v", "source"), json!("mesh"), "{r:#?}");
@@ -318,14 +342,17 @@ fn a_mesh_is_never_promoted_to_a_solid() {
 #[test]
 fn a_failing_validity_flag_carries_a_witness() {
 	let d = dir("t15");
-	let r = run(&d, json!([
-		{"id":"o","op":"cylinder","base":[24,0,7],"axis":[1,0,0],"radius":14.2,"height":24,"segments":64},
-		{"id":"i","op":"cylinder","base":[23,0,7],"axis":[1,0,0],"radius":12.0,"height":26,"segments":64},
-		{"id":"d","op":"difference","a":"o","b":"i"},
-		{"id":"vd","op":"validate","in":"d"},
-		{"id":"p3","op":"polar_pattern","in":"d","count":3,"center":[0,0,0],"axis":[0,0,1]},
-		{"id":"v3","op":"validate","in":"p3"}
-	]));
+	let r = run(
+		&d,
+		json!([
+			{"id":"o","op":"cylinder","base":[24,0,7],"axis":[1,0,0],"radius":14.2,"height":24,"segments":64},
+			{"id":"i","op":"cylinder","base":[23,0,7],"axis":[1,0,0],"radius":12.0,"height":26,"segments":64},
+			{"id":"d","op":"difference","a":"o","b":"i"},
+			{"id":"vd","op":"validate","in":"d"},
+			{"id":"p3","op":"polar_pattern","in":"d","count":3,"center":[0,0,0],"axis":[0,0,1]},
+			{"id":"v3","op":"validate","in":"p3"}
+		]),
+	);
 	assert!(r.ok, "{r:#?}");
 	// One tube is clean and carries no witness.
 	assert_eq!(measure(&r, "vd", "geometric_ok"), json!(true), "{r:#?}");
@@ -339,13 +366,16 @@ fn a_failing_validity_flag_carries_a_witness() {
 
 	// Determinism: the witness is the lexicographically lowest pair, so a rebuild
 	// reproduces it byte for byte.
-	let again = run(&d, json!([
-		{"id":"o","op":"cylinder","base":[24,0,7],"axis":[1,0,0],"radius":14.2,"height":24,"segments":64},
-		{"id":"i","op":"cylinder","base":[23,0,7],"axis":[1,0,0],"radius":12.0,"height":26,"segments":64},
-		{"id":"d","op":"difference","a":"o","b":"i"},
-		{"id":"p3","op":"polar_pattern","in":"d","count":3,"center":[0,0,0],"axis":[0,0,1]},
-		{"id":"v3","op":"validate","in":"p3"}
-	]));
+	let again = run(
+		&d,
+		json!([
+			{"id":"o","op":"cylinder","base":[24,0,7],"axis":[1,0,0],"radius":14.2,"height":24,"segments":64},
+			{"id":"i","op":"cylinder","base":[23,0,7],"axis":[1,0,0],"radius":12.0,"height":26,"segments":64},
+			{"id":"d","op":"difference","a":"o","b":"i"},
+			{"id":"p3","op":"polar_pattern","in":"d","count":3,"center":[0,0,0],"axis":[0,0,1]},
+			{"id":"v3","op":"validate","in":"p3"}
+		]),
+	);
 	assert_eq!(w, measure(&again, "v3", "self_intersection"), "the witness must be deterministic");
 	let _ = std::fs::remove_dir_all(&d);
 }
@@ -357,15 +387,18 @@ fn a_failing_validity_flag_carries_a_witness() {
 #[test]
 fn cone_builds_a_frustum_and_keeps_it_analytic() {
 	let d = dir("t8");
-	let r = run(&d, json!([
-		{"id":"f","op":"cone","base":[0,0,0],"axis":[0,0,1],"radius":10,"height":20,"top_radius":4,"segments":128},
-		{"id":"v","op":"validate","in":"f"},
-		{"id":"ev","op":"exact_volume","in":"f"},
-		{"id":"bb","op":"bounding_box","in":"f"},
-		{"id":"off","op":"cone","base":[5,5,0],"axis":[1,1,1],"radius":6,"height":12,"top_radius":2,"segments":64},
-		{"id":"evoff","op":"exact_volume","in":"off"},
-		{"id":"step","op":"export_step","in":"f","file":"frustum.step"}
-	]));
+	let r = run(
+		&d,
+		json!([
+			{"id":"f","op":"cone","base":[0,0,0],"axis":[0,0,1],"radius":10,"height":20,"top_radius":4,"segments":128},
+			{"id":"v","op":"validate","in":"f"},
+			{"id":"ev","op":"exact_volume","in":"f"},
+			{"id":"bb","op":"bounding_box","in":"f"},
+			{"id":"off","op":"cone","base":[5,5,0],"axis":[1,1,1],"radius":6,"height":12,"top_radius":2,"segments":64},
+			{"id":"evoff","op":"exact_volume","in":"off"},
+			{"id":"step","op":"export_step","in":"f","file":"frustum.step"}
+		]),
+	);
 	assert!(r.ok, "{r:#?}");
 	assert_eq!(measure(&r, "v", "valid"), json!(true), "{r:#?}");
 	assert_eq!(measure(&r, "v", "genus"), json!(0), "{r:#?}");
@@ -378,18 +411,24 @@ fn cone_builds_a_frustum_and_keeps_it_analytic() {
 	assert_eq!(measure(&r, "bb", "size"), json!([20.0, 20.0, 20.0]), "{r:#?}");
 
 	// `top_radius: 0` (and omitting it) is the historic true cone, unchanged.
-	let r = run(&d, json!([
-		{"id":"c","op":"cone","base":[0,0,0],"axis":[0,0,1],"radius":10,"height":20,"segments":128},
-		{"id":"ev","op":"exact_volume","in":"c"},
-		{"id":"c0","op":"cone","base":[0,0,0],"axis":[0,0,1],"radius":10,"height":20,"segments":128,"top_radius":0},
-		{"id":"ev0","op":"exact_volume","in":"c0"}
-	]));
+	let r = run(
+		&d,
+		json!([
+			{"id":"c","op":"cone","base":[0,0,0],"axis":[0,0,1],"radius":10,"height":20,"segments":128},
+			{"id":"ev","op":"exact_volume","in":"c"},
+			{"id":"c0","op":"cone","base":[0,0,0],"axis":[0,0,1],"radius":10,"height":20,"segments":128,"top_radius":0},
+			{"id":"ev0","op":"exact_volume","in":"c0"}
+		]),
+	);
 	assert_eq!(measure(&r, "ev", "exact_volume"), measure(&r, "ev0", "exact_volume"), "{r:#?}");
 
 	// Equal radii is a cylinder — refused loudly, never silently degraded.
-	let r = run(&d, json!([
-		{"id":"f","op":"cone","base":[0,0,0],"axis":[0,0,1],"radius":10,"height":20,"top_radius":10}
-	]));
+	let r = run(
+		&d,
+		json!([
+			{"id":"f","op":"cone","base":[0,0,0],"axis":[0,0,1],"radius":10,"height":20,"top_radius":10}
+		]),
+	);
 	let msg = failure(&r, "f", ErrorKind::InvalidParam);
 	assert!(msg.contains("CYLINDER"), "{msg}");
 	let _ = std::fs::remove_dir_all(&d);

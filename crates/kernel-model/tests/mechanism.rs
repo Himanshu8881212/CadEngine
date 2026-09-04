@@ -171,11 +171,7 @@ fn slider_crank_stroke_matches_the_closed_form() {
 	let sweep = m.sweep(360).expect("a mobility-1 slider-crank sweeps a full turn");
 	let slider = &sweep.range_of_motion[3];
 	let stroke = slider.origin_extents[1] - slider.origin_extents[0];
-	let worst = sweep
-		.poses_per_step
-		.iter()
-		.zip(&sweep.driven_value)
-		.fold(0.0f64, |acc, (p, &q)| acc.max((p[3].x - closed_form(q)).abs()));
+	let worst = sweep.poses_per_step.iter().zip(&sweep.driven_value).fold(0.0f64, |acc, (p, &q)| acc.max((p[3].x - closed_form(q)).abs()));
 
 	assert!(
 		m.mobility().kutzbach_dof == 1

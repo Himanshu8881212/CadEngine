@@ -50,9 +50,8 @@ pub(crate) fn confined_join(op_id: &str, base: &Path, file: &str) -> Result<Path
 			}
 		}
 	}
-	let canonical_base = fs::canonicalize(base).map_err(|e| {
-		err(ErrorKind::Io, format!("op '{op_id}': cannot canonicalize sandbox '{}': {e}", base.display()))
-	})?;
+	let canonical_base = fs::canonicalize(base)
+		.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot canonicalize sandbox '{}': {e}", base.display())))?;
 	let mut current = canonical_base.clone();
 	for comp in rel.components() {
 		if let Component::Normal(name) = comp {
@@ -61,7 +60,10 @@ pub(crate) fn confined_join(op_id: &str, base: &Path, file: &str) -> Result<Path
 				Ok(meta) if meta.file_type().is_symlink() => {
 					return Err(err(
 						ErrorKind::InvalidParam,
-						format!("op '{op_id}': path '{file}' crosses a symbolic link at '{}' — sandbox symlinks are refused", current.display()),
+						format!(
+							"op '{op_id}': path '{file}' crosses a symbolic link at '{}' — sandbox symlinks are refused",
+							current.display()
+						),
 					));
 				}
 				Ok(_) => {}
@@ -105,12 +107,7 @@ pub(crate) fn resolve_input_path(op_id: &str, input_base: &Path, file: &str) -> 
 /// (relocatable program-relative inputs keep priority), then `--out-dir` iff
 /// the file exists there and not beside the program. The error on a total miss
 /// names BOTH tried roots so the operator sees where the engine looked.
-pub(crate) fn resolve_input_or_out(
-	op_id: &str,
-	input_base: &Path,
-	out_dir: &Path,
-	file: &str,
-) -> Result<PathBuf, OpError> {
+pub(crate) fn resolve_input_or_out(op_id: &str, input_base: &Path, out_dir: &Path, file: &str) -> Result<PathBuf, OpError> {
 	let primary = confined_join(op_id, input_base, file)?;
 	if primary.exists() || input_base == out_dir {
 		return Ok(primary);
@@ -458,10 +455,7 @@ pub(crate) fn write_mesh_policy(op_id: &str, out_dir: &Path, file: &str, mesh: &
 			// characteristic dual-contoured output that slicers resolve by
 			// covered volume — they REPORT in the receipt instead of refusing.
 			MeshWritePolicy::Healed => {
-				r.boundary_edges == 0
-					&& r.non_manifold_edges == 0
-					&& r.non_orientable_edges == 0
-					&& r.degenerate_triangles == 0
+				r.boundary_edges == 0 && r.non_manifold_edges == 0 && r.non_orientable_edges == 0 && r.degenerate_triangles == 0
 			}
 			MeshWritePolicy::Scene => true,
 		}
@@ -498,11 +492,7 @@ pub(crate) fn write_mesh_policy(op_id: &str, out_dir: &Path, file: &str, mesh: &
 			),
 		));
 	}
-	let write_result = if format == "stl" {
-		output_mesh.write_stl_binary(&path)
-	} else {
-		output_mesh.write_3mf(&path)
-	};
+	let write_result = if format == "stl" { output_mesh.write_stl_binary(&path) } else { output_mesh.write_3mf(&path) };
 	write_result.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot write '{}': {e}", path.display())))?;
 	let read_result = if format == "stl" { Mesh::read_stl(&path) } else { Mesh::read_3mf(&path) };
 	let mut round_trip = match read_result {

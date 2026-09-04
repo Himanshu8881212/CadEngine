@@ -47,10 +47,7 @@ fn session_document() -> Document {
 	doc.set_param("h", 5.0); // boss extrusion height
 	doc.set_param("w", 4.0); // boss profile width (a sketch dimension)
 
-	let plate = doc.add(Feature::Box {
-		center: lit3(0.0, 0.0, 0.0),
-		size: [Dim::param("s"), Dim::param("s"), Dim::Literal(6.0)],
-	});
+	let plate = doc.add(Feature::Box { center: lit3(0.0, 0.0, 0.0), size: [Dim::param("s"), Dim::param("s"), Dim::Literal(6.0)] });
 	// Round the +X∧+Y vertical edge by persistent name, with a `near` witness at
 	// that corner (exercises the witness-point disambiguation form).
 	let edge = EdgeName::new(
@@ -64,27 +61,16 @@ fn session_document() -> Document {
 		near: Some([Dim::Literal(10.0), Dim::Literal(10.0), Dim::Literal(0.0)]),
 	});
 	// Parametric through-bore, off-centre so it clears the boss and the fillet.
-	let bore = doc.add(Feature::Cylinder {
-		center: lit3(-5.0, -5.0, 0.0),
-		radius: Dim::param("r"),
-		height: Dim::Literal(8.0),
-	});
+	let bore = doc.add(Feature::Cylinder { center: lit3(-5.0, -5.0, 0.0), radius: Dim::param("r"), height: Dim::Literal(8.0) });
 	let drilled = doc.add(Feature::Boolean { op: BooleanOp::Difference, a: filleted, b: bore });
 	// Sketch-driven boss (profile width driven by "w", height by "h"), unioned on.
 	let (sketch, width) = rectangle_sketch();
-	let boss = doc.add(Feature::ExtrudeSketch {
-		sketch,
-		height: Dim::param("h"),
-		dims: vec![(width, Dim::param("w"))],
-		draft: Dim::Literal(0.0),
-	});
+	let boss =
+		doc.add(Feature::ExtrudeSketch { sketch, height: Dim::param("h"), dims: vec![(width, Dim::param("w"))], draft: Dim::Literal(0.0) });
 	let part = doc.add(Feature::Boolean { op: BooleanOp::Union, a: drilled, b: boss });
 	// Three disjoint copies along +x.
-	let pattern = doc.add(Feature::LinearPattern {
-		input: part,
-		count: 3,
-		step: [Dim::Literal(30.0), Dim::Literal(0.0), Dim::Literal(0.0)],
-	});
+	let pattern =
+		doc.add(Feature::LinearPattern { input: part, count: 3, step: [Dim::Literal(30.0), Dim::Literal(0.0), Dim::Literal(0.0)] });
 	doc.set_root(pattern);
 	doc
 }
@@ -114,7 +100,9 @@ fn document_round_trips_and_re_evaluates_bit_identically() {
 	let ve_loaded = volume(&loaded_edit.evaluate_brep().expect("edited loaded doc evaluates"));
 
 	assert!(
-		val0.closed && val0.manifold && val0.shells == 3
+		val0.closed
+			&& val0.manifold
+			&& val0.shells == 3
 			&& v0.to_bits() == v1.to_bits()
 			&& ve_doc.to_bits() == ve_loaded.to_bits()
 			&& ve_doc > v0,

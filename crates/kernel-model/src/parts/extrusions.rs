@@ -200,10 +200,7 @@ mod tests {
 		// V-slot 2020 (→ 170–185 mm²) and ~1.0–1.4 kg/m for 30-series 3030
 		// (→ 370–520 mm²); both must be genus 1 (core bore), watertight, exactly
 		// their nominal envelope, and slot throats must sit at the nominal half-width.
-		let checks = [
-			("2020", extrusion_2020(100.0), 10.0, 3.0, 160.0, 195.0),
-			("3030", extrusion_3030(100.0), 15.0, 4.0, 370.0, 520.0),
-		];
+		let checks = [("2020", extrusion_2020(100.0), 10.0, 3.0, 160.0, 195.0), ("3030", extrusion_3030(100.0), 15.0, 4.0, 370.0, 520.0)];
 		for (label, s, half, throat_half, area_lo, area_hi) in checks {
 			let v = validate(&s);
 			let (lo, hi) = bbox(&s);
@@ -243,10 +240,11 @@ mod tests {
 			&& TNUT_FLANGE_H < P2020.slot_depth - P2020.lip_depth;
 		assert!(
 			v.closed
-				&& v.manifold && v.genus == 1
+				&& v.manifold
+				&& v.genus == 1
 				&& tessellate_default(&nut).is_watertight()
-				&& fits
-				&& (hi.z - TNUT_H).abs() < 1e-9 && lo.z.abs() < 1e-9
+				&& fits && (hi.z - TNUT_H).abs() < 1e-9
+				&& lo.z.abs() < 1e-9
 				&& (volume(&nut).abs() - expected).abs() / expected < 0.01,
 			"M5 tee nut: want watertight genus-1, fits=(true) the 2020 slot, ~{expected:.1}mm³; got {v:?} fits={fits} z=[{},{}] vol={:.1}",
 			lo.z,

@@ -7,7 +7,6 @@
 //! implicit/voxel half and the exact B-rep half build on these contracts.
 
 pub mod bvh;
-pub mod par;
 pub mod clearance;
 pub mod hull;
 pub mod manifold;
@@ -17,6 +16,7 @@ pub mod mesh;
 pub mod meshcheck;
 pub mod mesher;
 pub mod mesher_f64;
+pub mod par;
 pub mod poly2;
 pub mod predicates;
 pub mod sdf;
@@ -28,12 +28,10 @@ pub use hull::convex_hull;
 pub use manifold::make_manifold;
 pub use math::{Aabb, Obb, Ray, Vec3};
 pub use mesh::{
-	closest_point_on_triangle, ClosestPoint, DraftReport, MassProperties, Mesh, OverhangReport, PrincipalAxes, RayHit,
-	SectionProperties, SupportFreeReport, ThicknessOptions, ThicknessReport, ThicknessSample,
+	closest_point_on_triangle, ClosestPoint, DraftReport, MassProperties, Mesh, OverhangReport, PrincipalAxes, RayHit, SectionProperties,
+	SupportFreeReport, ThicknessOptions, ThicknessReport, ThicknessSample,
 };
-pub use meshcheck::{
-	check_mesh, degenerate_triangle_witnesses, non_manifold_vertex_witnesses, MeshReport,
-};
+pub use meshcheck::{check_mesh, degenerate_triangle_witnesses, non_manifold_vertex_witnesses, MeshReport};
 pub use mesher::{surface_nets, Resolution};
 pub use mesher_f64::{dual_contour_f64, dual_contour_sdf_f64, surface_nets_f64, surface_nets_sdf_f64, MeshF64};
 pub use poly2::{polygon_area, polygon_intersection_area};
@@ -169,9 +167,9 @@ mod tests {
 		// Ok/Err, never panic.
 		let mut targeted: Vec<Vec<u8>> = vec![
 			vec![],
-			vec![0u8; 83],          // shorter than the 84-byte binary header
-			vec![0u8; 84],          // header only, count = 0
-			b"solid x\n".to_vec(),  // ASCII with no facets
+			vec![0u8; 83],                                         // shorter than the 84-byte binary header
+			vec![0u8; 84],                                         // header only, count = 0
+			b"solid x\n".to_vec(),                                 // ASCII with no facets
 			b"facet normal 0 0\n vertex 1 2\nendfacet\n".to_vec(), // truncated fields
 			b"\xff\xfe garbage \x00\x01 not utf8".to_vec(),
 		];
@@ -250,11 +248,7 @@ mod tests {
 		let mut m = Mesh::new();
 		// Points 0 and 1 are 0.2e-3 apart (< 1e-3) but straddle the quantization
 		// cell boundary at 0.5e-3; point 2 is far away.
-		m.positions = vec![
-			Vec3::new(0.6e-3, 0.0, 0.0),
-			Vec3::new(0.4e-3, 0.0, 0.0),
-			Vec3::new(1.0, 0.0, 0.0),
-		];
+		m.positions = vec![Vec3::new(0.6e-3, 0.0, 0.0), Vec3::new(0.4e-3, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)];
 		m.indices = vec![0, 1, 2];
 		m.weld(1e-3);
 		// The pair merges — and the triangle it collapsed is DROPPED (a collapsed

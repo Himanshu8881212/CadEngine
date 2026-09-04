@@ -126,12 +126,7 @@ impl<'a> AssemblyGraph<'a> {
 		let mut brep_ids: Vec<u32> = self
 			.rep_items(rep)?
 			.into_iter()
-			.filter(|&id| {
-				self.imp
-					.get(id)
-					.map(|e| e.name == "MANIFOLD_SOLID_BREP" || e.name == "BREP_WITH_VOIDS")
-					.unwrap_or(false)
-			})
+			.filter(|&id| self.imp.get(id).map(|e| e.name == "MANIFOLD_SOLID_BREP" || e.name == "BREP_WITH_VOIDS").unwrap_or(false))
 			.collect();
 		brep_ids.sort_unstable();
 		if brep_ids.is_empty() {
@@ -140,11 +135,8 @@ impl<'a> AssemblyGraph<'a> {
 		let mut acc = FaceAccum::default();
 		for brep in brep_ids {
 			let e = self.imp.get(brep)?;
-			let outer = e
-				.args
-				.iter()
-				.find_map(Value::as_ref)
-				.ok_or_else(|| StepError::Parse(format!("#{brep} {} has no outer shell", e.name)))?;
+			let outer =
+				e.args.iter().find_map(Value::as_ref).ok_or_else(|| StepError::Parse(format!("#{brep} {} has no outer shell", e.name)))?;
 			let mut faces = self.imp.shell_faces(outer, false)?;
 			if e.name == "BREP_WITH_VOIDS" {
 				let voids = e
@@ -249,20 +241,14 @@ impl<'a> AssemblyGraph<'a> {
 	/// their children, and any geometry carried by the node itself is emitted too.
 	fn walk(&mut self, pd: u32, at: DAffine3, depth: usize, out: &mut Vec<(String, Solid, DAffine3)>) -> Result<(), StepError> {
 		if depth > ASSEMBLY_MAX_DEPTH {
-			return Err(StepError::Topology(format!(
-				"assembly tree nests deeper than {ASSEMBLY_MAX_DEPTH} — the NAUO graph has a cycle"
-			)));
+			return Err(StepError::Topology(format!("assembly tree nests deeper than {ASSEMBLY_MAX_DEPTH} — the NAUO graph has a cycle")));
 		}
 		let name = self.product_name(pd)?;
 		if let Some(&rep) = self.shape_rep.get(&pd) {
 			self.emit_rep(&name, rep, at, depth, out)?;
 		}
-		let children: Vec<(u32, u32)> = self
-			.nauo
-			.iter()
-			.filter(|(_, (parent, _))| *parent == pd)
-			.map(|&(id, (_, child))| (id, child))
-			.collect();
+		let children: Vec<(u32, u32)> =
+			self.nauo.iter().filter(|(_, (parent, _))| *parent == pd).map(|&(id, (_, child))| (id, child)).collect();
 		for (nauo_id, child) in children {
 			let t = self.nauo_transform.get(&nauo_id).copied().unwrap_or(DAffine3::IDENTITY);
 			self.walk(child, at * t, depth + 1, out)?;
@@ -337,12 +323,7 @@ pub(crate) fn nauo_placement(imp: &Importer, index: &NauoIndex, nauo: u32, child
 				(rr, rrwt.iter().find_map(Value::as_ref))
 			}
 			"SHAPE_REPRESENTATION_RELATIONSHIP" | "REPRESENTATION_RELATIONSHIP" => (rel.args.as_slice(), None),
-			other => {
-				return Err(StepError::Unsupported(format!(
-					"NAUO #{nauo}: relationship #{} of type {other}",
-					refs[0]
-				)))
-			}
+			other => return Err(StepError::Unsupported(format!("NAUO #{nauo}: relationship #{} of type {other}", refs[0]))),
 		};
 		let Some(idt) = idt_ref else {
 			return Ok(Some(DAffine3::IDENTITY)); // an untransformed relationship
@@ -413,12 +394,7 @@ pub fn import_step_assembly(text: &str) -> Result<Vec<(String, Solid, DAffine3)>
 
 	// Roots: products that parent at least one NAUO but are never a child.
 	let children: std::collections::HashSet<u32> = graph.nauo.iter().map(|&(_, (_, c))| c).collect();
-	let mut roots: Vec<u32> = graph
-		.nauo
-		.iter()
-		.map(|&(_, (p, _))| p)
-		.filter(|p| !children.contains(p))
-		.collect();
+	let mut roots: Vec<u32> = graph.nauo.iter().map(|&(_, (p, _))| p).filter(|p| !children.contains(p)).collect();
 	roots.sort_unstable();
 	roots.dedup();
 	if roots.is_empty() {

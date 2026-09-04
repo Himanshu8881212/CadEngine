@@ -19,12 +19,13 @@ pub(crate) fn exec(op_id: &str, kind: OpKind) -> Result<Outcome, OpError> {
 	match kind {
 		#[cfg(feature = "catalog")]
 		OpKind::Gt2Belt { center_distance, t1, t2 } => {
-			let (pitch_length, belt_teeth) = parts::gt2_belt(center_distance, t1, t2).ok_or_else(|| {
-				err(
+			let (pitch_length, belt_teeth) =
+				parts::gt2_belt(center_distance, t1, t2).ok_or_else(|| {
+					err(
 					ErrorKind::InvalidParam,
 					format!("op '{op_id}': gt2_belt: needs t1, t2 ≥ 2 and center_distance beyond the pitch-radius sum (pitch Ø = teeth·2/π)"),
 				)
-			})?;
+				})?;
 			Ok(Outcome::measures(json!({ "pitch_length": pitch_length, "belt_teeth": belt_teeth })))
 		}
 		#[cfg(feature = "catalog")]
@@ -71,7 +72,9 @@ pub(crate) fn exec(op_id: &str, kind: OpKind) -> Result<Outcome, OpError> {
 			let g = parts::metric_cord_gland(cord_d).ok_or_else(|| {
 				err(
 					ErrorKind::InvalidParam,
-					format!("op '{op_id}': metric_cord_gland: Ø{cord_d} is not a stocked metric cord size (supported: {METRIC_CORD_SIZES})"),
+					format!(
+						"op '{op_id}': metric_cord_gland: Ø{cord_d} is not a stocked metric cord size (supported: {METRIC_CORD_SIZES})"
+					),
 				)
 			})?;
 			Ok(Outcome::measures(json!({

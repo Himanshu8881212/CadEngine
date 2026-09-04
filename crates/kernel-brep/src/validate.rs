@@ -1070,12 +1070,9 @@ fn torus_lens_moments(poly: &[DVec3], center: DVec3, axis: DVec3, major: f64, mi
 
 	let v_l = s * (vp + vs) - fan_v;
 	let m_l = to_world_v(mp + ms) * s - fan_m;
-	let s_l = to_world_m(DMat3::from_cols(
-		DVec3::new(sp_xx, sp_xy, sp_xz),
-		DVec3::new(sp_xy, sp_yy, sp_yz),
-		DVec3::new(sp_xz, sp_yz, sp_zz),
-	) + ss) * s
-		- fan_s;
+	let s_l = to_world_m(
+		DMat3::from_cols(DVec3::new(sp_xx, sp_xy, sp_xz), DVec3::new(sp_xy, sp_yy, sp_yz), DVec3::new(sp_xz, sp_yz, sp_zz)) + ss,
+	) * s - fan_s;
 
 	// Shift the centre-relative lens moments to the world origin.
 	let first = center * v_l + m_l;

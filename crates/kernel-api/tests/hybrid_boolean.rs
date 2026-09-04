@@ -23,11 +23,7 @@ fn out_dir(name: &str) -> PathBuf {
 
 /// The report entry for op `id` (panics with the report when absent).
 fn entry<'r>(report: &'r Report, id: &str) -> &'r OpReport {
-	report
-		.ops
-		.iter()
-		.find(|o| o.id == id)
-		.unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
+	report.ops.iter().find(|o| o.id == id).unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
 }
 
 fn run(program: &Value, dir: &Path) -> Report {
@@ -99,7 +95,7 @@ fn tpms_operand_routes_through_the_heal_and_says_so() {
 		{"id": "fused", "op": "hybrid_boolean", "in": "plate", "bool": "union",
 		 "field": {"op": "intersection",
 			"a": {"shape": "tpms", "kind": "gyroid", "mode": "sheet", "level": 0.8, "cell": 6,
-			      "min": [-10,-10,8], "max": [10,10,24]},
+				  "min": [-10,-10,8], "max": [10,10,24]},
 			"b": {"shape": "box", "min": [-10,-10,8], "max": [10,10,24]}},
 		 "voxel": 0.5, "out": "fused.stl"}
 	]});

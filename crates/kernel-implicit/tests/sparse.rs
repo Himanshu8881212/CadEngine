@@ -169,10 +169,7 @@ fn gate3_narrowband_mesh_through_cache_matches_analytic() {
 	// Measured 2026-07-30: va = vg = 33,504.33 mm³, delta 0.00002 %, both
 	// watertight (analytic sphere volume 33,510.3 mm³ → 0.018 % discretisation).
 	assert!(
-		ma.is_watertight()
-			&& mg.is_watertight()
-			&& delta_pct < 1.0
-			&& ((va - exact) / exact).abs() < 0.02,
+		ma.is_watertight() && mg.is_watertight() && delta_pct < 1.0 && ((va - exact) / exact).abs() < 0.02,
 		"narrow-band mesh r=20 sphere @ 0.25 mm: analytic {va:.1} mm³ (watertight {}), through SparseGrid \
 		 {vg:.1} mm³ (watertight {}), delta {delta_pct:.4}% (gate ≤ 1%); analytic vs true 33,510 mm³",
 		ma.is_watertight(),
@@ -248,11 +245,7 @@ fn gate5_octree_adaptive_depth_on_csg_part() {
 	// On the planar box face the field is locally linear ⇒ trilinear is exact
 	// up to sampling noise.
 	let mut max_face = 0.0f32;
-	for p in [
-		Vec3::new(-12.0, 1.5, 7.65),
-		Vec3::new(-15.0, -3.0, 8.2),
-		Vec3::new(-8.0, 4.0, 8.0),
-	] {
+	for p in [Vec3::new(-12.0, 1.5, 7.65), Vec3::new(-15.0, -3.0, 8.2), Vec3::new(-8.0, 4.0, 8.0)] {
 		max_face = max_face.max((oct.distance(p) - part.distance(p)).abs());
 	}
 
@@ -360,11 +353,7 @@ fn gate6_overclaiming_field_is_out_of_contract_and_misses_tiles() {
 	// Measured 2026-07-30: 740 straddling tiles; honest missed 0; ×3 field
 	// missed 360 (48.6 %); witness surface point reads |d| = 2.04 mm.
 	assert!(
-		straddle > 500
-			&& missed_honest == 0
-			&& missed_bad > 0
-			&& missed_bad < straddle
-			&& witness_read.is_some_and(|v| v > 0.2),
+		straddle > 500 && missed_honest == 0 && missed_bad > 0 && missed_bad < straddle && witness_read.is_some_and(|v| v > 0.2),
 		"Lipschitz contract, r=20 sphere @ 0.4 mm/±1 mm ({straddle} surface-crossing tiles): honest field missed \
 		 {missed_honest} (theorem: must be 0); ×3 over-claiming field missed {missed_bad} = {:.1}% (documented \
 		 out-of-contract behaviour — redistance first); cache reads |d| = {:.3} mm at a true surface point in a \

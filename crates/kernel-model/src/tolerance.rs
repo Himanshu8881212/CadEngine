@@ -356,11 +356,7 @@ impl Contribution {
 			name: name.into(),
 			sign,
 			dim,
-			source: ToleranceSource::Process {
-				profile: profile.name.clone(),
-				feature: feature_name.to_string(),
-				note: note.to_string(),
-			},
+			source: ToleranceSource::Process { profile: profile.name.clone(), feature: feature_name.to_string(), note: note.to_string() },
 		}
 	}
 

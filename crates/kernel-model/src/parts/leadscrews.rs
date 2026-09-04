@@ -111,10 +111,7 @@ pub fn tr8_thread_ridge(lead: f64, start_index: usize, z0: f64, length: f64) -> 
 		.map(|k| {
 			let t = k as f64 / steps_per_turn as f64; // turns travelled
 			let (a, z) = (phase + t * TAU, z0 + t * spec.lead);
-			section
-				.iter()
-				.map(|&(radius, dz)| DVec3::new(radius * a.cos(), radius * a.sin(), z + dz))
-				.collect()
+			section.iter().map(|&(radius, dz)| DVec3::new(radius * a.cos(), radius * a.sin(), z + dz)).collect()
 		})
 		.collect();
 	loft_solid(&sections)
@@ -150,8 +147,9 @@ pub fn lead_screw_nut_tr8() -> Solid {
 	for k in 0..4 {
 		let a = TAU * k as f64 / 4.0;
 		let at = DVec3::new(TR8_NUT_BCD * 0.5 * a.cos(), TR8_NUT_BCD * 0.5 * a.sin(), TR8_NUT_FLANGE_T);
-		nut = kernel_brep::holes::drill(&nut, at, -DVec3::Z, TR8_NUT_HOLE_D, kernel_brep::holes::HoleDepth::Through(TR8_NUT_FLANGE_T), None)
-			.unwrap_or(nut);
+		nut =
+			kernel_brep::holes::drill(&nut, at, -DVec3::Z, TR8_NUT_HOLE_D, kernel_brep::holes::HoleDepth::Through(TR8_NUT_FLANGE_T), None)
+				.unwrap_or(nut);
 	}
 	nut
 }
@@ -172,7 +170,9 @@ pub fn tr8_nut_trap(solid: &Solid, at: DVec3, axis: DVec3, through: f64) -> Opti
 	}
 	let (e1, e2) = perp_basis(axis);
 	// Through-bore for the nut body.
-	let mut cut = kernel_brep::holes::drill(solid, at, -axis, TR8_NUT_BODY_D + 0.4, kernel_brep::holes::HoleDepth::Through(through), Some(48)).ok()?;
+	let mut cut =
+		kernel_brep::holes::drill(solid, at, -axis, TR8_NUT_BODY_D + 0.4, kernel_brep::holes::HoleDepth::Through(through), Some(48))
+			.ok()?;
 	// Flat-bottomed flange recess: a plain cylinder cutter sunk recess_t into the
 	// face, overshooting 1 mm above it (no drill point — the recess floor is flat).
 	let frame = DMat3::from_cols(e1, e2, axis);
@@ -202,13 +202,7 @@ mod tests {
 			[2.0, 4.0, 8.0, 3.0, 6.0].iter().map(|&l| tr8_spec(l).map(|s| (s.starts, s.d2, s.d3, s.nut_d1, s.nut_d4))).collect();
 		assert_eq!(
 			rows,
-			vec![
-				Some((1, 7.0, 5.5, 6.0, 8.5)),
-				Some((2, 7.0, 5.5, 6.0, 8.5)),
-				Some((4, 7.0, 5.5, 6.0, 8.5)),
-				None,
-				None
-			],
+			vec![Some((1, 7.0, 5.5, 6.0, 8.5)), Some((2, 7.0, 5.5, 6.0, 8.5)), Some((4, 7.0, 5.5, 6.0, 8.5)), None, None],
 			"DIN 103 Tr8 spec rows"
 		);
 	}
@@ -262,7 +256,8 @@ mod tests {
 		let buried = 5.5 * 0.5 - 0.5;
 		assert!(
 			v.closed
-				&& v.manifold && v.genus == 0
+				&& v.manifold
+				&& v.genus == 0
 				&& tessellate_adaptive_tol(&r0, 0.01).is_watertight()
 				&& (r_max - 4.0).abs() < 1e-9
 				&& (r_min - buried).abs() < 1e-9,
@@ -288,12 +283,12 @@ mod tests {
 		let nut = lead_screw_nut_tr8();
 		let v = validate(&nut);
 		let ring48 = |r: f64| 48.0 * 0.5 * r * r * (2.0 * PI / 48.0).sin();
-		let nut_expected = (ring48(11.0) - ring48(4.0)) * 3.5 + (ring48(5.1) - ring48(4.0)) * 11.5
-			- 4.0 * PI * 1.75 * 1.75 * 3.5 * 1.01;
+		let nut_expected = (ring48(11.0) - ring48(4.0)) * 3.5 + (ring48(5.1) - ring48(4.0)) * 11.5 - 4.0 * PI * 1.75 * 1.75 * 3.5 * 1.01;
 		let nut_vol = volume(&nut).abs();
 		assert!(
 			v.closed
-				&& v.manifold && v.genus == 5
+				&& v.manifold
+				&& v.genus == 5
 				&& tessellate_default(&nut).is_watertight()
 				&& tessellate_adaptive_tol(&nut, 0.01).is_watertight()
 				&& (nut_vol - nut_expected).abs() / nut_expected < 0.01,
@@ -304,10 +299,8 @@ mod tests {
 		let trapped = tr8_nut_trap(&plate, DVec3::new(0.0, 0.0, 10.0), DVec3::Z, 10.0).expect("valid trap");
 		let tv = validate(&trapped);
 		let floor_z = 10.0 - 3.7;
-		let floor_verts = (0..trapped.vertex_count() as u32)
-			.map(|i| trapped.position(VertexId(i)))
-			.filter(|p| (p.z - floor_z).abs() < 1e-9)
-			.count();
+		let floor_verts =
+			(0..trapped.vertex_count() as u32).map(|i| trapped.position(VertexId(i))).filter(|p| (p.z - floor_z).abs() < 1e-9).count();
 		// The nut posed in the trap: flange seated on the recess floor.
 		let posed = nut.transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, floor_z)));
 		let material_clash = intersection(&trapped, &posed);

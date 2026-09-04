@@ -53,12 +53,7 @@ const COINCIDENT_DIST_TOL: f64 = 0.05;
 pub fn overlap_volume(a: &Solid, b: &Solid) -> Option<f64> {
 	match (conservative_aabb(a), conservative_aabb(b)) {
 		(Some((alo, ahi)), Some((blo, bhi))) => {
-			let disjoint = ahi.x < blo.x
-				|| bhi.x < alo.x
-				|| ahi.y < blo.y
-				|| bhi.y < alo.y
-				|| ahi.z < blo.z
-				|| bhi.z < alo.z;
+			let disjoint = ahi.x < blo.x || bhi.x < alo.x || ahi.y < blo.y || bhi.y < alo.y || ahi.z < blo.z || bhi.z < alo.z;
 			if disjoint {
 				return Some(0.0);
 			}
@@ -101,13 +96,7 @@ pub fn detect_coincident_fit(a: &Solid, b: &Solid) -> bool {
 	match (conservative_aabb(a), conservative_aabb(b)) {
 		(Some((alo, ahi)), Some((blo, bhi))) => {
 			let t = COINCIDENT_DIST_TOL;
-			if ahi.x + t < blo.x
-				|| bhi.x + t < alo.x
-				|| ahi.y + t < blo.y
-				|| bhi.y + t < alo.y
-				|| ahi.z + t < blo.z
-				|| bhi.z + t < alo.z
-			{
+			if ahi.x + t < blo.x || bhi.x + t < alo.x || ahi.y + t < blo.y || bhi.y + t < alo.y || ahi.z + t < blo.z || bhi.z + t < alo.z {
 				return false;
 			}
 		}
@@ -168,31 +157,19 @@ fn surfaces_coincident(a: &Surface, b: &Surface) -> bool {
 		(Surface::Plane { origin: oa, normal: na }, Surface::Plane { origin: ob, normal: nb }) => {
 			direction_angle(na, nb) < ang && (oa - ob).dot(na.normalize_or_zero()).abs() < dist
 		}
-		(
-			Surface::Cylinder { origin: oa, axis: aa, radius: ra },
-			Surface::Cylinder { origin: ob, axis: ab, radius: rb },
-		) => {
+		(Surface::Cylinder { origin: oa, axis: aa, radius: ra }, Surface::Cylinder { origin: ob, axis: ab, radius: rb }) => {
 			let axis = aa.normalize_or_zero();
 			let d = ob - oa;
-			direction_angle(aa, ab) < ang
-				&& (ra - rb).abs() < dist
-				&& (d - axis * d.dot(axis)).length() < dist
+			direction_angle(aa, ab) < ang && (ra - rb).abs() < dist && (d - axis * d.dot(axis)).length() < dist
 		}
 		(Surface::Sphere { center: ca, radius: ra }, Surface::Sphere { center: cb, radius: rb }) => {
 			(ca - cb).length() < dist && (ra - rb).abs() < dist
 		}
-		(
-			Surface::Cone { apex: pa, axis: aa, half_angle: ha },
-			Surface::Cone { apex: pb, axis: ab, half_angle: hb },
-		) => direction_angle(aa, ab) < ang && (ha - hb).abs() < ang && (pa - pb).length() < dist,
-		(
-			Surface::Torus { center: ca, axis: aa, major: ma, minor: na },
-			Surface::Torus { center: cb, axis: ab, major: mb, minor: nb },
-		) => {
-			direction_angle(aa, ab) < ang
-				&& (ca - cb).length() < dist
-				&& (ma - mb).abs() < dist
-				&& (na - nb).abs() < dist
+		(Surface::Cone { apex: pa, axis: aa, half_angle: ha }, Surface::Cone { apex: pb, axis: ab, half_angle: hb }) => {
+			direction_angle(aa, ab) < ang && (ha - hb).abs() < ang && (pa - pb).length() < dist
+		}
+		(Surface::Torus { center: ca, axis: aa, major: ma, minor: na }, Surface::Torus { center: cb, axis: ab, major: mb, minor: nb }) => {
+			direction_angle(aa, ab) < ang && (ca - cb).length() < dist && (ma - mb).abs() < dist && (na - nb).abs() < dist
 		}
 		_ => false,
 	}
@@ -324,9 +301,6 @@ mod tests {
 		// recovers precisely that deficit via the cylinder bulge correction.
 		let vi = volume(&crate::booleans::intersection(&cube, &pin));
 		let want_faceted = 16.0 * 1.5 * 1.5 * (std::f64::consts::PI / 16.0).sin() * 2.0;
-		assert!(
-			(vi - want_faceted).abs() < 1e-6,
-			"tessellated intersection volume off its faceted closed form: {vi} vs {want_faceted}"
-		);
+		assert!((vi - want_faceted).abs() < 1e-6, "tessellated intersection volume off its faceted closed form: {vi} vs {want_faceted}");
 	}
 }

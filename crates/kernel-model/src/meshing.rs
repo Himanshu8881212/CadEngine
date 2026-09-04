@@ -103,7 +103,8 @@ pub fn routed_mesh(solid: &kernel_brep::Solid, tol: f64) -> (Mesh, RouteReport) 
 	}
 	let exact = kernel_brep::tessellate_adaptive_tol(solid, tol);
 	if exact.is_watertight() {
-		let report = RouteReport::for_mesh(&exact, MeshRoute::Exact, "exact adaptive tessellation is watertight (analytic surfaces, no voxel grid)");
+		let report =
+			RouteReport::for_mesh(&exact, MeshRoute::Exact, "exact adaptive tessellation is watertight (analytic surfaces, no voxel grid)");
 		(exact, report)
 	} else {
 		let mesh = watertight_mesh(solid, heal_voxel_size(tol));

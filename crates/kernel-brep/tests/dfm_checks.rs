@@ -14,7 +14,8 @@ fn dfm_checks_flag_defects_and_pass_good_geometry() {
 	assert!(
 		(t.min_thickness - 0.5).abs() < 1e-6 && (t.thin_area - 800.0).abs() < 1.0,
 		"thin plate: min_thickness={} (want 0.5), thin_area={} (want 800)",
-		t.min_thickness, t.thin_area
+		t.min_thickness,
+		t.thin_area
 	);
 
 	// Zero draft: a plain block pulled along +Z. Its four 20x20 vertical walls are
@@ -24,7 +25,8 @@ fn dfm_checks_flag_defects_and_pass_good_geometry() {
 	assert!(
 		d.min_draft_deg < 1e-6 && (d.low_draft_area - 1600.0).abs() < 1.0,
 		"zero-draft block: min_draft={}° (want 0), low_draft_area={} (want 1600)",
-		d.min_draft_deg, d.low_draft_area
+		d.min_draft_deg,
+		d.low_draft_area
 	);
 
 	// Overhang: a sphere printed +Z overhangs its lower portion past the 45°
@@ -35,7 +37,9 @@ fn dfm_checks_flag_defects_and_pass_good_geometry() {
 	assert!(
 		o.overhang_fraction > 0.1 && flagged > 0,
 		"overhang sphere: fraction={} flagged={}/{}",
-		o.overhang_fraction, flagged, o.needs_support.len()
+		o.overhang_fraction,
+		flagged,
+		o.needs_support.len()
 	);
 
 	// Control: a 5°-drafted block must NOT be flagged at a 2° minimum (no false
@@ -49,6 +53,7 @@ fn dfm_checks_flag_defects_and_pass_good_geometry() {
 	assert!(
 		dt.low_draft_area < 1.0 && dt.min_draft_deg > 1.9,
 		"5°-draft block must pass a 2° check (no false flag): min_draft={}° low_draft_area={}",
-		dt.min_draft_deg, dt.low_draft_area
+		dt.min_draft_deg,
+		dt.low_draft_area
 	);
 }

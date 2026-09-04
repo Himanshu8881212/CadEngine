@@ -56,11 +56,18 @@ pub enum Expr {
 	Sin(Box<Expr>),
 	Cos(Box<Expr>),
 	/// `atan2(y, x)` — the angle of the point `(x, y)`, in radians.
-	Atan2 { y: Box<Expr>, x: Box<Expr> },
+	Atan2 {
+		y: Box<Expr>,
+		x: Box<Expr>,
+	},
 	/// Euclidean remainder `a.rem_euclid(m)` — non-negative for finite inputs.
 	Mod(Box<Expr>, Box<Expr>),
 	/// `min(max(value, lo), hi)` — never panics, even for `lo > hi`.
-	Clamp { value: Box<Expr>, lo: Box<Expr>, hi: Box<Expr> },
+	Clamp {
+		value: Box<Expr>,
+		lo: Box<Expr>,
+		hi: Box<Expr>,
+	},
 	/// `sqrt(a² + b²)`.
 	Length2(Box<Expr>, Box<Expr>),
 	/// `sqrt(a² + b² + c²)`.
@@ -270,7 +277,8 @@ mod tests {
 		// like the Plane primitive.
 		let leaf = ExprSdf::new(Arc::new(Expr::Z), 1.0, None);
 		assert!(!leaf.bounds().min.is_finite(), "bounds-less ExprSdf must report an unbounded box");
-		let clipped = Node::primitive(Sphere::new(Vec3::ZERO, 5.0)).intersection(Node::primitive(ExprSdf::new(Arc::new(Expr::Z), 1.0, None)));
+		let clipped =
+			Node::primitive(Sphere::new(Vec3::ZERO, 5.0)).intersection(Node::primitive(ExprSdf::new(Arc::new(Expr::Z), 1.0, None)));
 		let bb = clipped.bounds();
 		assert!(bb.is_valid() && bb.min.is_finite() && bb.max.is_finite(), "intersection with a finite operand must bound: {bb:?}");
 	}

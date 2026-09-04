@@ -17,8 +17,18 @@ fn square_pt(theta: f64, half: f64) -> (f64, f64) {
 #[test]
 fn lofted_boss_on_plate_unions_coplanar_and_bores_through() {
 	let m = 48usize;
-	let bottom: Vec<DVec3> = (0..m).map(|i| { let (x, y) = square_pt(TAU * i as f64 / m as f64, 20.0); DVec3::new(x, y, 0.0) }).collect();
-	let top: Vec<DVec3> = (0..m).map(|i| { let th = TAU * i as f64 / m as f64; DVec3::new(15.0 * th.cos(), 15.0 * th.sin(), 40.0) }).collect();
+	let bottom: Vec<DVec3> = (0..m)
+		.map(|i| {
+			let (x, y) = square_pt(TAU * i as f64 / m as f64, 20.0);
+			DVec3::new(x, y, 0.0)
+		})
+		.collect();
+	let top: Vec<DVec3> = (0..m)
+		.map(|i| {
+			let th = TAU * i as f64 / m as f64;
+			DVec3::new(15.0 * th.cos(), 15.0 * th.sin(), 40.0)
+		})
+		.collect();
 	let boss = loft_solid(&[bottom, top]).expect("boss lofts");
 	let plate = cuboid(DVec3::new(-30.0, -30.0, -5.0), DVec3::new(30.0, 30.0, 0.0));
 	let (boss_v, plate_v) = (volume(&boss).abs(), volume(&plate).abs());
@@ -28,10 +38,17 @@ fn lofted_boss_on_plate_unions_coplanar_and_bores_through() {
 	let v = validate(&part);
 	let mesh = tessellate_default(&part);
 	assert!(
-		v.closed && v.manifold && v.genus == 0 && mesh.is_watertight() && !mesh.has_self_intersection()
+		v.closed
+			&& v.manifold
+			&& v.genus == 0
+			&& mesh.is_watertight()
+			&& !mesh.has_self_intersection()
 			&& (volume(&part).abs() - (plate_v + boss_v)).abs() / (plate_v + boss_v) < 1e-4,
 		"plate ∪ loft-boss must be watertight genus-0 with additive volume {}≈{}+{}: {v:?} self_int={}",
-		volume(&part).abs(), plate_v, boss_v, mesh.has_self_intersection()
+		volume(&part).abs(),
+		plate_v,
+		boss_v,
+		mesh.has_self_intersection()
 	);
 
 	// Bore through the round top down through the plate -> genus 1.

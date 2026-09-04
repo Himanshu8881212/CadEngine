@@ -6,10 +6,10 @@
 
 use kernel_brep::math::{DAffine3, DMat3, DVec2, DVec3, Vec3};
 use kernel_brep::{
-	cone, cuboid, cylinder, difference, exact_volume, extrude, extrude_tapered, extrude_with_holes, fillet_edge,
-	chamfered_cylinder, draft_analysis, filleted_cylinder, mass_properties, overhang_analysis, revolve, section_properties,
-	self_intersects, sphere, tessellate_adaptive_tol, tessellate_default, torus, union, validate, volume, wall_thickness,
-	EdgeName, FaceName, FaceSource, MassProperties, Surface,
+	chamfered_cylinder, cone, cuboid, cylinder, difference, draft_analysis, exact_volume, extrude, extrude_tapered, extrude_with_holes,
+	fillet_edge, filleted_cylinder, mass_properties, overhang_analysis, revolve, section_properties, self_intersects, sphere,
+	tessellate_adaptive_tol, tessellate_default, torus, union, validate, volume, wall_thickness, EdgeName, FaceName, FaceSource,
+	MassProperties, Surface,
 };
 use std::f64::consts::PI;
 
@@ -146,12 +146,7 @@ fn a_through_drilled_bore_keeps_its_cylinder_tag_for_exact_volume() {
 	let bore = part.faces().filter(|&f| matches!(part.face(f).surface, Surface::Cylinder { .. })).count();
 	let exact = 10.0 * 10.0 * 6.0 - PI * 2.0 * 2.0 * 6.0;
 	assert!(
-		v.closed
-			&& v.manifold
-			&& v.genus == 1
-			&& !self_intersects(&part)
-			&& bore > 0
-			&& (exact_volume(&part).abs() - exact).abs() < 1e-4,
+		v.closed && v.manifold && v.genus == 1 && !self_intersects(&part) && bore > 0 && (exact_volume(&part).abs() - exact).abs() < 1e-4,
 		"through-bore: {v:?} self_int={} cyl_faces={bore} exact_volume={} (closed form {exact})",
 		self_intersects(&part),
 		exact_volume(&part).abs()
@@ -190,7 +185,8 @@ fn center_of_mass_is_analytic_for_spherical_parts() {
 	// moment error — so it is not asserted here.)
 	let s = sphere(DVec3::new(2.0, 1.0, 3.0), 4.0, 48, 32);
 	let sc = mass_properties(&s).center_of_mass;
-	let hemi = kernel_brep::intersection(&sphere(DVec3::ZERO, 4.0, 64, 48), &cuboid(DVec3::new(-5.0, -5.0, 0.0), DVec3::new(5.0, 5.0, 6.0)));
+	let hemi =
+		kernel_brep::intersection(&sphere(DVec3::ZERO, 4.0, 64, 48), &cuboid(DVec3::new(-5.0, -5.0, 0.0), DVec3::new(5.0, 5.0, 6.0)));
 	let hc = mass_properties(&hemi).center_of_mass;
 	assert!(
 		(sc - DVec3::new(2.0, 1.0, 3.0)).length() < 1e-4 && hc.x.abs() < 1e-4 && hc.y.abs() < 1e-4 && (hc.z - 1.5).abs() < 1e-4,
@@ -207,19 +203,13 @@ fn center_of_mass_is_analytic_for_a_cone() {
 	// the axial coordinate; the analytic correction nails (2, 0, 2.25).
 	let c = cone(DVec3::new(2.0, 0.0, 0.0), DVec3::Z, 3.0, 9.0, 64);
 	let com = mass_properties(&c).center_of_mass;
-	assert!(
-		(com.x - 2.0).abs() < 1e-4 && com.y.abs() < 1e-4 && (com.z - 2.25).abs() < 1e-4,
-		"cone CoM {com:?} should be (2, 0, 2.25)"
-	);
+	assert!((com.x - 2.0).abs() < 1e-4 && com.y.abs() < 1e-4 && (com.z - 2.25).abs() < 1e-4, "cone CoM {com:?} should be (2, 0, 2.25)");
 }
 
 /// Largest absolute component difference between two 3×3 tensors.
 fn mat_err(a: DMat3, b: DMat3) -> f64 {
 	let d = a - b;
-	[d.x_axis, d.y_axis, d.z_axis]
-		.iter()
-		.flat_map(|c| [c.x.abs(), c.y.abs(), c.z.abs()])
-		.fold(0.0_f64, f64::max)
+	[d.x_axis, d.y_axis, d.z_axis].iter().flat_map(|c| [c.x.abs(), c.y.abs(), c.z.abs()]).fold(0.0_f64, f64::max)
 }
 
 #[test]
@@ -537,9 +527,17 @@ fn subtracting_a_sphere_or_cone_leaves_an_analytic_pocket_with_exact_volume() {
 	let dimple_true = 600.0 - (2.0 / 3.0) * PI * 27.0;
 	let csink_true = 600.0 - (1.0 / 3.0) * PI * 9.0 * 4.0;
 	assert!(
-		dv.closed && dv.manifold && dv.genus == 0 && !self_intersects(&dimple) && sph > 0
+		dv.closed
+			&& dv.manifold
+			&& dv.genus == 0
+			&& !self_intersects(&dimple)
+			&& sph > 0
 			&& (exact_volume(&dimple).abs() - dimple_true).abs() < 1e-4
-			&& cv.closed && cv.manifold && cv.genus == 0 && !self_intersects(&csink) && con > 0
+			&& cv.closed
+			&& cv.manifold
+			&& cv.genus == 0
+			&& !self_intersects(&csink)
+			&& con > 0
 			&& (exact_volume(&csink).abs() - csink_true).abs() < 1e-4,
 		"dimple {dv:?} sph_faces={sph} exact={} (true {dimple_true}) | csink {cv:?} cone_faces={con} exact={} (true {csink_true})",
 		exact_volume(&dimple).abs(),
@@ -560,7 +558,11 @@ fn a_blind_flat_bottomed_pocket_has_exact_volume() {
 	let bore = pocket.faces().filter(|&f| matches!(pocket.face(f).surface, Surface::Cylinder { .. })).count();
 	let exact = 600.0 - PI * 2.0 * 2.0 * 4.0; // depth = 6 − 2 = 4
 	assert!(
-		v.closed && v.manifold && v.genus == 0 && !self_intersects(&pocket) && bore > 0
+		v.closed
+			&& v.manifold
+			&& v.genus == 0
+			&& !self_intersects(&pocket)
+			&& bore > 0
 			&& (exact_volume(&pocket).abs() - exact).abs() < 1e-4,
 		"blind pocket: {v:?} bore_cyl_faces={bore} exact_volume={} (closed form {exact})",
 		exact_volume(&pocket).abs()
@@ -574,11 +576,7 @@ fn mass_properties_volume_is_exact_for_curved_solids() {
 	let cyl = cylinder(DVec3::ZERO, DVec3::Z, 5.0, 12.0, 20);
 	let mp = mass_properties(&cyl);
 	let exact = PI * 25.0 * 12.0;
-	assert!(
-		(mp.volume - exact).abs() / exact < 1e-6,
-		"mass_properties volume must be analytic-exact: {} vs {exact}",
-		mp.volume
-	);
+	assert!((mp.volume - exact).abs() / exact < 1e-6, "mass_properties volume must be analytic-exact: {} vs {exact}", mp.volume);
 }
 
 #[test]
@@ -691,7 +689,11 @@ fn multi_hole_plate_is_valid_via_extrude_with_holes() {
 	// outer area 40×24 = 960; each 32-gon hole ≈ π·2.5² (a hair under); height 6.
 	let expected = (960.0 - 3.0 * PI * 2.5 * 2.5) * 6.0;
 	assert!(
-		v.closed && v.manifold && v.genus == 3 && tessellate_default(&plate).is_watertight() && (volume(&plate).abs() - expected).abs() / expected < 0.02,
+		v.closed
+			&& v.manifold
+			&& v.genus == 3
+			&& tessellate_default(&plate).is_watertight()
+			&& (volume(&plate).abs() - expected).abs() / expected < 0.02,
 		"3-hole plate via extrude_with_holes must be a closed manifold genus-3 watertight solid ~{expected:.0}mm³: {v:?} wt={} vol={:.0}",
 		tessellate_default(&plate).is_watertight(),
 		volume(&plate).abs()
@@ -765,12 +767,8 @@ fn tapered_extrude_is_a_drafted_frustum() {
 	let l = 20.0;
 	let h = 10.0;
 	let draft = 0.1_f64;
-	let profile = [
-		DVec2::new(-l / 2.0, -l / 2.0),
-		DVec2::new(l / 2.0, -l / 2.0),
-		DVec2::new(l / 2.0, l / 2.0),
-		DVec2::new(-l / 2.0, l / 2.0),
-	];
+	let profile =
+		[DVec2::new(-l / 2.0, -l / 2.0), DVec2::new(l / 2.0, -l / 2.0), DVec2::new(l / 2.0, l / 2.0), DVec2::new(-l / 2.0, l / 2.0)];
 	let s = extrude_tapered(&profile, h, draft);
 	assert_genus0_solid(&s, "tapered-extrude");
 	// Truncated pyramid: bottom side a, top side b = a − 2·h·tan(draft). The solid is
@@ -874,7 +872,11 @@ fn mirror_preserves_a_through_hole() {
 	let v = validate(&reflected);
 	let exact = (36.0 - 4.0) * 2.0;
 	assert!(
-		v.closed && v.manifold && v.genus == 1 && (volume(&reflected).abs() - exact).abs() < 1e-6 && tessellate_default(&reflected).is_watertight(),
+		v.closed
+			&& v.manifold
+			&& v.genus == 1
+			&& (volume(&reflected).abs() - exact).abs() < 1e-6
+			&& tessellate_default(&reflected).is_watertight(),
 		"mirror must preserve the through-hole (closed manifold genus-1, vol {exact}, watertight): {v:?} vol={}",
 		volume(&reflected).abs()
 	);
@@ -883,12 +885,7 @@ fn mirror_preserves_a_through_hole() {
 #[test]
 fn revolve_torus_has_genus_one() {
 	// A square cross-section ring not touching the axis → genus-1 solid (torus).
-	let profile = [
-		DVec2::new(8.0, -2.0),
-		DVec2::new(12.0, -2.0),
-		DVec2::new(12.0, 2.0),
-		DVec2::new(8.0, 2.0),
-	];
+	let profile = [DVec2::new(8.0, -2.0), DVec2::new(12.0, -2.0), DVec2::new(12.0, 2.0), DVec2::new(8.0, 2.0)];
 	let s = revolve(&profile, 48);
 	let v = validate(&s);
 	assert!(v.closed && v.manifold, "revolved torus must be a closed manifold");
@@ -914,12 +911,7 @@ fn revolve_cone_via_axis_touching_profile() {
 #[test]
 fn revolve_solid_cylinder_via_axis_touching_profile() {
 	// Rectangle profile with two edges on the axis → a solid cylinder.
-	let profile = [
-		DVec2::new(0.0, 0.0),
-		DVec2::new(5.0, 0.0),
-		DVec2::new(5.0, 10.0),
-		DVec2::new(0.0, 10.0),
-	];
+	let profile = [DVec2::new(0.0, 0.0), DVec2::new(5.0, 0.0), DVec2::new(5.0, 10.0), DVec2::new(0.0, 10.0)];
 	let s = revolve(&profile, 64);
 	assert_genus0_solid(&s, "revolved cylinder");
 	let exact = PI * 25.0 * 10.0;
@@ -1038,8 +1030,8 @@ fn combined_mass_properties_match_the_unioned_solid() {
 	// full inertia tensor — to floating-point precision (all faces planar).
 	let a = cuboid(DVec3::new(-3.0, -1.0, -1.0), DVec3::new(-1.0, 1.0, 1.0)); // 2×2×2 centered at x=-2
 	let b = cuboid(DVec3::new(1.0, -1.5, -1.0), DVec3::new(5.0, 1.5, 1.0)); // 4×3×2 centered at x=3
-	// Build the parts from the analytic constructors and place them with translated(), so
-	// this one check validates solid_box + translated + combine against the real geometry.
+																		 // Build the parts from the analytic constructors and place them with translated(), so
+																		 // this one check validates solid_box + translated + combine against the real geometry.
 	let combined = MassProperties::combine(&[
 		MassProperties::solid_box(2.0, 2.0, 2.0).translated(DVec3::new(-2.0, 0.0, 0.0)),
 		MassProperties::solid_box(4.0, 3.0, 2.0).translated(DVec3::new(3.0, 0.0, 0.0)),
@@ -1176,11 +1168,7 @@ fn wall_thickness_of_a_box_is_its_smallest_dimension() {
 	// is what an AI checks against a process's minimum printable / castable wall.
 	let bar = cuboid(DVec3::new(-2.0, -3.0, -5.0), DVec3::new(2.0, 3.0, 5.0));
 	let report = wall_thickness(&bar, 1.0);
-	assert!(
-		(report.min_thickness - 4.0).abs() < 1e-3,
-		"box min wall thickness {} (want 4)",
-		report.min_thickness
-	);
+	assert!((report.min_thickness - 4.0).abs() < 1e-3, "box min wall thickness {} (want 4)", report.min_thickness);
 }
 
 #[test]
@@ -1240,7 +1228,10 @@ fn box_mass_properties_match_closed_form_exactly() {
 	assert!(mp.center_of_mass.length() < 1e-9, "box CoM should be origin, got {:?}", mp.center_of_mass);
 	let (ix, iy, iz) = diag(mp.inertia);
 	let (ex, ey, ez) = (m / 3.0 * (hy * hy + hz * hz), m / 3.0 * (hx * hx + hz * hz), m / 3.0 * (hx * hx + hy * hy));
-	assert!((ix - ex).abs() / ex < 1e-9 && (iy - ey).abs() / ey < 1e-9 && (iz - ez).abs() / ez < 1e-9, "box inertia ({ix},{iy},{iz}) vs ({ex},{ey},{ez})");
+	assert!(
+		(ix - ex).abs() / ex < 1e-9 && (iy - ey).abs() / ey < 1e-9 && (iz - ez).abs() / ez < 1e-9,
+		"box inertia ({ix},{iy},{iz}) vs ({ex},{ey},{ez})"
+	);
 	assert!(max_offdiag(mp.inertia) / ex < 1e-9, "box products of inertia should vanish, got {}", max_offdiag(mp.inertia));
 }
 
@@ -1256,7 +1247,10 @@ fn translated_box_shifts_com_but_inertia_about_com_is_invariant() {
 	assert!((moved.center_of_mass - t).length() < 1e-9, "CoM should move to {t:?}, got {:?}", moved.center_of_mass);
 	let (a0, b0, c0) = diag(base.inertia);
 	let (a1, b1, c1) = diag(moved.inertia);
-	assert!((a0 - a1).abs() / a0 < 1e-9 && (b0 - b1).abs() / b0 < 1e-9 && (c0 - c1).abs() / c0 < 1e-9, "inertia about CoM changed under translation");
+	assert!(
+		(a0 - a1).abs() / a0 < 1e-9 && (b0 - b1).abs() / b0 < 1e-9 && (c0 - c1).abs() / c0 < 1e-9,
+		"inertia about CoM changed under translation"
+	);
 }
 
 #[test]
@@ -1287,7 +1281,10 @@ fn cylinder_inertia_matches_closed_form() {
 	let axial = 0.5 * m * r * r;
 	let transverse = m * (3.0 * r * r + h * h) / 12.0;
 	assert!((iz - axial).abs() / axial < 0.02, "cylinder I_zz {iz} vs {axial}");
-	assert!((ix - transverse).abs() / transverse < 0.02 && (iy - transverse).abs() / transverse < 0.02, "cylinder transverse inertia ({ix},{iy}) vs {transverse}");
+	assert!(
+		(ix - transverse).abs() / transverse < 0.02 && (iy - transverse).abs() / transverse < 0.02,
+		"cylinder transverse inertia ({ix},{iy}) vs {transverse}"
+	);
 }
 
 #[test]

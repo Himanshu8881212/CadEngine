@@ -6,8 +6,8 @@
 
 use kernel_brep::math::DVec3 as BDVec3;
 use kernel_brep::{cuboid, tessellate_default};
-use kernel_implicit::{dual_contour, surface_nets, Cuboid, MeshSdf, Resolution, Sdf, VoxelGrid};
 use kernel_core::math::Vec3;
+use kernel_implicit::{dual_contour, surface_nets, Cuboid, MeshSdf, Resolution, Sdf, VoxelGrid};
 
 #[test]
 fn meshsdf_signs_and_roundtrips_volume() {
@@ -43,9 +43,7 @@ fn dual_contour_preserves_sharp_corners() {
 	assert!(dc.is_watertight(), "DC output must be watertight");
 
 	// Distance from each true corner to the nearest mesh vertex.
-	let nearest = |m: &kernel_core::Mesh, c: Vec3| {
-		m.positions.iter().map(|&p| (p - c).length()).fold(f32::INFINITY, f32::min)
-	};
+	let nearest = |m: &kernel_core::Mesh, c: Vec3| m.positions.iter().map(|&p| (p - c).length()).fold(f32::INFINITY, f32::min);
 	let corners = [
 		Vec3::new(10.0, 10.0, 10.0),
 		Vec3::new(-10.0, 10.0, 10.0),

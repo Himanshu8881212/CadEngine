@@ -113,7 +113,11 @@ impl Document {
 	/// (a light and a heavy bracket in one `.lmcpart`). Returns the previous
 	/// override set under that name, if any. Configurations persist in the saved
 	/// document (sorted, byte-stable) and are inert until activated.
-	pub fn add_config(&mut self, name: impl Into<String>, overrides: impl IntoIterator<Item = (String, f64)>) -> Option<BTreeMap<String, f64>> {
+	pub fn add_config(
+		&mut self,
+		name: impl Into<String>,
+		overrides: impl IntoIterator<Item = (String, f64)>,
+	) -> Option<BTreeMap<String, f64>> {
 		self.configs.insert(name.into(), overrides.into_iter().collect())
 	}
 
@@ -261,13 +265,7 @@ impl Document {
 
 	/// The feature currently acting as the result, if the document is non-empty.
 	pub fn root(&self) -> Option<FeatureId> {
-		self.root.or_else(|| {
-			if self.features.is_empty() {
-				None
-			} else {
-				Some(FeatureId(self.features.len() - 1))
-			}
-		})
+		self.root.or_else(|| if self.features.is_empty() { None } else { Some(FeatureId(self.features.len() - 1)) })
 	}
 
 	/// Rebuild the CSG [`Node`] from the *current* parameter values.
@@ -321,19 +319,19 @@ impl Document {
 		}
 		let node = match feature {
 			Feature::Box { center, size } => {
-				let c = resolve_vec3(params,center);
-				let half = resolve_vec3(params,size) * 0.5;
+				let c = resolve_vec3(params, center);
+				let half = resolve_vec3(params, size) * 0.5;
 				// Guard against negative/zero dimensions producing an inverted box.
 				let half = half.abs();
 				Some(Node::primitive(Cuboid::new(c, half)))
 			}
 			Feature::Sphere { center, radius } => {
-				let c = resolve_vec3(params,center);
+				let c = resolve_vec3(params, center);
 				let r = radius.resolve(params).max(0.0) as f32;
 				Some(Node::primitive(Sphere::new(c, r)))
 			}
 			Feature::Cylinder { center, radius, height } => {
-				let c = resolve_vec3(params,center);
+				let c = resolve_vec3(params, center);
 				let r = radius.resolve(params).max(0.0) as f32;
 				let h = (height.resolve(params).max(0.0) as f32) * 0.5;
 				let a = c - Vec3::new(0.0, 0.0, h);
@@ -350,8 +348,8 @@ impl Document {
 				})
 			}
 			Feature::Gyroid { center, size, scale, thickness } => {
-				let c = resolve_vec3(params,center);
-				let half = (resolve_vec3(params,size) * 0.5).abs();
+				let c = resolve_vec3(params, center);
+				let half = (resolve_vec3(params, size) * 0.5).abs();
 				let sc = scale.resolve(params).max(0.0) as f32;
 				let th = thickness.resolve(params).max(0.0) as f32;
 				let region = Aabb::from_center_half_extent(c, half);
@@ -391,7 +389,7 @@ impl Document {
 			Feature::ExtrudeSketch { .. } => None,
 			Feature::FilletedCylinder { .. } | Feature::ChamferedCylinder { .. } => None, // B-rep-only
 			Feature::LinearPattern { input, count, step } => {
-				let s = resolve_vec3(params,step);
+				let s = resolve_vec3(params, step);
 				let mut acc = self.build(*input, stack, budget, params)?;
 				for k in 1..(*count).max(1) {
 					let copy = self.build(*input, stack, budget, params)?.transform(Affine3A::from_translation(s * k as f32));
@@ -401,17 +399,21 @@ impl Document {
 			}
 			Feature::Mirror { input, plane_point, plane_normal } => {
 				let base = self.build(*input, stack, budget, params)?;
-				let copy = self.build(*input, stack, budget, params)?.transform(reflection_affine(resolve_vec3(params,plane_point), resolve_vec3(params,plane_normal)));
+				let copy = self
+					.build(*input, stack, budget, params)?
+					.transform(reflection_affine(resolve_vec3(params, plane_point), resolve_vec3(params, plane_normal)));
 				Some(base.union(copy))
 			}
 			Feature::CircularPattern { input, count, axis_point, axis_dir, angle } => {
-				let p = resolve_vec3(params,axis_point);
-				let axis = resolve_vec3(params,axis_dir).normalize_or_zero();
+				let p = resolve_vec3(params, axis_point);
+				let axis = resolve_vec3(params, axis_dir).normalize_or_zero();
 				let step = angle.resolve(params) as f32;
 				let mut acc = self.build(*input, stack, budget, params)?;
 				if axis.length_squared() >= 0.5 {
 					for k in 1..(*count).max(1) {
-						let rot = Affine3A::from_translation(p) * Affine3A::from_axis_angle(axis, step * k as f32) * Affine3A::from_translation(-p);
+						let rot = Affine3A::from_translation(p)
+							* Affine3A::from_axis_angle(axis, step * k as f32)
+							* Affine3A::from_translation(-p);
 						acc = acc.union(self.build(*input, stack, budget, params)?.transform(rot));
 					}
 				}
@@ -455,9 +457,8 @@ impl Document {
 				let lv = level.as_ref().map(|d| d.resolve(params)).unwrap_or(0.0);
 				// Fail-loud guards (None, never a panic): positive finite cell, finite
 				// region/level, and a positive wall half-thickness in sheet mode.
-				let inputs_sound = cell_mm > 0.0
-					&& cell_mm.is_finite() && c.is_finite() && half.is_finite() && lv.is_finite()
-					&& (!*sheet || lv > 0.0);
+				let inputs_sound =
+					cell_mm > 0.0 && cell_mm.is_finite() && c.is_finite() && half.is_finite() && lv.is_finite() && (!*sheet || lv > 0.0);
 				if !inputs_sound {
 					None
 				} else {
@@ -522,7 +523,11 @@ impl Document {
 			// table-driven tool geometry / skinned topology has no implicit twin, so
 			// they are absent on this path (the mirror of `Feature::ExtrudeSketch`) —
 			// a preview must not silently show a part without its holes.
-			Feature::Hole { .. } | Feature::LoftSolid { .. } | Feature::SweepSolid { .. } | Feature::Revolve { .. } | Feature::CatalogPart { .. } => None,
+			Feature::Hole { .. }
+			| Feature::LoftSolid { .. }
+			| Feature::SweepSolid { .. }
+			| Feature::Revolve { .. }
+			| Feature::CatalogPart { .. } => None,
 			// Rim fillets and the standard grooves / insert bosses are small local
 			// B-rep modifications; like `Feature::Fillet`, the implicit preview passes
 			// the input through unmodified and `evaluate_brep` carries the exact result.
@@ -572,7 +577,13 @@ impl Document {
 	}
 
 	/// Recursive B-rep counterpart of [`Document::build`].
-	fn build_brep(&self, id: FeatureId, stack: &mut Vec<FeatureId>, budget: &mut usize, params: &HashMap<String, f64>) -> Option<kernel_brep::Solid> {
+	fn build_brep(
+		&self,
+		id: FeatureId,
+		stack: &mut Vec<FeatureId>,
+		budget: &mut usize,
+		params: &HashMap<String, f64>,
+	) -> Option<kernel_brep::Solid> {
 		if *budget == 0 {
 			return None;
 		}
@@ -632,7 +643,10 @@ impl Document {
 			// ops (smin/smax on the SDF, or a TPMS field); the exact B-rep half has no
 			// analytic representation, so they are absent here (the mirror of
 			// `Feature::Shell`). Mesh them via `evaluate` / `mesh`.
-			Feature::SmoothUnion { .. } | Feature::SmoothDifference { .. } | Feature::SmoothIntersection { .. } | Feature::Gyroid { .. } => None,
+			Feature::SmoothUnion { .. }
+			| Feature::SmoothDifference { .. }
+			| Feature::SmoothIntersection { .. }
+			| Feature::Gyroid { .. } => None,
 			Feature::Transform { input, xform } => {
 				let s = self.build_brep(*input, stack, budget, params)?;
 				let m = xform.matrix3;
@@ -694,11 +708,8 @@ impl Document {
 				// A mirror plane that doesn't cut the part leaves base and its reflection disjoint →
 				// merge their topology exactly (avoids the curved-boolean corruption); a cutting plane
 				// makes them overlap on the seam → fuse with a real boolean union.
-				let combined = if aabb_disjoint(&base, &mirror) {
-					base.disjoint_union(&mirror)
-				} else {
-					kernel_brep::union(&base, &mirror)
-				};
+				let combined =
+					if aabb_disjoint(&base, &mirror) { base.disjoint_union(&mirror) } else { kernel_brep::union(&base, &mirror) };
 				Some(combined)
 			}
 			Feature::CircularPattern { input, count, axis_point, axis_dir, angle } => {
@@ -713,7 +724,9 @@ impl Document {
 					// copies fuse with a real boolean union (see LinearPattern for the rationale).
 					let merge = *count < 2 || aabb_disjoint(&base, &base.transformed(rot1));
 					for k in 1..(*count).max(1) {
-						let rot = DAffine3::from_translation(p) * DAffine3::from_axis_angle(axis, step * k as f64) * DAffine3::from_translation(-p);
+						let rot = DAffine3::from_translation(p)
+							* DAffine3::from_axis_angle(axis, step * k as f64)
+							* DAffine3::from_translation(-p);
 						let copy = base.transformed(rot);
 						acc = if merge { acc.disjoint_union(&copy) } else { kernel_brep::union(&acc, &copy) };
 					}
@@ -832,7 +845,6 @@ impl Document {
 		stack.pop();
 		solid
 	}
-
 
 	/// Evaluate and mesh the document at the given `resolution`.
 	///
@@ -1056,11 +1068,8 @@ fn through_length(solid: &kernel_brep::Solid, at: DVec3, axis: DVec3) -> Option<
 	let (lo, hi) = solid.aabb();
 	let mut t_max = f64::NEG_INFINITY;
 	for i in 0..8 {
-		let corner = DVec3::new(
-			if i & 1 == 0 { lo.x } else { hi.x },
-			if i & 2 == 0 { lo.y } else { hi.y },
-			if i & 4 == 0 { lo.z } else { hi.z },
-		);
+		let corner =
+			DVec3::new(if i & 1 == 0 { lo.x } else { hi.x }, if i & 2 == 0 { lo.y } else { hi.y }, if i & 4 == 0 { lo.z } else { hi.z });
 		t_max = t_max.max((corner - at).dot(axis));
 	}
 	(t_max > 0.0).then_some(t_max)
@@ -1114,11 +1123,7 @@ fn remap_feature_refs(feature: &mut Feature, map: impl Fn(FeatureId) -> FeatureI
 
 /// Resolve three [`Dim`]s into a `Vec3` (the implicit side is `f32`).
 fn resolve_vec3(params: &HashMap<String, f64>, dims: &[Dim; 3]) -> Vec3 {
-	Vec3::new(
-		dims[0].resolve(params) as f32,
-		dims[1].resolve(params) as f32,
-		dims[2].resolve(params) as f32,
-	)
+	Vec3::new(dims[0].resolve(params) as f32, dims[1].resolve(params) as f32, dims[2].resolve(params) as f32)
 }
 
 /// Whether two solids' axis-aligned bounds are strictly disjoint (provably non-overlapping).

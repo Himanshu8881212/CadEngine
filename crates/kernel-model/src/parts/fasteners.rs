@@ -134,8 +134,8 @@ pub fn hex_bolt(head_width: f64, head_height: f64, shank: f64, shank_len: f64) -
 	let shaft = cylinder(DVec3::ZERO, DVec3::Z, shank * 0.5, shank_len, 48);
 	// The head sits on top of the shank, its base coincident with (and wider than) the
 	// shank's top face — a fully-contained coplanar contact that fuses into one solid.
-	let head = extrude(&hexagon_across_flats(head_width), head_height)
-		.transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, shank_len)));
+	let head =
+		extrude(&hexagon_across_flats(head_width), head_height).transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, shank_len)));
 	union(&shaft, &head)
 }
 
@@ -167,13 +167,12 @@ pub fn socket_head_cap_screw(m: f64, length: f64) -> Option<Solid> {
 	let blank = extrude(&circle48(dk * 0.5), length + k);
 	let half = dk * 0.5 + 2.0;
 	let square = vec![DVec2::new(half, half), DVec2::new(-half, half), DVec2::new(-half, -half), DVec2::new(half, -half)];
-	let ring = extrude_with_holes(&square, &[circle48(m * 0.5)], length + 1.0)
-		.transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, -1.0)));
+	let ring =
+		extrude_with_holes(&square, &[circle48(m * 0.5)], length + 1.0).transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, -1.0)));
 	let turned = difference(&blank, &ring);
 	// Hex drive socket: a pocket sunk `t` into the head's top face. The cutting prism extends
 	// 1 mm above the face so the cut is clean; the pocket floor stays inside the head (t < k).
-	let socket = extrude(&hexagon_across_flats(s), t + 1.0)
-		.transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, length + k - t)));
+	let socket = extrude(&hexagon_across_flats(s), t + 1.0).transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, length + k - t)));
 	Some(difference(&turned, &socket))
 }
 
@@ -227,10 +226,7 @@ pub fn spring_washer(m: f64) -> Option<Solid> {
 			let (ca, sa) = (a.cos(), a.sin());
 			let z = t * rise;
 			// Radial/axial rectangle, wound CCW as seen along the direction of travel.
-			[(r0, z), (r0, z + s), (r1, z + s), (r1, z)]
-				.iter()
-				.map(|&(r, z)| DVec3::new(r * ca, r * sa, z))
-				.collect()
+			[(r0, z), (r0, z + s), (r1, z + s), (r1, z)].iter().map(|&(r, z)| DVec3::new(r * ca, r * sa, z)).collect()
 		})
 		.collect();
 	kernel_brep::loft_solid(&sections)
@@ -254,7 +250,11 @@ mod tests {
 		let hex_area = 1.5 * 3.0_f64.sqrt() * r * r;
 		let expected = hex_area * h - PI * (bore * 0.5) * (bore * 0.5) * h;
 		assert!(
-			v.closed && v.manifold && v.genus == 1 && tessellate_default(&nut).is_watertight() && (volume(&nut).abs() - expected).abs() / expected < 0.01,
+			v.closed
+				&& v.manifold
+				&& v.genus == 1
+				&& tessellate_default(&nut).is_watertight()
+				&& (volume(&nut).abs() - expected).abs() / expected < 0.01,
 			"hex_nut must be a watertight genus-1 part ~{expected:.0}mm³: {v:?} wt={} vol={:.0}",
 			tessellate_default(&nut).is_watertight(),
 			volume(&nut).abs()
@@ -269,7 +269,11 @@ mod tests {
 		let v = validate(&washer);
 		let expected = PI * ((outer * 0.5).powi(2) - (inner * 0.5).powi(2)) * t;
 		assert!(
-			v.closed && v.manifold && v.genus == 1 && tessellate_default(&washer).is_watertight() && (volume(&washer).abs() - expected).abs() / expected < 0.01,
+			v.closed
+				&& v.manifold
+				&& v.genus == 1
+				&& tessellate_default(&washer).is_watertight()
+				&& (volume(&washer).abs() - expected).abs() / expected < 0.01,
 			"washer must be a watertight genus-1 ring ~{expected:.0}mm³: {v:?} wt={} vol={:.0}",
 			tessellate_default(&washer).is_watertight(),
 			volume(&washer).abs()
@@ -304,7 +308,10 @@ mod tests {
 			let v = validate(&screw);
 			let expected = PI * (m * 0.5).powi(2) * len + PI * (dk * 0.5).powi(2) * k - hexagon_area(s) * t;
 			assert!(
-				v.closed && v.manifold && v.genus == 0 && tessellate_default(&screw).is_watertight() && (volume(&screw).abs() - expected).abs() / expected < 0.01,
+				v.closed
+					&& v.manifold && v.genus == 0
+					&& tessellate_default(&screw).is_watertight()
+					&& (volume(&screw).abs() - expected).abs() / expected < 0.01,
 				"M{m}×{len} SHCS must be a watertight genus-0 body ~{expected:.0}mm³: {v:?} vol={:.0}",
 				volume(&screw).abs()
 			);

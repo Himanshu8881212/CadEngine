@@ -191,8 +191,7 @@ pub fn import_bspline_curve(text: &str) -> Result<NurbsCurve, StepError> {
 	let id = ents
 		.iter()
 		.find(|(_, e)| {
-			e.name == "B_SPLINE_CURVE_WITH_KNOTS"
-				|| (e.name == "_COMPLEX" && complex_part(&e.args, "B_SPLINE_CURVE_WITH_KNOTS").is_some())
+			e.name == "B_SPLINE_CURVE_WITH_KNOTS" || (e.name == "_COMPLEX" && complex_part(&e.args, "B_SPLINE_CURVE_WITH_KNOTS").is_some())
 		})
 		.map(|(&id, _)| id)
 		.ok_or_else(|| StepError::Unsupported("no B_SPLINE_CURVE_WITH_KNOTS entity".into()))?;

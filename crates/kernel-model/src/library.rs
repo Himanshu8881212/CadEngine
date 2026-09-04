@@ -410,7 +410,11 @@ impl fmt::Display for LibraryError {
 				write!(f, "'{}' is not a loadable library index: {reason}", path.display())
 			}
 			LibraryError::UnknownPart { name, available } => {
-				write!(f, "no library entry named '{name}' (available: {})", if available.is_empty() { "none".to_string() } else { available.join(", ") })
+				write!(
+					f,
+					"no library entry named '{name}' (available: {})",
+					if available.is_empty() { "none".to_string() } else { available.join(", ") }
+				)
 			}
 			LibraryError::UnknownVersion { name, version, available } => {
 				let versions: Vec<String> = available.iter().map(|v| format!("v{v}")).collect();
@@ -602,9 +606,7 @@ impl Library {
 			file,
 			deprecated: false,
 		};
-		let position = self
-			.entries
-			.partition_point(|e| (e.name.as_str(), e.version) < (entry.name.as_str(), entry.version));
+		let position = self.entries.partition_point(|e| (e.name.as_str(), e.version) < (entry.name.as_str(), entry.version));
 		self.entries.insert(position, entry);
 		if let Err((path, error)) = self.write_index() {
 			// Keep memory consistent with disk: the entry is NOT admitted (the
@@ -703,12 +705,8 @@ impl Library {
 	/// [`Library::remove`] refuse. An `.lmcasm` that cannot be parsed is a loud
 	/// [`LibraryError::AsmUnreadable`] (a removal must not guess).
 	pub fn dependents(&self, name: &str) -> Result<Vec<String>, LibraryError> {
-		let files: BTreeSet<PathBuf> = self
-			.entries
-			.iter()
-			.filter(|e| e.name == name)
-			.map(|e| lexically_normalized(Path::new(&e.file)))
-			.collect();
+		let files: BTreeSet<PathBuf> =
+			self.entries.iter().filter(|e| e.name == name).map(|e| lexically_normalized(Path::new(&e.file))).collect();
 		let read_dir = std::fs::read_dir(&self.dir).map_err(|error| LibraryError::Io { path: self.dir.clone(), error })?;
 		let mut asm_files: Vec<PathBuf> = read_dir
 			.filter_map(|r| r.ok().map(|d| d.path()))
@@ -802,7 +800,10 @@ fn validate_meta(meta: &EntryMeta, document: &Document, opts: &AddOptions) -> Re
 		return bad(format!("corner_cap {} — the gate needs at least the all-min and all-max corners (≥ 2)", opts.corner_cap));
 	}
 	if meta.provenance.author.is_empty() || meta.provenance.date.is_empty() || meta.provenance.created_with.is_empty() {
-		return bad("provenance author/created_with/date must all be non-empty (the date is caller-supplied; this library never reads a clock)".to_string());
+		return bad(
+			"provenance author/created_with/date must all be non-empty (the date is caller-supplied; this library never reads a clock)"
+				.to_string(),
+		);
 	}
 	let document_params: BTreeSet<&str> = document.params_iter().map(|(k, _)| k).collect();
 	let mut seen = BTreeSet::new();
@@ -861,11 +862,8 @@ fn gate_samples(interface: &[ParamSpec], corner_cap: usize) -> Vec<(String, BTre
 			let label: String = std::iter::once("corner_".to_string())
 				.chain(corner.iter().map(|&high| if high { "h".to_string() } else { "l".to_string() }))
 				.collect();
-			let params: BTreeMap<String, f64> = interface
-				.iter()
-				.zip(&corner)
-				.map(|(s, &high)| (s.name.clone(), if high { s.max } else { s.min }))
-				.collect();
+			let params: BTreeMap<String, f64> =
+				interface.iter().zip(&corner).map(|(s, &high)| (s.name.clone(), if high { s.max } else { s.min })).collect();
 			push(label, params, &mut plan);
 		}
 		let midpoint: BTreeMap<String, f64> = interface.iter().map(|s| (s.name.clone(), 0.5 * (s.min + s.max))).collect();
@@ -995,11 +993,7 @@ fn run_gate(document: &Document, interface: &[ParamSpec], corner_cap: usize) -> 
 			shells = validity.shells;
 		}
 		if let Some(&second) = volumes.iter().find(|v| v.to_bits() != volumes[0].to_bits()) {
-			return Err(AdmissionError::GateNondeterministic {
-				sample: sample(),
-				first_volume: volumes[0],
-				second_volume: second,
-			});
+			return Err(AdmissionError::GateNondeterministic { sample: sample(), first_volume: volumes[0], second_volume: second });
 		}
 		samples.push(GateSample { label, params, volume: volumes[0], faces, genus, shells });
 	}
@@ -1261,9 +1255,7 @@ mod tests {
 		let mut lib = Library::open(&dir).expect("open");
 		lib.add(&bushing_part_json(), bushing_meta(), &AddOptions::default()).expect("admit");
 
-		let built = lib
-			.instantiate("bushing", None, &BTreeMap::from([("h".to_string(), 20.0)]))
-			.expect("override h within range");
+		let built = lib.instantiate("bushing", None, &BTreeMap::from([("h".to_string(), 20.0)])).expect("override h within range");
 		let (h, outer_r) = (built.document.param("h"), built.document.param("outer_r"));
 
 		let unknown_param = lib.instantiate("bushing", None, &BTreeMap::from([("hh".to_string(), 20.0)])).expect_err("unknown param");

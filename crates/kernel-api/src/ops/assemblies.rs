@@ -44,8 +44,21 @@ pub(crate) fn exec(
 			distance,
 			degrees,
 		} => crate::asmops::mate(
-			asm, op_id, &kind, &a, &b, &a_point, &b_point, &a_dir, &b_dir, &a_axis_point, &a_axis_dir, &b_axis_point,
-			&b_axis_dir, &distance, &degrees,
+			asm,
+			op_id,
+			&kind,
+			&a,
+			&b,
+			&a_point,
+			&b_point,
+			&a_dir,
+			&b_dir,
+			&a_axis_point,
+			&a_axis_dir,
+			&b_axis_point,
+			&b_axis_dir,
+			&distance,
+			&degrees,
 		),
 		OpKind::AsmMateAxis { a, a_witness, b, b_witness, distance } => {
 			crate::asmops::mate_axis(asm, env, all_ids, op_id, &a, a_witness, &b, b_witness, &distance)
@@ -57,20 +70,24 @@ pub(crate) fn exec(
 			crate::asmops::solve(asm, op_id, &iterations, &max_residual, allow_unconverged)
 		}
 		OpKind::AsmContacts { window, tol } => crate::asmops::contacts(asm, env, all_ids, op_id, &window, &tol),
-		OpKind::AsmInterferenceVolume { a, b, voxel } => {
-			crate::asmops::interference_volume(asm, env, all_ids, op_id, &a, &b, &voxel)
-		}
+		OpKind::AsmInterferenceVolume { a, b, voxel } => crate::asmops::interference_volume(asm, env, all_ids, op_id, &a, &b, &voxel),
 		OpKind::AsmMassProperties {} => crate::asmops::mass_properties(asm, env, all_ids, op_id),
 		OpKind::AsmExport { file, parts_dir, tol, voxel } => {
 			crate::asmops::export(asm, env, all_ids, op_id, out_dir, &file, &parts_dir, &tol, &voxel)
 		}
 		OpKind::AsmExportStep { file } => crate::asmops::export_step(asm, env, all_ids, op_id, out_dir, &file),
-		OpKind::AsmSave { file, name, parts_dir } => {
-			crate::asmops::save(asm, env, all_ids, op_id, out_dir, &file, &name, &parts_dir)
-		}
+		OpKind::AsmSave { file, name, parts_dir } => crate::asmops::save(asm, env, all_ids, op_id, out_dir, &file, &name, &parts_dir),
 		OpKind::GearTrainPoses { sun_teeth, ring1_teeth, planet_a_teeth, planet_b_teeth, ring2_teeth, n_planets, module, theta_deg } => {
 			crate::asmops::gear_train_poses(
-				op_id, sun_teeth, ring1_teeth, planet_a_teeth, planet_b_teeth, ring2_teeth, n_planets, module, theta_deg,
+				op_id,
+				sun_teeth,
+				ring1_teeth,
+				planet_a_teeth,
+				planet_b_teeth,
+				ring2_teeth,
+				n_planets,
+				module,
+				theta_deg,
 			)
 		}
 

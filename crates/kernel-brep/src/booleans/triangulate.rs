@@ -133,9 +133,8 @@ pub(super) fn chain_redundant_in_rings(rings: &[Vec<u32>], pos: &[DVec3]) -> Vec
 /// parallelism section), so it keeps the plain loop.
 pub(super) fn triangulate_solid(s: &Solid, operand: FaceSource) -> Vec<Tri> {
 	let drop_v = chain_redundant_vertices(s);
-	let live_positions = |ids: &[crate::topo::VertexId]| -> Vec<DVec3> {
-		ids.iter().filter(|v| !drop_v[v.0 as usize]).map(|&v| s.position(v)).collect()
-	};
+	let live_positions =
+		|ids: &[crate::topo::VertexId]| -> Vec<DVec3> { ids.iter().filter(|v| !drop_v[v.0 as usize]).map(|&v| s.position(v)).collect() };
 	let mut out = Vec::new();
 	for f in s.faces() {
 		let poly = live_positions(&s.face_vertices(f));
@@ -163,8 +162,7 @@ pub(super) fn triangulate_solid(s: &Solid, operand: FaceSource) -> Vec<Tri> {
 			let holes: Vec<Vec<DVec3>> = inner
 				.iter()
 				.map(|&lid| {
-					let ids: Vec<crate::topo::VertexId> =
-						s.loop_half_edges(lid).into_iter().map(|he| s.half_edge(he).origin).collect();
+					let ids: Vec<crate::topo::VertexId> = s.loop_half_edges(lid).into_iter().map(|he| s.half_edge(he).origin).collect();
 					live_positions(&ids)
 				})
 				.collect();
@@ -202,9 +200,7 @@ fn ear_clip_with_holes(outer3d: &[DVec3], holes3d: &[Vec<DVec3>], normal: DVec3,
 	}
 	// Bridge the right-most holes first so their bridges don't cross later ones.
 	holes.sort_by(|a, b| {
-		crate::tessellate::ring_max_x(&p2, b)
-			.partial_cmp(&crate::tessellate::ring_max_x(&p2, a))
-			.unwrap_or(std::cmp::Ordering::Equal)
+		crate::tessellate::ring_max_x(&p2, b).partial_cmp(&crate::tessellate::ring_max_x(&p2, a)).unwrap_or(std::cmp::Ordering::Equal)
 	});
 	let all_rings = holes.clone();
 	for hole in &holes {
@@ -269,7 +265,16 @@ pub(super) fn face_clip_p2(pts: &[DVec3], ring: &[DVec3], normal: DVec3, surface
 /// projection plane this guard is unreachable (the projection is affine, so a
 /// 2-D-convex corner is never 3-D-collinear), so the planar path is untouched.
 #[allow(clippy::too_many_arguments)] // one ring + its clip space + face tags
-fn ear_clip_ring_tris(poly: &[DVec3], p2: &[glam::DVec2], mut idx: Vec<usize>, normal: DVec3, source: FaceName, surface: Surface, chart: bool, out: &mut Vec<Tri>) {
+fn ear_clip_ring_tris(
+	poly: &[DVec3],
+	p2: &[glam::DVec2],
+	mut idx: Vec<usize>,
+	normal: DVec3,
+	source: FaceName,
+	surface: Surface,
+	chart: bool,
+	out: &mut Vec<Tri>,
+) {
 	if idx.len() < 3 {
 		return;
 	}

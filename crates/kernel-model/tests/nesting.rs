@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 use kernel_core::math::{Affine3A, DVec3, Vec3};
 use kernel_core::mesher::Resolution;
 use kernel_model::format::{
-	load_assembly, save_assembly, save_part, save_part_with_meta, AsmInstance, AsmSource, FormatError, MakeOrBuy, Material,
-	PartBomMeta, VolumeSource,
+	load_assembly, save_assembly, save_part, save_part_with_meta, AsmInstance, AsmSource, FormatError, MakeOrBuy, Material, PartBomMeta,
+	VolumeSource,
 };
 use kernel_model::{Constraint, Dim, Document, Feature};
 
@@ -111,12 +111,7 @@ fn nested_assembly_three_levels_flattens_with_hierarchical_names_and_rollup() {
 			&& loaded.assembly.instances.len() == 4
 			&& loaded.tree.len() == 2
 			&& names
-				== vec![
-					Some("plate".to_string()),
-					Some("m/deck".to_string()),
-					Some("m/b/base".to_string()),
-					Some("m/b/cap".to_string())
-				]
+				== vec![Some("plate".to_string()), Some("m/deck".to_string()), Some("m/b/base".to_string()), Some("m/b/cap".to_string())]
 			&& loaded.part_names == vec!["plate", "deck", "base", "cap"]
 			&& loaded.residual < 1e-6
 			&& (cap_center - Vec3::new(10.0, 20.0, 2.0)).length() < 1e-3
@@ -226,8 +221,8 @@ fn suppressing_a_sub_assembly_drops_its_entire_branch() {
 	// (a) the parent suppresses the whole sub-assembly instance.
 	let mut suppressed_sub = sub_at("stack", "bottom.lmcasm", Affine3A::from_translation(Vec3::new(20.0, 0.0, 0.0)));
 	suppressed_sub.suppressed = true;
-	let parent_a = save_assembly("drop_a", &[part_at("anchor", "anchor.lmcpart", Affine3A::IDENTITY), suppressed_sub], &[])
-		.expect("parent a saves");
+	let parent_a =
+		save_assembly("drop_a", &[part_at("anchor", "anchor.lmcpart", Affine3A::IDENTITY), suppressed_sub], &[]).expect("parent a saves");
 	let loaded_a = load_assembly(&parent_a, &dir).expect("parent a loads");
 	let vol_a = loaded_a.assembly.mass_properties(Resolution::VoxelSize(0.5)).volume;
 	let flat_a = loaded_a.bom();
@@ -283,19 +278,12 @@ fn bom_v2_masses_are_density_times_engine_volume_with_honest_source_labels() {
 		material: Some(Material { name: "steel".to_string(), density_g_cm3: 7.85 }),
 		make_or_buy: Some(MakeOrBuy::Make),
 	};
-	std::fs::write(dir.join("block.lmcpart"), save_part_with_meta(&box_doc(20.0, 10.0, 5.0), "block", Some(&steel)))
-		.expect("write block");
+	std::fs::write(dir.join("block.lmcpart"), save_part_with_meta(&box_doc(20.0, 10.0, 5.0), "block", Some(&steel))).expect("write block");
 	// Implicit-only: a smooth union of two r=5 spheres 4 apart — evaluate_brep
 	// is None by design, so the BOM must take the voxel route.
 	let mut blob = Document::new();
-	let s0 = blob.add(Feature::Sphere {
-		center: [Dim::Literal(0.0), Dim::Literal(0.0), Dim::Literal(0.0)],
-		radius: Dim::Literal(5.0),
-	});
-	let s1 = blob.add(Feature::Sphere {
-		center: [Dim::Literal(4.0), Dim::Literal(0.0), Dim::Literal(0.0)],
-		radius: Dim::Literal(5.0),
-	});
+	let s0 = blob.add(Feature::Sphere { center: [Dim::Literal(0.0), Dim::Literal(0.0), Dim::Literal(0.0)], radius: Dim::Literal(5.0) });
+	let s1 = blob.add(Feature::Sphere { center: [Dim::Literal(4.0), Dim::Literal(0.0), Dim::Literal(0.0)], radius: Dim::Literal(5.0) });
 	let fused = blob.add(Feature::SmoothUnion { a: s0, b: s1, blend: Dim::Literal(1.0) });
 	blob.set_root(fused);
 	let brass = PartBomMeta {
@@ -397,8 +385,7 @@ fn two_sibling_instances_of_the_same_sub_assembly_are_legal_and_counted() {
 					Some("left/cap".to_string()),
 					Some("right/base".to_string()),
 					Some("right/cap".to_string())
-				]
-			&& flat == vec![("base".to_string(), 2), ("cap".to_string(), 2)]
+				] && flat == vec![("base".to_string(), 2), ("cap".to_string(), 2)]
 			&& tree.len() == 2
 			&& tree[0].count == 2
 			&& tree[1].count == 2,

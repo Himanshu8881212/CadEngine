@@ -19,9 +19,7 @@
 //! with a message naming the slice.
 
 use kernel_brep::checked::{try_freeform_boolean, FreeformTool};
-use kernel_brep::freeform::{
-	freeform_plane_cut, freeform_plate, plane_patch_curves, FreeformBoolError, FreeformCutOptions, FreeformSolid,
-};
+use kernel_brep::freeform::{freeform_plane_cut, freeform_plate, plane_patch_curves, FreeformBoolError, FreeformCutOptions, FreeformSolid};
 use kernel_brep::math::{DVec2, DVec3};
 use kernel_brep::{Keep, MeshBoolOp, NurbsSurface};
 
@@ -256,11 +254,7 @@ fn freeform_face_carries_a_planar_cut_with_volume_conservation_and_an_oracle_che
 	let seeds = src.projection_seeds(24);
 	let kept_ring = &keep_hi.kept_face.as_ref().unwrap().rings[0];
 	let dropped_ring = &keep_hi.dropped_face.as_ref().unwrap().rings[0];
-	let off_patch = kept_ring
-		.iter()
-		.chain(dropped_ring.iter())
-		.filter(|p| src.project(&seeds, **p, 1e-9).is_none())
-		.count();
+	let off_patch = kept_ring.iter().chain(dropped_ring.iter()).filter(|p| src.project(&seeds, **p, 1e-9).is_none()).count();
 	let wrong_side_kept = kept_ring.iter().filter(|p| (**p - origin).dot(normal) < -1e-6).count();
 	let wrong_side_dropped = dropped_ring.iter().filter(|p| (**p - origin).dot(normal) > 1e-6).count();
 	assert!(
@@ -287,11 +281,7 @@ fn the_intersection_curve_is_exact_on_the_patch_and_chord_refined_to_its_stated_
 		assert!(!c.closed, "the flank crossing runs boundary-to-boundary, not as an island");
 
 		// On the plane, to the tracer's Newton tolerance.
-		assert!(
-			c.plane_dev < 1e-9,
-			"every curve point must lie ON the cut plane: max |plane distance| {:.3e} at tol {tol}",
-			c.plane_dev
-		);
+		assert!(c.plane_dev < 1e-9, "every curve point must lie ON the cut plane: max |plane distance| {:.3e} at tol {tol}", c.plane_dev);
 		// On the patch, exactly (each point IS an S(u,v) evaluation — re-prove
 		// it by inverting the point back onto the surface).
 		let seeds = surf.projection_seeds(24);
@@ -327,11 +317,7 @@ fn the_intersection_curve_is_exact_on_the_patch_and_chord_refined_to_its_stated_
 				surf.point_at(u0 + (u1 - u0) * w[1].x, v0 + (v1 - v0) * w[1].y),
 			);
 			let chord = b - a;
-			let t = if chord.length_squared() > 1e-30 {
-				((m - a).dot(chord) / chord.length_squared()).clamp(0.0, 1.0)
-			} else {
-				0.5
-			};
+			let t = if chord.length_squared() > 1e-30 { ((m - a).dot(chord) / chord.length_squared()).clamp(0.0, 1.0) } else { 0.5 };
 			worst = worst.max((m - (a + chord * t)).length());
 		}
 		assert!(

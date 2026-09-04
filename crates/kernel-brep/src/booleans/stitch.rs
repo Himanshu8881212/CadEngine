@@ -30,13 +30,7 @@ pub(super) fn stitch(kept: &[Tri]) -> Solid {
 	let mut verts: Vec<DVec3> = Vec::new();
 	let mut grid: HashMap<(i64, i64, i64), Vec<u32>> = HashMap::new();
 	let inv = 1.0 / WELD_EPS;
-	let key = |p: DVec3| {
-		(
-			(p.x * inv).round() as i64,
-			(p.y * inv).round() as i64,
-			(p.z * inv).round() as i64,
-		)
-	};
+	let key = |p: DVec3| ((p.x * inv).round() as i64, (p.y * inv).round() as i64, (p.z * inv).round() as i64);
 	let weld = |p: DVec3, verts: &mut Vec<DVec3>, grid: &mut HashMap<(i64, i64, i64), Vec<u32>>| -> u32 {
 		let k = key(p);
 		for dz in -1..=1 {
@@ -62,13 +56,7 @@ pub(super) fn stitch(kept: &[Tri]) -> Solid {
 	// duplicate merge below so they see final positions).
 	let widx: Vec<[u32; 3]> = kept
 		.iter()
-		.map(|t| {
-			[
-				weld(t.v[0], &mut verts, &mut grid),
-				weld(t.v[1], &mut verts, &mut grid),
-				weld(t.v[2], &mut verts, &mut grid),
-			]
-		})
+		.map(|t| [weld(t.v[0], &mut verts, &mut grid), weld(t.v[1], &mut verts, &mut grid), weld(t.v[2], &mut verts, &mut grid)])
 		.collect();
 
 	// Merge sub-heal-scale vertex DUPLICATES the greedy weld left distinct. The

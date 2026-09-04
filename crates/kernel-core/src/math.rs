@@ -7,10 +7,7 @@
 //! - `f32` / [`Vec3`] for the implicit / voxel side (memory + speed).
 //! - `f64` / [`DVec3`] for the exact B-rep side (precision).
 
-pub use glam::{
-	Affine3A, DAffine3, DMat3, DMat4, DQuat, DVec2, DVec3, DVec4, Mat3, Mat4, Quat, Vec2, Vec3,
-	Vec3A, Vec4,
-};
+pub use glam::{Affine3A, DAffine3, DMat3, DMat4, DQuat, DVec2, DVec3, DVec4, Mat3, Mat4, Quat, Vec2, Vec3, Vec3A, Vec4};
 
 /// Default linear tolerance (mm) for geometric comparisons.
 pub const EPSILON: f32 = 1e-5;

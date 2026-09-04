@@ -45,10 +45,7 @@ const DIN6885: [(f64, f64, f64, f64, f64, f64); 12] = [
 /// auto-selection "key for Ø`d` shaft". `None` outside the table's 6–75 mm range. Range bounds
 /// follow the standard's "over a, up to and including b" convention.
 pub fn din6885_key_size(d: f64) -> Option<KeySize> {
-	DIN6885
-		.iter()
-		.find(|&&(over, upto, ..)| d > over && d <= upto)
-		.map(|&(_, _, b, h, t1, t2)| KeySize { b, h, t1, t2 })
+	DIN6885.iter().find(|&&(over, upto, ..)| d > over && d <= upto).map(|&(_, _, b, h, t1, t2)| KeySize { b, h, t1, t2 })
 }
 
 /// A keyway slot specification for [`shaft`]: where the DIN 6885 form-A slot sits along the
@@ -143,12 +140,12 @@ mod tests {
 		assert_eq!(
 			[probe(10.0), probe(10.5), probe(20.0), probe(38.0), probe(5.0), probe(80.0)],
 			[
-				Some((3.0, 3.0, 1.8, 1.4)),   // 8 < d ≤ 10 → 3×3
-				Some((4.0, 4.0, 2.5, 1.8)),   // 10 < d ≤ 12 → 4×4
-				Some((6.0, 6.0, 3.5, 2.8)),   // 17 < d ≤ 22 → 6×6
-				Some((10.0, 8.0, 5.0, 3.3)),  // upper bound inclusive → 10×8
-				None,                         // below the table
-				None,                         // above the table
+				Some((3.0, 3.0, 1.8, 1.4)),  // 8 < d ≤ 10 → 3×3
+				Some((4.0, 4.0, 2.5, 1.8)),  // 10 < d ≤ 12 → 4×4
+				Some((6.0, 6.0, 3.5, 2.8)),  // 17 < d ≤ 22 → 6×6
+				Some((10.0, 8.0, 5.0, 3.3)), // upper bound inclusive → 10×8
+				None,                        // below the table
+				None,                        // above the table
 			],
 			"DIN 6885-1 size selection"
 		);
@@ -164,10 +161,8 @@ mod tests {
 		let kw = ShaftKeyway { size: din6885_key_size(d).expect("Ø20 in table"), length: 25.0, offset: 10.0 };
 		let s = shaft(d, len, Some(kw));
 		let v = validate(&s);
-		let floor: Vec<DVec3> = (0..s.vertex_count() as u32)
-			.map(|i| s.position(VertexId(i)))
-			.filter(|p| (p.x - (d * 0.5 - t1)).abs() < 1e-9)
-			.collect();
+		let floor: Vec<DVec3> =
+			(0..s.vertex_count() as u32).map(|i| s.position(VertexId(i))).filter(|p| (p.x - (d * 0.5 - t1)).abs() < 1e-9).collect();
 		let width = floor.iter().map(|p| p.y.abs()).fold(0.0, f64::max);
 		let cyl = 48.0 * 0.5 * (2.0 * PI / 48.0).sin() * 100.0 * len; // faceted 48-gon prism
 		let cut = stadium_polygon_area(kw.length, b);
@@ -199,7 +194,11 @@ mod tests {
 		// 1e-6 relative: volume() integrates the divergence over ~70 faces in f64, which
 		// accumulates ~1e-8 relative rounding — far below any geometric approximation.
 		assert!(
-			v.closed && v.manifold && v.genus == 0 && tessellate_default(&k).is_watertight() && (volume(&k).abs() - expected).abs() < 1e-6 * expected,
+			v.closed
+				&& v.manifold
+				&& v.genus == 0
+				&& tessellate_default(&k).is_watertight()
+				&& (volume(&k).abs() - expected).abs() < 1e-6 * expected,
 			"6×6×25 key must be a watertight genus-0 prism of exactly {expected:.6}mm³: {v:?} vol={:.6}",
 			volume(&k).abs()
 		);

@@ -12,8 +12,8 @@ use crate::geom::{perp_basis, Curve, Surface};
 use crate::nurbs::{NurbsCurve, NurbsSurface};
 
 use super::edges::{
-	complex_part, edge_sweep, expand_knots, last_enum, max_chord_turn, sample_arc, ShellFaces, BSPLINE_EDGE_SEGMENTS,
-	FULL_TURN_SEGMENTS, MAX_BSPLINE_EDGE_SEGMENTS,
+	complex_part, edge_sweep, expand_knots, last_enum, max_chord_turn, sample_arc, ShellFaces, BSPLINE_EDGE_SEGMENTS, FULL_TURN_SEGMENTS,
+	MAX_BSPLINE_EDGE_SEGMENTS,
 };
 use super::parse::{file_uncertainty, Entity, Value};
 use super::StepError;
@@ -77,11 +77,8 @@ impl<'a> Importer<'a> {
 		if e.name != "DIRECTION" {
 			return Err(StepError::Reference(format!("#{id} is {}, expected DIRECTION", e.name)));
 		}
-		let coords = e
-			.args
-			.iter()
-			.find_map(Value::as_list)
-			.ok_or_else(|| StepError::Parse(format!("#{id} DIRECTION has no component list")))?;
+		let coords =
+			e.args.iter().find_map(Value::as_list).ok_or_else(|| StepError::Parse(format!("#{id} DIRECTION has no component list")))?;
 		let c: Vec<f64> = coords.iter().filter_map(Value::as_real).collect();
 		if c.len() < 3 {
 			return Err(StepError::Parse(format!("#{id} DIRECTION needs 3 components")));
@@ -102,9 +99,8 @@ impl<'a> Importer<'a> {
 	/// Resolve a face's supporting [`Surface`] (plane and the four analytic quadrics).
 	pub(crate) fn surface(&self, id: u32) -> Result<Surface, StepError> {
 		let e = self.get(id)?;
-		let placement = || {
-			e.args.iter().find_map(Value::as_ref).ok_or_else(|| StepError::Parse(format!("#{id} {} has no placement", e.name)))
-		};
+		let placement =
+			|| e.args.iter().find_map(Value::as_ref).ok_or_else(|| StepError::Parse(format!("#{id} {} has no placement", e.name)));
 		// Trailing scalar parameters (radius, semi-angle, …) after the placement.
 		let reals: Vec<f64> = e.args.iter().filter_map(Value::as_real).collect();
 		let real = |k: usize| reals.get(k).copied().ok_or_else(|| StepError::Parse(format!("#{id} {} missing scalar {k}", e.name)));
@@ -258,7 +254,11 @@ impl<'a> Importer<'a> {
 			other => return Err(StepError::Reference(format!("#{id} is {other}, expected B_SPLINE_CURVE_WITH_KNOTS"))),
 		};
 		let args = &field_args;
-		let degree = args.iter().find_map(Value::as_int).map(|i| i.max(0) as usize).ok_or_else(|| StepError::Parse(format!("#{id} B_SPLINE_CURVE_WITH_KNOTS missing degree")))?;
+		let degree = args
+			.iter()
+			.find_map(Value::as_int)
+			.map(|i| i.max(0) as usize)
+			.ok_or_else(|| StepError::Parse(format!("#{id} B_SPLINE_CURVE_WITH_KNOTS missing degree")))?;
 		// Control points: the first list whose elements are point references.
 		let refs = args
 			.iter()
@@ -358,14 +358,11 @@ impl<'a> Importer<'a> {
 			"LINE" => Ok((vec![start, end], None)),
 			"CIRCLE" => {
 				// CIRCLE('', #placement, radius)
-				let placement = g.args.iter().find_map(Value::as_ref).ok_or_else(|| StepError::Parse(format!("#{gid} CIRCLE has no placement")))?;
+				let placement =
+					g.args.iter().find_map(Value::as_ref).ok_or_else(|| StepError::Parse(format!("#{gid} CIRCLE has no placement")))?;
 				let (center, axis, x, y) = self.frame(placement)?;
-				let radius = g
-					.args
-					.iter()
-					.rev()
-					.find_map(Value::as_real)
-					.ok_or_else(|| StepError::Parse(format!("#{gid} CIRCLE has no radius")))?;
+				let radius =
+					g.args.iter().rev().find_map(Value::as_real).ok_or_else(|| StepError::Parse(format!("#{gid} CIRCLE has no radius")))?;
 				let angle = |p: DVec3| (p - center).dot(y).atan2((p - center).dot(x));
 				let sweep = edge_sweep(angle(start), angle(end), same_sense, ec_id)?;
 				let eval = |t: f64| center + (x * t.cos() + y * t.sin()) * radius;
@@ -374,7 +371,8 @@ impl<'a> Importer<'a> {
 			"ELLIPSE" => {
 				// ELLIPSE('', #placement, semi_axis_1, semi_axis_2): semi_axis_1 lies along
 				// the placement's reference direction, semi_axis_2 along axis × ref.
-				let placement = g.args.iter().find_map(Value::as_ref).ok_or_else(|| StepError::Parse(format!("#{gid} ELLIPSE has no placement")))?;
+				let placement =
+					g.args.iter().find_map(Value::as_ref).ok_or_else(|| StepError::Parse(format!("#{gid} ELLIPSE has no placement")))?;
 				let (center, axis, x, y) = self.frame(placement)?;
 				let semis: Vec<f64> = g.args.iter().filter_map(Value::as_real).collect();
 				if semis.len() < 2 || !(semis[0] > 0.0 && semis[1] > 0.0) {
@@ -442,7 +440,8 @@ impl<'a> Importer<'a> {
 		if e.name != "EDGE_LOOP" {
 			return Err(StepError::Reference(format!("#{edge_loop} is {}, expected EDGE_LOOP", e.name)));
 		}
-		let oriented = e.args.iter().find_map(Value::as_list).ok_or_else(|| StepError::Parse(format!("#{edge_loop} EDGE_LOOP has no edge list")))?;
+		let oriented =
+			e.args.iter().find_map(Value::as_list).ok_or_else(|| StepError::Parse(format!("#{edge_loop} EDGE_LOOP has no edge list")))?;
 		let mut boundary = Vec::with_capacity(oriented.len());
 		let mut curves = Vec::with_capacity(oriented.len());
 		for oe in oriented {
@@ -452,7 +451,11 @@ impl<'a> Importer<'a> {
 				return Err(StepError::Reference(format!("#{oe_id} is {}, expected ORIENTED_EDGE", oe_ent.name)));
 			}
 			// ORIENTED_EDGE('', *, *, #edge_curve, .T./.F.)
-			let ec_id = oe_ent.args.iter().find_map(Value::as_ref).ok_or_else(|| StepError::Parse(format!("#{oe_id} ORIENTED_EDGE has no edge")))?;
+			let ec_id = oe_ent
+				.args
+				.iter()
+				.find_map(Value::as_ref)
+				.ok_or_else(|| StepError::Parse(format!("#{oe_id} ORIENTED_EDGE has no edge")))?;
 			let oe_sense = last_enum(oe_ent).map(|s| s == "T").unwrap_or(true);
 			if let std::collections::hash_map::Entry::Vacant(slot) = cache.entry(ec_id) {
 				slot.insert(self.edge_polyline(ec_id)?);
@@ -472,11 +475,8 @@ impl<'a> Importer<'a> {
 	/// first reference; a missing axis defaults to +Z per the schema.
 	pub(crate) fn surface_axis(&self, id: u32) -> Result<DVec3, StepError> {
 		let e = self.get(id)?;
-		let placement = e
-			.args
-			.iter()
-			.find_map(Value::as_ref)
-			.ok_or_else(|| StepError::Parse(format!("#{id} {} has no placement", e.name)))?;
+		let placement =
+			e.args.iter().find_map(Value::as_ref).ok_or_else(|| StepError::Parse(format!("#{id} {} has no placement", e.name)))?;
 		let (_, axis, _) = self.placement(placement)?;
 		Ok(if axis.length_squared() > 1e-20 { axis.normalize() } else { DVec3::Z })
 	}
@@ -528,11 +528,8 @@ impl<'a> Importer<'a> {
 			// MANIFOLD_SOLID_BREP('', #outer) — BREP_WITH_VOIDS('', #outer, (#voids…)),
 			// each void an ORIENTED_CLOSED_SHELL (normals already point INTO the material,
 			// i.e. out of the cavity, when its flag is honoured).
-			let outer = e
-				.args
-				.iter()
-				.find_map(Value::as_ref)
-				.ok_or_else(|| StepError::Parse(format!("#{id} {} has no outer shell", e.name)))?;
+			let outer =
+				e.args.iter().find_map(Value::as_ref).ok_or_else(|| StepError::Parse(format!("#{id} {} has no outer shell", e.name)))?;
 			let mut faces = self.shell_faces(outer, false)?;
 			if e.name == "BREP_WITH_VOIDS" {
 				let voids = e

@@ -93,12 +93,7 @@ fn lever_moment_balance_splits_a_mid_span_load_evenly() {
 	let mut case = LoadCase::new("lever");
 	let beam = case.add_part("beam");
 	case.add_connection(Connection::support("hinge", beam, DVec3::ZERO, JointKind::Revolute { axis: DVec3::Y }));
-	case.add_connection(Connection::support(
-		"roller",
-		beam,
-		DVec3::new(100.0, 0.0, 0.0),
-		JointKind::Contact { normal: DVec3::Z },
-	));
+	case.add_connection(Connection::support("roller", beam, DVec3::new(100.0, 0.0, 0.0), JointKind::Contact { normal: DVec3::Z }));
 	case.add_load(AppliedLoad::force("mid_load", beam, DVec3::new(50.0, 0.0, 0.0), DVec3::new(0.0, 0.0, -20.0)));
 	let path = case.solve().expect("hinge + roller is determinate in 3D");
 	let hinge = path.connection("hinge").expect("hinge");
@@ -185,10 +180,8 @@ fn propped_cantilever_refuses_with_redundancy_one() {
 	let err = case.solve().expect_err("an indeterminate structure must refuse");
 	let msg = err.to_string();
 	assert!(
-		matches!(
-			err,
-			LoadError::Indeterminate { redundancy: 1, unknowns: 7, independent_equations: 6, .. }
-		) && msg.contains("STATICALLY INDETERMINATE")
+		matches!(err, LoadError::Indeterminate { redundancy: 1, unknowns: 7, independent_equations: 6, .. })
+			&& msg.contains("STATICALLY INDETERMINATE")
 			&& msg.contains("stiffness"),
 		"propped cantilever must refuse with redundancy 1 (7 unknowns, 6 independent equations) and say why; got: {err:?} -> {msg}"
 	);
@@ -235,12 +228,7 @@ fn a_contact_solved_in_tension_is_flagged_not_hidden() {
 	let mut case = LoadCase::new("lever_wrong_roller");
 	let beam = case.add_part("beam");
 	case.add_connection(Connection::support("hinge", beam, DVec3::ZERO, JointKind::Revolute { axis: DVec3::Y }));
-	case.add_connection(Connection::support(
-		"roller",
-		beam,
-		DVec3::new(-100.0, 0.0, 0.0),
-		JointKind::Contact { normal: DVec3::Z },
-	));
+	case.add_connection(Connection::support("roller", beam, DVec3::new(-100.0, 0.0, 0.0), JointKind::Contact { normal: DVec3::Z }));
 	case.add_load(AppliedLoad::force("mid_load", beam, DVec3::new(50.0, 0.0, 0.0), DVec3::new(0.0, 0.0, -20.0)));
 	let path = case.solve().expect("still determinate — only the contact SENSE is wrong");
 	let roller = path.connection("roller").expect("roller");
@@ -335,8 +323,7 @@ fn malformed_load_cases_are_refused_with_typed_errors() {
 			&& matches!(e1, LoadError::UnknownPart { index: 7, parts: 1, .. })
 			&& matches!(e2, LoadError::SelfConnection { part: Some(0), .. })
 			&& matches!(e3, LoadError::DegenerateAxis { kind: "revolute", .. })
-			&& q == 0
-			&& r == 0,
+			&& q == 0 && r == 0,
 		"structural refusals: {e1} / {e2} / {e3}"
 	);
 }

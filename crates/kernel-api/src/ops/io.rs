@@ -13,12 +13,12 @@ use std::path::Path;
 use kernel_brep::math::DVec3;
 use kernel_brep::StepError;
 use kernel_core::math::Vec3;
-use kernel_core::{check_mesh, make_manifold, Aabb, Sdf};
 #[cfg(feature = "catalog")]
 use kernel_core::Resolution;
-use kernel_implicit::{mesh_boolean_implicit, BoolOp};
+use kernel_core::{check_mesh, make_manifold, Aabb, Sdf};
 #[cfg(feature = "catalog")]
 use kernel_implicit::manifold_dual_contour;
+use kernel_implicit::{mesh_boolean_implicit, BoolOp};
 use kernel_model::{format, hybrid_boolean, BooleanOp, HybridError, HybridOperand, HybridRoute};
 use serde_json::{json, Value};
 
@@ -28,7 +28,7 @@ use crate::program::{BoolOpSpec, OpKind};
 use crate::report::{ErrorKind, OpError};
 
 use super::meshio::{
-	export_mesh, mesh_receipt, read_mesh_file, resolve_input_or_out, resolve_path, solid_mesh, write_mesh_auto, write_mesh_healed
+	export_mesh, mesh_receipt, read_mesh_file, resolve_input_or_out, resolve_path, solid_mesh, write_mesh_auto, write_mesh_healed,
 };
 use super::support::{bind_solid, grid_guard, polygon_centroid, v3a};
 
@@ -159,10 +159,7 @@ pub(crate) fn exec(
 			// Provenance for asm_save: an instance built from this solid can
 			// reference the ORIGINAL .lmcpart instead of exporting a mesh.
 			asm.solid_sources.insert(op_id.to_string(), file.clone());
-			Ok(Outcome {
-				measures: Some(json!({ "name": meta.name, "units": meta.units, "created_with": meta.created_with })),
-				..outcome
-			})
+			Ok(Outcome { measures: Some(json!({ "name": meta.name, "units": meta.units, "created_with": meta.created_with })), ..outcome })
 		}
 
 		OpKind::ImportStep { file, mode } => {
@@ -305,7 +302,10 @@ pub(crate) fn exec(
 					let (pa, pb) = match (a, b) {
 						(Some(pa), Some(pb)) => (pa, pb),
 						_ => {
-							return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': kind 'point_point' needs both 'a' and 'b' points")));
+							return Err(err(
+								ErrorKind::InvalidParam,
+								format!("op '{op_id}': kind 'point_point' needs both 'a' and 'b' points"),
+							));
 						}
 					};
 					let va = DVec3::new(pa[0], pa[1], pa[2]);
@@ -322,7 +322,10 @@ pub(crate) fn exec(
 					let (wa, wb) = match (a, b) {
 						(Some(wa), Some(wb)) => (wa, wb),
 						_ => {
-							return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': kind 'face_face' needs witness points 'a' and 'b'")));
+							return Err(err(
+								ErrorKind::InvalidParam,
+								format!("op '{op_id}': kind 'face_face' needs witness points 'a' and 'b'"),
+							));
 						}
 					};
 					let (ia, fa, ca) = pick_face(wa);
@@ -513,7 +516,10 @@ pub(crate) fn exec(
 				(None, Some(f)) => {
 					let (m, fmt) = read_mesh_file(op_id, input_base, out_dir, &f)?;
 					if m.triangle_count() == 0 {
-						return Err(err(ErrorKind::InvalidGeometry, format!("op '{op_id}': the mesh operand '{f}' ({fmt}) has no triangles")));
+						return Err(err(
+							ErrorKind::InvalidGeometry,
+							format!("op '{op_id}': the mesh operand '{f}' ({fmt}) has no triangles"),
+						));
 					}
 					(None, Some(m), "mesh_file")
 				}
@@ -527,10 +533,8 @@ pub(crate) fn exec(
 			// The healed fallback lifts BOTH operands onto one voxel lattice — cap
 			// the allocation up front like `mesh_carve` / `shell`.
 			let (smin, smax) = s.aabb();
-			let mut domain = Aabb::new(
-				Vec3::new(smin.x as f32, smin.y as f32, smin.z as f32),
-				Vec3::new(smax.x as f32, smax.y as f32, smax.z as f32),
-			);
+			let mut domain =
+				Aabb::new(Vec3::new(smin.x as f32, smin.y as f32, smin.z as f32), Vec3::new(smax.x as f32, smax.y as f32, smax.z as f32));
 			if let Some(node) = &field_node {
 				domain = domain.union(node.bounds());
 			}

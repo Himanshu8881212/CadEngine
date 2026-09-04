@@ -16,11 +16,31 @@ fn tube(ro: f64, ri: f64, h: f64, seg: usize) -> Mesh {
 		let (c0, s0, c1, s1) = (a0.cos() as f32, a0.sin() as f32, a1.cos() as f32, a1.sin() as f32);
 		let (ro, ri, h) = (ro as f32, ri as f32, h as f32);
 		// outer wall (outward), inner wall (inward), end rings
-		quad(Vec3::new(ro * c0, ro * s0, 0.0), Vec3::new(ro * c1, ro * s1, 0.0), Vec3::new(ro * c1, ro * s1, h), Vec3::new(ro * c0, ro * s0, h));
+		quad(
+			Vec3::new(ro * c0, ro * s0, 0.0),
+			Vec3::new(ro * c1, ro * s1, 0.0),
+			Vec3::new(ro * c1, ro * s1, h),
+			Vec3::new(ro * c0, ro * s0, h),
+		);
 		if ri > 0.0 {
-			quad(Vec3::new(ri * c1, ri * s1, 0.0), Vec3::new(ri * c0, ri * s0, 0.0), Vec3::new(ri * c0, ri * s0, h), Vec3::new(ri * c1, ri * s1, h));
-			quad(Vec3::new(ro * c1, ro * s1, 0.0), Vec3::new(ro * c0, ro * s0, 0.0), Vec3::new(ri * c0, ri * s0, 0.0), Vec3::new(ri * c1, ri * s1, 0.0));
-			quad(Vec3::new(ro * c0, ro * s0, h), Vec3::new(ro * c1, ro * s1, h), Vec3::new(ri * c1, ri * s1, h), Vec3::new(ri * c0, ri * s0, h));
+			quad(
+				Vec3::new(ri * c1, ri * s1, 0.0),
+				Vec3::new(ri * c0, ri * s0, 0.0),
+				Vec3::new(ri * c0, ri * s0, h),
+				Vec3::new(ri * c1, ri * s1, h),
+			);
+			quad(
+				Vec3::new(ro * c1, ro * s1, 0.0),
+				Vec3::new(ro * c0, ro * s0, 0.0),
+				Vec3::new(ri * c0, ri * s0, 0.0),
+				Vec3::new(ri * c1, ri * s1, 0.0),
+			);
+			quad(
+				Vec3::new(ro * c0, ro * s0, h),
+				Vec3::new(ro * c1, ro * s1, h),
+				Vec3::new(ri * c1, ri * s1, h),
+				Vec3::new(ri * c0, ri * s0, h),
+			);
 		} else {
 			quad(Vec3::new(ro * c1, ro * s1, 0.0), Vec3::new(ro * c0, ro * s0, 0.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0));
 			quad(Vec3::new(ro * c0, ro * s0, h), Vec3::new(ro * c1, ro * s1, h), Vec3::new(0.0, 0.0, h), Vec3::new(0.0, 0.0, h));

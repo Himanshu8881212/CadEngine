@@ -22,8 +22,13 @@ use kernel_brep::{boolean_hazards, cuboid, cylinder, revolve, try_difference, va
 
 fn pulley_disc() -> Solid {
 	let profile = [
-		DVec2::new(10.0, 0.0), DVec2::new(40.0, 0.0), DVec2::new(40.0, 4.0),
-		DVec2::new(32.0, 9.0), DVec2::new(40.0, 14.0), DVec2::new(40.0, 18.0), DVec2::new(10.0, 18.0),
+		DVec2::new(10.0, 0.0),
+		DVec2::new(40.0, 0.0),
+		DVec2::new(40.0, 4.0),
+		DVec2::new(32.0, 9.0),
+		DVec2::new(40.0, 14.0),
+		DVec2::new(40.0, 18.0),
+		DVec2::new(10.0, 18.0),
 	];
 	revolve(&profile, 96)
 }
@@ -53,11 +58,9 @@ fn keyway_face_exactly_tangent_to_a_cylindrical_wall_is_a_degenerate_coincident_
 	// inner face is EXACTLY at the bore radius (y = 10) — a planar face tangent to
 	// the curved wall. Coincident-face degeneracy: the checked op must refuse,
 	// never ship an invalid solid.
-	let tube = try_difference(
-		&cylinder(DVec3::ZERO, DVec3::Z, 40.0, 18.0, 96),
-		&cylinder(DVec3::new(0.0, 0.0, -1.0), DVec3::Z, 10.0, 20.0, 96),
-	)
-	.expect("hollow tube");
+	let tube =
+		try_difference(&cylinder(DVec3::ZERO, DVec3::Z, 40.0, 18.0, 96), &cylinder(DVec3::new(0.0, 0.0, -1.0), DVec3::Z, 10.0, 20.0, 96))
+			.expect("hollow tube");
 	let tangent = cuboid(DVec3::new(-3.0, 10.0, -1.0), DVec3::new(3.0, 13.0, 19.0));
 	assert!(
 		try_difference(&tube, &tangent).is_err(),
@@ -72,11 +75,8 @@ fn keyway_face_exactly_tangent_to_a_cylindrical_wall_is_a_degenerate_coincident_
 
 /// The tube of the degeneracy repro above, rebuilt for the QoL tests.
 fn bored_tube() -> Solid {
-	try_difference(
-		&cylinder(DVec3::ZERO, DVec3::Z, 40.0, 18.0, 96),
-		&cylinder(DVec3::new(0.0, 0.0, -1.0), DVec3::Z, 10.0, 20.0, 96),
-	)
-	.expect("hollow tube")
+	try_difference(&cylinder(DVec3::ZERO, DVec3::Z, 40.0, 18.0, 96), &cylinder(DVec3::new(0.0, 0.0, -1.0), DVec3::Z, 10.0, 20.0, 96))
+		.expect("hollow tube")
 }
 
 #[test]
@@ -111,9 +111,7 @@ fn the_tangent_degeneracy_is_named_by_the_pre_flight_linter_before_the_op_runs()
 	// with a sliver attached), and stay QUIET for a properly embedded keyway —
 	// otherwise the linter would cry wolf on every real design.
 	let near = cuboid(DVec3::new(-3.0, 10.02, -1.0), DVec3::new(3.0, 13.0, 19.0));
-	let near_hit = boolean_hazards(&tube, &near, 0.05)
-		.into_iter()
-		.find(|h| h.kind == HazardKind::TangentPlaneOnCylinder);
+	let near_hit = boolean_hazards(&tube, &near, 0.05).into_iter().find(|h| h.kind == HazardKind::TangentPlaneOnCylinder);
 	let embedded = boolean_hazards(&tube, &cuboid(DVec3::new(-3.0, 8.0, -1.0), DVec3::new(3.0, 13.0, 19.0)), 0.05);
 	let embedded_kiss = embedded.iter().filter(|h| h.kind == HazardKind::TangentPlaneOnCylinder).count();
 	assert!(

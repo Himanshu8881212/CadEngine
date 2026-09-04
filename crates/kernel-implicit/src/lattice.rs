@@ -71,11 +71,7 @@ impl Strut {
 		let rr = self.ra - self.rb;
 		let a2 = l2 - rr * rr;
 		if a2 <= 0.0 || l2 < 1e-12 {
-			return if self.ra >= self.rb {
-				(p - self.a).length() - self.ra
-			} else {
-				(p - self.b).length() - self.rb
-			};
+			return if self.ra >= self.rb { (p - self.a).length() - self.ra } else { (p - self.b).length() - self.rb };
 		}
 		let il2 = 1.0 / l2;
 		let pa = p - self.a;
@@ -431,10 +427,7 @@ impl BeamLattice {
 							// A cell-centre node strutted to the 8 cube corners (an X-cross).
 							// Corners (even coords) are shared, so cells bond into one graph.
 							let center = node_at((x + 1, y + 1, z + 1), &mut nodes);
-							for c in [
-								(0, 0, 0), (2, 0, 0), (0, 2, 0), (2, 2, 0),
-								(0, 0, 2), (2, 0, 2), (0, 2, 2), (2, 2, 2),
-							] {
+							for c in [(0, 0, 0), (2, 0, 0), (0, 2, 0), (2, 2, 0), (0, 0, 2), (2, 0, 2), (0, 2, 2), (2, 2, 2)] {
 								let nc = node_at((x + c.0, y + c.1, z + c.2), &mut nodes);
 								push(center, nc, &mut struts);
 							}
@@ -442,9 +435,18 @@ impl BeamLattice {
 						LatticeCell::Cubic => {
 							// The 12 cube edges (shared edges dedup via `seen`).
 							for (ca, cb) in [
-								((0, 0, 0), (1, 0, 0)), ((0, 1, 0), (1, 1, 0)), ((0, 0, 1), (1, 0, 1)), ((0, 1, 1), (1, 1, 1)),
-								((0, 0, 0), (0, 1, 0)), ((1, 0, 0), (1, 1, 0)), ((0, 0, 1), (0, 1, 1)), ((1, 0, 1), (1, 1, 1)),
-								((0, 0, 0), (0, 0, 1)), ((1, 0, 0), (1, 0, 1)), ((0, 1, 0), (0, 1, 1)), ((1, 1, 0), (1, 1, 1)),
+								((0, 0, 0), (1, 0, 0)),
+								((0, 1, 0), (1, 1, 0)),
+								((0, 0, 1), (1, 0, 1)),
+								((0, 1, 1), (1, 1, 1)),
+								((0, 0, 0), (0, 1, 0)),
+								((1, 0, 0), (1, 1, 0)),
+								((0, 0, 1), (0, 1, 1)),
+								((1, 0, 1), (1, 1, 1)),
+								((0, 0, 0), (0, 0, 1)),
+								((1, 0, 0), (1, 0, 1)),
+								((0, 1, 0), (0, 1, 1)),
+								((1, 1, 0), (1, 1, 1)),
 							] {
 								let na = node_at((x + 2 * ca.0, y + 2 * ca.1, z + 2 * ca.2), &mut nodes);
 								let nb = node_at((x + 2 * cb.0, y + 2 * cb.1, z + 2 * cb.2), &mut nodes);
@@ -455,9 +457,12 @@ impl BeamLattice {
 							// Face centres ordered [x−, x+, y−, y+, z−, z+];
 							// opposite faces are the consecutive pairs.
 							let fc_keys = [
-								(x, y + 1, z + 1), (x + 2, y + 1, z + 1),
-								(x + 1, y, z + 1), (x + 1, y + 2, z + 1),
-								(x + 1, y + 1, z), (x + 1, y + 1, z + 2),
+								(x, y + 1, z + 1),
+								(x + 2, y + 1, z + 1),
+								(x + 1, y, z + 1),
+								(x + 1, y + 2, z + 1),
+								(x + 1, y + 1, z),
+								(x + 1, y + 1, z + 2),
 							];
 							let mut fc = [0u32; 6];
 							for (id, &key) in fc.iter_mut().zip(fc_keys.iter()) {
@@ -557,11 +562,7 @@ impl Pipe {
 		assert_eq!(path.len(), radii.len(), "Pipe: one radius per path vertex");
 		assert!(path.iter().all(|p| p.is_finite()), "Pipe: non-finite path point");
 		assert!(radii.iter().all(|r| *r > 0.0 && r.is_finite()), "Pipe: radii must be positive and finite");
-		let struts = path
-			.windows(2)
-			.zip(radii.windows(2))
-			.map(|(p, r)| Strut { a: p[0], b: p[1], ra: r[0], rb: r[1] })
-			.collect();
+		let struts = path.windows(2).zip(radii.windows(2)).map(|(p, r)| Strut { a: p[0], b: p[1], ra: r[0], rb: r[1] }).collect();
 		Self { struts: Struts::new(struts) }
 	}
 
@@ -903,12 +904,7 @@ mod tests {
 		let (a, m, b, r) = (Vec3::new(-6.0, 0.0, 1.0), Vec3::new(-1.0, 0.0, 1.0), Vec3::new(8.0, 0.0, 1.0), 1.5);
 		let pipe = Pipe::new(vec![a, m, b], vec![r, r, r]);
 		let cap = Capsule::new(a, b, r);
-		for p in [
-			Vec3::new(0.0, 0.0, 1.0),
-			Vec3::new(-1.0, 0.2, 2.0),
-			Vec3::new(12.0, 3.0, -1.0),
-			Vec3::new(-40.0, 25.0, 60.0),
-		] {
+		for p in [Vec3::new(0.0, 0.0, 1.0), Vec3::new(-1.0, 0.2, 2.0), Vec3::new(12.0, 3.0, -1.0), Vec3::new(-40.0, 25.0, 60.0)] {
 			let (got, want) = (pipe.distance(p), cap.distance(p));
 			assert!((got - want).abs() < 1e-6, "pipe vs capsule at {p:?}: {got} vs {want}");
 			let got64 = pipe.distance64(p.as_dvec3());

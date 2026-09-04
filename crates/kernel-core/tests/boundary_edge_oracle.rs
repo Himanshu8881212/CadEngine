@@ -17,16 +17,22 @@
 //! 11 shipped part programs across 8 campaigns whose tessellations are closed
 //! and whose body count was right.
 
+use kernel_core::check_mesh;
 use kernel_core::math::Vec3;
 use kernel_core::mesh::Mesh;
-use kernel_core::check_mesh;
 
 /// An axis-aligned closed box as 12 outward-wound triangles.
 fn box_mesh() -> Mesh {
 	let v = |x: f32, y: f32, z: f32| Vec3::new(x, y, z);
 	let positions = vec![
-		v(0.0, 0.0, 0.0), v(10.0, 0.0, 0.0), v(10.0, 10.0, 0.0), v(0.0, 10.0, 0.0),
-		v(0.0, 0.0, 10.0), v(10.0, 0.0, 10.0), v(10.0, 10.0, 10.0), v(0.0, 10.0, 10.0),
+		v(0.0, 0.0, 0.0),
+		v(10.0, 0.0, 0.0),
+		v(10.0, 10.0, 0.0),
+		v(0.0, 10.0, 0.0),
+		v(0.0, 0.0, 10.0),
+		v(10.0, 0.0, 10.0),
+		v(10.0, 10.0, 10.0),
+		v(0.0, 10.0, 10.0),
 	];
 	let indices = vec![
 		0, 2, 1, 0, 3, 2, // -Z
@@ -42,8 +48,7 @@ fn box_mesh() -> Mesh {
 /// A closed tetrahedron with `flipped` of its four triangles wound inside-out.
 /// Every edge is still used by exactly two triangles, so nothing is open.
 fn tet(flipped: usize) -> Mesh {
-	let positions =
-		vec![Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 0.0)];
+	let positions = vec![Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, 0.0)];
 	let faces = [[0u32, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]];
 	let mut indices = Vec::new();
 	for (i, f) in faces.iter().enumerate() {
@@ -109,11 +114,7 @@ fn the_two_oracles_agree_on_every_shape() {
 	cases.push(("box minus one triangle".into(), open_box));
 	for (name, m) in &cases {
 		let r = check_mesh(m);
-		assert_eq!(
-			m.boundary_edge_count(),
-			r.boundary_edges,
-			"{name}: Mesh::boundary_edge_count and check_mesh must be one oracle"
-		);
+		assert_eq!(m.boundary_edge_count(), r.boundary_edges, "{name}: Mesh::boundary_edge_count and check_mesh must be one oracle");
 		assert_eq!(
 			m.non_orientable_edge_count(),
 			r.non_orientable_edges,

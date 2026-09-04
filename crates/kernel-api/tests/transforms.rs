@@ -29,11 +29,7 @@ fn run(dir: &Path, ops: serde_json::Value) -> Report {
 
 /// The report entry for op `id` (panics with the report when absent).
 fn entry<'r>(report: &'r Report, id: &str) -> &'r OpReport {
-	report
-		.ops
-		.iter()
-		.find(|o| o.id == id)
-		.unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
+	report.ops.iter().find(|o| o.id == id).unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
 }
 
 /// A named f64 measure of op `id` (NaN when absent, so the assert message shows it).
@@ -207,7 +203,10 @@ fn wave1_guards_reject_hostile_or_degenerate_params() {
 		("count over cap", json!({"id": "x", "op": "linear_pattern", "in": "b", "count": 501, "step": [20.0, 0.0, 0.0]})),
 		("1-pattern no-op", json!({"id": "x", "op": "linear_pattern", "in": "b", "count": 1, "step": [20.0, 0.0, 0.0]})),
 		("zero step", json!({"id": "x", "op": "linear_pattern", "in": "b", "count": 3, "step": [0.0, 0.0, 0.0]})),
-		("360° polar step", json!({"id": "x", "op": "polar_pattern", "in": "b", "count": 3, "center": [0, 0, 0], "axis": [0, 0, 1], "step_deg": 360.0})),
+		(
+			"360° polar step",
+			json!({"id": "x", "op": "polar_pattern", "in": "b", "count": 3, "center": [0, 0, 0], "axis": [0, 0, 1], "step_deg": 360.0}),
+		),
 		("zero mirror normal", json!({"id": "x", "op": "mirror", "in": "b", "plane": {"point": [0, 0, 0], "normal": [0, 0, 0]}})),
 		("unresolvable shell wall", json!({"id": "x", "op": "shell", "in": "b", "wall": 0.5, "voxel": 0.3})),
 	];

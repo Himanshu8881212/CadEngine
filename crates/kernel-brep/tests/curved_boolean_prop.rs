@@ -92,6 +92,3 @@ proptest! {
 		prop_assert!(v > 8.0 - cyl - 0.1 && v < 8.01, "volume {v} outside (8-cyl, 8)");
 	}
 }
-
-
-

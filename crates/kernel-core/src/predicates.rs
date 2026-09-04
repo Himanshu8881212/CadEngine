@@ -268,9 +268,7 @@ pub fn incircle(pa: [f64; 2], pb: [f64; 2], pc: [f64; 2], pd: [f64; 2]) -> f64 {
 	let clift = cdx * cdx + cdy * cdy;
 
 	let det = alift * (bdxcdy - cdxbdy) + blift * (cdxady - adxcdy) + clift * (adxbdy - bdxady);
-	let permanent = (bdxcdy.abs() + cdxbdy.abs()) * alift
-		+ (cdxady.abs() + adxcdy.abs()) * blift
-		+ (adxbdy.abs() + bdxady.abs()) * clift;
+	let permanent = (bdxcdy.abs() + cdxbdy.abs()) * alift + (cdxady.abs() + adxcdy.abs()) * blift + (adxbdy.abs() + bdxady.abs()) * clift;
 	let errbound = ICCERRBOUND_A * permanent;
 	if det.abs() > errbound {
 		return det;
@@ -303,9 +301,8 @@ pub fn orient3d(pa: [f64; 3], pb: [f64; 3], pc: [f64; 3], pd: [f64; 3]) -> f64 {
 	let bdxady = bdx * ady;
 
 	let det = adz * (bdxcdy - cdxbdy) + bdz * (cdxady - adxcdy) + cdz * (adxbdy - bdxady);
-	let permanent = (bdxcdy.abs() + cdxbdy.abs()) * adz.abs()
-		+ (cdxady.abs() + adxcdy.abs()) * bdz.abs()
-		+ (adxbdy.abs() + bdxady.abs()) * cdz.abs();
+	let permanent =
+		(bdxcdy.abs() + cdxbdy.abs()) * adz.abs() + (cdxady.abs() + adxcdy.abs()) * bdz.abs() + (adxbdy.abs() + bdxady.abs()) * cdz.abs();
 	let errbound = O3DERRBOUND_A * permanent;
 	if det.abs() > errbound {
 		return det;

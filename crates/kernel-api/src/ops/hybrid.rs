@@ -12,9 +12,9 @@ use kernel_brep::holes;
 use kernel_brep::Solid;
 use kernel_core::math::Vec3;
 use kernel_core::{check_mesh, make_manifold, Aabb, Resolution, Sdf};
+use kernel_implicit::{dual_contour_narrowband, manifold_dual_contour, MeshSdf, Node};
 #[cfg(feature = "catalog")]
 use kernel_implicit::{Cuboid as ImplicitCuboid, Gyroid};
-use kernel_implicit::{dual_contour_narrowband, manifold_dual_contour, MeshSdf, Node};
 use serde_json::{json, Value};
 
 use crate::implicit;
@@ -53,7 +53,9 @@ pub(crate) fn tree_bounds(op_id: &str, node: &Node) -> Result<Aabb, OpError> {
 	if !b.is_valid() {
 		return Err(err(
 			ErrorKind::InvalidParam,
-			format!("op '{op_id}': the expression tree has empty bounds (e.g. an intersection of disjoint shapes) — nothing to mesh/measure"),
+			format!(
+				"op '{op_id}': the expression tree has empty bounds (e.g. an intersection of disjoint shapes) — nothing to mesh/measure"
+			),
 		));
 	}
 	if !(b.min.is_finite() && b.max.is_finite()) {
@@ -171,7 +173,8 @@ pub(crate) fn exec(
 			let mean: f32 = rho.iter().sum::<f32>() / rho.len() as f32;
 			let bytes = crate::bridge::write_npy_f32(&shape, &rho);
 			let path = resolve_path(op_id, out_dir, &file)?;
-			std::fs::write(&path, &bytes).map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot write '{}': {e}", path.display())))?;
+			std::fs::write(&path, &bytes)
+				.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot write '{}': {e}", path.display())))?;
 			Ok(Outcome {
 				value: None,
 				measures: Some(json!({
@@ -188,9 +191,10 @@ pub(crate) fn exec(
 				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': voxel must be a positive voxel size in mm")));
 			}
 			let path_in = resolve_input_or_out(op_id, input_base, out_dir, &npy)?;
-			let bytes = std::fs::read(&path_in).map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot read '{}': {e}", path_in.display())))?;
-			let (nshape, rho) = crate::bridge::read_npy_f32(&bytes)
-				.map_err(|e| err(ErrorKind::InvalidParam, format!("op '{op_id}': '{npy}': {e}")))?;
+			let bytes = std::fs::read(&path_in)
+				.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot read '{}': {e}", path_in.display())))?;
+			let (nshape, rho) =
+				crate::bridge::read_npy_f32(&bytes).map_err(|e| err(ErrorKind::InvalidParam, format!("op '{op_id}': '{npy}': {e}")))?;
 			if nshape.len() != 3 {
 				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': '{npy}' must be a 3-D array, got shape {nshape:?}")));
 			}
@@ -220,7 +224,10 @@ pub(crate) fn exec(
 				Some("stl") => mesh.write_stl_binary(&path),
 				Some("3mf") => mesh.write_3mf(&path),
 				other => {
-					return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': 'file' must end in .stl or .3mf, got extension {other:?}")));
+					return Err(err(
+						ErrorKind::InvalidParam,
+						format!("op '{op_id}': 'file' must end in .stl or .3mf, got extension {other:?}"),
+					));
 				}
 			};
 			write_result.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot write '{}': {e}", path.display())))?;
@@ -367,7 +374,9 @@ pub(crate) fn exec(
 			if !(cells.is_finite() && cells <= MAX_GRID_CELLS as f64) {
 				return Err(err(
 					ErrorKind::InvalidParam,
-					format!("op '{op_id}': shell grid ≈{cells:.0} cells (bbox/voxel)³ exceeds the cap {MAX_GRID_CELLS} — use a coarser voxel"),
+					format!(
+						"op '{op_id}': shell grid ≈{cells:.0} cells (bbox/voxel)³ exceeds the cap {MAX_GRID_CELLS} — use a coarser voxel"
+					),
 				));
 			}
 			// Built twice (like `Feature::Shell`): the SDF tree owns its leaves.
@@ -442,11 +451,9 @@ pub(crate) fn exec(
 				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': voxel must be a positive voxel size in mm")));
 			}
 			let (smin, smax) = s.aabb();
-			let domain = Aabb::new(
-				Vec3::new(smin.x as f32, smin.y as f32, smin.z as f32),
-				Vec3::new(smax.x as f32, smax.y as f32, smax.z as f32),
-			)
-			.pad(delta.abs() as f32 + 3.0 * voxel as f32);
+			let domain =
+				Aabb::new(Vec3::new(smin.x as f32, smin.y as f32, smin.z as f32), Vec3::new(smax.x as f32, smax.y as f32, smax.z as f32))
+					.pad(delta.abs() as f32 + 3.0 * voxel as f32);
 			grid_guard(op_id, "offset_solid", domain, voxel)?;
 			let out = kernel_model::shell::offset_to_solid(s, delta, voxel as f32);
 			if out.face_count() == 0 {
@@ -483,11 +490,9 @@ pub(crate) fn exec(
 				));
 			}
 			let (smin, smax) = s.aabb();
-			let domain = Aabb::new(
-				Vec3::new(smin.x as f32, smin.y as f32, smin.z as f32),
-				Vec3::new(smax.x as f32, smax.y as f32, smax.z as f32),
-			)
-			.pad(3.0 * voxel as f32);
+			let domain =
+				Aabb::new(Vec3::new(smin.x as f32, smin.y as f32, smin.z as f32), Vec3::new(smax.x as f32, smax.y as f32, smax.z as f32))
+					.pad(3.0 * voxel as f32);
 			grid_guard(op_id, "shell_solid", domain, voxel)?;
 			let out = kernel_model::shell::shell_to_solid(s, thickness, voxel as f32);
 			if out.face_count() == 0 {
@@ -634,7 +639,10 @@ pub(crate) fn exec(
 				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': 'at' must be a finite point, got {at:?}")));
 			}
 			if !(ax.is_finite() && ax.length_squared() > 0.0) {
-				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': 'axis' must be a non-zero finite direction, got {axis:?}")));
+				return Err(err(
+					ErrorKind::InvalidParam,
+					format!("op '{op_id}': 'axis' must be a non-zero finite direction, got {axis:?}"),
+				));
 			}
 			if !(d.is_finite() && d > 0.0) {
 				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': d must be a positive bore diameter in mm, got {d}")));

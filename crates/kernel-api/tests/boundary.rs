@@ -34,10 +34,7 @@ fn sandbox_rejects_escaping_export_paths() {
 	let r = run_export(&dir, json!(escape_abs.to_str().unwrap()));
 	let stl = op(&r, "stl");
 	assert!(
-		!r.ok
-			&& !stl.ok
-			&& stl.error.as_ref().map(|e| e.kind) == Some(ErrorKind::InvalidParam)
-			&& !escape_abs.exists(),
+		!r.ok && !stl.ok && stl.error.as_ref().map(|e| e.kind) == Some(ErrorKind::InvalidParam) && !escape_abs.exists(),
 		"absolute export path must be refused (InvalidParam) and NOT written — escaped_exists={} report={r:#?}",
 		escape_abs.exists()
 	);
@@ -48,9 +45,7 @@ fn sandbox_rejects_escaping_export_paths() {
 	let r = run_export(&dir, json!(format!("../cadcode_DOTDOT_{pid}.stl")));
 	let stl = op(&r, "stl");
 	assert!(
-		!r.ok
-			&& stl.error.as_ref().map(|e| e.kind) == Some(ErrorKind::InvalidParam)
-			&& !escape_rel.exists(),
+		!r.ok && stl.error.as_ref().map(|e| e.kind) == Some(ErrorKind::InvalidParam) && !escape_rel.exists(),
 		"'..' export path must be refused and NOT written — report={r:#?}"
 	);
 
@@ -73,9 +68,7 @@ fn sandbox_rejects_escaping_export_paths() {
 		symlink(&outside_dir, dir.join("link")).unwrap();
 		let r = run_export(&dir, json!("link/escaped.stl"));
 		assert!(
-			!r.ok
-				&& op(&r, "stl").error.as_ref().map(|e| e.kind) == Some(ErrorKind::InvalidParam)
-				&& !escaped.exists(),
+			!r.ok && op(&r, "stl").error.as_ref().map(|e| e.kind) == Some(ErrorKind::InvalidParam) && !escaped.exists(),
 			"a directory symlink must not escape the sandbox — report={r:#?}"
 		);
 
@@ -83,8 +76,7 @@ fn sandbox_rejects_escaping_export_paths() {
 		std::fs::write(&outside_file, b"sentinel").unwrap();
 		symlink(&outside_file, dir.join("final.stl")).unwrap();
 		let r = run_export(&dir, json!("final.stl"));
-		assert!(!r.ok && std::fs::read(&outside_file).unwrap() == b"sentinel",
-			"a final-file symlink must not be followed — report={r:#?}");
+		assert!(!r.ok && std::fs::read(&outside_file).unwrap() == b"sentinel", "a final-file symlink must not be followed — report={r:#?}");
 		let _ = std::fs::remove_dir_all(&outside_dir);
 	}
 

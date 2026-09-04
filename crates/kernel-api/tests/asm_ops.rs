@@ -9,7 +9,7 @@
 
 use std::path::PathBuf;
 
-use kernel_api::{run_program, run_assembly, AsmOptions, OpReport, Report};
+use kernel_api::{run_assembly, run_program, AsmOptions, OpReport, Report};
 
 fn test_dir(name: &str) -> PathBuf {
 	let dir = std::env::temp_dir().join(format!("kernel_api_asmops_{name}_{}", std::process::id()));
@@ -70,21 +70,14 @@ fn one_program_builds_mates_solves_measures_exports_and_saves() {
 	// -- solve: converged, per-mate ~0, DOF says exactly what remains free.
 	let solve = entry(&report, "solve").measures.as_ref().expect("solve measures");
 	let shaft_pose = &solve["poses"][1];
-	let shaft_xy = (shaft_pose["translation"][0].as_f64().unwrap().powi(2)
-		+ shaft_pose["translation"][1].as_f64().unwrap().powi(2))
-	.sqrt();
+	let shaft_xy = (shaft_pose["translation"][0].as_f64().unwrap().powi(2) + shaft_pose["translation"][1].as_f64().unwrap().powi(2)).sqrt();
 	// -- derived axis mate echoed the REAL bore axis.
 	let m_axis = entry(&report, "m_axis").measures.as_ref().expect("m_axis measures");
 	// -- contacts: block seats flush on the plate (touching); shaft floats in
 	//    the bore at the 0.2 mm radial ring gap.
 	let contacts = entry(&report, "contacts").measures.as_ref().expect("contacts measures");
 	let pair = |a: &str, b: &str| {
-		contacts["pairs"]
-			.as_array()
-			.unwrap()
-			.iter()
-			.find(|p| (p["a"] == a && p["b"] == b) || (p["a"] == b && p["b"] == a))
-			.cloned()
+		contacts["pairs"].as_array().unwrap().iter().find(|p| (p["a"] == a && p["b"] == b) || (p["a"] == b && p["b"] == a)).cloned()
 	};
 	let plate_block = pair("i_plate", "i_block").expect("plate/block pair listed");
 	let plate_shaft = pair("i_plate", "i_shaft").expect("plate/shaft pair listed");
@@ -158,13 +151,11 @@ fn gear_train_poses_bridge_and_refusal() {
 	let msg = bad.error.as_ref().map(|e| e.message.clone()).unwrap_or_default();
 
 	assert!(
-		r.ok
-			&& (m["ratio"].as_f64().unwrap() - 26.0).abs() < 1e-9
+		r.ok && (m["ratio"].as_f64().unwrap() - 26.0).abs() < 1e-9
 			&& (m["orbit_radius_mm"].as_f64().unwrap() - 12.0).abs() < 1e-12
 			&& (orbit - 12.0).abs() < 1e-9
 			&& m["planets"].as_array().unwrap().len() == 3
-			&& !rb.ok
-			&& msg.contains("odd"),
+			&& !rb.ok && msg.contains("odd"),
 		"gear bridge: ratio {:?}, orbit {orbit:.6}, refusal '{msg}'",
 		m["ratio"]
 	);
@@ -183,10 +174,8 @@ fn asm_ops_refuse_loudly_with_named_causes() {
 		{"id": "ia", "op": "asm_instance", "solid": "a"},
 		{"id": "ib", "op": "asm_instance", "solid": "b", "translate": [30, 0, 0]}"#;
 
-	let unknown = run_program(
-		&format!(r#"{{"ops": [{base}, {{"id": "m", "op": "asm_mate", "kind": "magnetic", "a": "ia", "b": "ib"}}]}}"#),
-		&dir,
-	);
+	let unknown =
+		run_program(&format!(r#"{{"ops": [{base}, {{"id": "m", "op": "asm_mate", "kind": "magnetic", "a": "ia", "b": "ib"}}]}}"#), &dir);
 	let planar = run_program(
 		&format!(
 			r#"{{"ops": [{base}, {{"id": "m", "op": "asm_mate_axis", "a": "ia", "a_witness": [5, 5, 10], "b": "ib", "b_witness": [2.5, 2.5, 5]}}]}}"#

@@ -172,8 +172,7 @@ fn cone_oblique_section_is_an_ellipse_matching_generator_vertices() {
 	assert!((a - expect_a).abs() < 1e-9, "semi-major {a} != {expect_a}");
 	let v0 = center + u * a;
 	let v1 = center - u * a;
-	let matched = (v0 - vr).length() < 1e-9 && (v1 - vl).length() < 1e-9
-		|| (v0 - vl).length() < 1e-9 && (v1 - vr).length() < 1e-9;
+	let matched = (v0 - vr).length() < 1e-9 && (v1 - vl).length() < 1e-9 || (v0 - vl).length() < 1e-9 && (v1 - vr).length() < 1e-9;
 	assert!(matched, "major vertices {v0},{v1} != generators {vr},{vl}");
 	assert!(a > b && b > 0.0 && u.dot(en).abs() < 1e-12);
 	assert_on_surface_and_plane(&curves[0], &cone, po, n, PI, 1e-9);
@@ -306,9 +305,7 @@ fn section_is_independent_of_plane_normal_sign() {
 	let o = DVec3::new(1.0, 2.0, 4.2);
 	let up = sphere.plane_section(o, DVec3::Z);
 	let down = sphere.plane_section(o, -DVec3::Z);
-	let (Curve::Circle { radius: ru, center: cu, .. }, Curve::Circle { radius: rd, center: cd, .. }) =
-		(up[0], down[0])
-	else {
+	let (Curve::Circle { radius: ru, center: cu, .. }, Curve::Circle { radius: rd, center: cd, .. }) = (up[0], down[0]) else {
 		panic!("expected circles");
 	};
 	assert!((ru - rd).abs() < 1e-12 && (cu - cd).length() < 1e-12, "section depends on normal sign");
@@ -338,11 +335,8 @@ fn solid_cone_oblique_sections_yield_parabola_and_hyperbola() {
 	// Every sampled point of each conic must lie ON the solid's tagged cone surface and
 	// ON the cutting plane to 1e-9 — exact curves, not approximations.
 	let c = cone(DVec3::ZERO, DVec3::Z, 3.0, 4.0, 48);
-	let surf = c
-		.faces()
-		.map(|f| c.face(f).surface)
-		.find(|s| matches!(s, Surface::Cone { .. }))
-		.expect("the cone solid carries Cone-tagged faces");
+	let surf =
+		c.faces().map(|f| c.face(f).surface).find(|s| matches!(s, Surface::Cone { .. })).expect("the cone solid carries Cone-tagged faces");
 
 	let (po, n) = (DVec3::new(0.0, 0.0, 1.0), DVec3::new(0.0, 0.8, 0.6)); // |n·(−Z)| = 0.6 = sin β
 	let sec = c.section_curves(po, n);

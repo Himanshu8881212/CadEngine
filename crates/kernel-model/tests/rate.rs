@@ -47,10 +47,7 @@ fn harm26_flexspline_wall_strain_matches_the_hand_calc() {
 	// neutral (mid-wall) radius rn = 14.46 mm → ε = (t/2)·3·w0/rn² ≈ 0.0052
 	// (0.52%, inside printed-nylon flexural fatigue). Pin within 5%.
 	let eps = thin_ring_bending_strain(1.2, 0.6, 14.46);
-	assert!(
-		(eps - 0.0052).abs() / 0.0052 < 0.05,
-		"HARM-26 flexspline strain: ε = {eps:.6} (want ≈ 0.0052 ± 5%)"
-	);
+	assert!((eps - 0.0052).abs() / 0.0052 < 0.05, "HARM-26 flexspline strain: ε = {eps:.6} (want ≈ 0.0052 ± 5%)");
 }
 
 #[test]

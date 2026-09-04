@@ -21,10 +21,18 @@ fn public_api_never_panics_on_adversarial_input() {
 	let inf = f64::INFINITY;
 
 	let failures: Vec<&str> = [
-		panics("extrude empty", || { extrude(&[], 5.0); }),
-		panics("extrude single point", || { extrude(&[DVec2::new(1.0, 1.0)], 5.0); }),
-		panics("extrude collinear", || { extrude(&[DVec2::new(0.0, 0.0), DVec2::new(1.0, 0.0), DVec2::new(2.0, 0.0)], 5.0); }),
-		panics("extrude NaN profile", || { extrude(&[DVec2::new(nan, 0.0), DVec2::new(10.0, nan), DVec2::new(10.0, 10.0)], 5.0); }),
+		panics("extrude empty", || {
+			extrude(&[], 5.0);
+		}),
+		panics("extrude single point", || {
+			extrude(&[DVec2::new(1.0, 1.0)], 5.0);
+		}),
+		panics("extrude collinear", || {
+			extrude(&[DVec2::new(0.0, 0.0), DVec2::new(1.0, 0.0), DVec2::new(2.0, 0.0)], 5.0);
+		}),
+		panics("extrude NaN profile", || {
+			extrude(&[DVec2::new(nan, 0.0), DVec2::new(10.0, nan), DVec2::new(10.0, 10.0)], 5.0);
+		}),
 		panics("extrude bad heights", || {
 			let s = [DVec2::new(0.0, 0.0), DVec2::new(10.0, 0.0), DVec2::new(10.0, 10.0), DVec2::new(0.0, 10.0)];
 			extrude(&s, 0.0);
@@ -59,7 +67,9 @@ fn public_api_never_panics_on_adversarial_input() {
 			loft_solid(&[vec![DVec3::ZERO; 3], vec![DVec3::ZERO; 4]]);
 			loft_solid(&[vec![DVec3::splat(nan); 4], vec![DVec3::ZERO; 4]]);
 		}),
-		panics("sweep empty path", || { sweep_solid(&[DVec3::ZERO; 4], &[]); }),
+		panics("sweep empty path", || {
+			sweep_solid(&[DVec3::ZERO; 4], &[]);
+		}),
 		panics("booleans with degenerate", || {
 			let good = cuboid(DVec3::ZERO, DVec3::splat(10.0));
 			let degen = extrude(&[], 1.0);

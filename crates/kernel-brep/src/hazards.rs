@@ -107,11 +107,7 @@ pub struct Hazard {
 
 impl std::fmt::Display for Hazard {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(
-			f,
-			"{:?} ×{} sep {:.4} at ({:.2}, {:.2}, {:.2})",
-			self.kind, self.count, self.separation, self.at.x, self.at.y, self.at.z
-		)?;
+		write!(f, "{:?} ×{} sep {:.4} at ({:.2}, {:.2}, {:.2})", self.kind, self.count, self.separation, self.at.x, self.at.y, self.at.z)?;
 		if let Some(remedy) = self.kind.remedy() {
 			write!(f, " — remedy: {remedy}")?;
 		}
@@ -147,8 +143,7 @@ fn surf_key(s: &Surface) -> (u8, [i64; 7]) {
 	match *s {
 		Surface::Plane { origin, normal } => {
 			// canonicalize sign so n and −n group together
-			let flip = if normal.z < 0.0 || (normal.z == 0.0 && normal.y < 0.0) || (normal.z == 0.0 && normal.y == 0.0 && normal.x < 0.0)
-			{
+			let flip = if normal.z < 0.0 || (normal.z == 0.0 && normal.y < 0.0) || (normal.z == 0.0 && normal.y == 0.0 && normal.x < 0.0) {
 				-1.0
 			} else {
 				1.0
@@ -167,9 +162,7 @@ fn surf_key(s: &Surface) -> (u8, [i64; 7]) {
 			(1, [q(ax.x), q(ax.y), q(ax.z), q(foot.x), q(foot.y), q(foot.z), q(radius)])
 		}
 		Surface::Sphere { center, radius } => (2, [q(center.x), q(center.y), q(center.z), q(radius), 0, 0, 0]),
-		Surface::Cone { apex, axis, half_angle } => {
-			(3, [q(apex.x), q(apex.y), q(apex.z), q(axis.x), q(axis.y), q(axis.z), q(half_angle)])
-		}
+		Surface::Cone { apex, axis, half_angle } => (3, [q(apex.x), q(apex.y), q(apex.z), q(axis.x), q(axis.y), q(axis.z), q(half_angle)]),
 		Surface::Torus { center, axis, major, minor } => {
 			(4, [q(center.x), q(center.y), q(center.z), q(axis.x), q(axis.y), q(axis.z), q(major + 1e4 * minor)])
 		}
@@ -259,7 +252,11 @@ fn edge_in_face_hazards(
 				continue;
 			}
 			let sep = d0.abs().max(d1.abs());
-			let key = (surf_key(&Surface::Plane { origin: *origin, normal: *normal }).0, surf_key(&Surface::Plane { origin: *origin, normal: *normal }).1, edge_on_a);
+			let key = (
+				surf_key(&Surface::Plane { origin: *origin, normal: *normal }).0,
+				surf_key(&Surface::Plane { origin: *origin, normal: *normal }).1,
+				edge_on_a,
+			);
 			let (fa, fb) = if edge_on_a { (adj_face, *f) } else { (*f, adj_face) };
 			out.entry(key)
 				.and_modify(|h| {
@@ -332,9 +329,8 @@ pub fn boolean_hazards(a: &Solid, b: &Solid, tol: f64) -> Vec<Hazard> {
 	let mut grouped: std::collections::HashMap<(u8, [i64; 7], bool), Hazard> = std::collections::HashMap::new();
 
 	// ---- face-pair hazards (plane–plane, cylinder–cylinder) --------------------
-	let faces_of = |s: &Solid| -> Vec<(FaceId, Surface, (DVec3, DVec3))> {
-		s.faces().map(|f| (f, s.face(f).surface, face_aabb(s, f))).collect()
-	};
+	let faces_of =
+		|s: &Solid| -> Vec<(FaceId, Surface, (DVec3, DVec3))> { s.faces().map(|f| (f, s.face(f).surface, face_aabb(s, f))).collect() };
 	let fa = faces_of(a);
 	let fb = faces_of(b);
 	for (ia, sa, ba) in &fa {
@@ -356,20 +352,13 @@ pub fn boolean_hazards(a: &Solid, b: &Solid, tol: f64) -> Vec<Hazard> {
 						None
 					}
 				}
-				(
-					Surface::Cylinder { origin: oa, axis: xa, radius: ra },
-					Surface::Cylinder { origin: ob, axis: xb, radius: rb },
-				) => {
+				(Surface::Cylinder { origin: oa, axis: xa, radius: ra }, Surface::Cylinder { origin: ob, axis: xb, radius: rb }) => {
 					if xa.cross(*xb).length() < 1e-6 {
 						let d = *ob - *oa;
 						let axial_off = (d - *xa * d.dot(*xa)).length();
 						let sep = axial_off.max((ra - rb).abs());
 						if sep <= tol {
-							let kind = if sep <= EXACT {
-								HazardKind::CoincidentCylinders
-							} else {
-								HazardKind::NearCoincidentCylinders
-							};
+							let kind = if sep <= EXACT { HazardKind::CoincidentCylinders } else { HazardKind::NearCoincidentCylinders };
 							Some((kind, sep, (ba.0 + ba.1) * 0.5))
 						} else {
 							None

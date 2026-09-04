@@ -14,9 +14,7 @@ use crate::report::{ErrorKind, OpError};
 
 use super::support::{bind_solid, size_err, AS568_DASHES, DIN471_SIZES, FASTENER_SIZES, METRIC_CORD_SIZES, SCREW_SIZES_M3_M12};
 #[cfg(feature = "catalog")]
-use super::support::{
-	CLAMP_COUPLING_BORES, DIN472_SIZES, JAW_COUPLING_SIZES, NEMA_FRAMES, SET_SCREW_COUPLING_BORES, SMALL_SIZES_M2_M6,
-};
+use super::support::{CLAMP_COUPLING_BORES, DIN472_SIZES, JAW_COUPLING_SIZES, NEMA_FRAMES, SET_SCREW_COUPLING_BORES, SMALL_SIZES_M2_M6};
 
 /// Execute one op of this family. The dispatch table in [`crate::interp`]
 /// routes exactly the variants matched below, so the catch-all is dead code
@@ -228,7 +226,9 @@ pub(crate) fn exec(op_id: &str, kind: OpKind) -> Result<Outcome, OpError> {
 			let solid = parts::clamp_coupling(bore1, bore2).ok_or_else(|| {
 				err(
 					ErrorKind::InvalidParam,
-					format!("op '{op_id}': clamp_coupling: both bores (Ø{bore1} × Ø{bore2}) must be stocked sizes ({CLAMP_COUPLING_BORES})"),
+					format!(
+						"op '{op_id}': clamp_coupling: both bores (Ø{bore1} × Ø{bore2}) must be stocked sizes ({CLAMP_COUPLING_BORES})"
+					),
 				)
 			})?;
 			bind_solid(op_id, "clamp_coupling", solid)
@@ -236,10 +236,7 @@ pub(crate) fn exec(op_id: &str, kind: OpKind) -> Result<Outcome, OpError> {
 		#[cfg(feature = "catalog")]
 		OpKind::LinearBearingLmuu { bore } => {
 			let solid = parts::linear_bearing_lmuu(bore).ok_or_else(|| {
-				err(
-					ErrorKind::InvalidParam,
-					format!("op '{op_id}': linear_bearing_lmuu: bore Ø{bore} must be 8 (LM8UU) or 12 (LM12UU)"),
-				)
+				err(ErrorKind::InvalidParam, format!("op '{op_id}': linear_bearing_lmuu: bore Ø{bore} must be 8 (LM8UU) or 12 (LM12UU)"))
 			})?;
 			bind_solid(op_id, "linear_bearing_lmuu", solid)
 		}
@@ -272,20 +269,14 @@ pub(crate) fn exec(op_id: &str, kind: OpKind) -> Result<Outcome, OpError> {
 		}
 		OpKind::FlangedBearing { designation } => {
 			let solid = parts::flanged_bearing(&designation).ok_or_else(|| {
-				err(
-					ErrorKind::InvalidParam,
-					format!("op '{op_id}': flanged_bearing: '{designation}' must be F608 or F623"),
-				)
+				err(ErrorKind::InvalidParam, format!("op '{op_id}': flanged_bearing: '{designation}' must be F608 or F623"))
 			})?;
 			bind_solid(op_id, "flanged_bearing", solid)
 		}
 		#[cfg(feature = "catalog")]
 		OpKind::ThrustBearing { designation } => {
 			let solid = parts::thrust_bearing(&designation).ok_or_else(|| {
-				err(
-					ErrorKind::InvalidParam,
-					format!("op '{op_id}': thrust_bearing: '{designation}' must be 51100 or 51101"),
-				)
+				err(ErrorKind::InvalidParam, format!("op '{op_id}': thrust_bearing: '{designation}' must be 51100 or 51101"))
 			})?;
 			bind_solid(op_id, "thrust_bearing", solid)
 		}
@@ -324,10 +315,7 @@ pub(crate) fn exec(op_id: &str, kind: OpKind) -> Result<Outcome, OpError> {
 		#[cfg(feature = "catalog")]
 		OpKind::SpringWasher { m } => {
 			let solid = parts::spring_washer(m).ok_or_else(|| {
-				err(
-					ErrorKind::InvalidParam,
-					format!("op '{op_id}': spring_washer: M{m} is outside the DIN 127 B table (M3–M12)"),
-				)
+				err(ErrorKind::InvalidParam, format!("op '{op_id}': spring_washer: M{m} is outside the DIN 127 B table (M3–M12)"))
 			})?;
 			bind_solid(op_id, "spring_washer", solid)
 		}

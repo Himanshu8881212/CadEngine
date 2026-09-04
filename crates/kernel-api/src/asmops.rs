@@ -221,17 +221,12 @@ pub(crate) fn mate(
 	};
 	let dv = |p: [f64; 3]| DVec3::new(p[0], p[1], p[2]);
 	let need = |field: &Option<[f64; 3]>, what: &str| -> Result<DVec3, OpError> {
-		field
-			.map(dv)
-			.ok_or_else(|| err(ErrorKind::InvalidParam, format!("op '{op_id}': mate kind '{kind}' needs '{what}'")))
+		field.map(dv).ok_or_else(|| err(ErrorKind::InvalidParam, format!("op '{op_id}': mate kind '{kind}' needs '{what}'")))
 	};
 	let constraint = match kind {
-		"coincident" => Constraint::Coincident {
-			a: ia,
-			a_point: need(a_point, "a_point")?,
-			b: need_b(b)?,
-			b_point: need(b_point, "b_point")?,
-		},
+		"coincident" => {
+			Constraint::Coincident { a: ia, a_point: need(a_point, "a_point")?, b: need_b(b)?, b_point: need(b_point, "b_point")? }
+		}
 		"distance" => Constraint::Distance {
 			a: ia,
 			a_point: need(a_point, "a_point")?,
@@ -240,12 +235,7 @@ pub(crate) fn mate(
 			distance: distance
 				.ok_or_else(|| err(ErrorKind::InvalidParam, format!("op '{op_id}': mate kind 'distance' needs 'distance'")))?,
 		},
-		"parallel" => Constraint::Parallel {
-			a: ia,
-			a_dir: need(a_dir, "a_dir")?,
-			b: need_b(b)?,
-			b_dir: need(b_dir, "b_dir")?,
-		},
+		"parallel" => Constraint::Parallel { a: ia, a_dir: need(a_dir, "a_dir")?, b: need_b(b)?, b_dir: need(b_dir, "b_dir")? },
 		"concentric" => Constraint::Concentric {
 			a: ia,
 			a_axis_point: need(a_axis_point, "a_axis_point")?,
@@ -365,14 +355,7 @@ pub(crate) fn mate_axis(
 			"axis_distance"
 		}
 		None => {
-			state.mates.push(Constraint::Concentric {
-				a: ia,
-				a_axis_point: pa,
-				a_axis_dir: da,
-				b: ib,
-				b_axis_point: pb,
-				b_axis_dir: db,
-			});
+			state.mates.push(Constraint::Concentric { a: ia, a_axis_point: pa, a_axis_dir: da, b: ib, b_axis_point: pb, b_axis_dir: db });
 			"concentric"
 		}
 	};
@@ -406,17 +389,14 @@ pub(crate) fn mate_face(
 		let w = DVec3::new(witness[0], witness[1], witness[2]);
 		let (fid, d) = nearest_face(solid, w);
 		let centroid = polygon_centroid(&solid.face_polygon(fid));
-		solid
-			.face_plane(fid)
-			.map(|(_, normal)| (centroid, normal))
-			.ok_or_else(|| {
-				err(
-					ErrorKind::InvalidParam,
-					format!(
+		solid.face_plane(fid).map(|(_, normal)| (centroid, normal)).ok_or_else(|| {
+			err(
+				ErrorKind::InvalidParam,
+				format!(
 						"op '{op_id}': {side}_witness picked a degenerate face (nearest at {d:.3} mm) — aim at a real face (use list_faces for anchors)"
 					),
-				)
-			})
+			)
+		})
 	};
 	let (pa, na) = derive(ia, a_witness, "a")?;
 	let (pb, nb) = derive(ib, b_witness, "b")?;
@@ -481,11 +461,8 @@ pub(crate) fn solve(
 			})
 		})
 		.collect();
-	let per_mate_json: Vec<Value> = per_mate
-		.iter()
-		.enumerate()
-		.map(|(k, &r)| json!({ "index": k, "kind": state.mates[k].kind_name(), "residual": r }))
-		.collect();
+	let per_mate_json: Vec<Value> =
+		per_mate.iter().enumerate().map(|(k, &r)| json!({ "index": k, "kind": state.mates[k].kind_name(), "residual": r })).collect();
 	let measures = json!({
 		"residual": residual,
 		"max_residual": gate,
@@ -573,9 +550,8 @@ pub(crate) fn contacts(
 	state.need_instances(op_id, 2, "asm_contacts")?;
 	let window = window.unwrap_or(1.0);
 	let tol = tol.unwrap_or(0.05);
-	let meshes: Vec<Mesh> = (0..state.instances.len())
-		.map(|i| measurement_mesh(state, env, all_ids, op_id, i, tol))
-		.collect::<Result<_, _>>()?;
+	let meshes: Vec<Mesh> =
+		(0..state.instances.len()).map(|i| measurement_mesh(state, env, all_ids, op_id, i, tol)).collect::<Result<_, _>>()?;
 	let boxes: Vec<(Vec3, Vec3)> = meshes
 		.iter()
 		.map(|m| {
@@ -905,18 +881,18 @@ pub(crate) fn save(
 				let dest = asm_parent.join(src["file"].as_str().expect("path source has a file"));
 				let from = crate::ops::meshio::resolve_input_path(op_id, out_dir, original)
 					.or_else(|_| Ok::<_, OpError>(std::path::PathBuf::from(original)))?;
-				std::fs::copy(&from, &dest)
-					.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot copy '{}' → '{}': {e}", from.display(), dest.display())))?;
+				std::fs::copy(&from, &dest).map_err(|e| {
+					err(ErrorKind::Io, format!("op '{op_id}': cannot copy '{}' → '{}': {e}", from.display(), dest.display()))
+				})?;
 			}
 		}
 	}
-	let asm_name = name.clone().unwrap_or_else(|| {
-		asm_path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "assembly".to_string())
-	});
+	let asm_name = name
+		.clone()
+		.unwrap_or_else(|| asm_path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "assembly".to_string()));
 	let text = save_assembly(&asm_name, &instances, &state.mates)
 		.map_err(|e| err(ErrorKind::InvalidParam, format!("op '{op_id}': cannot serialize assembly: {e}")))?;
-	std::fs::write(&asm_path, text)
-		.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot write '{}': {e}", asm_path.display())))?;
+	std::fs::write(&asm_path, text).map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot write '{}': {e}", asm_path.display())))?;
 	Ok(Outcome {
 		value: None,
 		measures: Some(json!({
@@ -947,9 +923,7 @@ pub(crate) fn gear_train_poses(
 		return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': module must be > 0, got {module}")));
 	}
 	let train = EpicyclicTrain { sun_teeth, ring1_teeth, planet_a_teeth, planet_b_teeth, ring2_teeth, n_planets };
-	train
-		.validate_assembly()
-		.map_err(|e| err(ErrorKind::InvalidParam, format!("op '{op_id}': train not assemblable: {e}")))?;
+	train.validate_assembly().map_err(|e| err(ErrorKind::InvalidParam, format!("op '{op_id}': train not assemblable: {e}")))?;
 	let theta = theta_deg.to_radians();
 	let poses = train.instance_poses(theta, module);
 	let angles = train.poses(theta);

@@ -15,8 +15,8 @@
 
 use kernel_brep::math::DVec3;
 use kernel_brep::{
-	coalesce_coplanar, cuboid, fillet_edge_near, tessellate_default, union, validate, volume, EdgeName, FaceName, FaceSource,
-	Solid, Surface,
+	coalesce_coplanar, cuboid, fillet_edge_near, tessellate_default, union, validate, volume, EdgeName, FaceName, FaceSource, Solid,
+	Surface,
 };
 
 #[test]
@@ -57,8 +57,7 @@ fn fragmented_planes_merge_islands_survive_and_clean_input_is_untouched() {
 			&& before > 20
 			&& merged.face_count() == 16
 			&& pad_tops == 2
-			&& v_ok
-			&& validate(&merged).is_valid()
+			&& v_ok && validate(&merged).is_valid()
 			&& tessellate_default(&merged).is_watertight(),
 		"coalesce contract: tower no-op ok={tower_ok}; plate {before} faces (want the >20 fragmentation this fix \
 		 exists for) → {} (want 16), pad-top islands {pad_tops} (want 2), vol ok={v_ok}, validity={:?}, wt={}",
@@ -115,18 +114,11 @@ fn same_name_seams(s: &Solid) -> usize {
 
 /// The plate's four VERTICAL corner edges, by persistent name: each is where
 /// two of the plate's side walls (A2/A3 = ∓Y, A4/A5 = ∓X) meet.
-const CORNER_EDGES: [(u32, u32, [f64; 3]); 4] = [
-	(2, 4, [0.0, 0.0, 2.5]),
-	(2, 5, [40.0, 0.0, 2.5]),
-	(3, 4, [0.0, 20.0, 2.5]),
-	(3, 5, [40.0, 20.0, 2.5]),
-];
+const CORNER_EDGES: [(u32, u32, [f64; 3]); 4] =
+	[(2, 4, [0.0, 0.0, 2.5]), (2, 5, [40.0, 0.0, 2.5]), (3, 4, [0.0, 20.0, 2.5]), (3, 5, [40.0, 20.0, 2.5])];
 
 fn corner_name(a: u32, b: u32) -> EdgeName {
-	EdgeName::new(
-		FaceName { operand: FaceSource::OperandA, source_face: a },
-		FaceName { operand: FaceSource::OperandA, source_face: b },
-	)
+	EdgeName::new(FaceName { operand: FaceSource::OperandA, source_face: a }, FaceName { operand: FaceSource::OperandA, source_face: b })
 }
 
 #[test]
@@ -183,15 +175,13 @@ fn provenance_survives_the_rebuild_so_witnesses_re_resolve_mid_chain() {
 	// died at `EdgeNotFound`; that is the half this closes.
 	let resolved = |s: &Solid, a: u32, b: u32, w: DVec3| -> Option<(DVec3, DVec3)> {
 		let ids = s.edges_named(corner_name(a, b));
-		let pick = ids
-			.into_iter()
-			.min_by(|&x, &y| {
-				let seg = |e: kernel_brep::EdgeId| {
-					let he = *s.half_edge(s.edge(e).half_edge);
-					(s.position(he.origin) + s.position(s.half_edge(he.next).origin)) * 0.5
-				};
-				(seg(x) - w).length().total_cmp(&(seg(y) - w).length())
-			})?;
+		let pick = ids.into_iter().min_by(|&x, &y| {
+			let seg = |e: kernel_brep::EdgeId| {
+				let he = *s.half_edge(s.edge(e).half_edge);
+				(s.position(he.origin) + s.position(s.half_edge(he.next).origin)) * 0.5
+			};
+			(seg(x) - w).length().total_cmp(&(seg(y) - w).length())
+		})?;
 		let he = *s.half_edge(s.edge(pick).half_edge);
 		let (p, q) = (s.position(he.origin), s.position(s.half_edge(he.next).origin));
 		Some((p.min(q), p.max(q)))
@@ -217,8 +207,7 @@ fn provenance_survives_the_rebuild_so_witnesses_re_resolve_mid_chain() {
 
 	assert!(
 		named_after == merged.face_count()
-			&& subset
-			&& same_face
+			&& subset && same_face
 			&& seams_pre > 20
 			&& seams_post == 0
 			&& all_same_edge

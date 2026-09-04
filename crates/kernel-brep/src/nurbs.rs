@@ -98,11 +98,7 @@ impl NurbsCurve {
 	/// Construct a curve. Returns `None` if the dimensions are inconsistent or
 	/// there are too few control points for the requested degree.
 	pub fn new(degree: usize, knots: Vec<f64>, control: Vec<DVec3>, weights: Vec<f64>) -> Option<Self> {
-		if control.is_empty()
-			|| control.len() != weights.len()
-			|| control.len() <= degree
-			|| knots.len() != control.len() + degree + 1
-		{
+		if control.is_empty() || control.len() != weights.len() || control.len() <= degree || knots.len() != control.len() + degree + 1 {
 			return None;
 		}
 		Some(Self { degree, knots, control, weights })
@@ -202,11 +198,7 @@ impl NurbsSurface {
 				return None;
 			}
 		}
-		if n_u <= degree_u
-			|| n_v <= degree_v
-			|| knots_u.len() != n_u + degree_u + 1
-			|| knots_v.len() != n_v + degree_v + 1
-		{
+		if n_u <= degree_u || n_v <= degree_v || knots_u.len() != n_u + degree_u + 1 || knots_v.len() != n_v + degree_v + 1 {
 			return None;
 		}
 		Some(Self { degree_u, degree_v, knots_u, knots_v, control, weights })
@@ -214,10 +206,7 @@ impl NurbsSurface {
 
 	/// The valid parameter domain as `((u_lo, u_hi), (v_lo, v_hi))`.
 	pub fn domain(&self) -> ((f64, f64), (f64, f64)) {
-		(
-			(self.knots_u[self.degree_u], self.knots_u[self.n_u()]),
-			(self.knots_v[self.degree_v], self.knots_v[self.n_v()]),
-		)
+		((self.knots_u[self.degree_u], self.knots_u[self.n_u()]), (self.knots_v[self.degree_v], self.knots_v[self.n_v()]))
 	}
 
 	/// Accumulate the homogeneous blend at `(u, v)`: returns `(sum N w P, sum N w)`.
@@ -492,10 +481,8 @@ mod tests {
 	fn flat_grid_is_bilinear_plane() {
 		// 2x2 control grid, degree 1 in both directions, all weights 1, on the
 		// z=0 plane with non-square spacing → point_at must match bilinear lerp.
-		let control = vec![
-			vec![DVec3::new(0.0, 0.0, 0.0), DVec3::new(0.0, 3.0, 0.0)],
-			vec![DVec3::new(2.0, 0.0, 0.0), DVec3::new(2.0, 3.0, 0.0)],
-		];
+		let control =
+			vec![vec![DVec3::new(0.0, 0.0, 0.0), DVec3::new(0.0, 3.0, 0.0)], vec![DVec3::new(2.0, 0.0, 0.0), DVec3::new(2.0, 3.0, 0.0)]];
 		let weights = vec![vec![1.0, 1.0], vec![1.0, 1.0]];
 		let knots_u = open_uniform(2, 1); // [0,0,1,1]
 		let knots_v = open_uniform(2, 1);
@@ -508,10 +495,7 @@ mod tests {
 				let bottom = control[0][0].lerp(control[1][0], su);
 				let top = control[0][1].lerp(control[1][1], su);
 				let expect = bottom.lerp(top, sv);
-				assert!(
-					(p - expect).length() < 1e-9,
-					"u {su} v {sv}: got {p:?} expected {expect:?}"
-				);
+				assert!((p - expect).length() < 1e-9, "u {su} v {sv}: got {p:?} expected {expect:?}");
 			}
 		}
 
@@ -524,12 +508,7 @@ mod tests {
 	fn single_span_cubic_matches_de_casteljau() {
 		// 4 control points, degree 3, clamped knots [0,0,0,0,1,1,1,1] → a single
 		// Bezier span. All weights 1 → must equal de Casteljau.
-		let ctrl = vec![
-			DVec3::new(0.0, 0.0, 0.0),
-			DVec3::new(1.0, 2.0, 0.0),
-			DVec3::new(3.0, 2.0, 1.0),
-			DVec3::new(4.0, 0.0, 0.0),
-		];
+		let ctrl = vec![DVec3::new(0.0, 0.0, 0.0), DVec3::new(1.0, 2.0, 0.0), DVec3::new(3.0, 2.0, 1.0), DVec3::new(4.0, 0.0, 0.0)];
 		let knots = vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
 		let curve = NurbsCurve::new(3, knots, ctrl.clone(), vec![1.0; 4]).unwrap();
 
@@ -581,10 +560,7 @@ mod tests {
 		assert_eq!(mesh.vertex_count(), (nu + 1) * (nv + 1));
 
 		// The raised interior must lift the surface above the z=0 control plane.
-		let apex = surf.point_at(
-			(surf.domain().0 .0 + surf.domain().0 .1) * 0.5,
-			(surf.domain().1 .0 + surf.domain().1 .1) * 0.5,
-		);
+		let apex = surf.point_at((surf.domain().0 .0 + surf.domain().0 .1) * 0.5, (surf.domain().1 .0 + surf.domain().1 .1) * 0.5);
 		assert!(apex.z > 0.0, "curved patch did not bulge up: {apex:?}");
 	}
 
@@ -592,11 +568,8 @@ mod tests {
 	fn degree0_partition_of_unity_at_endpoint() {
 		// Regression guard: the degree-0 basis must sum to exactly 1 everywhere,
 		// INCLUDING the top knot (previously it over-fired to the span count).
-		for knots in [
-			vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0],
-			vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0],
-			vec![0.0, 1.0, 2.0, 3.0, 4.0],
-		] {
+		for knots in [vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], vec![0.0, 1.0, 2.0, 3.0, 4.0]]
+		{
 			let n_basis = knots.len() - 1;
 			let last = *knots.last().unwrap();
 			for &t in &[knots[0], last * 0.5, last] {

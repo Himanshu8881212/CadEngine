@@ -7,8 +7,8 @@
 use kernel_core::math::{DVec2, DVec3};
 
 use crate::geom::Surface;
-use crate::topo::FaceLoops;
 use crate::nurbs::FreeformFace;
+use crate::topo::FaceLoops;
 
 use super::edges::pos_key;
 use super::face::FaceAccum;
@@ -135,16 +135,11 @@ pub(super) fn add_patch_face(
 		// whole periods away from the outer ring's cover window: translate them onto
 		// it (mean-coordinate difference, rounded to whole periods). A hole that
 		// still falls outside the outer loop fails the ear clip loudly below.
-		let mean = |ring: &[usize], uv: &[DVec2]| {
-			ring.iter().map(|&i| uv[i]).fold(DVec2::ZERO, |a, q| a + q) / ring.len() as f64
-		};
+		let mean = |ring: &[usize], uv: &[DVec2]| ring.iter().map(|&i| uv[i]).fold(DVec2::ZERO, |a, q| a + q) / ring.len() as f64;
 		let outer_mean = mean(&rings[0], &uv);
 		for ring in rings.iter().skip(1) {
 			let d = outer_mean - mean(ring, &uv);
-			let shift = DVec2::new(
-				if closed_u { d.x.round() } else { 0.0 },
-				if closed_v { d.y.round() } else { 0.0 },
-			);
+			let shift = DVec2::new(if closed_u { d.x.round() } else { 0.0 }, if closed_v { d.y.round() } else { 0.0 });
 			if shift != DVec2::ZERO {
 				for &i in ring {
 					uv[i] += shift;
@@ -161,13 +156,15 @@ pub(super) fn add_patch_face(
 	let monotone = (rings.len() == 1).then(|| {
 		let ring = &rings[0];
 		let ring_uv: Vec<DVec2> = ring.iter().map(|&i| uv[i]).collect();
-		triangulate_monotone(&ring_uv).or_else(|_| triangulate_earclip(&ring_uv))
+		triangulate_monotone(&ring_uv)
+			.or_else(|_| triangulate_earclip(&ring_uv))
 			.map(|ts| ts.into_iter().map(|t| [ring[t[0]], ring[t[1]], ring[t[2]]]).collect::<Vec<_>>())
 			.or_else(|_| {
 				// Swap the sweep axis: a v-monotone loop is u-monotone in the
 				// transposed plane; transposition mirrors the winding, so swap it back.
 				let swapped: Vec<DVec2> = ring_uv.iter().map(|q| DVec2::new(q.y, q.x)).collect();
-				triangulate_monotone(&swapped).or_else(|_| triangulate_earclip(&swapped))
+				triangulate_monotone(&swapped)
+					.or_else(|_| triangulate_earclip(&swapped))
 					.map(|ts| ts.into_iter().map(|t| [ring[t[0]], ring[t[2]], ring[t[1]]]).collect::<Vec<_>>())
 			})
 	});

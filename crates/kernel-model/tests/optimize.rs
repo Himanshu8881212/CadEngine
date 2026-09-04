@@ -22,9 +22,7 @@
 use kernel_brep::math::DVec3;
 use kernel_brep::{cuboid, exact_volume, section_properties, union, Solid};
 use kernel_model::materials::PLA_G_PER_MM3;
-use kernel_model::optimize::{
-	gate_study, Constraint, DesignVar, Evaluation, Params, SearchOptions, Strategy, Study, StudyError,
-};
+use kernel_model::optimize::{gate_study, Constraint, DesignVar, Evaluation, Params, SearchOptions, Strategy, Study, StudyError};
 use std::collections::BTreeMap;
 
 /// `[("x", 1.0), ("y", 2.0)]` → [`Params`].
@@ -47,18 +45,13 @@ fn known_optimum_found_by_sweep_and_by_local_search_with_measured_costs() {
 	// Declaration: x, y ∈ [0, 5] continuous, swept at 21 levels each — the
 	// lattice step is exactly 5/20 = 0.25, so the analytic minimum (2, 3) is a
 	// sampled point and the sweep can hit it EXACTLY.
-	let study = Study::new(bowl)
-		.var(DesignVar::continuous("x", 0.0, 5.0))
-		.var(DesignVar::continuous("y", 0.0, 5.0))
-		.grid_levels(21)
-		.minimize("f");
+	let study =
+		Study::new(bowl).var(DesignVar::continuous("x", 0.0, 5.0)).var(DesignVar::continuous("y", 0.0, 5.0)).grid_levels(21).minimize("f");
 
 	let grid = study.full_factorial().expect("grid runs");
 	let grid_best = grid.best("f").expect("the unconstrained bowl has a feasible optimum");
 	assert!(
-		grid.evaluation_count() == 441
-			&& grid.strategy == Strategy::FullFactorial
-			&& grid.stop_reason == "exhaustive",
+		grid.evaluation_count() == 441 && grid.strategy == Strategy::FullFactorial && grid.stop_reason == "exhaustive",
 		"the exhaustive sweep must cost exactly 21×21 = 441 evaluations: got {} ({:?}, stop={})",
 		grid.evaluation_count(),
 		grid.strategy,
@@ -78,8 +71,7 @@ fn known_optimum_found_by_sweep_and_by_local_search_with_measured_costs() {
 	let opts = SearchOptions { max_evaluations: 400, step_tolerance: 1e-4, ..SearchOptions::default() };
 	let local = study.pattern_search(&params(&[("x", 0.0), ("y", 0.0)]), opts).expect("pattern search runs");
 	let local_best = local.best("f").expect("local search finds a feasible optimum");
-	let (dx, dy, df) =
-		((local_best.params["x"] - 2.0).abs(), (local_best.params["y"] - 3.0).abs(), (local_best.value - 1.0).abs());
+	let (dx, dy, df) = ((local_best.params["x"] - 2.0).abs(), (local_best.params["y"] - 3.0).abs(), (local_best.value - 1.0).abs());
 	assert!(
 		dx < 1e-3 && dy < 1e-3 && df < 1e-6,
 		"pattern search must reach the analytic minimum within the stated tolerance (|Δx|,|Δy| < 1e-3, |Δf| < 1e-6 \
@@ -184,9 +176,7 @@ fn constrained_optimum_sits_on_the_boundary_and_infeasible_points_are_kept() {
 	// 1e-4, i.e. 0.012%). What is asserted is what is true: feasible, on the
 	// boundary, and NEVER better than the exhaustive answer — a local search
 	// that beat the exhaustive optimum would mean the harness is lying.
-	let local = study
-		.pattern_search(&params(&[("x", 0.0), ("y", 0.0)]), SearchOptions::default())
-		.expect("pattern search runs");
+	let local = study.pattern_search(&params(&[("x", 0.0), ("y", 0.0)]), SearchOptions::default()).expect("pattern search runs");
 	let local_best = local.best("f").expect("local search stays feasible");
 	let local_sum = local_best.constraints["sum"];
 	assert!(
@@ -389,9 +379,8 @@ fn impure_evaluator_is_caught_by_the_honest_re_evaluation() {
 	// POSITIVE CONTROL — the same shape with a pure evaluator returns a best
 	// design whose re-evaluated value is bit-identical to the recorded one, so
 	// the gate above is proving a real net, not an always-on refusal.
-	let pure = Study::new(|p: &Params| Evaluation::new().objective("f", p["x"] * 3.0))
-		.var(DesignVar::stepped("x", 1.0, 1.0, 1.0))
-		.minimize("f");
+	let pure =
+		Study::new(|p: &Params| Evaluation::new().objective("f", p["x"] * 3.0)).var(DesignVar::stepped("x", 1.0, 1.0, 1.0)).minimize("f");
 	let best = pure.full_factorial().expect("runs").best("f").expect("a pure evaluator re-evaluates cleanly");
 	assert!(
 		best.value == 3.0 && best.value.to_bits() == best.recorded_value.to_bits() && best.evaluator_calls == 2,
@@ -481,10 +470,8 @@ fn ribbed_plate(t: f64, ribs: usize) -> Solid {
 	let mut s = cuboid(DVec3::ZERO, DVec3::new(PLATE_L, PLATE_W, t));
 	for i in 0..ribs {
 		let c = PLATE_W * (i + 1) as f64 / (ribs + 1) as f64;
-		let rib = cuboid(
-			DVec3::new(RIB_INSET, c - 0.5 * RIB_W, t - RIB_EMBED),
-			DVec3::new(PLATE_L - RIB_INSET, c + 0.5 * RIB_W, t + RIB_H),
-		);
+		let rib =
+			cuboid(DVec3::new(RIB_INSET, c - 0.5 * RIB_W, t - RIB_EMBED), DVec3::new(PLATE_L - RIB_INSET, c + 0.5 * RIB_W, t + RIB_H));
 		s = union(&s, &rib);
 	}
 	s
@@ -512,8 +499,7 @@ fn measure_plate(p: &Params) -> Evaluation {
 	let ribs = p["ribs"].round() as usize;
 	let solid = ribbed_plate(t, ribs);
 	let mass_g = exact_volume(&solid) * PLA_G_PER_MM3;
-	let sp = section_properties(&solid, DVec3::new(0.5 * PLATE_L, 0.0, 0.0), DVec3::X)
-		.expect("the mid-span plane cuts the plate");
+	let sp = section_properties(&solid, DVec3::new(0.5 * PLATE_L, 0.0, 0.0), DVec3::X).expect("the mid-span plane cuts the plate");
 	// The section basis is chosen by the kernel; take the moment about the
 	// horizontal axis, i.e. the one measured along whichever in-plane axis is
 	// the vertical (Z) one.
@@ -563,10 +549,7 @@ fn real_geometry_study_picks_the_stiffest_plate_under_a_mass_budget() {
 	// vertices (docs/NUMERICS.md f32/f64 split ⇒ ~1e-7 relative per coordinate);
 	// mass comes from the f64 exact volume and is pinned to 1e-9 g.
 	assert!(
-		(best.value - analytic).abs() / analytic < 1e-5
-			&& (mass - mass_analytic).abs() < 1e-9
-			&& mass <= 10.0
-			&& best.violation == 0.0,
+		(best.value - analytic).abs() / analytic < 1e-5 && (mass - mass_analytic).abs() < 1e-9 && mass <= 10.0 && best.violation == 0.0,
 		"the measured optimum must match the composite-section hand calc and the exact volume: I = {:.6} mm⁴ vs \
 		 analytic {analytic:.6} (Δ{:.3e} relative, band 1e-5), mass = {mass:.6} g vs analytic {mass_analytic:.6} g, \
 		 budget 10 g, violation {}",
@@ -634,10 +617,7 @@ fn unusable_declarations_and_queries_refuse_with_reasons() {
 		(Study::new(ev).minimize("f"), "no design variables declared"),
 		(Study::new(ev).var(DesignVar::continuous("x", 0.0, 1.0)), "no objectives declared"),
 		(
-			Study::new(ev)
-				.var(DesignVar::continuous("x", 0.0, 1.0))
-				.var(DesignVar::continuous("x", 0.0, 1.0))
-				.minimize("f"),
+			Study::new(ev).var(DesignVar::continuous("x", 0.0, 1.0)).var(DesignVar::continuous("x", 0.0, 1.0)).minimize("f"),
 			"duplicate design variable 'x'",
 		),
 		(Study::new(ev).var(DesignVar::continuous("x", 2.0, 1.0)).minimize("f"), "has max 1 below min 2"),
@@ -655,10 +635,7 @@ fn unusable_declarations_and_queries_refuse_with_reasons() {
 		.minimize("f")
 		.evaluation_cap(10_000);
 	let text = huge.full_factorial().expect_err("must refuse").to_string();
-	assert!(
-		text.contains("1002001 evaluations, above the cap of 10000"),
-		"the sweep must state its cost when refusing, got: {text}"
-	);
+	assert!(text.contains("1002001 evaluations, above the cap of 10000"), "the sweep must state its cost when refusing, got: {text}");
 
 	// An out-of-bounds start, an unknown objective, and an evaluator that
 	// forgets a declared name each refuse by name.
@@ -669,18 +646,14 @@ fn unusable_declarations_and_queries_refuse_with_reasons() {
 	let text = report.best("nope").expect_err("must refuse").to_string();
 	assert!(text.contains("no objective 'nope' in this study — declared: f"), "unknown-objective refusal, got: {text}");
 
-	let forgetful = Study::new(|_: &Params| Evaluation::new().objective("g", 1.0))
-		.var(DesignVar::continuous("x", 0.0, 1.0))
-		.minimize("f");
+	let forgetful = Study::new(|_: &Params| Evaluation::new().objective("g", 1.0)).var(DesignVar::continuous("x", 0.0, 1.0)).minimize("f");
 	let text = forgetful.full_factorial().expect_err("must refuse").to_string();
 	assert!(
 		text.contains("evaluator returned no objective 'f'") && text.contains("it returned: g"),
 		"missing-value refusal must name what was and was not returned, got: {text}"
 	);
 
-	let nan = Study::new(|_: &Params| Evaluation::new().objective("f", f64::NAN))
-		.var(DesignVar::continuous("x", 0.0, 1.0))
-		.minimize("f");
+	let nan = Study::new(|_: &Params| Evaluation::new().objective("f", f64::NAN)).var(DesignVar::continuous("x", 0.0, 1.0)).minimize("f");
 	let text = nan.full_factorial().expect_err("must refuse").to_string();
 	assert!(text.contains("non-finite objective 'f' = NaN"), "NaN refusal, got: {text}");
 }
@@ -709,10 +682,7 @@ fn design_variable_lattice_and_snapping_are_exact() {
 	// Below/above the 1.8 midpoint the snap must fall to 1.6 / rise to 2.0, and
 	// out-of-range values clamp to the declared ends.
 	let snapped: Vec<f64> = [-1.0, 1.79, 1.81, 9.0].iter().map(|&x| v.snap(x)).collect();
-	assert!(
-		snapped == vec![1.6, 1.6, 2.0, 3.2],
-		"snap must clamp into [min, max] and land on the nearest lattice point: {snapped:?}"
-	);
+	assert!(snapped == vec![1.6, 1.6, 2.0, 3.2], "snap must clamp into [min, max] and land on the nearest lattice point: {snapped:?}");
 	let dup: BTreeMap<u64, ()> = cl.iter().map(|x| (x.to_bits(), ())).collect();
 	assert!(dup.len() == cl.len(), "sweep levels must be distinct bit patterns: {} of {}", dup.len(), cl.len());
 }

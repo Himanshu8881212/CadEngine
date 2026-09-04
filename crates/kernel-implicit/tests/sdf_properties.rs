@@ -6,9 +6,9 @@
 //! This independently validates both the distance magnitude and the sign /
 //! normal direction of every analytic primitive.
 
-use kernel_implicit::{Capsule, Cone, Cuboid, Cylinder, Sphere, Torus};
 use kernel_core::math::Vec3;
 use kernel_core::sdf::Sdf;
+use kernel_implicit::{Capsule, Cone, Cuboid, Cylinder, Sphere, Torus};
 
 const TOL: f32 = 1e-3;
 const OFFSET: f32 = 0.05;
@@ -54,10 +54,7 @@ fn cuboid_faces() {
 				for j in 0..5 {
 					let fu = (i as f32 / 4.0 - 0.5) * 1.6; // stay inside the face
 					let fv = (j as f32 / 4.0 - 0.5) * 1.6;
-					let p = c.center
-						+ axis * (s * c.half.dot(axis))
-						+ u * (fu * c.half.dot(u))
-						+ v * (fv * c.half.dot(v));
+					let p = c.center + axis * (s * c.half.dot(axis)) + u * (fu * c.half.dot(u)) + v * (fv * c.half.dot(v));
 					check_surface_point(&c, p, axis * s, "cuboid");
 				}
 			}

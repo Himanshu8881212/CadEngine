@@ -175,11 +175,7 @@ impl Solid {
 			for (li, lid) in std::iter::once(face.outer).chain(face.inner.iter().copied()).enumerate() {
 				// Loop vertex ids, mapped through the weld and stripped of the
 				// consecutive (and wrap-around) duplicates the weld created.
-				let mut ids: Vec<u32> = self
-					.loop_half_edges(lid)
-					.into_iter()
-					.map(|he| rep[self.half_edge(he).origin.0 as usize])
-					.collect();
+				let mut ids: Vec<u32> = self.loop_half_edges(lid).into_iter().map(|he| rep[self.half_edge(he).origin.0 as usize]).collect();
 				ids.dedup();
 				while ids.len() > 1 && ids.first() == ids.last() {
 					ids.pop();
@@ -334,19 +330,12 @@ mod tests {
 			let poly = s.face_polygon(f);
 			let base = positions.len() as u32;
 			for p in &poly {
-				let dir = DVec3::new(
-					rng.next_f64() * 2.0 - 1.0,
-					rng.next_f64() * 2.0 - 1.0,
-					rng.next_f64() * 2.0 - 1.0,
-				)
-				.normalize_or_zero();
+				let dir =
+					DVec3::new(rng.next_f64() * 2.0 - 1.0, rng.next_f64() * 2.0 - 1.0, rng.next_f64() * 2.0 - 1.0).normalize_or_zero();
 				let mag = lo + (hi - lo) * rng.next_f64();
 				positions.push(*p + dir * mag);
 			}
-			faces.push(FaceInput {
-				boundary: (base..base + poly.len() as u32).collect(),
-				surface: s.face(f).surface,
-			});
+			faces.push(FaceInput { boundary: (base..base + poly.len() as u32).collect(), surface: s.face(f).surface });
 		}
 		Solid::from_faces(positions, faces)
 	}
@@ -421,9 +410,7 @@ mod tests {
 				s.face_count(),
 				s.edge_count(),
 				volume(s).to_bits(),
-				(0..s.vertex_count() as u32)
-					.map(|i| s.position(crate::topo::VertexId(i)).to_array().map(f64::to_bits))
-					.collect::<Vec<_>>(),
+				(0..s.vertex_count() as u32).map(|i| s.position(crate::topo::VertexId(i)).to_array().map(f64::to_bits)).collect::<Vec<_>>(),
 			)
 		};
 		assert!(
@@ -552,10 +539,7 @@ mod tests {
 			p(5.0, 1.0, 0.0),
 		];
 		let plane = crate::geom::Surface::Plane { origin: DVec3::ZERO, normal: DVec3::Z };
-		let faces = vec![
-			FaceInput { boundary: vec![0, 1, 2], surface: plane },
-			FaceInput { boundary: vec![3, 4, 5, 6], surface: plane },
-		];
+		let faces = vec![FaceInput { boundary: vec![0, 1, 2], surface: plane }, FaceInput { boundary: vec![3, 4, 5, 6], surface: plane }];
 		let s = Solid::from_faces(positions, faces);
 		let (healed, r) = s.heal_tolerant(1e-3);
 		assert!(

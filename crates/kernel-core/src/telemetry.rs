@@ -93,20 +93,14 @@ pub fn log_friction(source: &str, payload_json: &str) {
 /// "parent directory named `deps`" separates the two without any env-var
 /// contract (`CARGO_*` vars are compile-time, not reliably in the runtime env).
 fn is_test_binary() -> bool {
-	std::env::current_exe()
-		.ok()
-		.and_then(|p| p.parent().and_then(|d| d.file_name()).map(|n| n == "deps"))
-		.unwrap_or(false)
+	std::env::current_exe().ok().and_then(|p| p.parent().and_then(|d| d.file_name()).map(|n| n == "deps")).unwrap_or(false)
 }
 
 /// Build one JSONL line: unix-seconds timestamp, the tag field, then the
 /// caller's payload fields spliced in (an empty payload yields a well-formed
 /// two-field object rather than a trailing comma).
 fn line(tag: &str, value: &str, payload_json: &str) -> String {
-	let t = std::time::SystemTime::now()
-		.duration_since(std::time::UNIX_EPOCH)
-		.map(|d| d.as_secs())
-		.unwrap_or(0);
+	let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
 	if payload_json.is_empty() {
 		format!("{{\"t\":{t},\"{tag}\":\"{value}\"}}")
 	} else {
@@ -175,8 +169,7 @@ mod tests {
 		assert!(
 			silent_while_disabled
 				&& suppressed_in_tests
-				&& enabled()
-				&& friction_line.starts_with("{\"t\":")
+				&& enabled() && friction_line.starts_with("{\"t\":")
 				&& friction_line.contains("\"source\":\"test_refusal\",\"label\":\"probe\"")
 				&& friction_line.ends_with("}\n")
 				&& event_line.starts_with("{\"t\":")

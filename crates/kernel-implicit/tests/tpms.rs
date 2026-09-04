@@ -2,9 +2,7 @@
 //! (one labyrinth = half space, by symmetry), stay ≤ 1-Lipschitz (the narrow-band
 //! contract), and mesh to a CLOSED surface when bounded by a shroud.
 
-use kernel_implicit::{
-	check_mesh, manifold_dual_contour, Aabb, Cuboid, Node, Resolution, Sdf, Tpms, TpmsKind, Vec3,
-};
+use kernel_implicit::{check_mesh, manifold_dual_contour, Aabb, Cuboid, Node, Resolution, Sdf, Tpms, TpmsKind, Vec3};
 
 #[test]
 fn tpms_networks_half_dense_one_lipschitz_and_mesh_closed() {
@@ -16,14 +14,7 @@ fn tpms_networks_half_dense_one_lipschitz_and_mesh_closed() {
 
 	let mut report = String::new();
 	let mut all_ok = true;
-	for kind in [
-		TpmsKind::Gyroid,
-		TpmsKind::SchwarzP,
-		TpmsKind::Diamond,
-		TpmsKind::Neovius,
-		TpmsKind::SchoenIwp,
-		TpmsKind::FischerKochS,
-	] {
+	for kind in [TpmsKind::Gyroid, TpmsKind::SchwarzP, TpmsKind::Diamond, TpmsKind::Neovius, TpmsKind::SchoenIwp, TpmsKind::FischerKochS] {
 		let net = Tpms::network(region, kind, 8.0, 0.0);
 
 		// (1) one labyrinth ≈ 50% solid; (2) finite-difference gradient ≤ 1 (Lipschitz).
@@ -60,8 +51,5 @@ fn tpms_networks_half_dense_one_lipschitz_and_mesh_closed() {
 		);
 	}
 
-	assert!(
-		all_ok,
-		"TPMS network primitives must be ~50% solid at level 0, ≤1-Lipschitz, and mesh closed:{report}"
-	);
+	assert!(all_ok, "TPMS network primitives must be ~50% solid at level 0, ≤1-Lipschitz, and mesh closed:{report}");
 }

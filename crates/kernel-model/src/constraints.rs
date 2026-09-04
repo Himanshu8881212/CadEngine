@@ -392,9 +392,8 @@ impl ConstraintSystem {
 			}
 			if !matches!(c, Constraint::Fixed { .. }) {
 				if ia == ib {
-					problems.push(format!(
-						"mate {k} ({kind}): references instance {ia} on both sides — a self-mate can never move anything"
-					));
+					problems
+						.push(format!("mate {k} ({kind}): references instance {ia} on both sides — a self-mate can never move anything"));
 				} else if grounded[ia] && grounded[ib] {
 					problems.push(format!(
 						"mate {k} ({kind}): both instances ({ia}, {ib}) are grounded — the solver cannot act on it; it is only ever satisfied if the fixed poses already satisfy it"
@@ -402,9 +401,7 @@ impl ConstraintSystem {
 				}
 			}
 			match *c {
-				Constraint::Parallel { a_dir, b_dir, .. } | Constraint::Angle { a_dir, b_dir, .. }
-					if zeroish(a_dir) || zeroish(b_dir) =>
-				{
+				Constraint::Parallel { a_dir, b_dir, .. } | Constraint::Angle { a_dir, b_dir, .. } if zeroish(a_dir) || zeroish(b_dir) => {
 					problems.push(format!("mate {k} ({kind}): zero-length direction — it can never align anything"));
 				}
 				Constraint::Concentric { a_axis_dir, b_axis_dir, .. } | Constraint::AxisDistance { a_axis_dir, b_axis_dir, .. }
@@ -493,11 +490,7 @@ impl ConstraintSystem {
 			rank,
 			free_dof,
 			redundant_rows: rows.saturating_sub(rank),
-			verdict: if free_dof > 0 {
-				format!("under_constrained ({free_dof} free DOF)")
-			} else {
-				"well_constrained".to_string()
-			},
+			verdict: if free_dof > 0 { format!("under_constrained ({free_dof} free DOF)") } else { "well_constrained".to_string() },
 		}
 	}
 }
@@ -553,9 +546,7 @@ fn row_eval(base: &[DAffine3], c: &Constraint, n: usize) -> Option<RowEval> {
 		}),
 		Constraint::Distance { a, a_point, b, b_point, distance } => Some(RowEval {
 			dim: 1,
-			f: Box::new(move |p| {
-				vec![(p[a].transform_point3(a_point) - p[b].transform_point3(b_point)).length() - distance.max(0.0)]
-			}),
+			f: Box::new(move |p| vec![(p[a].transform_point3(a_point) - p[b].transform_point3(b_point)).length() - distance.max(0.0)]),
 		}),
 		Constraint::Parallel { a, a_dir, b, b_dir } => {
 			let da0 = base[a].transform_vector3(a_dir).normalize_or_zero();
@@ -759,13 +750,7 @@ fn apply_constraint(poses: &[DAffine3], c: &Constraint, grounded: &[bool], acc_t
 			let db = poses[ib].transform_vector3(b_dir).normalize_or_zero();
 			distribute_alignment(acc_r, cnt, ia, a_free, ib, b_free, da, db);
 		}
-		Constraint::Concentric {
-			a_axis_point,
-			a_axis_dir,
-			b_axis_point,
-			b_axis_dir,
-			..
-		} => {
+		Constraint::Concentric { a_axis_point, a_axis_dir, b_axis_point, b_axis_dir, .. } => {
 			// 1) Align the axis directions (rotational part).
 			let da = poses[ia].transform_vector3(a_axis_dir).normalize_or_zero();
 			let db = poses[ib].transform_vector3(b_axis_dir).normalize_or_zero();
@@ -1005,8 +990,8 @@ mod tests {
 		// the reported residual must be order-independent.
 		let r1 = two_targets(10.0, -10.0).solve(300);
 		let r2 = two_targets(-10.0, 10.0).solve(300); // swapped constraint order
-		// Jacobi averaging reaches the EXACT least-squares minimum (midpoint, residual
-		// 200), not the old last-wins 400, and is independent of constraint order.
+												// Jacobi averaging reaches the EXACT least-squares minimum (midpoint, residual
+												// 200), not the old last-wins 400, and is independent of constraint order.
 		assert!((r1 - 200.0).abs() < 0.5, "over-constrained residual {r1} should be the 200 least-squares minimum");
 		assert!((r1 - r2).abs() < 1e-6, "reported residual must be order-independent: {r1} vs {r2}");
 	}
@@ -1018,22 +1003,14 @@ mod tests {
 		let t1 = Affine3A::from_translation(Vec3::new(10.0, 0.0, 0.0));
 		let mut sys = ConstraintSystem::new(vec![t0, t1], vec![]);
 		// Local point (2,0,0) on the ground should meet local point (-3,0,0) on inst 1.
-		sys.add_constraint(Constraint::Coincident {
-			a: 0,
-			a_point: DVec3::new(2.0, 0.0, 0.0),
-			b: 1,
-			b_point: DVec3::new(-3.0, 0.0, 0.0),
-		});
+		sys.add_constraint(Constraint::Coincident { a: 0, a_point: DVec3::new(2.0, 0.0, 0.0), b: 1, b_point: DVec3::new(-3.0, 0.0, 0.0) });
 
 		let residual = sys.solve(64);
 
 		let p = &sys.transforms()[1];
 		let wa = DVec3::new(2.0, 0.0, 0.0); // ground point in world
 		let wb = to_daffine3(p).transform_point3(DVec3::new(-3.0, 0.0, 0.0));
-		assert!(
-			(wa - wb).length() < 1e-4 && residual < 1e-8,
-			"coincident points should meet: wa={wa:?} wb={wb:?} residual={residual}"
-		);
+		assert!((wa - wb).length() < 1e-4 && residual < 1e-8, "coincident points should meet: wa={wa:?} wb={wb:?} residual={residual}");
 	}
 
 	#[test]
@@ -1042,23 +1019,13 @@ mod tests {
 		let t1 = Affine3A::from_translation(Vec3::new(1.0, 0.0, 0.0));
 		let mut sys = ConstraintSystem::new(vec![t0, t1], vec![]);
 		let target = 7.5;
-		sys.add_constraint(Constraint::Distance {
-			a: 0,
-			a_point: DVec3::ZERO,
-			b: 1,
-			b_point: DVec3::ZERO,
-			distance: target,
-		});
+		sys.add_constraint(Constraint::Distance { a: 0, a_point: DVec3::ZERO, b: 1, b_point: DVec3::ZERO, distance: target });
 
 		sys.solve(64);
 
 		let wa = DVec3::ZERO;
 		let wb = to_daffine3(&sys.transforms()[1]).transform_point3(DVec3::ZERO);
-		assert!(
-			((wa - wb).length() - target).abs() < 1e-4,
-			"points should be {target} apart, got {}",
-			(wa - wb).length()
-		);
+		assert!(((wa - wb).length() - target).abs() < 1e-4, "points should be {target} apart, got {}", (wa - wb).length());
 	}
 
 	#[test]
@@ -1067,27 +1034,15 @@ mod tests {
 		// points along world +y. After solving its local +x must be parallel to
 		// the ground's local +x.
 		let t0 = identity();
-		let t1 = Affine3A::from_rotation_translation(
-			Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
-			Vec3::new(0.0, 0.0, 0.0),
-		);
+		let t1 = Affine3A::from_rotation_translation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2), Vec3::new(0.0, 0.0, 0.0));
 		let mut sys = ConstraintSystem::new(vec![t0, t1], vec![]);
-		sys.add_constraint(Constraint::Parallel {
-			a: 0,
-			a_dir: DVec3::X,
-			b: 1,
-			b_dir: DVec3::X,
-		});
+		sys.add_constraint(Constraint::Parallel { a: 0, a_dir: DVec3::X, b: 1, b_dir: DVec3::X });
 
 		sys.solve(64);
 
 		let da = DVec3::X; // ground dir in world
 		let db = to_daffine3(&sys.transforms()[1]).transform_vector3(DVec3::X).normalize_or_zero();
-		assert!(
-			da.cross(db).length() < 1e-4,
-			"directions should be parallel, cross={:?}",
-			da.cross(db)
-		);
+		assert!(da.cross(db).length() < 1e-4, "directions should be parallel, cross={:?}", da.cross(db));
 	}
 
 	#[test]
@@ -1095,10 +1050,7 @@ mod tests {
 		// Ground axis is the world z-axis through the origin. Instance 1's axis is
 		// its local z, but it starts rotated (local z along world x) and offset.
 		let t0 = identity();
-		let t1 = Affine3A::from_rotation_translation(
-			Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
-			Vec3::new(5.0, 4.0, 9.0),
-		);
+		let t1 = Affine3A::from_rotation_translation(Quat::from_rotation_y(std::f32::consts::FRAC_PI_2), Vec3::new(5.0, 4.0, 9.0));
 		let mut sys = ConstraintSystem::new(vec![t0, t1], vec![]);
 		sys.add_constraint(Constraint::Concentric {
 			a: 0,
@@ -1129,20 +1081,12 @@ mod tests {
 		let t0 = Affine3A::from_translation(Vec3::new(1.0, 2.0, 3.0));
 		let t1 = Affine3A::from_translation(Vec3::new(20.0, 0.0, 0.0));
 		let mut sys = ConstraintSystem::new(vec![t0, t1], vec![]);
-		sys.add_constraint(Constraint::Coincident {
-			a: 0,
-			a_point: DVec3::ZERO,
-			b: 1,
-			b_point: DVec3::ZERO,
-		});
+		sys.add_constraint(Constraint::Coincident { a: 0, a_point: DVec3::ZERO, b: 1, b_point: DVec3::ZERO });
 
 		sys.solve(32);
 
 		let g = sys.transforms()[0].translation;
-		assert!(
-			(g.as_dvec3() - DVec3::new(1.0, 2.0, 3.0)).length() < 1e-5,
-			"ground (instance 0) must stay fixed, got {g:?}"
-		);
+		assert!((g.as_dvec3() - DVec3::new(1.0, 2.0, 3.0)).length() < 1e-5, "ground (instance 0) must stay fixed, got {g:?}");
 	}
 
 	#[test]
@@ -1153,21 +1097,13 @@ mod tests {
 		let t1 = Affine3A::from_translation(Vec3::new(-6.0, 0.0, 0.0));
 		let t2 = Affine3A::from_translation(Vec3::new(6.0, 0.0, 0.0));
 		let mut sys = ConstraintSystem::new(vec![t0, t1, t2], vec![]);
-		sys.add_constraint(Constraint::Coincident {
-			a: 1,
-			a_point: DVec3::ZERO,
-			b: 2,
-			b_point: DVec3::ZERO,
-		});
+		sys.add_constraint(Constraint::Coincident { a: 1, a_point: DVec3::ZERO, b: 2, b_point: DVec3::ZERO });
 
 		let residual = sys.solve(128);
 
 		let w1 = to_daffine3(&sys.transforms()[1]).transform_point3(DVec3::ZERO);
 		let w2 = to_daffine3(&sys.transforms()[2]).transform_point3(DVec3::ZERO);
-		assert!(
-			(w1 - w2).length() < 1e-4 && residual < 1e-8,
-			"both-free coincident should meet in the middle: w1={w1:?} w2={w2:?}"
-		);
+		assert!((w1 - w2).length() < 1e-4 && residual < 1e-8, "both-free coincident should meet in the middle: w1={w1:?} w2={w2:?}");
 	}
 
 	#[test]
@@ -1214,10 +1150,7 @@ mod tests {
 	fn axis_distance_mate_places_parallel_axes_at_center_distance() {
 		// The gear mate: a free shaft seeded tilted and misplaced must end
 		// parallel to the ground z-axis at EXACTLY the 20 mm center distance.
-		let seed = Affine3A::from_rotation_translation(
-			Quat::from_axis_angle(Vec3::new(1.0, 0.0, 0.0), 0.5),
-			Vec3::new(31.0, 44.0, 7.0),
-		);
+		let seed = Affine3A::from_rotation_translation(Quat::from_axis_angle(Vec3::new(1.0, 0.0, 0.0), 0.5), Vec3::new(31.0, 44.0, 7.0));
 		let mut sys = ConstraintSystem::new(vec![identity(), seed], vec![]);
 		sys.add_constraint(Constraint::AxisDistance {
 			a: 0,
@@ -1384,9 +1317,8 @@ mod tests {
 		// the solver never crosses between). Each run must descend within its
 		// own basin and the two settled bodies must differ as WORLD orientations.
 		let (b1, a1, dir1) = solve_from(Quat::from_axis_angle(Vec3::new(1.0, 0.4, 0.2).normalize(), 0.5));
-		let (b2, a2, dir2) = solve_from(
-			Quat::from_axis_angle(Vec3::new(0.0, 0.0, 1.0), 2.9) * Quat::from_axis_angle(Vec3::new(1.0, 0.0, 0.0), 0.4),
-		);
+		let (b2, a2, dir2) =
+			solve_from(Quat::from_axis_angle(Vec3::new(0.0, 0.0, 1.0), 2.9) * Quat::from_axis_angle(Vec3::new(1.0, 0.0, 0.0), 0.4));
 		let spread = dir1.dot(dir2).clamp(-1.0, 1.0).acos().to_degrees();
 		let band = a1.max(a2) / a1.min(a2).max(1e-12);
 		assert!(

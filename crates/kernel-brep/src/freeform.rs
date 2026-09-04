@@ -270,10 +270,7 @@ fn sweep_sections(profile: &[DVec3], path: &[DVec3]) -> Option<Vec<Vec<DVec3>>> 
 	let mut sections: Vec<Vec<DVec3>> = Vec::with_capacity(path.len());
 	for (k, &origin) in path.iter().enumerate() {
 		let (t, e1, e2) = frames[k];
-		let section: Vec<DVec3> = local
-			.iter()
-			.map(|&(a, b, c)| origin + e1 * a + e2 * b + t * c)
-			.collect();
+		let section: Vec<DVec3> = local.iter().map(|&(a, b, c)| origin + e1 * a + e2 * b + t * c).collect();
 		sections.push(section);
 	}
 
@@ -410,9 +407,7 @@ pub struct FreeformSolid {
 pub fn freeform_plate(surf: &NurbsSurface, base_z: f64, nu: usize, nv: usize) -> Option<FreeformSolid> {
 	let (nu, nv) = (nu.max(2), nv.max(2));
 	let ((u0, u1), (v0, v1)) = surf.domain();
-	let at = |i: usize, j: usize| {
-		surf.point_at(u0 + (u1 - u0) * i as f64 / nu as f64, v0 + (v1 - v0) * j as f64 / nv as f64)
-	};
+	let at = |i: usize, j: usize| surf.point_at(u0 + (u1 - u0) * i as f64 / nu as f64, v0 + (v1 - v0) * j as f64 / nv as f64);
 
 	// Top grid, exactly on the patch.
 	let mut grid: Vec<Vec<DVec3>> = Vec::with_capacity(nu + 1);
@@ -480,11 +475,7 @@ pub fn freeform_plate(surf: &NurbsSurface, base_z: f64, nu: usize, nv: usize) ->
 	// from the EXACT f64 patch samples, not the f32 mesh positions — a plan
 	// outline's long straight runs are exactly the place where f32 wobble
 	// masquerades as reflex geometry.
-	let poly: Vec<DVec2> = ring_ij
-		.iter()
-		.rev()
-		.map(|&(i, j)| DVec2::new(grid[i][j].x, grid[i][j].y))
-		.collect();
+	let poly: Vec<DVec2> = ring_ij.iter().rev().map(|&(i, j)| DVec2::new(grid[i][j].x, grid[i][j].y)).collect();
 	let tris = earclip(&poly)?;
 	let rev_base = |local: usize| base_start + (m - 1 - local) as u32;
 	for [a, b, c] in tris {
@@ -750,11 +741,7 @@ pub fn plane_patch_curves(
 				let (m, _res) = newton_to_plane(surf, plane_origin, normal, (pa + pb) * 0.5);
 				let (qa, qb, qm) = (at3(pa), at3(pb), at3(m));
 				let chord = qb - qa;
-				let t = if chord.length_squared() > 1e-30 {
-					((qm - qa).dot(chord) / chord.length_squared()).clamp(0.0, 1.0)
-				} else {
-					0.5
-				};
+				let t = if chord.length_squared() > 1e-30 { ((qm - qa).dot(chord) / chord.length_squared()).clamp(0.0, 1.0) } else { 0.5 };
 				let dev = (qm - (qa + chord * t)).length();
 				if dev <= chord_tol || depth >= 12 {
 					emitted.push(pb);
@@ -890,11 +877,7 @@ fn earclip(poly: &[DVec2]) -> Option<Vec<[usize; 3]>> {
 	// reverses edge directions, so the mapped triangle must be flipped — the
 	// contract either way: every directed polygon edge `P_k → P_{k+1}` appears
 	// exactly once, FORWARD, among the output triangles.
-	Some(
-		tris.into_iter()
-			.map(|[a, b, c]| if ccw { [a, b, c] } else { [map(c), map(b), map(a)] })
-			.collect(),
-	)
+	Some(tris.into_iter().map(|[a, b, c]| if ccw { [a, b, c] } else { [map(c), map(b), map(a)] }).collect())
 }
 
 /// Why a freeform boolean was refused or withheld. Everything the shipped
@@ -1101,15 +1084,11 @@ fn split_chart_rings(
 		});
 	}
 	// Ring with arc A: END → (border CCW) → START → (curve forward) → END.
-	let ring_with_arc_a: Vec<DVec2> = std::iter::once(e_end)
-		.chain(border_arc_samples(t1, t0, grid))
-		.chain(curve.uv[..curve.uv.len() - 1].iter().copied())
-		.collect();
+	let ring_with_arc_a: Vec<DVec2> =
+		std::iter::once(e_end).chain(border_arc_samples(t1, t0, grid)).chain(curve.uv[..curve.uv.len() - 1].iter().copied()).collect();
 	// Ring with arc B: START → (border CCW) → END → (curve backward) → START.
-	let ring_with_arc_b: Vec<DVec2> = std::iter::once(e_start)
-		.chain(border_arc_samples(t0, t1, grid))
-		.chain(curve.uv[1..].iter().rev().copied())
-		.collect();
+	let ring_with_arc_b: Vec<DVec2> =
+		std::iter::once(e_start).chain(border_arc_samples(t0, t1, grid)).chain(curve.uv[1..].iter().rev().copied()).collect();
 	if f_a * keep_sign > 0.0 {
 		Ok((ring_with_arc_a, ring_with_arc_b))
 	} else {
@@ -1200,10 +1179,7 @@ pub fn freeform_plane_cut(
 	// NaN weights fail `is_finite`, so this catches the whole unusable set
 	// (non-positive, infinite, NaN) without a negated float comparison.
 	if surf.weights.iter().flatten().any(|w| w <= &0.0 || !w.is_finite()) {
-		return Err(FreeformBoolError::OutOfScope {
-			detail: "a patch with non-positive or non-finite weights".into(),
-			chord_tol,
-		});
+		return Err(FreeformBoolError::OutOfScope { detail: "a patch with non-positive or non-finite weights".into(), chord_tol });
 	}
 	// The slice treats the trim as the full parameter rectangle — verify the
 	// recorded ring actually hugs the domain boundary.
@@ -1212,10 +1188,7 @@ pub fn freeform_plane_cut(
 		let ring = &face.rings[0];
 		let stride = (ring.len() / 32).max(1);
 		for p in ring.iter().step_by(stride) {
-			let ok = surf
-				.project(&seeds, *p, 1e-4)
-				.map(|uv| uv.x.min(1.0 - uv.x).min(uv.y).min(1.0 - uv.y) <= 0.05)
-				.unwrap_or(false);
+			let ok = surf.project(&seeds, *p, 1e-4).map(|uv| uv.x.min(1.0 - uv.x).min(uv.y).min(1.0 - uv.y) <= 0.05).unwrap_or(false);
 			if !ok {
 				return Err(FreeformBoolError::OutOfScope {
 					detail: "a patch trimmed inside its surface domain (the slice takes full-domain trims only)".into(),
@@ -1380,10 +1353,7 @@ mod tests {
 		for p in &mesh.positions {
 			let pd = p.as_dvec3();
 			let radial = (pd.x * pd.x + pd.y * pd.y).sqrt();
-			assert!(
-				radial >= lo_band && radial <= r + 1e-9,
-				"point off the tube wall: radial {radial} not in [{lo_band}, {r}]"
-			);
+			assert!(radial >= lo_band && radial <= r + 1e-9, "point off the tube wall: radial {radial} not in [{lo_band}, {r}]");
 			assert!(pd.z >= -1e-3 && pd.z <= 5.0 + 1e-3, "z {} outside ring span", pd.z);
 			assert!(pd.is_finite(), "non-finite surface point {pd:?}");
 		}
@@ -1431,17 +1401,9 @@ mod tests {
 		// surface. Tessellation must be non-empty and finite, and the swept cross
 		// sections must preserve the square's in-plane size at every height.
 		let half = 1.0;
-		let profile = vec![
-			DVec3::new(-half, -half, 0.0),
-			DVec3::new(half, -half, 0.0),
-			DVec3::new(half, half, 0.0),
-			DVec3::new(-half, half, 0.0),
-		];
-		let path = vec![
-			DVec3::new(0.0, 0.0, 0.0),
-			DVec3::new(0.0, 0.0, 2.0),
-			DVec3::new(0.0, 0.0, 4.0),
-		];
+		let profile =
+			vec![DVec3::new(-half, -half, 0.0), DVec3::new(half, -half, 0.0), DVec3::new(half, half, 0.0), DVec3::new(-half, half, 0.0)];
+		let path = vec![DVec3::new(0.0, 0.0, 0.0), DVec3::new(0.0, 0.0, 2.0), DVec3::new(0.0, 0.0, 4.0)];
 		let surf = sweep(&profile, &path, 2).expect("square sweep");
 
 		let mesh = surf.tessellate(8, 8);
@@ -1463,10 +1425,7 @@ mod tests {
 		);
 		assert!(bb.min.z <= 1e-3 && bb.max.z >= 4.0 - 1e-3, "z extent off: {bb:?}");
 		// The section must have real extent (not collapsed to a point/line).
-		assert!(
-			(bb.max.x - bb.min.x) > half as f32 && (bb.max.y - bb.min.y) > half as f32,
-			"swept section degenerate: {bb:?}"
-		);
+		assert!((bb.max.x - bb.min.x) > half as f32 && (bb.max.y - bb.min.y) > half as f32, "swept section degenerate: {bb:?}");
 		for p in &mesh.positions {
 			assert!(p.as_dvec3().is_finite(), "non-finite prism point");
 		}
@@ -1544,12 +1503,8 @@ mod tests {
 		// A closed square loop swept up a straight path is a closed manifold box; with
 		// the path along +Z the cross-section is preserved, so the volume is side²×length.
 		let half = 1.0;
-		let profile = vec![
-			DVec3::new(-half, -half, 0.0),
-			DVec3::new(half, -half, 0.0),
-			DVec3::new(half, half, 0.0),
-			DVec3::new(-half, half, 0.0),
-		];
+		let profile =
+			vec![DVec3::new(-half, -half, 0.0), DVec3::new(half, -half, 0.0), DVec3::new(half, half, 0.0), DVec3::new(-half, half, 0.0)];
 		let path = vec![DVec3::new(0.0, 0.0, 0.0), DVec3::new(0.0, 0.0, 2.0), DVec3::new(0.0, 0.0, 4.0)];
 		let solid = crate::freeform::sweep_solid(&profile, &path).expect("square sweep solid");
 
@@ -1577,20 +1532,14 @@ mod tests {
 	fn degenerate_inputs_return_none() {
 		// Guard the documented degenerate cases rather than panicking.
 		assert!(crate::freeform::loft_solid(&[]).is_none(), "empty section list");
-		assert!(
-			crate::freeform::loft_solid(&[circle_polyline(DVec3::ZERO, 1.0, 8)]).is_none(),
-			"single section"
-		);
+		assert!(crate::freeform::loft_solid(&[circle_polyline(DVec3::ZERO, 1.0, 8)]).is_none(), "single section");
 		assert!(
 			crate::freeform::loft_solid(&[vec![DVec3::ZERO, DVec3::X], vec![DVec3::ZERO, DVec3::X]]).is_none(),
 			"sections with fewer than three points"
 		);
 		assert!(loft(&[], 2).is_none(), "empty profile list");
 		assert!(loft(&[vec![DVec3::ZERO, DVec3::X]], 2).is_none(), "single profile");
-		assert!(
-			loft(&[vec![DVec3::ZERO, DVec3::X], vec![DVec3::Y]], 2).is_none(),
-			"mismatched profile lengths"
-		);
+		assert!(loft(&[vec![DVec3::ZERO, DVec3::X], vec![DVec3::Y]], 2).is_none(), "mismatched profile lengths");
 		assert!(sweep(&[DVec3::ZERO], &[DVec3::ZERO, DVec3::Z], 2).is_none(), "too-short profile");
 		assert!(sweep(&[DVec3::ZERO, DVec3::X], &[DVec3::ZERO], 2).is_none(), "too-short path");
 	}
@@ -1629,9 +1578,7 @@ mod tests {
 		for j in (1..=3).rev() {
 			subdivided.push(DVec2::new(0.0, j as f64));
 		}
-		for (label, poly, want_area) in
-			[("L ccw", &l_ccw, 6.0), ("L cw", &l_cw, 6.0), ("collinear-run rectangle", &subdivided, 12.0)]
-		{
+		for (label, poly, want_area) in [("L ccw", &l_ccw, 6.0), ("L cw", &l_cw, 6.0), ("collinear-run rectangle", &subdivided, 12.0)] {
 			let tris = earclip(poly).unwrap_or_else(|| panic!("{label}: earclip failed on a simple polygon"));
 			let n = poly.len();
 			let mut area = 0.0;
@@ -1655,10 +1602,7 @@ mod tests {
 				"{label}: every one of the {n} polygon edges must appear exactly once forward (got {})",
 				edge_used.len()
 			);
-			assert!(
-				(area - want_area).abs() < 1e-12,
-				"{label}: triangulated area {area} != polygon area {want_area}"
-			);
+			assert!((area - want_area).abs() < 1e-12, "{label}: triangulated area {area} != polygon area {want_area}");
 		}
 	}
 
@@ -1666,16 +1610,8 @@ mod tests {
 	fn sweep_along_bent_path_stays_finite_and_follows_path() {
 		// A profile swept along an L-shaped path must produce a finite, non-empty
 		// surface whose stations track the path turn (rotation-minimizing frame).
-		let profile = vec![
-			DVec3::new(-0.5, 0.0, 0.0),
-			DVec3::new(0.5, 0.0, 0.0),
-			DVec3::new(0.0, 0.5, 0.0),
-		];
-		let path = vec![
-			DVec3::new(0.0, 0.0, 0.0),
-			DVec3::new(0.0, 0.0, 3.0),
-			DVec3::new(3.0, 0.0, 3.0),
-		];
+		let profile = vec![DVec3::new(-0.5, 0.0, 0.0), DVec3::new(0.5, 0.0, 0.0), DVec3::new(0.0, 0.5, 0.0)];
+		let path = vec![DVec3::new(0.0, 0.0, 0.0), DVec3::new(0.0, 0.0, 3.0), DVec3::new(3.0, 0.0, 3.0)];
 		let surf = sweep(&profile, &path, 2).expect("bent sweep");
 		let mesh = surf.tessellate(6, 12);
 		assert!(!mesh.is_empty(), "bent sweep empty");

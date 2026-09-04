@@ -126,11 +126,7 @@ impl BooleanError {
 	/// as you still hold the operands.
 	pub fn with_preflight(self, a: &Solid, b: &Solid) -> BooleanRefusal {
 		let report = boolean_hazards(a, b, REFUSAL_HAZARD_TOL);
-		let hazard = report
-			.iter()
-			.find(|h| h.kind == HazardKind::TangentPlaneOnCylinder)
-			.or_else(|| report.first())
-			.copied();
+		let hazard = report.iter().find(|h| h.kind == HazardKind::TangentPlaneOnCylinder).or_else(|| report.first()).copied();
 		BooleanRefusal { error: self, hazard }
 	}
 }
@@ -218,11 +214,7 @@ fn sealed(result: Result<Solid, BooleanError>, op: &'static str) -> Result<(Soli
 	if mesh.is_watertight() {
 		Ok((solid, mesh))
 	} else {
-		Err(SealedError::Leaky {
-			op,
-			boundary_edges: mesh.boundary_edge_count(),
-			non_manifold_edges: mesh.non_manifold_edge_count(),
-		})
+		Err(SealedError::Leaky { op, boundary_edges: mesh.boundary_edge_count(), non_manifold_edges: mesh.non_manifold_edge_count() })
 	}
 }
 
@@ -300,9 +292,7 @@ pub fn try_freeform_boolean(
 		(FreeformTool::HalfSpace { origin, normal }, MeshBoolOp::Intersection) => {
 			freeform_plane_cut(a, *origin, *normal, Keep::Inside, opts)
 		}
-		(FreeformTool::HalfSpace { .. }, MeshBoolOp::Union) => {
-			out_of_scope("union with a half-space (an unbounded result)".into())
-		}
+		(FreeformTool::HalfSpace { .. }, MeshBoolOp::Union) => out_of_scope("union with a half-space (an unbounded result)".into()),
 		(FreeformTool::Quadric(s), _) => {
 			let kind = match s {
 				crate::geom::Surface::Plane { .. } => "plane",
@@ -380,13 +370,19 @@ mod tests {
 		assert!(!unchecked.is_valid(), "unchecked union of an open shell stays invalid: {unchecked:?}");
 		let err = try_union(&open_box, &tool).expect_err("checked union must withhold the invalid result");
 		assert!(
-			err.op == "union" && !err.validity.is_valid() && err.validity.closed == unchecked.closed && err.validity.manifold == unchecked.manifold,
+			err.op == "union"
+				&& !err.validity.is_valid()
+				&& err.validity.closed == unchecked.closed
+				&& err.validity.manifold == unchecked.manifold,
 			"the error must carry the op and the real validity report: {err:?} vs {unchecked:?}"
 		);
 		// The error formats as ONE informative line naming the op and the failure.
 		let line = err.to_string();
 		assert!(
-			!line.contains('\n') && line.contains("union") && line.contains("withheld") && (line.contains("not closed") || line.contains("non-manifold")),
+			!line.contains('\n')
+				&& line.contains("union")
+				&& line.contains("withheld")
+				&& (line.contains("not closed") || line.contains("non-manifold")),
 			"Display must be one informative line: {line:?}"
 		);
 	}
@@ -397,18 +393,9 @@ mod tests {
 		// reports (each is a state `validate` genuinely produces: open shells from
 		// degenerate inputs, non-manifold stitches, negative genus from pinches).
 		let cases = [
-			(
-				Validity { closed: false, manifold: true, euler_characteristic: 1, genus: 0, shells: 1 },
-				"not closed",
-			),
-			(
-				Validity { closed: true, manifold: false, euler_characteristic: 2, genus: 0, shells: 1 },
-				"non-manifold",
-			),
-			(
-				Validity { closed: true, manifold: true, euler_characteristic: 4, genus: -1, shells: 1 },
-				"negative genus",
-			),
+			(Validity { closed: false, manifold: true, euler_characteristic: 1, genus: 0, shells: 1 }, "not closed"),
+			(Validity { closed: true, manifold: false, euler_characteristic: 2, genus: 0, shells: 1 }, "non-manifold"),
+			(Validity { closed: true, manifold: true, euler_characteristic: 4, genus: -1, shells: 1 }, "negative genus"),
 		];
 		for (validity, expect) in cases {
 			let line = BooleanError { op: "intersection", validity }.to_string();

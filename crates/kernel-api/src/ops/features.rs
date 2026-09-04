@@ -39,8 +39,7 @@ pub(crate) fn exec(
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
 			let w = dv3(witness);
 			let (name, distance, limit) = witness_edge(op_id, s, w, max_distance)?;
-			let solid =
-				kernel_brep::chamfer_edge_near(s, name, radius, w).map_err(|e| map_fillet_error(op_id, "chamfer_edge_near", e))?;
+			let solid = kernel_brep::chamfer_edge_near(s, name, radius, w).map_err(|e| map_fillet_error(op_id, "chamfer_edge_near", e))?;
 			let mut outcome = bind_solid(op_id, "chamfer_edge_near", solid)?;
 			outcome.measures = Some(resolved_edge_measures(name, distance, limit));
 			Ok(outcome)

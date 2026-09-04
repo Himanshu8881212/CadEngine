@@ -713,7 +713,8 @@ impl BomV2 {
 	/// RFC-4180 quoting: fields containing `,`, `"` or newlines are quoted with
 	/// inner quotes doubled. `\n` line endings, trailing newline. Byte-stable.
 	pub fn to_csv(&self) -> String {
-		let mut out = String::from("name,count,params,part_number,material,density_g_cm3,volume_source,unit_mass_g,line_mass_g,make_or_buy\n");
+		let mut out =
+			String::from("name,count,params,part_number,material,density_g_cm3,volume_source,unit_mass_g,line_mass_g,make_or_buy\n");
 		for line in &self.flat {
 			let fields = [
 				csv_field(&line.name),
@@ -1106,15 +1107,8 @@ pub fn save_assembly_with_states(
 		suppressed.dedup();
 		state_reprs.insert(state_name.as_str(), AsmStateRepr { poses, suppressed });
 	}
-	let file = AsmFileSer {
-		format: ASM_FORMAT,
-		version: FORMAT_VERSION,
-		units: UNITS_MM,
-		name,
-		instances: reprs,
-		mates,
-		states: state_reprs,
-	};
+	let file =
+		AsmFileSer { format: ASM_FORMAT, version: FORMAT_VERSION, units: UNITS_MM, name, instances: reprs, mates, states: state_reprs };
 	// Infallible for the same reason as `save_part` once the poses validated.
 	Ok(serde_json::to_string_pretty(&file).expect("an assembly envelope serializes: string keys only, plain data"))
 }
@@ -1194,7 +1188,8 @@ fn load_assembly_nested(json: &str, base_dir: &Path, loading: &mut Vec<PathBuf>)
 			SourceDe::Path(rel) => {
 				let path = base_dir.join(&rel);
 				let text = std::fs::read_to_string(&path).map_err(|error| FormatError::Io { path: path.clone(), error })?;
-				let (document, meta) = load_part(&text).map_err(|error| FormatError::PartSource { path: path.clone(), error: Box::new(error) })?;
+				let (document, meta) =
+					load_part(&text).map_err(|error| FormatError::PartSource { path: path.clone(), error: Box::new(error) })?;
 				// The part envelope's own name identifies the part; an unnamed
 				// envelope falls back to its file stem.
 				let part_name = if meta.name.is_empty() {
@@ -1291,7 +1286,13 @@ fn load_assembly_nested(json: &str, base_dir: &Path, loading: &mut Vec<PathBuf>)
 				instance_names.push(unit.name);
 				part_names.push(part_name.clone());
 				part_meta.push(meta);
-				tree.push(AsmNode { instance: display, name: part_name, leaf: Some(leaf), suppressed: unit.suppressed, children: Vec::new() });
+				tree.push(AsmNode {
+					instance: display,
+					name: part_name,
+					leaf: Some(leaf),
+					suppressed: unit.suppressed,
+					children: Vec::new(),
+				});
 				placements.push(UnitPlacement { pose, members: vec![(leaf, None)] });
 			}
 			UnitKind::MeshPart { mesh, part_name } => {
@@ -1300,7 +1301,13 @@ fn load_assembly_nested(json: &str, base_dir: &Path, loading: &mut Vec<PathBuf>)
 				instance_names.push(unit.name);
 				part_names.push(part_name.clone());
 				part_meta.push(None);
-				tree.push(AsmNode { instance: display, name: part_name, leaf: Some(leaf), suppressed: unit.suppressed, children: Vec::new() });
+				tree.push(AsmNode {
+					instance: display,
+					name: part_name,
+					leaf: Some(leaf),
+					suppressed: unit.suppressed,
+					children: Vec::new(),
+				});
 				placements.push(UnitPlacement { pose, members: vec![(leaf, None)] });
 			}
 			UnitKind::Sub { sub, asm_name } => {

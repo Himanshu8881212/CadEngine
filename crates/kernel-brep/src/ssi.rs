@@ -307,11 +307,7 @@ where
 		}
 		let (gf, gg, gh) = (f.gradient(p), g.gradient(p), h.gradient(p));
 		// Matrix whose ROWS are the gradients (glam stores columns, so transpose).
-		let m = DMat3::from_cols(
-			DVec3::new(gf.x, gg.x, gh.x),
-			DVec3::new(gf.y, gg.y, gh.y),
-			DVec3::new(gf.z, gg.z, gh.z),
-		);
+		let m = DMat3::from_cols(DVec3::new(gf.x, gg.x, gh.x), DVec3::new(gf.y, gg.y, gh.y), DVec3::new(gf.z, gg.z, gh.z));
 		let det = m.determinant();
 		if det.abs() < 1e-12 {
 			return None; // gradients (near-)coplanar: no well-defined triple point

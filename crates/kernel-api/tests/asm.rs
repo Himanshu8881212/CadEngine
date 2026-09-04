@@ -43,9 +43,7 @@ fn write_fixture(dir: &Path) -> PathBuf {
 	});
 	plate.set_root(b);
 	let mut shaft = Document::new();
-	let s = shaft.add(Feature::CatalogPart {
-		part: CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(20.0) },
-	});
+	let s = shaft.add(Feature::CatalogPart { part: CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(20.0) } });
 	shaft.set_root(s);
 	std::fs::write(dir.join("plate.lmcpart"), save_part(&plate, "plate")).expect("write plate");
 	std::fs::write(dir.join("shaft.lmcpart"), save_part(&shaft, "shaft")).expect("write shaft");
@@ -111,12 +109,7 @@ fn asm_pipeline_end_to_end() {
 
 	let bom_counts: Vec<(String, u64)> = bom["flat"]
 		.as_array()
-		.map(|lines| {
-			lines
-				.iter()
-				.map(|l| (l["name"].as_str().unwrap_or("?").to_string(), l["count"].as_u64().unwrap_or(0)))
-				.collect()
-		})
+		.map(|lines| lines.iter().map(|l| (l["name"].as_str().unwrap_or("?").to_string(), l["count"].as_u64().unwrap_or(0))).collect())
 		.unwrap_or_default();
 	let touching_pair = contacts["pairs"].as_array().and_then(|p| p.first()).cloned().unwrap_or_default();
 
@@ -183,8 +176,18 @@ fn asm_nested_pipeline_hierarchical_contacts_bom_v2_and_determinism() {
 	let stack = kernel_model::format::save_assembly(
 		"stack",
 		&[
-			AsmInstance { name: Some("foot".to_string()), source: AsmSource::Path("foot.lmcpart".to_string()), pose: Affine3A::IDENTITY, suppressed: false },
-			AsmInstance { name: Some("head".to_string()), source: AsmSource::Path("head.lmcpart".to_string()), pose: Affine3A::IDENTITY, suppressed: false },
+			AsmInstance {
+				name: Some("foot".to_string()),
+				source: AsmSource::Path("foot.lmcpart".to_string()),
+				pose: Affine3A::IDENTITY,
+				suppressed: false,
+			},
+			AsmInstance {
+				name: Some("head".to_string()),
+				source: AsmSource::Path("head.lmcpart".to_string()),
+				pose: Affine3A::IDENTITY,
+				suppressed: false,
+			},
 		],
 		&[],
 	)
@@ -193,7 +196,12 @@ fn asm_nested_pipeline_hierarchical_contacts_bom_v2_and_determinism() {
 	let top = kernel_model::format::save_assembly(
 		"tower",
 		&[
-			AsmInstance { name: Some("plate".to_string()), source: AsmSource::Path("plate.lmcpart".to_string()), pose: Affine3A::IDENTITY, suppressed: false },
+			AsmInstance {
+				name: Some("plate".to_string()),
+				source: AsmSource::Path("plate.lmcpart".to_string()),
+				pose: Affine3A::IDENTITY,
+				suppressed: false,
+			},
 			AsmInstance {
 				name: Some("stack".to_string()),
 				source: AsmSource::Assembly("stack.lmcasm".to_string()),
@@ -226,10 +234,7 @@ fn asm_nested_pipeline_hierarchical_contacts_bom_v2_and_determinism() {
 		})
 		.unwrap_or_default();
 	let tree = bom["tree"].as_array().cloned().unwrap_or_default();
-	let plate_line = bom["flat"]
-		.as_array()
-		.and_then(|lines| lines.iter().find(|l| l["name"] == "plate").cloned())
-		.unwrap_or_default();
+	let plate_line = bom["flat"].as_array().and_then(|lines| lines.iter().find(|l| l["name"] == "plate").cloned()).unwrap_or_default();
 	let bom_bytes = std::fs::read(out.join("bom.json")).expect("bom.json written");
 	let bom_bytes2 = std::fs::read(dir.join("out2").join("bom.json")).expect("second bom.json written");
 	let csv = std::fs::read_to_string(out.join("bom.csv")).expect("bom.csv written");
@@ -337,9 +342,7 @@ fn asm_pipeline_solves_real_mates_with_dof_and_per_mate_receipts() {
 	});
 	plate.set_root(b);
 	let mut shaft = Document::new();
-	let s = shaft.add(Feature::CatalogPart {
-		part: CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(20.0) },
-	});
+	let s = shaft.add(Feature::CatalogPart { part: CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(20.0) } });
 	shaft.set_root(s);
 	std::fs::write(dir.join("plate.lmcpart"), save_part(&plate, "plate")).expect("write plate");
 	std::fs::write(dir.join("shaft.lmcpart"), save_part(&shaft, "shaft")).expect("write shaft");
@@ -434,8 +437,7 @@ fn asm_pipeline_refuses_conflicting_and_statically_broken_mates() {
 			&& mates1.error.as_ref().map(|e| e.kind) == Some(ErrorKind::AssertFailed)
 			&& msg1.contains("worst offenders")
 			&& (msg1.contains("(coincident)") || msg1.contains("(distance)"))
-			&& !r2.ok
-			&& !mates2.ok
+			&& !r2.ok && !mates2.ok
 			&& mates2.error.as_ref().map(|e| e.kind) == Some(ErrorKind::InvalidParam)
 			&& msg2.contains("out of range"),
 		"bad mates must fail LOUDLY with named culprits:\nconflict → {msg1}\nbroken → {msg2}\n{r1:#?}"
@@ -458,10 +460,7 @@ fn asm_pipeline_exports_step_assembly_for_brep_instances() {
 	let vol: f64 = round.iter().map(|(_, solid, pose)| kernel_brep::volume(&solid.transformed(*pose))).sum();
 	let expect = 60.0 * 60.0 * 10.0 + std::f64::consts::PI * 16.0 * 20.0; // plate + Ø8×20 pin (spare suppressed)
 	assert!(
-		report.ok
-			&& step_op.ok
-			&& step_op.measures.as_ref().is_some_and(|m| m["parts"] == 2)
-			&& (vol - expect).abs() / expect < 0.01,
+		report.ok && step_op.ok && step_op.measures.as_ref().is_some_and(|m| m["parts"] == 2) && (vol - expect).abs() / expect < 0.01,
 		"STEP assembly must round-trip: op {step_op:#?}, round-trip volume {vol:.1} vs expected {expect:.1}"
 	);
 	let _ = std::fs::remove_dir_all(&dir);

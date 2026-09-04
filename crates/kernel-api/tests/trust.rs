@@ -13,7 +13,13 @@ fn bool_measure(r: &Report, id: &str, key: &str) -> Option<bool> {
 	r.ops.iter().find(|o| o.id == id).and_then(|o| o.measures.as_ref()).and_then(|m| m.get(key)).and_then(|v| v.as_bool())
 }
 fn str_measure(r: &Report, id: &str, key: &str) -> Option<String> {
-	r.ops.iter().find(|o| o.id == id).and_then(|o| o.measures.as_ref()).and_then(|m| m.get(key)).and_then(|v| v.as_str()).map(str::to_string)
+	r.ops
+		.iter()
+		.find(|o| o.id == id)
+		.and_then(|o| o.measures.as_ref())
+		.and_then(|m| m.get(key))
+		.and_then(|v| v.as_str())
+		.map(str::to_string)
 }
 fn run(dir: &Path, ops: serde_json::Value) -> Report {
 	run_program(&serde_json::to_string(&json!({ "ops": ops })).unwrap(), dir)

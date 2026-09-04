@@ -19,16 +19,14 @@ use std::f64::consts::PI;
 
 use kernel_brep::math::{DAffine3, DVec2, DVec3};
 use kernel_brep::{
-	cuboid, cylinder, difference, draft_analysis, exact_volume, export_step, extrude, extrude_tapered, fillet_edge,
-	mass_properties, revolve, tessellate_adaptive_tol, union, validate, volume, wall_thickness, EdgeName, FaceName,
-	FaceSource, Solid,
+	cuboid, cylinder, difference, draft_analysis, exact_volume, export_step, extrude, extrude_tapered, fillet_edge, mass_properties,
+	revolve, tessellate_adaptive_tol, union, validate, volume, wall_thickness, EdgeName, FaceName, FaceSource, Solid,
 };
 use kernel_core::check_mesh;
 use kernel_core::math::Affine3A;
 use kernel_core::mesh::Mesh;
 use kernel_implicit::{
-	dual_contour_narrowband, make_manifold, Aabb, Cuboid as VoxCuboid, Gyroid, Node, Plane as VoxPlane, Resolution,
-	Vec3,
+	dual_contour_narrowband, make_manifold, Aabb, Cuboid as VoxCuboid, Gyroid, Node, Plane as VoxPlane, Resolution, Vec3,
 };
 use kernel_model::parts::{hex_bolt, hex_nut, washer};
 use kernel_model::{watertight_mesh, Assembly, Instance};
@@ -84,8 +82,8 @@ fn spur_gear() -> Solid {
 	let rr = rp - 1.25 * m; // root radius 17.5
 	let t_tip = ((ra / rb).powi(2) - 1.0).sqrt(); // roll parameter where the involute reaches the tip
 	let theta_tip = t_tip - t_tip.atan(); // polar spread of the involute root→tip
-	// Angular half-width of a tooth at the base circle: half the pitch-circle tooth
-	// thickness (π/2z) plus the involute spread inv(α) rolled back from pitch to base.
+									   // Angular half-width of a tooth at the base circle: half the pitch-circle tooth
+									   // thickness (π/2z) plus the involute spread inv(α) rolled back from pitch to base.
 	let half = PI / (2.0 * z as f64) + (alpha.tan() - alpha);
 	let pitch = 2.0 * PI / z as f64;
 
@@ -189,8 +187,8 @@ fn enclosure() -> (Solid, Mesh) {
 fn gyroid_block() -> Mesh {
 	let half = 20.0;
 	let region = Aabb::from_center_half_extent(Vec3::ZERO, Vec3::splat(half));
-	let lattice = Node::primitive(Gyroid::new(region, 0.35, 0.6))
-		.intersection(Node::primitive(VoxCuboid::new(Vec3::ZERO, Vec3::splat(half))));
+	let lattice =
+		Node::primitive(Gyroid::new(region, 0.35, 0.6)).intersection(Node::primitive(VoxCuboid::new(Vec3::ZERO, Vec3::splat(half))));
 	let mut m = dual_contour_narrowband(&lattice, region.pad(0.5), Resolution::VoxelSize(0.15));
 	if check_mesh(&m).non_manifold_edges > 0 || !m.is_watertight() {
 		m = make_manifold(&m);
@@ -307,11 +305,7 @@ fn main() {
 	// exact π·r²·h holes — exact_volume should recover it from the surface tags even
 	// though the mesh is faceted and the part went through 6 chained booleans.
 	let fl = flange();
-	let m: f64 = FLANGE_PROFILE
-		.iter()
-		.zip(FLANGE_PROFILE.iter().cycle().skip(1))
-		.map(|(a, b)| (a.x + b.x) * (a.x * b.y - b.x * a.y))
-		.sum();
+	let m: f64 = FLANGE_PROFILE.iter().zip(FLANGE_PROFILE.iter().cycle().skip(1)).map(|(a, b)| (a.x + b.x) * (a.x * b.y - b.x * a.y)).sum();
 	let ngon = |r: f64, n: f64| n * r * r * (2.0 * PI / n).sin() / 2.0;
 	let fl_faceted = 96.0 * (2.0 * PI / 96.0).sin() * m / 6.0 - 6.0 * ngon(3.0, 24.0) * 6.0;
 	let fl_true = 2.0 * PI * m / 6.0 - 6.0 * PI * 9.0 * 6.0;
@@ -415,10 +409,7 @@ fn main() {
 		all_ok &= write_manufacturing_mesh(&merged, &format!("{dir}/fastener_stack.stl"));
 	}
 
-	println!(
-		"\n{} — wrote STL/STEP/3MF files to ./{dir}/",
-		if all_ok { "ALL PARTS PASS" } else { "SOME PARTS FAILED" }
-	);
+	println!("\n{} — wrote STL/STEP/3MF files to ./{dir}/", if all_ok { "ALL PARTS PASS" } else { "SOME PARTS FAILED" });
 	std::process::exit(if all_ok { 0 } else { 1 });
 }
 
@@ -431,9 +422,7 @@ mod tests {
 		let (mesh, _route) = part_mesh(&flange());
 		let report = check_mesh(&mesh);
 		assert!(
-			report.watertight
-				&& report.degenerate_triangles == 0
-				&& mesh.self_intersection_witness().is_none(),
+			report.watertight && report.degenerate_triangles == 0 && mesh.self_intersection_witness().is_none(),
 			"gallery export must be a closed orientable manifold without collapsed or crossing triangles: {report:?}"
 		);
 	}

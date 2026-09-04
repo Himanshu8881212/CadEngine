@@ -300,13 +300,7 @@ impl TriGrid {
 		// ~1 triangle per cell on average; clamped so tiny/huge inputs stay sane.
 		let n = ((tris.len() as f64).sqrt().ceil() as usize).clamp(1, 64);
 		let ext = [(hi[0] - lo[0]).max(1e-12), (hi[1] - lo[1]).max(1e-12)];
-		let mut grid = TriGrid {
-			min: lo,
-			inv_cell: [n as f64 / ext[0], n as f64 / ext[1]],
-			nx: n,
-			ny: n,
-			cells: vec![Vec::new(); n * n],
-		};
+		let mut grid = TriGrid { min: lo, inv_cell: [n as f64 / ext[0], n as f64 / ext[1]], nx: n, ny: n, cells: vec![Vec::new(); n * n] };
 		for (i, t) in tris.iter().enumerate() {
 			let (a, b) = tri_aabb(t);
 			let (x0, y0, x1, y1) = grid.cell_range(a, b);
@@ -361,9 +355,8 @@ mod tests {
 
 	#[test]
 	fn known_overlaps_are_exact() {
-		let square = |cx: f64, cy: f64, s: f64| -> Vec<[f64; 2]> {
-			vec![[cx - s, cy - s], [cx + s, cy - s], [cx + s, cy + s], [cx - s, cy + s]]
-		};
+		let square =
+			|cx: f64, cy: f64, s: f64| -> Vec<[f64; 2]> { vec![[cx - s, cy - s], [cx + s, cy - s], [cx + s, cy + s], [cx - s, cy + s]] };
 		// Non-convex L: a 2×2 square missing its top-right 1×1 quadrant (area 3).
 		let ell: Vec<[f64; 2]> = vec![[0.0, 0.0], [2.0, 0.0], [2.0, 1.0], [1.0, 1.0], [1.0, 2.0], [0.0, 2.0]];
 		let mut cw = square(0.0, 0.0, 1.0);
@@ -423,11 +416,6 @@ mod tests {
 				failures.push(format!("case {case}: area = {area} (na={na}, nb={nb})"));
 			}
 		}
-		assert!(
-			failures.is_empty(),
-			"garbage-input contract violated ({} of 500 cases):\n{}",
-			failures.len(),
-			failures.join("\n")
-		);
+		assert!(failures.is_empty(), "garbage-input contract violated ({} of 500 cases):\n{}", failures.len(), failures.join("\n"));
 	}
 }

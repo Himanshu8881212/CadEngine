@@ -269,8 +269,8 @@ fn pipe_feature_round_trips_and_meshes_a_tapered_tube() {
 	// Naive frustum+caps yardstick (kernel_implicit::Pipe::volume_estimate's
 	// closed form): π/3·Σ L(ra²+ra·rb+rb²) + the two end half-spheres.
 	let l2 = (8.0_f64 * 8.0 + 4.0 * 4.0).sqrt();
-	let est = std::f64::consts::PI / 3.0 * (10.0 * (4.0 + 3.0 + 2.25) + l2 * (2.25 + 1.5 + 1.0))
-		+ 2.0 / 3.0 * std::f64::consts::PI * (8.0 + 1.0);
+	let est =
+		std::f64::consts::PI / 3.0 * (10.0 * (4.0 + 3.0 + 2.25) + l2 * (2.25 + 1.5 + 1.0)) + 2.0 / 3.0 * std::f64::consts::PI * (8.0 + 1.0);
 	assert!(
 		mesh.is_watertight() && v0.to_bits() == v1.to_bits() && (v0 - est).abs() / est < 0.08 && doc.evaluate_brep().is_none(),
 		"pipe must mesh watertight, round-trip to the bit, match the tube estimate and stay voxel-half-only: \
@@ -310,7 +310,10 @@ fn beam_lattice_fill_guards_fail_loud_and_old_documents_still_load() {
 	doc.set_param("cell", 10.0);
 	let sane_builds = doc.evaluate().is_some();
 	assert!(
-		zero_fails && rail_fails && sane_builds && doc.evaluate_brep().is_none()
+		zero_fails
+			&& rail_fails
+			&& sane_builds
+			&& doc.evaluate_brep().is_none()
 			&& save_part(&doc, "octet guards").contains("\"cell\": \"octet\""),
 		"lattice-fill guards: cell=0 fails={zero_fails}, 1µm rail fails={rail_fails}, cell=10 builds={sane_builds}, \
 		 brep honestly None, cell kind saved as the string \"octet\""

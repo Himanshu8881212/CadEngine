@@ -140,12 +140,8 @@ fn circular_rim_fillet_feature_rounds_a_boss_and_a_bore_lip() {
 	let mut boss_doc = Document::new();
 	boss_doc.set_param("fr", 1.0);
 	let boss = boss_doc.add(Feature::Cylinder { center: lit3(0.0, 0.0, 6.0), radius: Dim::Literal(6.0), height: Dim::Literal(12.0) });
-	let rounded = boss_doc.add(Feature::CircularRimFillet {
-		input: boss,
-		near: lit3(6.0, 0.0, 12.0),
-		radius: Dim::param("fr"),
-		concave: false,
-	});
+	let rounded =
+		boss_doc.add(Feature::CircularRimFillet { input: boss, near: lit3(6.0, 0.0, 12.0), radius: Dim::param("fr"), concave: false });
 	boss_doc.set_root(rounded);
 	let sharp = volume(&boss_doc.evaluate_brep_to(boss).expect("the sharp boss evaluates"));
 	let v_fr1 = volume(&boss_doc.evaluate_brep().expect("the rounded boss evaluates"));
@@ -171,12 +167,8 @@ fn circular_rim_fillet_feature_rounds_a_boss_and_a_bore_lip() {
 	let boss8 = lip_doc.add(Feature::ExtrudeSketch { sketch: oct, height: Dim::Literal(8.0), dims: vec![], draft: Dim::Literal(0.0) });
 	let bore = lip_doc.add(Feature::Cylinder { center: lit3(0.0, 0.0, 4.0), radius: Dim::Literal(5.0), height: Dim::Literal(12.0) });
 	let drilled = lip_doc.add(Feature::Boolean { op: BooleanOp::Difference, a: boss8, b: bore });
-	let lip = lip_doc.add(Feature::CircularRimFillet {
-		input: drilled,
-		near: lit3(0.0, 0.0, 9.0),
-		radius: Dim::Literal(1.0),
-		concave: true,
-	});
+	let lip =
+		lip_doc.add(Feature::CircularRimFillet { input: drilled, near: lit3(0.0, 0.0, 9.0), radius: Dim::Literal(1.0), concave: true });
 	lip_doc.set_root(lip);
 	let v_drilled = volume(&lip_doc.evaluate_brep_to(drilled).expect("the drilled plate evaluates"));
 	let v_lip = volume(&lip_doc.evaluate_brep().expect("the bore lip rounds"));
@@ -207,9 +199,7 @@ fn loft_and_sweep_solid_features_build_exact_parametric_solids() {
 	};
 	let mut loft_doc = Document::new();
 	loft_doc.set_param("h", 6.0);
-	let frustum = loft_doc.add(Feature::LoftSolid {
-		sections: vec![square(4.0, Dim::Literal(0.0)), square(2.0, Dim::param("h"))],
-	});
+	let frustum = loft_doc.add(Feature::LoftSolid { sections: vec![square(4.0, Dim::Literal(0.0)), square(2.0, Dim::param("h"))] });
 	loft_doc.set_root(frustum);
 	let v_loft = volume(&loft_doc.evaluate_brep().expect("the loft evaluates"));
 	let frustum_exact = 6.0 / 3.0 * (64.0 + 16.0 + (64.0_f64 * 16.0).sqrt());
@@ -255,11 +245,8 @@ fn catalog_part_features_hold_every_main_part_in_a_lmcpart() {
 		doc.set_root(id);
 		doc
 	};
-	let mut washer_doc = part_doc(CatalogPart::Washer {
-		outer_d: Dim::Literal(16.0),
-		inner_d: Dim::Literal(8.4),
-		thickness: Dim::param("t"),
-	});
+	let mut washer_doc =
+		part_doc(CatalogPart::Washer { outer_d: Dim::Literal(16.0), inner_d: Dim::Literal(8.4), thickness: Dim::param("t") });
 	washer_doc.set_param("t", 1.5);
 	let fixtures: Vec<(&str, Document)> = vec![
 		(
@@ -374,7 +361,11 @@ fn groove_and_boss_features_cut_the_standard_seats_and_suppress_cleanly() {
 	let piston_doc = {
 		let mut doc = Document::new();
 		// AS568 -112: ID 12.37, gland depth 2.06 ⇒ nominal piston Ø 12.37 + 2·2.06.
-		let piston = doc.add(Feature::Cylinder { center: lit3(0.0, 0.0, 15.0), radius: Dim::Literal((12.37 + 2.0 * 2.06) * 0.5), height: Dim::Literal(30.0) });
+		let piston = doc.add(Feature::Cylinder {
+			center: lit3(0.0, 0.0, 15.0),
+			radius: Dim::Literal((12.37 + 2.0 * 2.06) * 0.5),
+			height: Dim::Literal(30.0),
+		});
 		let gland = doc.add(Feature::ORingGroove { input: piston, at: lit3(0.0, 0.0, 12.0), axis: lit3(0.0, 0.0, 1.0), dash: 112 });
 		doc.set_root(gland);
 		doc
@@ -382,11 +373,14 @@ fn groove_and_boss_features_cut_the_standard_seats_and_suppress_cleanly() {
 	let mut boss_doc = Document::new();
 	boss_doc.set_param("m", 5.0);
 	let plate = boss_doc.add(Feature::Box { center: lit3(0.0, 0.0, 3.0), size: lit3(30.0, 30.0, 6.0) });
-	let bossed = boss_doc.add(Feature::HeatsetBoss { input: plate, at: lit3(8.0, 8.0, 6.0), axis: lit3(0.0, 0.0, 1.0), m: Dim::param("m") });
+	let bossed =
+		boss_doc.add(Feature::HeatsetBoss { input: plate, at: lit3(8.0, 8.0, 6.0), axis: lit3(0.0, 0.0, 1.0), m: Dim::param("m") });
 	boss_doc.set_root(bossed);
 
 	let mut failures: Vec<String> = Vec::new();
-	for (name, doc, expect_more) in [("circlip groove", &shaft_doc, false), ("o-ring gland", &piston_doc, false), ("heatset boss", &boss_doc, true)] {
+	for (name, doc, expect_more) in
+		[("circlip groove", &shaft_doc, false), ("o-ring gland", &piston_doc, false), ("heatset boss", &boss_doc, true)]
+	{
 		let mut doc = doc.clone();
 		let root = doc.root().expect("fixture has a root");
 		let base_id = kernel_model::FeatureId(0);

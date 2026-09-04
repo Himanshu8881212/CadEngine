@@ -145,7 +145,10 @@ pub fn run_assembly(asm_path: &Path, out_dir: &Path, opts: &AsmOptions) -> Repor
 fn guard_assembly(f: impl FnOnce() -> Report + std::panic::UnwindSafe) -> Report {
 	match std::panic::catch_unwind(f) {
 		Ok(report) => report,
-		Err(payload) => Report { ok: false, ops: vec![fail("$assembly", ErrorKind::Internal, format!("assembly: kernel panic: {}", panic_detail(payload)))] },
+		Err(payload) => Report {
+			ok: false,
+			ops: vec![fail("$assembly", ErrorKind::Internal, format!("assembly: kernel panic: {}", panic_detail(payload)))],
+		},
 	}
 }
 
@@ -187,11 +190,8 @@ fn run_assembly_inner(asm_path: &Path, out_dir: &Path, opts: &AsmOptions) -> Rep
 			};
 		}
 	};
-	let stem = sanitize(if loaded.name.is_empty() {
-		asm_path.file_stem().and_then(|s| s.to_str()).unwrap_or("assembly")
-	} else {
-		&loaded.name
-	});
+	let stem =
+		sanitize(if loaded.name.is_empty() { asm_path.file_stem().and_then(|s| s.to_str()).unwrap_or("assembly") } else { &loaded.name });
 	let n = loaded.assembly.instances.len();
 	let suppressed: Vec<usize> = (0..n).filter(|&i| loaded.assembly.is_instance_suppressed(i)).collect();
 	ops.push(pass(
@@ -217,11 +217,8 @@ fn run_assembly_inner(asm_path: &Path, out_dir: &Path, opts: &AsmOptions) -> Rep
 	// culprit on failure, and the numeric DOF report makes an under-constrained
 	// assembly visibly different from a fully-mated one.
 	let (mate_problems, per_mate, dof) = loaded.mate_receipts();
-	let per_mate_json: Vec<Value> = per_mate
-		.iter()
-		.enumerate()
-		.map(|(i, &r)| json!({ "index": i, "kind": loaded.mates[i].kind_name(), "residual": r }))
-		.collect();
+	let per_mate_json: Vec<Value> =
+		per_mate.iter().enumerate().map(|(i, &r)| json!({ "index": i, "kind": loaded.mates[i].kind_name(), "residual": r })).collect();
 	if !mate_problems.is_empty() {
 		all_ok = false;
 		ops.push(fail(
@@ -258,10 +255,7 @@ fn run_assembly_inner(asm_path: &Path, out_dir: &Path, opts: &AsmOptions) -> Rep
 				"mates did not re-solve: residual {:.3e} exceeds {MAX_MATE_RESIDUAL:.0e} — worst offenders: {culprits}. \
 				 The mate set is unsatisfiable (conflicting mates) or stuck in a rotational local optimum; \
 				 {} of {} rows are redundant ({})",
-				loaded.residual,
-				dof.redundant_rows,
-				dof.constraint_rows,
-				dof.verdict
+				loaded.residual, dof.redundant_rows, dof.constraint_rows, dof.verdict
 			),
 		));
 	}
@@ -410,11 +404,7 @@ fn run_assembly_inner(asm_path: &Path, out_dir: &Path, opts: &AsmOptions) -> Rep
 				}
 				Err(e) => {
 					all_ok = false;
-					ops.push(fail(
-						"export:assembly_step",
-						ErrorKind::InvalidGeometry,
-						format!("STEP assembly export refused: {e}"),
-					));
+					ops.push(fail("export:assembly_step", ErrorKind::InvalidGeometry, format!("STEP assembly export refused: {e}")));
 				}
 			}
 		}

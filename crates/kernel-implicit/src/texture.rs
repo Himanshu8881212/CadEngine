@@ -65,14 +65,7 @@ const STIPPLE_R0_FRAC: f32 = 0.35;
 /// surface orientation without needing the surface normal).
 const KNURL_DIAGS: [Vec3; 6] = {
 	const H: f32 = std::f32::consts::FRAC_1_SQRT_2;
-	[
-		Vec3::new(H, H, 0.0),
-		Vec3::new(H, -H, 0.0),
-		Vec3::new(0.0, H, H),
-		Vec3::new(0.0, H, -H),
-		Vec3::new(H, 0.0, H),
-		Vec3::new(-H, 0.0, H),
-	]
+	[Vec3::new(H, H, 0.0), Vec3::new(H, -H, 0.0), Vec3::new(0.0, H, H), Vec3::new(0.0, H, -H), Vec3::new(H, 0.0, H), Vec3::new(-H, 0.0, H)]
 };
 
 /// A procedural surface texture: a scalar field `t(p) ∈ [0, 1]` over world
@@ -144,9 +137,7 @@ impl Texture {
 				let g: f32 = KNURL_DIAGS.iter().map(|d| (k * p.dot(*d)).sin()).sum::<f32>() / 6.0;
 				0.5 * depth_frac * (1.0 + g)
 			}
-			Texture::Stipple { cell, coverage } => {
-				stipple_value(p.x as f64, p.y as f64, p.z as f64, cell as f64, coverage as f64) as f32
-			}
+			Texture::Stipple { cell, coverage } => stipple_value(p.x as f64, p.y as f64, p.z as f64, cell as f64, coverage as f64) as f32,
 			Texture::Noise { cell, seed } => noise_value(p.x as f64, p.y as f64, p.z as f64, cell as f64, seed) as f32,
 		};
 		t.clamp(0.0, 1.0)

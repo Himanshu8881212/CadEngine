@@ -109,13 +109,7 @@ pub(super) fn patch_closed(surf: &NurbsSurface, in_u: bool) -> bool {
 /// New cover vertices (the two duplicates) are appended to `uv`/`pts3`. The merged
 /// ring keeps both rims' input traversal directions, so every rim chord still pairs
 /// with the neighbouring cap's edges.
-pub(super) fn bridge_band_rings(
-	uv: &mut Vec<DVec2>,
-	pts3: &mut Vec<DVec3>,
-	ring_a: &[usize],
-	ring_b: &[usize],
-	in_u: bool,
-) -> Vec<usize> {
+pub(super) fn bridge_band_rings(uv: &mut Vec<DVec2>, pts3: &mut Vec<DVec3>, ring_a: &[usize], ring_b: &[usize], in_u: bool) -> Vec<usize> {
 	let coord = |q: DVec2| if in_u { q.x } else { q.y };
 	let with_coord = |q: DVec2, c: f64| if in_u { DVec2::new(c, q.y) } else { DVec2::new(q.x, c) };
 	// `dir` = the sign of rim a's winding (its chain ascends or descends one period).
@@ -131,9 +125,7 @@ pub(super) fn bridge_band_rings(
 		(c - target) - (c - target).round()
 	};
 	let n_b = ring_b.len();
-	let rot = (0..n_b)
-		.min_by(|&i, &j| nearest(i).abs().total_cmp(&nearest(j).abs()))
-		.expect("rims are non-empty");
+	let rot = (0..n_b).min_by(|&i, &j| nearest(i).abs().total_cmp(&nearest(j).abs())).expect("rims are non-empty");
 	let shift = (target - coord(uv[ring_b[rot]])).round();
 	// Re-anchor b's cover coordinates: rotated order, continuing b's own winding
 	// (−dir) across its original wrap point, then the whole-period shift.
@@ -206,10 +198,7 @@ pub(crate) fn triangulate_trim_rings(uv: &[DVec2], rings: &[Vec<usize>]) -> Resu
 	for hole in &holes {
 		// The hole's right-most vertex sees outward; bridge it to the nearest outer
 		// vertex with an uncrossed segment.
-		let &h = hole
-			.iter()
-			.max_by(|&&i, &&j| uv[i].x.total_cmp(&uv[j].x))
-			.expect("holes are non-empty rings");
+		let &h = hole.iter().max_by(|&&i, &&j| uv[i].x.total_cmp(&uv[j].x)).expect("holes are non-empty rings");
 		let mut candidates: Vec<usize> = (0..outer.len()).collect();
 		candidates.sort_by(|&i, &j| (uv[outer[i]] - uv[h]).length_squared().total_cmp(&(uv[outer[j]] - uv[h]).length_squared()));
 		let visible = |o_idx: usize| -> bool {
@@ -372,9 +361,7 @@ pub(super) fn refine_param_facets(
 				let s = if boundary.contains(&(a, b)) || !owners.iter().any(|&ti| area2(&tris[ti]) > AREA_FLOOR2) {
 					0.0
 				} else {
-					*sag_cache
-						.entry((a, b))
-						.or_insert_with(|| (eval((uv[a] + uv[b]) * 0.5) - (pos[a] + pos[b]) * 0.5).length())
+					*sag_cache.entry((a, b)).or_insert_with(|| (eval((uv[a] + uv[b]) * 0.5) - (pos[a] + pos[b]) * 0.5).length())
 				};
 				(a, b, s)
 			})
@@ -408,8 +395,7 @@ pub(super) fn refine_param_facets(
 					let ek = edge_key(t[k], t[(k + 1) % 3]);
 					let l = len2(ek.0, ek.1);
 					if !boundary.contains(&ek)
-						&& l > len2(a, b)
-						&& live(ek, &adj, tris)
+						&& l > len2(a, b) && live(ek, &adj, tris)
 						&& next.is_none_or(|(bk, bl)| l.total_cmp(&bl).then_with(|| ek.cmp(&bk)) == std::cmp::Ordering::Greater)
 					{
 						next = Some((ek, l));
@@ -734,7 +720,13 @@ pub(super) fn refine_param_facets_batched(
 /// straight through the tube (sag = the tube radius) and the facets beside it
 /// fill two half-discs — measured +4% area on an off-phase torus band, and the
 /// same wedge, smaller, beside a sphere cap's rim-to-pole chord.
-pub(super) fn sample_synthetic_seams(uv: &mut Vec<DVec2>, pts3: &mut Vec<DVec3>, ring: &[usize], k: usize, patch: &dyn ParamPatch) -> Vec<usize> {
+pub(super) fn sample_synthetic_seams(
+	uv: &mut Vec<DVec2>,
+	pts3: &mut Vec<DVec3>,
+	ring: &[usize],
+	k: usize,
+	patch: &dyn ParamPatch,
+) -> Vec<usize> {
 	let n = ring.len();
 	let (a_from, a_to) = (ring[k], ring[k + 1]);
 	let (b_from, b_to) = (ring[n - 1], ring[0]);

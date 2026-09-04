@@ -25,11 +25,7 @@ fn run(dir: &Path, ops: serde_json::Value) -> Report {
 
 /// The report entry for op `id` (panics with the report when absent).
 fn entry<'r>(report: &'r Report, id: &str) -> &'r OpReport {
-	report
-		.ops
-		.iter()
-		.find(|o| o.id == id)
-		.unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
+	report.ops.iter().find(|o| o.id == id).unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
 }
 
 /// A measure of op `id` as f64 (NaN when absent — assertions then fail loudly).

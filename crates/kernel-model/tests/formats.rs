@@ -13,8 +13,8 @@ use kernel_brep::volume;
 use kernel_core::math::{Affine3A, DVec3, Vec3};
 use kernel_core::mesher::Resolution;
 use kernel_model::format::{
-	load_assembly, load_part, save_assembly, save_part, save_part_with_meta, AsmInstance, AsmSource, FormatError, MakeOrBuy,
-	Material, PartBomMeta,
+	load_assembly, load_part, save_assembly, save_part, save_part_with_meta, AsmInstance, AsmSource, FormatError, MakeOrBuy, Material,
+	PartBomMeta,
 };
 use kernel_model::{BooleanOp, Constraint, Dim, Document, Feature, FeatureId};
 
@@ -76,13 +76,13 @@ fn lmcpart_round_trip_is_byte_stable_and_rebuilds_bit_identically() {
 			&& saved.contains("\"format\": \"lmc-part\"")
 			&& saved.contains("\"version\": 1")
 			&& saved.contains("\"units\": \"mm\"")
-			&& meta == kernel_model::format::PartMeta {
-				name: "drilled plate".to_string(),
-				units: "mm".to_string(),
-				created_with: format!("lmcad-kernel {}", env!("CARGO_PKG_VERSION")),
-				meta: None,
-			}
-			&& v0.to_bits() == v1.to_bits()
+			&& meta
+				== kernel_model::format::PartMeta {
+					name: "drilled plate".to_string(),
+					units: "mm".to_string(),
+					created_with: format!("lmcad-kernel {}", env!("CARGO_PKG_VERSION")),
+					meta: None,
+				} && v0.to_bits() == v1.to_bits()
 			&& loaded.label(FeatureId(0)) == Some("plate")
 			&& loaded.notes(FeatureId(0)) == Some("thickness driven by h"),
 		"part round-trip: byte-stable={} meta={meta:?} vol {v0} ({:#018x}) vs {v1} ({:#018x}) label={:?}",
@@ -213,12 +213,8 @@ fn lmcasm_round_trips_path_and_inline_sources_and_resolves_a_face_mate() {
 #[test]
 fn lmcasm_failures_are_loud_missing_file_bad_referenced_part_and_scaled_pose() {
 	let dir = scratch_dir("asm_failures");
-	let path_instance = |file: &str| AsmInstance {
-		name: None,
-		source: AsmSource::Path(file.to_string()),
-		pose: Affine3A::IDENTITY,
-		suppressed: false,
-	};
+	let path_instance =
+		|file: &str| AsmInstance { name: None, source: AsmSource::Path(file.to_string()), pose: Affine3A::IDENTITY, suppressed: false };
 
 	// (a) A path source that does not exist on disk.
 	let missing_json = save_assembly("a", &[path_instance("nowhere.lmcpart")], &[]).expect("saves");
@@ -278,11 +274,8 @@ fn hand_edited_lmcpart_rebuilds_as_the_user_intended() {
 		center: [Dim::Literal(0.0), Dim::Literal(0.0), Dim::Literal(0.0)],
 		size: [Dim::Literal(4.0), Dim::Literal(2.0), Dim::param("h")],
 	});
-	let pattern = doc.add(Feature::LinearPattern {
-		input: block,
-		count: 2,
-		step: [Dim::Literal(30.0), Dim::Literal(0.0), Dim::Literal(0.0)],
-	});
+	let pattern =
+		doc.add(Feature::LinearPattern { input: block, count: 2, step: [Dim::Literal(30.0), Dim::Literal(0.0), Dim::Literal(0.0)] });
 	doc.set_root(pattern);
 
 	let saved = save_part(&doc, "patterned block");

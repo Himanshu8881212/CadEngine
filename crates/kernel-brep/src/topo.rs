@@ -35,7 +35,11 @@ fn surfaces_eq(a: &Surface, b: &Surface) -> bool {
 /// Whether a sampled point of `curve` lies within the (slightly expanded) box `[lo, hi]` —
 /// a cheap filter to drop surface-section curves that miss the solid.
 fn curve_touches_box(curve: &Curve, lo: DVec3, hi: DVec3) -> bool {
-	let inb = |p: DVec3| (lo.x - 1e-6..=hi.x + 1e-6).contains(&p.x) && (lo.y - 1e-6..=hi.y + 1e-6).contains(&p.y) && (lo.z - 1e-6..=hi.z + 1e-6).contains(&p.z);
+	let inb = |p: DVec3| {
+		(lo.x - 1e-6..=hi.x + 1e-6).contains(&p.x)
+			&& (lo.y - 1e-6..=hi.y + 1e-6).contains(&p.y)
+			&& (lo.z - 1e-6..=hi.z + 1e-6).contains(&p.z)
+	};
 	let span = (hi - lo).length().max(1.0);
 	(0..16).any(|k| {
 		let t = match curve {
@@ -301,12 +305,7 @@ impl Solid {
 	/// query a parametric feature uses to rebind "that face" after re-evaluation.
 	/// Returns every matching [`FaceId`] (an original face may split into several).
 	pub fn faces_named(&self, name: FaceName) -> Vec<FaceId> {
-		self.provenance
-			.iter()
-			.enumerate()
-			.filter(|(_, n)| **n == name)
-			.map(|(i, _)| FaceId(i as u32))
-			.collect()
+		self.provenance.iter().enumerate().filter(|(_, n)| **n == name).map(|(i, _)| FaceId(i as u32)).collect()
 	}
 
 	/// The persistent [`EdgeName`] of edge `id` — the pair of [`FaceName`]s of the two
@@ -411,10 +410,7 @@ impl Solid {
 	/// Vertex ids around a face's outer loop.
 	pub fn face_vertices(&self, f: FaceId) -> Vec<VertexId> {
 		let outer = self.faces[f.ix()].outer;
-		self.loop_half_edges(outer)
-			.into_iter()
-			.map(|he| self.half_edges[he.ix()].origin)
-			.collect()
+		self.loop_half_edges(outer).into_iter().map(|he| self.half_edges[he.ix()].origin).collect()
 	}
 
 	/// Vertex positions around a face's outer loop.
@@ -425,10 +421,7 @@ impl Solid {
 	/// Vertex positions around a single loop (a face's outer loop *or* one of its
 	/// inner hole loops, from [`Face::inner`]).
 	pub fn loop_polygon(&self, lid: LoopId) -> Vec<DVec3> {
-		self.loop_half_edges(lid)
-			.into_iter()
-			.map(|he| self.position(self.half_edges[he.ix()].origin))
-			.collect()
+		self.loop_half_edges(lid).into_iter().map(|he| self.position(self.half_edges[he.ix()].origin)).collect()
 	}
 
 	// --- Construction --------------------------------------------------------
@@ -453,10 +446,7 @@ impl Solid {
 		let shell_id = ShellId(0);
 
 		// Vertices (half_edge patched in later).
-		solid.vertices = positions
-			.iter()
-			.map(|&p| Vertex { position: p, half_edge: HalfEdgeId(0) })
-			.collect();
+		solid.vertices = positions.iter().map(|&p| Vertex { position: p, half_edge: HalfEdgeId(0) }).collect();
 
 		// Directed-edge → half-edge map for twin matching.
 		use std::collections::HashMap;
@@ -500,12 +490,7 @@ impl Solid {
 				loop_ids.push(loop_id);
 			}
 
-			solid.faces.push(Face {
-				outer: loop_ids[0],
-				inner: loop_ids[1..].to_vec(),
-				surface: face_in.surface,
-				shell: shell_id,
-			});
+			solid.faces.push(Face { outer: loop_ids[0], inner: loop_ids[1..].to_vec(), surface: face_in.surface, shell: shell_id });
 			shell_faces.push(face_id);
 		}
 
@@ -545,9 +530,7 @@ impl Solid {
 	/// box edge gets an [`EdgeName`] that re-resolves after the box is resized — the
 	/// handle a fillet/chamfer feature needs.
 	pub fn with_primitive_names(mut self) -> Self {
-		self.provenance = (0..self.faces.len() as u32)
-			.map(|k| FaceName { operand: FaceSource::Primitive, source_face: k })
-			.collect();
+		self.provenance = (0..self.faces.len() as u32).map(|k| FaceName { operand: FaceSource::Primitive, source_face: k }).collect();
 		self
 	}
 
@@ -623,9 +606,8 @@ impl Solid {
 		let m3 = kernel_core::math::DMat3::from_cols(col(DVec3::X, n.x), col(DVec3::Y, n.y), col(DVec3::Z, n.z));
 		let m = kernel_core::math::DAffine3::from_mat3_translation(m3, n * (2.0 * plane_point.dot(n)));
 
-		let positions: Vec<DVec3> = (0..self.vertex_count() as u32)
-			.map(|i| m.transform_point3(self.vertex(VertexId(i)).position))
-			.collect();
+		let positions: Vec<DVec3> =
+			(0..self.vertex_count() as u32).map(|i| m.transform_point3(self.vertex(VertexId(i)).position)).collect();
 		let loop_verts_reversed = |lp: LoopId| {
 			let mut vs: Vec<u32> = self.loop_half_edges(lp).into_iter().map(|he| self.half_edges[he.ix()].origin.0).collect();
 			vs.reverse();
@@ -635,10 +617,7 @@ impl Solid {
 			.faces()
 			.map(|f| {
 				let face = &self.faces[f.ix()];
-				let loops: Vec<Vec<u32>> = std::iter::once(face.outer)
-					.chain(face.inner.iter().copied())
-					.map(loop_verts_reversed)
-					.collect();
+				let loops: Vec<Vec<u32>> = std::iter::once(face.outer).chain(face.inner.iter().copied()).map(loop_verts_reversed).collect();
 				FaceLoops { loops, surface: face.surface.transformed(m) }
 			})
 			.collect();

@@ -96,19 +96,9 @@ const SC8UU_HOLE_Y: f64 = 18.0;
 /// points) on the 24 × 18 top grid. Genus 1 (the bore; the taps are blind).
 /// Honest envelope: no end seals, circlip grooves or corner fillets.
 pub fn sc8uu_block() -> Solid {
-	let block = cuboid(
-		DVec3::new(-SC8UU_W * 0.5, -SC8UU_L * 0.5, 0.0),
-		DVec3::new(SC8UU_W * 0.5, SC8UU_L * 0.5, SC8UU_H),
-	);
-	let mut s = drill(
-		&block,
-		DVec3::new(0.0, SC8UU_L * 0.5, SC8UU_CENTER_H),
-		-DVec3::Y,
-		15.0,
-		HoleDepth::Through(SC8UU_L),
-		Some(48),
-	)
-	.expect("constant geometry: the bore tool is valid");
+	let block = cuboid(DVec3::new(-SC8UU_W * 0.5, -SC8UU_L * 0.5, 0.0), DVec3::new(SC8UU_W * 0.5, SC8UU_L * 0.5, SC8UU_H));
+	let mut s = drill(&block, DVec3::new(0.0, SC8UU_L * 0.5, SC8UU_CENTER_H), -DVec3::Y, 15.0, HoleDepth::Through(SC8UU_L), Some(48))
+		.expect("constant geometry: the bore tool is valid");
 	for (sx, sy) in [(1.0, 1.0), (-1.0, 1.0), (-1.0, -1.0), (1.0, -1.0)] {
 		let at = DVec3::new(sx * SC8UU_HOLE_X * 0.5, sy * SC8UU_HOLE_Y * 0.5, SC8UU_H);
 		s = tap_drill_hole(&s, at, -DVec3::Z, 4.0, HoleDepth::Blind(6.0), None).expect("constant geometry: the tap tool is valid");
@@ -159,10 +149,7 @@ pub fn shaft_support_sk8() -> Solid {
 	// Clamp slit: from the bore up through the top, full depth.
 	s = difference(
 		&s,
-		&cuboid(
-			DVec3::new(-1.0, -SK8_DEPTH * 0.5 - 1.0, SK8_CENTER_H),
-			DVec3::new(1.0, SK8_DEPTH * 0.5 + 1.0, SK8_H + 1.0),
-		),
+		&cuboid(DVec3::new(-1.0, -SK8_DEPTH * 0.5 - 1.0, SK8_CENTER_H), DVec3::new(1.0, SK8_DEPTH * 0.5 + 1.0, SK8_H + 1.0)),
 	);
 	// M4 clamp screw crossing the slit between bore and top.
 	s = kernel_brep::holes::clearance_hole(
@@ -199,8 +186,11 @@ const SHF8_EAR_HOLES: f64 = 32.0;
 /// the clamp bore is clearance Ø both lips (far-lip thread not modelled). The
 /// matching SK8 (upright style) is [`shaft_support_sk8`].
 pub fn shaft_support_shf8() -> Solid {
-	let plate = kernel_brep::extrude(&stadium(SHF8_LEN, SHF8_W), SHF8_T)
-		.transformed(DAffine3::from_translation(DVec3::new(-SHF8_LEN * 0.5, 0.0, 0.0)));
+	let plate = kernel_brep::extrude(&stadium(SHF8_LEN, SHF8_W), SHF8_T).transformed(DAffine3::from_translation(DVec3::new(
+		-SHF8_LEN * 0.5,
+		0.0,
+		0.0,
+	)));
 	let mut s = drill(&plate, DVec3::new(0.0, 0.0, SHF8_T), -DVec3::Z, 8.0, HoleDepth::Through(SHF8_T), Some(48))
 		.expect("constant geometry: the rod bore is valid");
 	for sx in [1.0, -1.0] {
@@ -259,10 +249,7 @@ pub fn mgn12_rail(length: f64) -> Option<Solid> {
 /// at the catalog 13 mm assembly height. Genus 0 (the channel is open, the
 /// taps blind). Honest envelope: no ball tracks, end caps or lube ports.
 pub fn mgn12_carriage() -> Solid {
-	let block = cuboid(
-		DVec3::new(-MGN12H_W * 0.5, -MGN12H_L * 0.5, 0.0),
-		DVec3::new(MGN12H_W * 0.5, MGN12H_L * 0.5, MGN12H_BLOCK_H),
-	);
+	let block = cuboid(DVec3::new(-MGN12H_W * 0.5, -MGN12H_L * 0.5, 0.0), DVec3::new(MGN12H_W * 0.5, MGN12H_L * 0.5, MGN12H_BLOCK_H));
 	let channel = cuboid(
 		DVec3::new(-MGN12H_CHANNEL_W * 0.5, -MGN12H_L * 0.5 - 1.0, -1.0),
 		DVec3::new(MGN12H_CHANNEL_W * 0.5, MGN12H_L * 0.5 + 1.0, MGN12H_CHANNEL_D),
@@ -285,7 +272,8 @@ mod tests {
 	fn check(s: &Solid, want_genus: i64) -> (bool, String) {
 		let v = validate(s);
 		let ok = v.closed
-			&& v.manifold && v.genus == want_genus
+			&& v.manifold
+			&& v.genus == want_genus
 			&& tessellate_default(s).is_watertight()
 			&& tessellate_adaptive_tol(s, 0.01).is_watertight();
 		(ok, format!("{v:?} wt={} adaptive_wt={}", tessellate_default(s).is_watertight(), tessellate_adaptive_tol(s, 0.01).is_watertight()))

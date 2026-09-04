@@ -4,9 +4,8 @@
 
 use kernel_brep::math::{DVec2, DVec3};
 use kernel_brep::{
-	cone, cuboid, cylinder, difference, export_step, extrude_with_holes, import_bspline_curve, import_bspline_mesh,
-	import_bspline_surface, import_step, import_step_assembly, sphere, tessellate_default, validate, volume, Curve,
-	StepError, Surface,
+	cone, cuboid, cylinder, difference, export_step, extrude_with_holes, import_bspline_curve, import_bspline_mesh, import_bspline_surface,
+	import_step, import_step_assembly, sphere, tessellate_default, validate, volume, Curve, StepError, Surface,
 };
 
 #[test]
@@ -76,9 +75,12 @@ fn imports_and_meshes_a_curved_bspline_surface_from_step() {
 	let bb = mesh.aabb();
 	assert!(
 		mesh.triangle_count() > 100
-			&& bb.min.x >= -0.1 && bb.max.x <= 2.1
-			&& bb.min.y >= -0.1 && bb.max.y <= 2.1
-			&& bb.min.z >= -0.1 && bb.max.z <= 0.6, // Bézier bulge reaches z≈0.25, never the control z=1
+			&& bb.min.x >= -0.1
+			&& bb.max.x <= 2.1
+			&& bb.min.y >= -0.1
+			&& bb.max.y <= 2.1
+			&& bb.min.z >= -0.1
+			&& bb.max.z <= 0.6, // Bézier bulge reaches z≈0.25, never the control z=1
 		"imported B-spline mesh must be rich + in-bounds: tris={} bb=[{:?},{:?}]",
 		mesh.triangle_count(),
 		bb.min,
@@ -268,15 +270,11 @@ fn imports_a_real_exporter_style_cylinder_with_full_circle_caps() {
 	let v = validate(&solid);
 	let vol = volume(&solid).abs();
 	let want = std::f64::consts::PI * 25.0 * 10.0; // πr²h = 785.4; a 48-segment faceting sits ~0.3% under
-	let wall_facets = solid
-		.faces()
-		.filter(|&f| matches!(solid.face(f).surface, Surface::Cylinder { radius, .. } if (radius - 5.0).abs() < 1e-9))
-		.count();
+	let wall_facets =
+		solid.faces().filter(|&f| matches!(solid.face(f).surface, Surface::Cylinder { radius, .. } if (radius - 5.0).abs() < 1e-9)).count();
 	let plane_caps = solid.faces().filter(|&f| matches!(solid.face(f).surface, Surface::Plane { .. })).count();
-	let circle_edges = solid
-		.edges()
-		.filter(|&e| matches!(solid.edge_curve(e), Some(Curve::Circle { radius, .. }) if (radius - 5.0).abs() < 1e-9))
-		.count();
+	let circle_edges =
+		solid.edges().filter(|&e| matches!(solid.edge_curve(e), Some(Curve::Circle { radius, .. }) if (radius - 5.0).abs() < 1e-9)).count();
 	assert!(
 		v.closed
 			&& v.manifold
@@ -296,18 +294,8 @@ fn round_trips_a_washer_with_inner_loops_through_step() {
 	// A washer built with multi-loop caps (Face::inner populated): the exporter must
 	// write the hole loops as FACE_BOUNDs (previously they were silently dropped) and
 	// the importer must rebuild multi-loop faces — genus 1 and exact volume preserved.
-	let outer: Vec<DVec2> = vec![
-		DVec2::new(-10.0, -10.0),
-		DVec2::new(10.0, -10.0),
-		DVec2::new(10.0, 10.0),
-		DVec2::new(-10.0, 10.0),
-	];
-	let hole: Vec<DVec2> = vec![
-		DVec2::new(-4.0, -4.0),
-		DVec2::new(4.0, -4.0),
-		DVec2::new(4.0, 4.0),
-		DVec2::new(-4.0, 4.0),
-	];
+	let outer: Vec<DVec2> = vec![DVec2::new(-10.0, -10.0), DVec2::new(10.0, -10.0), DVec2::new(10.0, 10.0), DVec2::new(-10.0, 10.0)];
+	let hole: Vec<DVec2> = vec![DVec2::new(-4.0, -4.0), DVec2::new(4.0, -4.0), DVec2::new(4.0, 4.0), DVec2::new(-4.0, 4.0)];
 	let washer = extrude_with_holes(&outer, &[hole], 6.0);
 	let want_vol = volume(&washer).abs(); // (400 − 64)·6 = 2016, exact for planar faces
 	let step = export_step(&washer, "washer");
@@ -452,10 +440,8 @@ fn imports_an_obliquely_cut_cylinder_with_an_ellipse_cap() {
 				if (a - 5.773502691896258).abs() < 1e-9 && (b - 5.0).abs() < 1e-9)
 		})
 		.count();
-	let wall_facets = solid
-		.faces()
-		.filter(|&f| matches!(solid.face(f).surface, Surface::Cylinder { radius, .. } if (radius - 5.0).abs() < 1e-9))
-		.count();
+	let wall_facets =
+		solid.faces().filter(|&f| matches!(solid.face(f).surface, Surface::Cylinder { radius, .. } if (radius - 5.0).abs() < 1e-9)).count();
 	assert!(
 		v.closed && v.manifold && v.genus == 0 && (vol - want).abs() / want < 0.01 && ellipse_edges == 48 && wall_facets >= 90,
 		"oblique-cut cylinder import: {v:?}, vol {vol} (want ≈{want}), {ellipse_edges} ellipse-tagged edges, {wall_facets} cylinder facets"
@@ -668,15 +654,8 @@ fn unsupported_periodic_and_revolved_faces_stay_loud() {
 #24=PLANE('',#4);\n\
 #25=ADVANCED_FACE('',(#23),#24,.T.);\n"
 		.to_string();
-	let results: Vec<bool> = [&rev, &parabola]
-		.iter()
-		.map(|s| matches!(import_step(s), Err(StepError::Unsupported(_))))
-		.collect();
-	assert_eq!(
-		results,
-		vec![true, true],
-		"SURFACE_OF_REVOLUTION and PARABOLA edges must each be a loud StepError::Unsupported"
-	);
+	let results: Vec<bool> = [&rev, &parabola].iter().map(|s| matches!(import_step(s), Err(StepError::Unsupported(_)))).collect();
+	assert_eq!(results, vec![true, true], "SURFACE_OF_REVOLUTION and PARABOLA edges must each be a loud StepError::Unsupported");
 	// (a) used to be a documented refusal; since the parameter-patch fallback it
 	// imports as facets ON the exact torus: an open shell (the wall alone) whose
 	// area is half the torus' 4π²Rr within 1%, every vertex on the surface.
@@ -725,9 +704,8 @@ fn imports_a_seamless_pole_spanning_dome_on_the_exact_sphere() {
 	// Open shell (just the dome — the rim pairs with nothing), every vertex ON the
 	// exact sphere, and the area within 1% of the true hemisphere 2πr².
 	let v = validate(&dome);
-	let max_off = (0..dome.vertex_count())
-		.map(|i| (dome.position(kernel_brep::VertexId(i as u32)).length() - 5.0).abs())
-		.fold(0.0_f64, f64::max);
+	let max_off =
+		(0..dome.vertex_count()).map(|i| (dome.position(kernel_brep::VertexId(i as u32)).length() - 5.0).abs()).fold(0.0_f64, f64::max);
 	let area = kernel_brep::area(&dome);
 	let want = 2.0 * std::f64::consts::PI * 25.0;
 	assert!(
@@ -856,10 +834,7 @@ fn off_patch_trim_vertices_and_seam_crossing_loops_stay_loud() {
 #22=EDGE_LOOP('',(#18,#19,#20));\n\
 #23=FACE_OUTER_BOUND('',#22,.T.);\n\
 #48=ADVANCED_FACE('',(#23),#7,.T.);\n";
-	let results: Vec<bool> = [off_patch, seam_crossing]
-		.iter()
-		.map(|s| matches!(import_step(s), Err(StepError::Unsupported(_))))
-		.collect();
+	let results: Vec<bool> = [off_patch, seam_crossing].iter().map(|s| matches!(import_step(s), Err(StepError::Unsupported(_)))).collect();
 	assert_eq!(
 		results,
 		vec![true, true],
@@ -872,8 +847,7 @@ fn imports_an_assembly_with_nauo_placements_from_disk() {
 	// FreeCAD-style assembly fixture: a plate and TWO instances of one pin product,
 	// each NAUO placed by an ITEM_DEFINED_TRANSFORMATION (one upright on the plate,
 	// one rotated so the pin's +Z lies along assembly +X).
-	let parts = import_step_assembly(include_str!("fixtures/fc_asm_pin_plate.step"))
-		.expect("the NAUO assembly fixture must import");
+	let parts = import_step_assembly(include_str!("fixtures/fc_asm_pin_plate.step")).expect("the NAUO assembly fixture must import");
 	let summary: Vec<(String, f64, DVec3, DVec3)> = parts
 		.iter()
 		.map(|(name, solid, t)| {
@@ -984,18 +958,13 @@ fn imports_mapped_item_instances_with_representation_map_frames() {
 #89=SHAPE_REPRESENTATION('root',(#73,#85,#88),$);\n\
 #90=SHAPE_DEFINITION_REPRESENTATION(#4,#89);\n";
 	let parts = import_step_assembly(step).expect("a MAPPED_ITEM file must import as instances");
-	let summary: Vec<(String, f64, DVec3)> = parts
-		.iter()
-		.map(|(name, solid, t)| (name.clone(), volume(solid).abs(), t.transform_point3(DVec3::ZERO)))
-		.collect();
+	let summary: Vec<(String, f64, DVec3)> =
+		parts.iter().map(|(name, solid, t)| (name.clone(), volume(solid).abs(), t.transform_point3(DVec3::ZERO))).collect();
 	let ok = summary.len() == 2
 		&& summary.iter().all(|(n, v, _)| n == "tet_rep" && (v - 4.0 / 3.0).abs() < 1e-9)
 		&& summary[0].2.distance(DVec3::new(4.0, 0.0, 0.0)) < 1e-12
 		&& summary[1].2.distance(DVec3::new(-1.0, 2.0, 0.0)) < 1e-12;
-	assert!(
-		ok,
-		"two tet instances at net translations (4,0,0) and (−1,2,0), volume 4/3 each; got {summary:?}"
-	);
+	assert!(ok, "two tet instances at net translations (4,0,0) and (−1,2,0), volume 4/3 each; got {summary:?}");
 }
 
 #[test]
@@ -1028,9 +997,7 @@ fn imports_an_unseamed_two_rim_closed_nurbs_tube() {
 	// seam-traversed-twice variant lives in the corpus as fc_nurbs_tube.
 	let (r, h) = (4.0, 6.0);
 	let w = 0.5_f64.sqrt();
-	let ring = [
-		(r, 0.0), (r, r), (0.0, r), (-r, r), (-r, 0.0), (-r, -r), (0.0, -r), (r, -r), (r, 0.0),
-	];
+	let ring = [(r, 0.0), (r, r), (0.0, r), (-r, r), (-r, 0.0), (-r, -r), (0.0, -r), (r, -r), (r, 0.0)];
 	let mut s = String::new();
 	for (k, (x, y)) in ring.iter().enumerate() {
 		s += &format!("#{}=CARTESIAN_POINT('',({x:?},{y:?},0.));\n", 10 + k);
@@ -1040,10 +1007,7 @@ fn imports_an_unseamed_two_rim_closed_nurbs_tube() {
 	let bot = (0..9).map(|k| format!("#{}", 10 + k)).collect::<Vec<_>>().join(",");
 	let top = (0..9).map(|k| format!("#{}", 20 + k)).collect::<Vec<_>>().join(",");
 	let grid = (0..9).map(|k| format!("(#{},#{})", 10 + k, 20 + k)).collect::<Vec<_>>().join(",");
-	let wgrid = (0..9)
-		.map(|k| if k % 2 == 0 { "(1.,1.)".into() } else { format!("({w:?},{w:?})") })
-		.collect::<Vec<_>>()
-		.join(",");
+	let wgrid = (0..9).map(|k| if k % 2 == 0 { "(1.,1.)".into() } else { format!("({w:?},{w:?})") }).collect::<Vec<_>>().join(",");
 	let knots = "(3,2,2,2,3),(0.,0.25,0.5,0.75,1.)";
 	s += "#30=VERTEX_POINT('',#10);\n#31=VERTEX_POINT('',#20);\n";
 	s += &format!("#36=( BOUNDED_CURVE() B_SPLINE_CURVE(2,({bot}),.UNSPECIFIED.,.F.,.F.) B_SPLINE_CURVE_WITH_KNOTS({knots},.UNSPECIFIED.) CURVE() GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_CURVE(({wts})) REPRESENTATION_ITEM('') );\n");
@@ -1116,7 +1080,8 @@ fn freeform_round_trip_reexports_true_bspline_surfaces() {
 		if !(patches.len() == n_patches
 			&& has_nurbs
 			&& has_rational == rational
-			&& v.closed && v.manifold
+			&& v.closed
+			&& v.manifold
 			&& rel < 0.005
 			&& tessellate_default(&back).is_watertight())
 		{
@@ -1147,18 +1112,13 @@ fn assembly_export_round_trips_through_nauo_tree() {
 	let step = export_step_assembly(&parts, "pin_plate").expect("rigid placements must export");
 	let back = import_step_assembly(&step).expect("the exported NAUO tree must re-import");
 	let probe = DVec3::new(0.0, 0.0, 8.0); // a pin's top-axis point
-	let summary: Vec<(String, f64, DVec3)> = back
-		.iter()
-		.map(|(n, s, t)| (n.clone(), volume(s).abs(), t.transform_point3(probe)))
-		.collect();
-	let expect: Vec<(String, f64, DVec3)> = parts
-		.iter()
-		.map(|(n, s, t)| (n.clone(), volume(s).abs(), t.transform_point3(probe)))
-		.collect();
+	let summary: Vec<(String, f64, DVec3)> = back.iter().map(|(n, s, t)| (n.clone(), volume(s).abs(), t.transform_point3(probe))).collect();
+	let expect: Vec<(String, f64, DVec3)> = parts.iter().map(|(n, s, t)| (n.clone(), volume(s).abs(), t.transform_point3(probe))).collect();
 	let ok = summary.len() == 3
-		&& summary.iter().zip(&expect).all(|((an, av, ap), (bn, bv, bp))| {
-			an == bn && (av - bv).abs() < 1e-9 * bv.max(1.0) && ap.distance(*bp) < 1e-9
-		});
+		&& summary
+			.iter()
+			.zip(&expect)
+			.all(|((an, av, ap), (bn, bv, bp))| an == bn && (av - bv).abs() < 1e-9 * bv.max(1.0) && ap.distance(*bp) < 1e-9);
 	assert!(ok, "assembly export must round-trip names/volumes/placements:\nexported {expect:?}\nre-imported {summary:?}");
 
 	// A mirrored placement cannot be encoded in an AXIS2_PLACEMENT_3D: loud refusal.

@@ -15,9 +15,7 @@ use std::path::{Path, PathBuf};
 use kernel_brep::volume;
 use kernel_core::math::{Affine3A, Vec3};
 use kernel_core::mesher::Resolution;
-use kernel_model::format::{
-	load_assembly, load_part, save_assembly_with_states, save_part, AsmInstance, AsmSource, BomLine, FormatError,
-};
+use kernel_model::format::{load_assembly, load_part, save_assembly_with_states, save_part, AsmInstance, AsmSource, BomLine, FormatError};
 use kernel_model::{AsmState, BooleanOp, Dim, Document, DocumentHistory, Feature, FeatureId};
 
 /// Three literal [`Dim`]s.
@@ -147,8 +145,7 @@ fn configurations_switch_the_volume_predictably_and_round_trip() {
 	assert!(
 		activated
 			&& switched
-			&& !typo
-			&& loaded.active_config().is_none()
+			&& !typo && loaded.active_config().is_none()
 			&& (v_thick - v_thick_expect).abs() < 1e-9
 			&& (v_thin - v_base * 0.5).abs() < 1e-9
 			&& v_loaded.to_bits() == v_thick.to_bits()
@@ -242,8 +239,7 @@ fn document_history_undo_redo_restores_volume_bits_and_is_bounded() {
 			&& linear(v2, 12.0)
 			&& u1 == Some(v1)
 			&& u0 == Some(v0)
-			&& bottom
-			&& r1 == Some(v1)
+			&& bottom && r1 == Some(v1)
 			&& linear(v3, 6.0)
 			&& v3 < v1
 			&& no_redo
@@ -277,17 +273,29 @@ fn save_asm_fixture(dir: &Path, suppress_screw2: bool) -> String {
 	std::fs::write(dir.join("screw.lmcpart"), save_part(&cube_doc(), "M5 screw")).expect("write screw part");
 	let at = |x: f32, y: f32| Affine3A::from_translation(Vec3::new(x, y, 1.0));
 	let instances = [
-		AsmInstance { name: Some("plate".to_string()), source: AsmSource::Part { name: "plate".to_string(), document: base_doc(), meta: None }, pose: Affine3A::IDENTITY, suppressed: false },
-		AsmInstance { name: Some("screw front".to_string()), source: AsmSource::Path("screw.lmcpart".to_string()), pose: at(10.0, 0.0), suppressed: false },
-		AsmInstance { name: Some("screw back".to_string()), source: AsmSource::Path("screw.lmcpart".to_string()), pose: at(-10.0, 0.0), suppressed: suppress_screw2 },
+		AsmInstance {
+			name: Some("plate".to_string()),
+			source: AsmSource::Part { name: "plate".to_string(), document: base_doc(), meta: None },
+			pose: Affine3A::IDENTITY,
+			suppressed: false,
+		},
+		AsmInstance {
+			name: Some("screw front".to_string()),
+			source: AsmSource::Path("screw.lmcpart".to_string()),
+			pose: at(10.0, 0.0),
+			suppressed: false,
+		},
+		AsmInstance {
+			name: Some("screw back".to_string()),
+			source: AsmSource::Path("screw.lmcpart".to_string()),
+			pose: at(-10.0, 0.0),
+			suppressed: suppress_screw2,
+		},
 	];
 	// Two states: "assembled" (both screws seated) and "service" (back screw
 	// lifted 8 mm and the front screw suppressed).
 	let states: BTreeMap<String, AsmState> = [
-		(
-			"assembled".to_string(),
-			AsmState { poses: vec![Affine3A::IDENTITY, at(10.0, 0.0), at(-10.0, 0.0)], suppressed: vec![] },
-		),
+		("assembled".to_string(), AsmState { poses: vec![Affine3A::IDENTITY, at(10.0, 0.0), at(-10.0, 0.0)], suppressed: vec![] }),
 		(
 			"service".to_string(),
 			AsmState {
@@ -326,7 +334,12 @@ fn lmcasm_per_instance_suppression_and_named_states_round_trip() {
 	// A state that cannot fit (wrong pose count) must be refused on save…
 	let bad_save = save_assembly_with_states(
 		"clamp",
-		&[AsmInstance { name: None, source: AsmSource::Part { name: "p".to_string(), document: cube_doc(), meta: None }, pose: Affine3A::IDENTITY, suppressed: false }],
+		&[AsmInstance {
+			name: None,
+			source: AsmSource::Part { name: "p".to_string(), document: cube_doc(), meta: None },
+			pose: Affine3A::IDENTITY,
+			suppressed: false,
+		}],
 		&[],
 		&[("broken".to_string(), AsmState { poses: vec![], suppressed: vec![] })].into(),
 	);

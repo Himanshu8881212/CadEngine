@@ -18,27 +18,18 @@
 //! repeats; it now pins the pipeline to one bit-exact outcome.
 
 use kernel_brep::math::{DVec2, DVec3};
-use kernel_brep::{
-	cylinder, difference, fillet_circular_rim, revolve, union, validate, volume, Solid,
-};
+use kernel_brep::{cylinder, difference, fillet_circular_rim, revolve, union, validate, volume, Solid};
 
 /// The historically flaky recipe (the `parts_gallery` flange, distilled):
 /// L-profile ring revolve ∪ rim-filleted boss, then 7 drills (bore + 6 bolt holes)
 /// — every op lands on caps already carrying the previous cuts' healed seams, the
 /// regime where iteration-order-sensitive stitching used to flip outcomes.
 fn build_flange() -> Solid {
-	let profile = [
-		DVec2::new(10.0, 0.0),
-		DVec2::new(40.0, 0.0),
-		DVec2::new(40.0, 7.0),
-		DVec2::new(39.0, 8.0),
-		DVec2::new(10.0, 8.0),
-	];
+	let profile = [DVec2::new(10.0, 0.0), DVec2::new(40.0, 0.0), DVec2::new(40.0, 7.0), DVec2::new(39.0, 8.0), DVec2::new(10.0, 8.0)];
 	let ring = revolve(&profile, 64);
 	let boss = cylinder(DVec3::new(0.0, 0.0, 8.0), DVec3::Z, 18.0, 28.0, 64);
 	// Fillet the boss's top rim BEFORE the union (torus band entering the boolean).
-	let boss = fillet_circular_rim(&boss, DVec3::new(18.0, 0.0, 36.0), 2.5, 8)
-		.expect("boss rim fillet is in scope (convex primitive rim)");
+	let boss = fillet_circular_rim(&boss, DVec3::new(18.0, 0.0, 36.0), 2.5, 8).expect("boss rim fillet is in scope (convex primitive rim)");
 	let mut body = union(&ring, &boss);
 	// Through-bore, then a 6-bolt circle: 7 chained differences.
 	body = difference(&body, &cylinder(DVec3::new(0.0, 0.0, -1.0), DVec3::Z, 10.0, 38.5, 64));

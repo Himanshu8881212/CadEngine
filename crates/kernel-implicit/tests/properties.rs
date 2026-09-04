@@ -42,10 +42,7 @@ fn build(kind: u8, p: (f32, f32, f32), q: (f32, f32, f32)) -> Node {
 	let c = vec3(p);
 	match kind % 3 {
 		0 => Node::primitive(Sphere::new(c, 2.0 + q.0.abs() % 5.0)),
-		1 => Node::primitive(Cuboid::new(
-			c,
-			Vec3::new(2.0 + q.0.abs() % 4.0, 2.0 + q.1.abs() % 4.0, 2.0 + q.2.abs() % 4.0),
-		)),
+		1 => Node::primitive(Cuboid::new(c, Vec3::new(2.0 + q.0.abs() % 4.0, 2.0 + q.1.abs() % 4.0, 2.0 + q.2.abs() % 4.0))),
 		_ => {
 			let axis = Vec3::Y;
 			let h = 3.0 + q.1.abs() % 6.0;

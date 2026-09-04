@@ -86,14 +86,7 @@ const FACES: [[usize; 4]; 6] = [
 /// Fractional offset of each face centre inside the unit cell (parallel to
 /// [`FACES`]). Used to sample the SDF for the saddle-face arc decision; the point
 /// is shared by the two cells across the face so both decide identically.
-const FACE_CENTER: [[f32; 3]; 6] = [
-	[0.0, 0.5, 0.5],
-	[1.0, 0.5, 0.5],
-	[0.5, 0.0, 0.5],
-	[0.5, 1.0, 0.5],
-	[0.5, 0.5, 0.0],
-	[0.5, 0.5, 1.0],
-];
+const FACE_CENTER: [[f32; 3]; 6] = [[0.0, 0.5, 0.5], [1.0, 0.5, 0.5], [0.5, 0.0, 0.5], [0.5, 1.0, 0.5], [0.5, 0.5, 0.0], [0.5, 0.5, 1.0]];
 
 #[inline]
 fn inside(v: f32) -> bool {
@@ -143,11 +136,7 @@ struct CellTopo {
 /// consumes it. `cube_edges` is the shared 12-edge table. (The cube-centre
 /// sample formerly taken alongside fed only the disabled body merge — see the
 /// module note — and is no longer evaluated.)
-fn cell_components(
-	values: &[f32; 8],
-	mut face_inside: impl FnMut(usize) -> bool,
-	cube_edges: &[usize; 24],
-) -> CellTopo {
+fn cell_components(values: &[f32; 8], mut face_inside: impl FnMut(usize) -> bool, cube_edges: &[usize; 24]) -> CellTopo {
 	let sign = |c: usize| inside(values[c]);
 
 	// One union-find shared by both sign classes: we only ever union corners of
@@ -467,12 +456,7 @@ where
 			let bit_v = 1usize << iv;
 			// (cell index, local lower corner of the shared edge) for the 4 cells
 			// in cyclic order around the edge.
-			let incident = [
-				(ci, 0usize),
-				(ci - du, bit_u),
-				(ci - du - dv, bit_u | bit_v),
-				(ci - dv, bit_v),
-			];
+			let incident = [(ci, 0usize), (ci - du, bit_u), (ci - du - dv, bit_u | bit_v), (ci - dv, bit_v)];
 			let mut q = [0u32; 4];
 			let mut ok = true;
 			for (i, &(nci, lc)) in incident.iter().enumerate() {
@@ -503,11 +487,7 @@ where
 			// Orient the quad by whether corner 0 is inside (winding corrected to
 			// outward at the end). Split into two triangles on the q[0]-q[2]
 			// diagonal.
-			let (aa, bb, cc, dd) = if mask_bit0 {
-				(q[0], q[1], q[2], q[3])
-			} else {
-				(q[0], q[3], q[2], q[1])
-			};
+			let (aa, bb, cc, dd) = if mask_bit0 { (q[0], q[1], q[2], q[3]) } else { (q[0], q[3], q[2], q[1]) };
 			mesh.push_triangle(aa, bb, cc);
 			mesh.push_triangle(aa, cc, dd);
 		}
@@ -569,8 +549,7 @@ mod tests {
 		// refinement — see the `manifold_dual_contour` doc.)
 		for (ra, rb, dir, off) in cases {
 			let d = dir.normalize_or_zero();
-			let part = Node::primitive(Sphere::new(Vec3::ZERO, ra))
-				.difference(Node::primitive(Sphere::new(d * off, rb)));
+			let part = Node::primitive(Sphere::new(Vec3::ZERO, ra)).difference(Node::primitive(Sphere::new(d * off, rb)));
 			for vs in [1.3f32, 0.9, 0.6, 0.45, 0.3] {
 				let mdc = manifold_dual_contour(&part, part.bounds().pad(2.0), Resolution::VoxelSize(vs));
 				let naive = crate::surface_nets(&part, part.bounds().pad(2.0), Resolution::VoxelSize(vs));

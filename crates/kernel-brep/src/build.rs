@@ -126,14 +126,8 @@ pub fn cylinder(base: DVec3, axis: DVec3, radius: f64, height: f64, segments: us
 	let s = segments as u32;
 	let mut faces = Vec::new();
 	// Caps (single n-gon each).
-	faces.push(FaceInput {
-		boundary: orient((0..s).collect(), &pos, cap_lo),
-		surface: Surface::Plane { origin: base, normal: cap_lo },
-	});
-	faces.push(FaceInput {
-		boundary: orient((s..2 * s).collect(), &pos, cap_hi),
-		surface: Surface::Plane { origin: top, normal: cap_hi },
-	});
+	faces.push(FaceInput { boundary: orient((0..s).collect(), &pos, cap_lo), surface: Surface::Plane { origin: base, normal: cap_lo } });
+	faces.push(FaceInput { boundary: orient((s..2 * s).collect(), &pos, cap_hi), surface: Surface::Plane { origin: top, normal: cap_hi } });
 	// Sides.
 	let cyl = Surface::Cylinder { origin: base, axis, radius };
 	for k in 0..segments {
@@ -180,10 +174,7 @@ pub fn cone(base: DVec3, axis: DVec3, base_radius: f64, height: f64, segments: u
 
 	let s = segments as u32;
 	let mut faces = Vec::new();
-	faces.push(FaceInput {
-		boundary: orient((0..s).collect(), &pos, cap_lo),
-		surface: Surface::Plane { origin: base, normal: cap_lo },
-	});
+	faces.push(FaceInput { boundary: orient((0..s).collect(), &pos, cap_lo), surface: Surface::Plane { origin: base, normal: cap_lo } });
 	// `axis` points base→apex; the cone surface opens from the apex toward the
 	// base, so its surface axis is -axis.
 	// Surface axis must point apex→base and the half-angle stay positive regardless of
@@ -218,9 +209,7 @@ pub fn sphere(center: DVec3, radius: f64, u_segments: usize, v_segments: usize) 
 		let theta = std::f64::consts::PI * r as f64 / v as f64;
 		for c in 0..u {
 			let phi = TAU * c as f64 / u as f64;
-			pos.push(
-				center + DVec3::new(theta.sin() * phi.cos(), theta.sin() * phi.sin(), theta.cos()) * radius,
-			);
+			pos.push(center + DVec3::new(theta.sin() * phi.cos(), theta.sin() * phi.sin(), theta.cos()) * radius);
 		}
 	}
 	let south = pos.len() as u32;
@@ -241,12 +230,7 @@ pub fn sphere(center: DVec3, radius: f64, u_segments: usize, v_segments: usize) 
 	// Middle quads.
 	for r in 1..v - 1 {
 		for c in 0..u {
-			let quad = vec![
-				ring(r, c) as u32,
-				ring(r, c + 1) as u32,
-				ring(r + 1, c + 1) as u32,
-				ring(r + 1, c) as u32,
-			];
+			let quad = vec![ring(r, c) as u32, ring(r, c + 1) as u32, ring(r + 1, c + 1) as u32, ring(r + 1, c) as u32];
 			faces.push(FaceInput { boundary: orient(quad.clone(), &pos, hint(&quad)), surface: surf });
 		}
 	}
@@ -303,10 +287,7 @@ pub fn extrude(profile: &[DVec2], height: f64) -> Solid {
 		let outward = DVec3::new(dir.y, -dir.x, 0.0).normalize_or_zero(); // right of travel (CCW ⇒ outward)
 		let origin = DVec3::new(profile[k].x, profile[k].y, 0.0);
 		let quad = vec![k as u32, k1 as u32, nn + k1 as u32, nn + k as u32];
-		faces.push(FaceInput {
-			boundary: orient(quad, &pos, outward),
-			surface: Surface::Plane { origin, normal: outward },
-		});
+		faces.push(FaceInput { boundary: orient(quad, &pos, outward), surface: Surface::Plane { origin, normal: outward } });
 	}
 	// Faces: 0=bottom cap, 1=top cap, then one side per profile edge in order. Naming
 	// them makes the prism's edges nameable (and stable across a parametric edit).
@@ -398,10 +379,7 @@ pub fn extrude_tapered(profile: &[DVec2], height: f64, draft: f64) -> Solid {
 			normal = -normal;
 		}
 		let quad = vec![k as u32, k1 as u32, nn + k1 as u32, nn + k as u32];
-		faces.push(FaceInput {
-			boundary: orient(quad, &pos, normal),
-			surface: Surface::Plane { origin: b0, normal },
-		});
+		faces.push(FaceInput { boundary: orient(quad, &pos, normal), surface: Surface::Plane { origin: b0, normal } });
 	}
 	Solid::from_faces(pos, faces).with_primitive_names()
 }
@@ -484,7 +462,10 @@ pub fn extrude_with_holes(outer: &[DVec2], holes: &[Vec<DVec2>], height: f64) ->
 		let dir = outer[i1] - outer[i];
 		let outward = DVec3::new(dir.y, -dir.x, 0.0).normalize_or_zero();
 		let origin = DVec3::new(outer[i].x, outer[i].y, 0.0);
-		faces.push(FaceLoops { loops: vec![vec![ib(0, i), ib(0, i1), it(0, i1), it(0, i)]], surface: Surface::Plane { origin, normal: outward } });
+		faces.push(FaceLoops {
+			loops: vec![vec![ib(0, i), ib(0, i1), it(0, i1), it(0, i)]],
+			surface: Surface::Plane { origin, normal: outward },
+		});
 	}
 	// Hole walls (normal points INTO the hole): reversed winding [b[i+1], b[i], t[i], t[i+1]].
 	for (hi, h) in holes.iter().enumerate() {
@@ -495,7 +476,10 @@ pub fn extrude_with_holes(outer: &[DVec2], holes: &[Vec<DVec2>], height: f64) ->
 			let dir = h[i1] - h[i];
 			let inward = DVec3::new(-dir.y, dir.x, 0.0).normalize_or_zero();
 			let origin = DVec3::new(h[i].x, h[i].y, 0.0);
-			faces.push(FaceLoops { loops: vec![vec![ib(li, i1), ib(li, i), it(li, i), it(li, i1)]], surface: Surface::Plane { origin, normal: inward } });
+			faces.push(FaceLoops {
+				loops: vec![vec![ib(li, i1), ib(li, i), it(li, i), it(li, i1)]],
+				surface: Surface::Plane { origin, normal: inward },
+			});
 		}
 	}
 	Solid::from_faces_multiloop(pos, faces)
@@ -536,9 +520,15 @@ pub fn filleted_cylinder(radius: f64, height: f64, fillet: f64, segments: usize,
 	let tor = Surface::Torus { center: axis * (height - r), axis, major: radius - r, minor: r };
 	let mut faces = Vec::with_capacity(n_layers * seg + 2);
 	// Caps: bottom n-gon (radius R, z=0, −Z) and top n-gon (radius R−r, z=h, +Z).
-	faces.push(FaceInput { boundary: orient((0..seg as u32).collect(), &pos, -axis), surface: Surface::Plane { origin: DVec3::ZERO, normal: -axis } });
+	faces.push(FaceInput {
+		boundary: orient((0..seg as u32).collect(), &pos, -axis),
+		surface: Surface::Plane { origin: DVec3::ZERO, normal: -axis },
+	});
 	let top = ((n_layers - 1) * seg) as u32;
-	faces.push(FaceInput { boundary: orient((top..top + seg as u32).collect(), &pos, axis), surface: Surface::Plane { origin: axis * height, normal: axis } });
+	faces.push(FaceInput {
+		boundary: orient((top..top + seg as u32).collect(), &pos, axis),
+		surface: Surface::Plane { origin: axis * height, normal: axis },
+	});
 	// Bands: layer 0→1 is the vertical wall (Cylinder); layers 1..=arc are the fillet (Torus).
 	for l in 0..n_layers - 1 {
 		let (surf, on_fillet) = if l == 0 { (cyl, false) } else { (tor, true) };

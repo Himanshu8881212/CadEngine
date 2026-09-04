@@ -165,14 +165,7 @@ fn make_feature(a: Node, b: Node, r: f32, subtract: bool, chamfer: bool) -> Node
 	// round/bevel blend understates the distance inside the seam region), so the
 	// leaf is tagged `DistanceBound` — a downstream `offset`/`shell` on it is
 	// honestly flagged approximate. See the field-quality contract in `ops`.
-	Node::primitive_bound(Feature {
-		a: Box::new(a),
-		b: Box::new(b),
-		r,
-		bounds,
-		subtract,
-		chamfer,
-	})
+	Node::primitive_bound(Feature { a: Box::new(a), b: Box::new(b), r, bounds, subtract, chamfer })
 }
 
 /// Constant-radius **fillet union** of `a` and `b` (`opUnionRound`).
@@ -270,15 +263,9 @@ mod tests {
 			let (a, b) = two_boxes();
 			vol(&fillet_union(a, b, 4.0), 0.3)
 		};
-		assert!(
-			filleted >= hard - 1.0,
-			"fillet union {filleted} should be >= hard union {hard}"
-		);
+		assert!(filleted >= hard - 1.0, "fillet union {filleted} should be >= hard union {hard}");
 		// And the rounding must actually add a meaningful amount of material.
-		assert!(
-			filleted > hard + 1.0,
-			"fillet should add material: {filleted} vs {hard}"
-		);
+		assert!(filleted > hard + 1.0, "fillet should add material: {filleted} vs {hard}");
 	}
 
 	#[test]
@@ -293,10 +280,7 @@ mod tests {
 			let (a, b) = two_boxes();
 			vol(&chamfer_union(a, b, 4.0), 0.3)
 		};
-		assert!(
-			(filleted - chamfered).abs() > 1.0,
-			"chamfer {chamfered} should differ from fillet {filleted}"
-		);
+		assert!((filleted - chamfered).abs() > 1.0, "chamfer {chamfered} should differ from fillet {filleted}");
 	}
 
 	#[test]
@@ -331,10 +315,7 @@ mod tests {
 		// The fillet only reworks the cut edge, so the volumes are close but distinct.
 		let delta = (fillet_cut - hard_cut).abs();
 		assert!(delta > 1.0, "rounding the cut edge should change volume: {fillet_cut} vs {hard_cut}");
-		assert!(
-			delta < 0.05 * solid,
-			"fillet should only rework the edge, not bulk material: {fillet_cut} vs {hard_cut}"
-		);
+		assert!(delta < 0.05 * solid, "fillet should only rework the edge, not bulk material: {fillet_cut} vs {hard_cut}");
 
 		// Watertight across resolutions, not just one (a single voxel size can pass
 		// by luck — concave-crease manifoldness is resolution-dependent).
@@ -351,17 +332,10 @@ mod tests {
 		let feat = fillet_union(a, b, 0.0);
 		let hard_a = Cuboid::new(Vec3::new(-5.0, 0.0, 0.0), Vec3::splat(6.0));
 		let hard_b = Cuboid::new(Vec3::new(5.0, 0.0, 0.0), Vec3::splat(6.0));
-		for p in [
-			Vec3::new(0.0, 0.0, 0.0),
-			Vec3::new(-5.0, 3.0, 1.0),
-			Vec3::new(11.0, 0.0, 0.0),
-		] {
+		for p in [Vec3::new(0.0, 0.0, 0.0), Vec3::new(-5.0, 3.0, 1.0), Vec3::new(11.0, 0.0, 0.0)] {
 			let expected = hard_a.distance(p).min(hard_b.distance(p));
 			let got = feat.distance(p);
-			assert!(
-				(got - expected).abs() < 1e-4,
-				"r=0 fillet at {p:?}: got {got}, want hard min {expected}"
-			);
+			assert!((got - expected).abs() < 1e-4, "r=0 fillet at {p:?}: got {got}, want hard min {expected}");
 		}
 	}
 }

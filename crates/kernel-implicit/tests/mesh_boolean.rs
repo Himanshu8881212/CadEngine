@@ -118,16 +118,14 @@ fn implicit_boolean_on_boxes_is_exact_and_watertight() {
 	let u = mesh_boolean_implicit(&a, &b, BoolOp::Union, 0.08);
 	let i = mesh_boolean_implicit(&a, &b, BoolOp::Intersection, 0.08);
 	let d = mesh_boolean_implicit(&a, &b, BoolOp::Difference, 0.08);
-	assert_eq!(
-		(u.is_watertight(), i.is_watertight(), d.is_watertight()),
-		(true, true, true),
-		"box booleans must be watertight"
-	);
+	assert_eq!((u.is_watertight(), i.is_watertight(), d.is_watertight()), (true, true, true), "box booleans must be watertight");
 	let v = |m: &Mesh| m.signed_volume().abs();
 	assert!(
 		(v(&u) - 15.0).abs() < 0.3 && (v(&i) - 1.0).abs() < 0.3 && (v(&d) - 7.0).abs() < 0.3,
 		"box booleans ∪={} ∩={} −={} (expect 15/1/7)",
-		v(&u), v(&i), v(&d)
+		v(&u),
+		v(&i),
+		v(&d)
 	);
 }
 

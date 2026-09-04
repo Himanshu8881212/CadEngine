@@ -16,8 +16,8 @@ use crate::program::LibraryMetaSpec;
 use crate::program::OpKind;
 use crate::report::{ErrorKind, OpError};
 
-use super::meshio::{resolve_input_path};
-use super::support::{bind_solid};
+use super::meshio::resolve_input_path;
+use super::support::bind_solid;
 
 /// Map a kernel [`AdmissionError`] to a structured op error: gate failures
 /// (build / validity / determinism at a sample) are `admission_rejected`, file
@@ -65,11 +65,7 @@ pub(crate) fn to_kernel_meta(meta: LibraryMetaSpec) -> EntryMeta {
 		category: meta.category,
 		tags: meta.tags,
 		description: meta.description,
-		provenance: Provenance {
-			author: meta.provenance.author,
-			created_with: meta.provenance.created_with,
-			date: meta.provenance.date,
-		},
+		provenance: Provenance { author: meta.provenance.author, created_with: meta.provenance.created_with, date: meta.provenance.date },
 		param_interface: meta
 			.params
 			.into_iter()
@@ -103,9 +99,7 @@ pub(crate) fn exec(op_id: &str, out_dir: &Path, kind: OpKind) -> Result<Outcome,
 				}
 			};
 			let mut library = open_library(op_id, out_dir, &dir)?;
-			let entry = library
-				.add(&part_json, to_kernel_meta(meta), &AddOptions::default())
-				.map_err(|e| map_admission_error(op_id, e))?;
+			let entry = library.add(&part_json, to_kernel_meta(meta), &AddOptions::default()).map_err(|e| map_admission_error(op_id, e))?;
 			Ok(Outcome::measures(json!({
 				"name": entry.name,
 				"version": entry.version,
@@ -142,9 +136,7 @@ pub(crate) fn exec(op_id: &str, out_dir: &Path, kind: OpKind) -> Result<Outcome,
 		#[cfg(feature = "catalog")]
 		OpKind::LibraryInstantiate { dir, name, version, params } => {
 			let library = open_library(op_id, out_dir, &dir)?;
-			let built = library
-				.instantiate(&name, version, &params)
-				.map_err(|e| map_library_error(op_id, "library_instantiate", e))?;
+			let built = library.instantiate(&name, version, &params).map_err(|e| map_library_error(op_id, "library_instantiate", e))?;
 			let solid = built.document.evaluate_brep().ok_or_else(|| {
 				err(
 					ErrorKind::InvalidParam,

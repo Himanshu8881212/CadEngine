@@ -17,7 +17,7 @@ use crate::program::OpKind;
 use crate::report::{ErrorKind, OpError};
 
 use super::meshio::{merge_soup, write_mesh_healed};
-use super::support::{FASTENER_SIZES, bind_solid, grid_guard, size_err};
+use super::support::{bind_solid, grid_guard, size_err, FASTENER_SIZES};
 
 /// Cap on the helical turns a thread op will loft (the ridge is stitched at
 /// 96 stations per turn, so unbounded turns would be an allocation hazard).

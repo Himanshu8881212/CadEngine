@@ -22,13 +22,7 @@ fn degenerate_extrude_profiles_do_not_panic_or_nan() {
 		("near-zero scale", vec![DVec2::new(0.0, 0.0), DVec2::new(1e-9, 0.0), DVec2::new(0.0, 1e-9)]),
 		(
 			"non-convex with a near-degenerate spike",
-			vec![
-				DVec2::new(0.0, 0.0),
-				DVec2::new(4.0, 0.0),
-				DVec2::new(4.0, 4.0),
-				DVec2::new(2.0, 0.001),
-				DVec2::new(0.0, 4.0),
-			],
+			vec![DVec2::new(0.0, 0.0), DVec2::new(4.0, 0.0), DVec2::new(4.0, 4.0), DVec2::new(2.0, 0.001), DVec2::new(0.0, 4.0)],
 		),
 	];
 	for (what, profile) in cases {

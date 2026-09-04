@@ -47,9 +47,18 @@ fn degenerate_seed_sets_are_graceful_clean_and_deterministic() {
 	// the eps slack resolves consistently. Cleanliness + determinism only.
 	let phi = (1.0 + 5.0_f32.sqrt()) / 2.0;
 	let ico: Vec<Vec3> = [
-		(0.0, 1.0, phi), (0.0, 1.0, -phi), (0.0, -1.0, phi), (0.0, -1.0, -phi),
-		(1.0, phi, 0.0), (1.0, -phi, 0.0), (-1.0, phi, 0.0), (-1.0, -phi, 0.0),
-		(phi, 0.0, 1.0), (phi, 0.0, -1.0), (-phi, 0.0, 1.0), (-phi, 0.0, -1.0),
+		(0.0, 1.0, phi),
+		(0.0, 1.0, -phi),
+		(0.0, -1.0, phi),
+		(0.0, -1.0, -phi),
+		(1.0, phi, 0.0),
+		(1.0, -phi, 0.0),
+		(-1.0, phi, 0.0),
+		(-1.0, -phi, 0.0),
+		(phi, 0.0, 1.0),
+		(phi, 0.0, -1.0),
+		(-phi, 0.0, 1.0),
+		(-phi, 0.0, -1.0),
 	]
 	.iter()
 	.map(|&(x, y, z)| Vec3::new(x, y, z).normalize() * 8.0)
@@ -77,10 +86,16 @@ fn degenerate_seed_sets_are_graceful_clean_and_deterministic() {
 		(
 			"duplicates-in-cloud",
 			vec![
-				Vec3::new(-6.0, -6.0, -6.0), Vec3::new(6.0, -6.0, -6.0), Vec3::new(-6.0, 6.0, -6.0), Vec3::new(6.0, 6.0, 6.0),
-				Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), // exact duplicate
-				Vec3::new(3.0, -2.0, 1.0), Vec3::new(3.0, -2.0, 1.0), // another exact duplicate
-				Vec3::new(-3.0, 4.0, -2.0), Vec3::new(2.0, 2.0, -5.0),
+				Vec3::new(-6.0, -6.0, -6.0),
+				Vec3::new(6.0, -6.0, -6.0),
+				Vec3::new(-6.0, 6.0, -6.0),
+				Vec3::new(6.0, 6.0, 6.0),
+				Vec3::new(0.0, 0.0, 0.0),
+				Vec3::new(0.0, 0.0, 0.0), // exact duplicate
+				Vec3::new(3.0, -2.0, 1.0),
+				Vec3::new(3.0, -2.0, 1.0), // another exact duplicate
+				Vec3::new(-3.0, 4.0, -2.0),
+				Vec3::new(2.0, 2.0, -5.0),
 			],
 			None,
 		),
@@ -150,9 +165,14 @@ fn voronoi_lattice_survives_duplicates_deterministically() {
 	// seed cloud containing exact duplicates must build without panic and yield a
 	// deterministic strut count (never NaN struts corrupting the grid).
 	let seeds = vec![
-		Vec3::new(-5.0, -5.0, -5.0), Vec3::new(5.0, -5.0, -5.0), Vec3::new(-5.0, 5.0, -5.0),
-		Vec3::new(5.0, 5.0, 5.0), Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), // duplicate
-		Vec3::new(2.0, -3.0, 4.0), Vec3::new(-4.0, 2.0, -1.0),
+		Vec3::new(-5.0, -5.0, -5.0),
+		Vec3::new(5.0, -5.0, -5.0),
+		Vec3::new(-5.0, 5.0, -5.0),
+		Vec3::new(5.0, 5.0, 5.0),
+		Vec3::new(0.0, 0.0, 0.0),
+		Vec3::new(0.0, 0.0, 0.0), // duplicate
+		Vec3::new(2.0, -3.0, 4.0),
+		Vec3::new(-4.0, 2.0, -1.0),
 	];
 	let (lo, hi) = (Vec3::splat(-8.0), Vec3::splat(8.0));
 	let a = VoronoiLattice::new(seeds.clone(), 0.7, lo, hi);

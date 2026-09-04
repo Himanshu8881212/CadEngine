@@ -74,9 +74,8 @@ fn cross_bore_manifold_is_genus_3_with_correct_volume() {
 	let bore_x = cylinder(DVec3::new(-l / 2.0, 0.0, 0.0), DVec3::X, r, l, seg);
 	let bore_y = cylinder(DVec3::new(0.0, -l / 2.0, 0.0), DVec3::Y, r, l, seg);
 
-	let manifold = try_difference(&block, &bore_x)
-		.and_then(|s| try_difference(&s, &bore_y))
-		.expect("perpendicular cross-bore booleans succeed");
+	let manifold =
+		try_difference(&block, &bore_x).and_then(|s| try_difference(&s, &bore_y)).expect("perpendicular cross-bore booleans succeed");
 	let v = validate(&manifold);
 	let vol = volume(&manifold).abs();
 
@@ -105,9 +104,7 @@ fn angled_cross_bore_stays_genus_3() {
 	let dir = DVec3::new(theta.cos(), theta.sin(), 0.0);
 	let bore_b = cylinder(dir * (-l / 2.0), dir, r, l, seg);
 
-	let manifold = try_difference(&block, &bore_x)
-		.and_then(|s| try_difference(&s, &bore_b))
-		.expect("angled cross-bore booleans succeed");
+	let manifold = try_difference(&block, &bore_x).and_then(|s| try_difference(&s, &bore_b)).expect("angled cross-bore booleans succeed");
 	let v = validate(&manifold);
 
 	assert!(
@@ -126,10 +123,12 @@ fn angled_cross_bore_stays_genus_3() {
 #[test]
 fn hollow_bent_pipe_via_sweep_and_boolean_is_watertight_genus_1() {
 	let octagon = |r: f64| -> Vec<DVec3> {
-		(0..8).map(|i| {
-			let a = TAU * i as f64 / 8.0;
-			DVec3::new(r * a.cos(), r * a.sin(), 0.0)
-		}).collect()
+		(0..8)
+			.map(|i| {
+				let a = TAU * i as f64 / 8.0;
+				DVec3::new(r * a.cos(), r * a.sin(), 0.0)
+			})
+			.collect()
 	};
 	let path = [DVec3::new(0.0, 0.0, 0.0), DVec3::new(0.0, 0.0, 25.0), DVec3::new(20.0, 0.0, 25.0)];
 	let outer = sweep_solid(&octagon(8.0), &path).expect("outer sweeps");

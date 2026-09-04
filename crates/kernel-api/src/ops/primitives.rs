@@ -81,24 +81,18 @@ pub(crate) fn exec(op_id: &str, kind: OpKind) -> Result<Outcome, OpError> {
 			let m = DAffine3::from_translation(b) * DAffine3::from_mat3(align_z_to(dir));
 			bind_solid(op_id, "cone", solid.transformed(m))
 		}
-		OpKind::Torus { center, axis, major, minor, ring_segments, tube_segments } => bind_solid(
-			op_id,
-			"torus",
-			kernel_brep::torus(dv3(center), dv3(axis), major, minor, ring_segments, tube_segments),
-		),
+		OpKind::Torus { center, axis, major, minor, ring_segments, tube_segments } => {
+			bind_solid(op_id, "torus", kernel_brep::torus(dv3(center), dv3(axis), major, minor, ring_segments, tube_segments))
+		}
 		OpKind::Extrude { profile, height } => bind_solid(op_id, "extrude", kernel_brep::extrude(&profile2d(&profile), height)),
 		OpKind::ExtrudeWithHoles { outer, holes, height } => {
 			let holes: Vec<Vec<DVec2>> = holes.iter().map(|h| profile2d(h)).collect();
 			bind_solid(op_id, "extrude_with_holes", kernel_brep::extrude_with_holes(&profile2d(&outer), &holes, height))
 		}
-		OpKind::ExtrudeTapered { profile, height, draft_deg } => bind_solid(
-			op_id,
-			"extrude_tapered",
-			kernel_brep::extrude_tapered(&profile2d(&profile), height, draft_deg.to_radians()),
-		),
-		OpKind::Revolve { profile, segments } => {
-			bind_solid(op_id, "revolve", kernel_brep::revolve(&profile2d(&profile), segments))
+		OpKind::ExtrudeTapered { profile, height, draft_deg } => {
+			bind_solid(op_id, "extrude_tapered", kernel_brep::extrude_tapered(&profile2d(&profile), height, draft_deg.to_radians()))
 		}
+		OpKind::Revolve { profile, segments } => bind_solid(op_id, "revolve", kernel_brep::revolve(&profile2d(&profile), segments)),
 		OpKind::Loft { sections } => {
 			let secs: Vec<Vec<DVec3>> = sections.iter().map(|s| s.iter().map(|&p| dv3(p)).collect()).collect();
 			match kernel_brep::loft_solid(&secs) {

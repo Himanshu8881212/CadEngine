@@ -116,8 +116,5 @@ fn no_manufactured_witness_at_minus_118() {
 	// The f32 predicate manufactured a crossing (pair [139, 143]) that does
 	// not exist in the stored coordinates at double precision; the f64
 	// predicate must report none.
-	assert!(
-		mesh.self_intersection_witness().is_none(),
-		"the -118 deg pose must not produce a self-intersection witness"
-	);
+	assert!(mesh.self_intersection_witness().is_none(), "the -118 deg pose must not produce a self-intersection witness");
 }

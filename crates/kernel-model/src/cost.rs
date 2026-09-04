@@ -137,10 +137,9 @@ pub enum CostError {
 impl std::fmt::Display for CostError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-			CostError::NotImplemented { process, note } => write!(
-				f,
-				"{process} cost model not implemented — declared sibling, see kernel_model::cost module doc{note}"
-			),
+			CostError::NotImplemented { process, note } => {
+				write!(f, "{process} cost model not implemented — declared sibling, see kernel_model::cost module doc{note}")
+			}
 			CostError::BadParameter { field, got, why } => {
 				write!(f, "cost parameter '{field}' = {got} is out of range: {why} — refusing to produce a number from an impossible model")
 			}
@@ -355,7 +354,11 @@ impl FdmCostModel {
 			return Err(CostError::BadParameter { field: "height_mm", got: height_mm, why: "part height must be finite and non-negative" });
 		}
 		if !self.layer_height_mm.is_finite() || self.layer_height_mm <= 0.0 {
-			return Err(CostError::BadParameter { field: "layer_height_mm", got: self.layer_height_mm, why: "layer height must be finite and > 0" });
+			return Err(CostError::BadParameter {
+				field: "layer_height_mm",
+				got: self.layer_height_mm,
+				why: "layer height must be finite and > 0",
+			});
 		}
 		let raw = height_mm / self.layer_height_mm;
 		let snapped = if (raw - raw.round()).abs() < 1e-9 { raw.round() } else { raw.ceil() };
@@ -376,7 +379,11 @@ impl FdmCostModel {
 	pub fn print_time_minutes(&self, deposited_mm3: f64, height_mm: f64) -> Result<f64, CostError> {
 		self.validate()?;
 		if !deposited_mm3.is_finite() || deposited_mm3 < 0.0 {
-			return Err(CostError::BadParameter { field: "deposited_mm3", got: deposited_mm3, why: "deposited volume must be finite and non-negative" });
+			return Err(CostError::BadParameter {
+				field: "deposited_mm3",
+				got: deposited_mm3,
+				why: "deposited volume must be finite and non-negative",
+			});
 		}
 		let layers = self.layer_count(height_mm)? as f64;
 		let extrude_s = deposited_mm3 / self.volumetric_flow_mm3_s;
@@ -587,13 +594,7 @@ impl CostBreakdown {
 	pub fn summary(&self) -> String {
 		format!(
 			"{}: {:.2} g, {:.1} min, material {:.4} + machine {:.4} = {:.4} [{}]",
-			self.process,
-			self.material_g,
-			self.time_minutes,
-			self.material_cost,
-			self.machine_cost,
-			self.total,
-			"+/-30% class"
+			self.process, self.material_g, self.time_minutes, self.material_cost, self.machine_cost, self.total, "+/-30% class"
 		)
 	}
 }
@@ -662,7 +663,11 @@ impl CostedBom {
 	/// under the table where a reader cannot miss it.
 	pub fn to_markdown(&self) -> String {
 		let mut out = String::new();
-		let _ = writeln!(out, "| part | params | qty | unit mass (g) | unit time (min) | unit cost ({c}) | line cost ({c}) |", c = self.currency);
+		let _ = writeln!(
+			out,
+			"| part | params | qty | unit mass (g) | unit time (min) | unit cost ({c}) | line cost ({c}) |",
+			c = self.currency
+		);
 		let _ = writeln!(out, "|---|---|---:|---:|---:|---:|---:|");
 		for l in &self.lines {
 			let _ = writeln!(
@@ -752,9 +757,6 @@ pub fn costed_bom(items: &[CostItem], process: &CostProcess, currency: &str) -> 
 		total_time_minutes += line_time_minutes;
 		lines.push(CostedBomLine { name, params, count, unit, line_total, line_material_g, line_time_minutes });
 	}
-	let model_accuracy_note = lines
-		.first()
-		.map(|l| l.unit.model_accuracy_note.clone())
-		.unwrap_or_else(|| FDM_ACCURACY_CLASS.to_string());
+	let model_accuracy_note = lines.first().map(|l| l.unit.model_accuracy_note.clone()).unwrap_or_else(|| FDM_ACCURACY_CLASS.to_string());
 	Ok(CostedBom { lines, currency: currency.to_string(), total, total_material_g, total_time_minutes, model_accuracy_note })
 }

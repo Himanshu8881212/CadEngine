@@ -12,8 +12,8 @@ use std::sync::Arc;
 
 use kernel_api::{run_program, ErrorKind, OpReport, Report};
 use kernel_implicit::{
-	dual_contour_narrowband, make_manifold, manifold_dual_contour, Aabb, Cuboid, Cylinder as VoxCylinder, Gyroid,
-	Node, Resolution, Sdf, Vec3,
+	dual_contour_narrowband, make_manifold, manifold_dual_contour, Aabb, Cuboid, Cylinder as VoxCylinder, Gyroid, Node, Resolution, Sdf,
+	Vec3,
 };
 use serde_json::{json, Value};
 
@@ -26,11 +26,7 @@ fn out_dir(name: &str) -> PathBuf {
 
 /// The report entry for op `id` (panics with the report when absent).
 fn entry<'r>(report: &'r Report, id: &str) -> &'r OpReport {
-	report
-		.ops
-		.iter()
-		.find(|o| o.id == id)
-		.unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
+	report.ops.iter().find(|o| o.id == id).unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
 }
 
 /// The `volume` measure of op `id`.
@@ -171,10 +167,9 @@ fn implicit_grammar_breadth_program() {
 	]});
 
 	let report = run_program(&serde_json::to_string(&program).expect("serialize"), &dir);
-	let all_watertight =
-		["blend", "feat", "xform", "patterns", "lattice", "tripod", "pipes", "expr", "lerp9", "graded"]
-			.iter()
-			.all(|id| watertight(&report, id));
+	let all_watertight = ["blend", "feat", "xform", "patterns", "lattice", "tripod", "pipes", "expr", "lerp9", "graded"]
+		.iter()
+		.all(|id| watertight(&report, id));
 	let sphere = |r: f64| 4.0 / 3.0 * std::f64::consts::PI * r.powi(3);
 	let patterns_want = 2.0 * sphere(3.0) + 5.0 * sphere(2.0);
 	let expr_want = 3.0f64.sqrt() / 2.0 * 64.0 * 6.0 + sphere(4.0);
@@ -457,11 +452,14 @@ fn tpms_named_op_all_families_and_errors() {
 	let bad_kind = run(json!({"ops": [{"id": "lat", "op": "tpms", "kind": "spaghetti", "min": [0,0,0], "max": [10,10,10],
 		"cell": 5, "file": "x.stl"}]}));
 	let bad_kind_ok = !bad_kind.ok
-		&& entry(&bad_kind, "lat").error.as_ref().map(|e| e.kind == ErrorKind::InvalidParam && e.message.contains("gyroid")).unwrap_or(false);
+		&& entry(&bad_kind, "lat")
+			.error
+			.as_ref()
+			.map(|e| e.kind == ErrorKind::InvalidParam && e.message.contains("gyroid"))
+			.unwrap_or(false);
 	let bad_sheet = run(json!({"ops": [{"id": "lat", "op": "tpms", "kind": "gyroid", "mode": "sheet", "min": [0,0,0],
 		"max": [10,10,10], "cell": 5, "file": "y.stl"}]}));
-	let bad_sheet_ok = !bad_sheet.ok
-		&& entry(&bad_sheet, "lat").error.as_ref().map(|e| e.kind == ErrorKind::InvalidParam).unwrap_or(false);
+	let bad_sheet_ok = !bad_sheet.ok && entry(&bad_sheet, "lat").error.as_ref().map(|e| e.kind == ErrorKind::InvalidParam).unwrap_or(false);
 	report += &format!("\n  bad kind loud={bad_kind_ok} sheet-without-level loud={bad_sheet_ok}");
 	assert!(
 		all_ok && sheet_ok && bad_kind_ok && bad_sheet_ok,
@@ -597,10 +595,7 @@ fn pure_json_helical_thread_bolt_matches_rust_reference() {
 			let (a, b) = (quad[i], quad[(i + 1) % 4]);
 			let (er, eu) = (b[0] - a[0], b[1] - a[1]);
 			let inv = 1.0 / (er * er + eu * eu).sqrt();
-			jsub(
-				jmul(jsub(rad.clone(), json!(a[0])), json!(eu * inv)),
-				jmul(jsub(u.clone(), json!(a[1])), json!(er * inv)),
-			)
+			jsub(jmul(jsub(rad.clone(), json!(a[0])), json!(eu * inv)), jmul(jsub(u.clone(), json!(a[1])), json!(er * inv)))
 		})
 		.collect();
 	let thread = jmax(
@@ -612,10 +607,7 @@ fn pure_json_helical_thread_bolt_matches_rust_reference() {
 	let hex_walls: Vec<Value> = (0..3)
 		.map(|k| {
 			let a = k as f64 * std::f64::consts::PI / 3.0;
-			jsub(
-				json!({"op": "abs", "arg": jadd(jmul(json!("x"), json!(a.cos())), jmul(json!("y"), json!(a.sin())))}),
-				json!(8.0),
-			)
+			jsub(json!({"op": "abs", "arg": jadd(jmul(json!("x"), json!(a.cos())), jmul(json!("y"), json!(a.sin())))}), json!(8.0))
 		})
 		.collect();
 	let hex = jmax(
@@ -705,7 +697,8 @@ fn graded_gyroid_lattice_program_matches_rust_reference() {
 		.intersection(Node::primitive(Cuboid::new(Vec3::ZERO, Vec3::splat(20.0))));
 	let reference = mesh_of(&graded);
 	let ref_vol = reference.signed_volume();
-	let ungraded = Node::primitive(Gyroid::new(region, 0.35, 0.6)).intersection(Node::primitive(Cuboid::new(Vec3::ZERO, Vec3::splat(20.0))));
+	let ungraded =
+		Node::primitive(Gyroid::new(region, 0.35, 0.6)).intersection(Node::primitive(Cuboid::new(Vec3::ZERO, Vec3::splat(20.0))));
 	let base_vol = mesh_of(&ungraded).signed_volume();
 
 	println!(

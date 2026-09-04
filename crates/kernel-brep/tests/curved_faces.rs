@@ -231,8 +231,5 @@ fn chord_facets_and_a_hex_prism_keep_the_boundary_only_contract() {
 		report.push_str(&format!("{name}: chord volume {v:.4} vs closed form {truth:.4} (inscribed={under}), wt={wt}\n"));
 		ok &= under && wt;
 	}
-	assert!(
-		ok,
-		"builder chord facets must keep the boundary-only tessellation (inscribed, never bulged):\n{report}"
-	);
+	assert!(ok, "builder chord facets must keep the boundary-only tessellation (inscribed, never bulged):\n{report}");
 }

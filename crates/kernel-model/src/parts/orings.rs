@@ -35,13 +35,8 @@ pub struct As568Spec {
 /// from inches — W 0.070/0.103/0.139/0.210/0.275 → L 0.050/0.081/0.111/0.170/0.226,
 /// G 0.093/0.140/0.187/0.281/0.375. The resulting squeeze (18–29%) and gland fill
 /// (70–83%) sit inside Parker's recommended static bands — asserted in the tests.
-const PARKER_GLAND: [(f64, f64, f64); 5] = [
-	(1.78, 1.27, 2.36),
-	(2.62, 2.06, 3.56),
-	(3.53, 2.82, 4.75),
-	(5.33, 4.32, 7.14),
-	(6.99, 5.74, 9.53),
-];
+const PARKER_GLAND: [(f64, f64, f64); 5] =
+	[(1.78, 1.27, 2.36), (2.62, 2.06, 3.56), (3.53, 2.82, 4.75), (5.33, 4.32, 7.14), (6.99, 5.74, 9.53)];
 
 /// AS568 dash-number table: `(dash, ID, W)` in mm. Source: SAE AS568 standard sizes
 /// as published in the Parker O-Ring Handbook ORD 5700 size tables (inch ID/W
@@ -133,7 +128,7 @@ pub fn metric_cord_gland(cord_d: f64) -> Option<MetricCordGland> {
 	METRIC_CORDS.iter().find(|&&c| (c - cord_d).abs() < 1e-9)?;
 	Some(MetricCordGland {
 		cord_d,
-		gland_depth: 0.75 * cord_d,                // 25% squeeze
+		gland_depth: 0.75 * cord_d,                 // 25% squeeze
 		groove_width: PI * cord_d / (4.0 * 0.5625), // fill = π·d²/4 / (depth·width) = 75%
 	})
 }
@@ -437,7 +432,8 @@ mod tests {
 			let cut = o_ring_face_gland(&boss, DVec3::new(0.0, 0.0, h), DVec3::Z, center_d, cord).expect("valid gland");
 			let v = validate(&cut);
 			let ring48 = |r: f64| 48.0 * 0.5 * r * r * (2.0 * PI / 48.0).sin();
-			let expected = ring48(boss_d * 0.5) * h - (ring48(center_d * 0.5 + g.groove_width * 0.5) - ring48(center_d * 0.5 - g.groove_width * 0.5)) * g.gland_depth;
+			let expected = ring48(boss_d * 0.5) * h
+				- (ring48(center_d * 0.5 + g.groove_width * 0.5) - ring48(center_d * 0.5 - g.groove_width * 0.5)) * g.gland_depth;
 			let floor_z = h - g.gland_depth;
 			let floor_verts = (0..cut.vertex_count() as u32).filter(|&i| (cut.position(VertexId(i)).z - floor_z).abs() < 1e-9).count();
 			assert!(

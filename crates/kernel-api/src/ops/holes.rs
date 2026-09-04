@@ -206,8 +206,10 @@ pub(crate) fn exec(
 						hole_measures.insert("counterbore_depth".into(), json!(spec.counterbore_depth));
 					}
 					if matches!(hole, BoltHoleSpec::Countersink { .. }) {
-						hole_measures
-							.insert("countersink_d".into(), json!(spec.countersink_d.expect("countersink cut succeeded, so the form-F row exists")));
+						hole_measures.insert(
+							"countersink_d".into(),
+							json!(spec.countersink_d.expect("countersink cut succeeded, so the form-F row exists")),
+						);
 					}
 				}
 				BoltHoleSpec::TapDrill { m, depth, through } => {

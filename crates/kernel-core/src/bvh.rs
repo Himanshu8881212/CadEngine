@@ -70,7 +70,9 @@ impl MeshBvh {
 			}
 			if node.leaf {
 				for s in node.a..node.a + node.b {
-					if let Some((t, pt, nrm)) = ray_triangle(ray, self.tris[s as usize][0], self.tris[s as usize][1], self.tris[s as usize][2]) {
+					if let Some((t, pt, nrm)) =
+						ray_triangle(ray, self.tris[s as usize][0], self.tris[s as usize][1], self.tris[s as usize][2])
+					{
 						if best.is_none_or(|h| t < h.t) {
 							best = Some(RayHit { t, point: pt, normal: nrm, triangle: self.ids[s as usize] });
 						}
@@ -286,9 +288,8 @@ fn build(tris: &[[Vec3; 3]], order: &mut [usize], start: usize, end: usize, node
 	}
 	let axis = widest_centroid_axis(tris, &order[start..end]);
 	let mid = (start + end) / 2;
-	order[start..end].select_nth_unstable_by(mid - start, |&x, &y| {
-		centroid(tris[x]).to_array()[axis].total_cmp(&centroid(tris[y]).to_array()[axis])
-	});
+	order[start..end]
+		.select_nth_unstable_by(mid - start, |&x, &y| centroid(tris[x]).to_array()[axis].total_cmp(&centroid(tris[y]).to_array()[axis]));
 	let l = build(tris, order, start, mid, nodes);
 	let r = build(tris, order, mid, end, nodes);
 	let node = &mut nodes[idx as usize];

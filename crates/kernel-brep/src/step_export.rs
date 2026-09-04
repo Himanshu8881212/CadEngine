@@ -179,33 +179,19 @@ fn real(x: f64) -> String {
 
 /// A `DIRECTION` record body for a (unit) vector.
 fn direction(name: &str, d: DVec3) -> String {
-	format!(
-		"DIRECTION('{name}',({},{},{}))",
-		real(d.x),
-		real(d.y),
-		real(d.z)
-	)
+	format!("DIRECTION('{name}',({},{},{}))", real(d.x), real(d.y), real(d.z))
 }
 
 /// A `CARTESIAN_POINT` record body for a point.
 fn point(name: &str, p: DVec3) -> String {
-	format!(
-		"CARTESIAN_POINT('{name}',({},{},{}))",
-		real(p.x),
-		real(p.y),
-		real(p.z)
-	)
+	format!("CARTESIAN_POINT('{name}',({},{},{}))", real(p.x), real(p.y), real(p.z))
 }
 
 /// Emit an `AXIS2_PLACEMENT_3D` (location + axis `z` + ref direction `x`) and
 /// return its entity id. A null normal/ref pair is replaced with the world
 /// frame so degenerate surfaces still produce a valid placement.
 fn emit_placement(w: &mut StepWriter, location: DVec3, axis: DVec3, ref_dir: DVec3) -> u32 {
-	let axis = if axis.length_squared() > 1e-20 {
-		axis.normalize()
-	} else {
-		DVec3::Z
-	};
+	let axis = if axis.length_squared() > 1e-20 { axis.normalize() } else { DVec3::Z };
 	let ref_dir = if ref_dir.length_squared() > 1e-20 {
 		// Re-orthogonalise the reference direction against the axis.
 		let r = ref_dir - axis * ref_dir.dot(axis);
@@ -255,20 +241,12 @@ fn emit_surface(w: &mut StepWriter, surface: &Surface, centroid: DVec3) -> u32 {
 			let location = apex + axis * h;
 			let (u, _) = perp_basis(axis);
 			let placement = emit_placement(w, location, axis, u);
-			w.emit_shared(&format!(
-				"CONICAL_SURFACE('',#{placement},{},{})",
-				real(base_radius),
-				real(half_angle)
-			))
+			w.emit_shared(&format!("CONICAL_SURFACE('',#{placement},{},{})", real(base_radius), real(half_angle)))
 		}
 		Surface::Torus { center, axis, major, minor } => {
 			let (u, _) = perp_basis(axis.normalize_or_zero());
 			let placement = emit_placement(w, center, axis, u);
-			w.emit_shared(&format!(
-				"TOROIDAL_SURFACE('',#{placement},{},{})",
-				real(major),
-				real(minor)
-			))
+			w.emit_shared(&format!("TOROIDAL_SURFACE('',#{placement},{},{})", real(major), real(minor)))
 		}
 	}
 }
@@ -327,9 +305,7 @@ fn emit_bspline_surface(w: &mut StepWriter, s: &NurbsSurface) -> u32 {
 			"( BOUNDED_SURFACE() B_SPLINE_SURFACE({du},{dv},({grid}),.UNSPECIFIED.,.F.,.F.,.F.) B_SPLINE_SURFACE_WITH_KNOTS({knot_lists},.UNSPECIFIED.) GEOMETRIC_REPRESENTATION_ITEM() RATIONAL_B_SPLINE_SURFACE(({wgrid})) REPRESENTATION_ITEM('') SURFACE() )"
 		))
 	} else {
-		w.emit(&format!(
-			"B_SPLINE_SURFACE_WITH_KNOTS('',{du},{dv},({grid}),.UNSPECIFIED.,.F.,.F.,.F.,{knot_lists},.UNSPECIFIED.)"
-		))
+		w.emit(&format!("B_SPLINE_SURFACE_WITH_KNOTS('',{du},{dv},({grid}),.UNSPECIFIED.,.F.,.F.,.F.,{knot_lists},.UNSPECIFIED.)"))
 	}
 }
 
@@ -425,8 +401,8 @@ fn coalesce_regions(
 	// plane); merging those would misread the second outer loop as a hole. Split
 	// each group into edge-connected components and coalesce per component.
 	let mut components: Vec<(bool, Vec<FaceId>)> = Vec::new(); // (is_band, faces)
-	// deterministic order: HashMap iteration once made the emitted file (and a
-	// wrong-outer-loop bug below) vary run to run
+															// deterministic order: HashMap iteration once made the emitted file (and a
+															// wrong-outer-loop bug below) vary run to run
 	let mut groups_v: Vec<(Key, Vec<FaceId>)> = groups.into_iter().collect();
 	groups_v.sort_by(|a, b| a.0.cmp(&b.0));
 	for (key, fids) in groups_v {
@@ -499,18 +475,17 @@ fn coalesce_regions(
 						continue;
 					}
 					if !directed.insert((a, b)) {
-						if dbg { eprintln!("  abort: dup directed edge"); }
+						if dbg {
+							eprintln!("  abort: dup directed edge");
+						}
 						continue 'group; // duplicated directed edge
 					}
 					*undirected.entry(if a < b { (a, b) } else { (b, a) }).or_insert(0) += 1;
 				}
 			}
 		}
-		let boundary: Vec<(u32, u32)> = directed
-			.iter()
-			.copied()
-			.filter(|&(a, b)| undirected[&if a < b { (a, b) } else { (b, a) }] == 1)
-			.collect();
+		let boundary: Vec<(u32, u32)> =
+			directed.iter().copied().filter(|&(a, b)| undirected[&if a < b { (a, b) } else { (b, a) }] == 1).collect();
 		if boundary.len() < 3 {
 			continue;
 		}
@@ -518,7 +493,9 @@ fn coalesce_regions(
 		let mut succ: HashMap<u32, u32> = HashMap::new();
 		for &(a, b) in &boundary {
 			if succ.insert(a, b).is_some() {
-				if dbg { eprintln!("  abort: branching boundary"); }
+				if dbg {
+					eprintln!("  abort: branching boundary");
+				}
 				continue 'group;
 			}
 		}
@@ -533,7 +510,9 @@ fn coalesce_regions(
 			let mut cur = succ[&start];
 			while cur != start {
 				if !remaining.remove(&cur) {
-					if dbg { eprintln!("  abort: open chain"); }
+					if dbg {
+						eprintln!("  abort: open chain");
+					}
 					continue 'group; // open chain / crossing
 				}
 				ring.push(cur);
@@ -586,8 +565,7 @@ fn coalesce_regions(
 							.inner
 							.iter()
 							.map(|&lid| {
-								let r: Vec<u32> =
-									solid.loop_half_edges(lid).into_iter().map(|he| solid.half_edge(he).origin.0).collect();
+								let r: Vec<u32> = solid.loop_half_edges(lid).into_iter().map(|he| solid.half_edge(he).origin.0).collect();
 								ring_area(&r).abs()
 							})
 							.sum();
@@ -628,11 +606,8 @@ fn coalesce_regions(
 				// the apex is a tip cap, not a two-rim band — a merged face there
 				// would carry the apex singularity on its boundary. Fall back.
 				if slope != 0.0 {
-					let hs: Vec<f64> = fids
-						.iter()
-						.flat_map(|&fid| solid.face_vertices(fid))
-						.map(|v| (solid.position(v) - anchor).dot(axis))
-						.collect();
+					let hs: Vec<f64> =
+						fids.iter().flat_map(|&fid| solid.face_vertices(fid)).map(|v| (solid.position(v) - anchor).dot(axis)).collect();
 					let hmax = hs.iter().copied().fold(0.0_f64, f64::max);
 					if hs.iter().any(|&h| h <= 1e-6 * (1.0 + hmax.abs())) {
 						if dbg {
@@ -702,7 +677,8 @@ fn coalesce_regions(
 					(0..n).map(|i| wrap(ang(ring[(i + 1) % n]) - ang(ring[i]))).sum()
 				};
 				let winds: Vec<f64> = loops.iter().map(|r| winding(r)).collect();
-				let full: Vec<usize> = winds.iter().enumerate().filter(|(_, w)| w.abs() > std::f64::consts::TAU - 0.1).map(|(i, _)| i).collect();
+				let full: Vec<usize> =
+					winds.iter().enumerate().filter(|(_, w)| w.abs() > std::f64::consts::TAU - 0.1).map(|(i, _)| i).collect();
 				if full.is_empty() {
 					// A bounded curved patch can have an arbitrarily-shaped boundary
 					// whose cylinder unwrap is not u-monotone — the importer (and
@@ -745,8 +721,11 @@ fn coalesce_regions(
 						None
 					}
 				};
-				let (Some(a180), Some(b0), Some(b180)) = (near(rim_a, target180), near(rim_b, ang(rim_a[0])), near(rim_b, target180)) else {
-					if dbg { eprintln!("  abort: no angle-matched seam vertices"); }
+				let (Some(a180), Some(b0), Some(b180)) = (near(rim_a, target180), near(rim_b, ang(rim_a[0])), near(rim_b, target180))
+				else {
+					if dbg {
+						eprintln!("  abort: no angle-matched seam vertices");
+					}
 					continue;
 				};
 				let seg = |ring: &[u32], from: usize, to: usize| -> Vec<u32> {
@@ -1043,11 +1022,7 @@ fn emit_brep(w: &mut StepWriter, solid: &Solid, patches: &[FreeformFace], produc
 		// silently losing it.
 		let mut bound_refs: Vec<u32> = Vec::new();
 		for (li, lid) in std::iter::once(face.outer).chain(face.inner.iter().copied()).enumerate() {
-			let verts: Vec<VertexId> = solid
-				.loop_half_edges(lid)
-				.into_iter()
-				.map(|he| solid.half_edge(he).origin)
-				.collect();
+			let verts: Vec<VertexId> = solid.loop_half_edges(lid).into_iter().map(|he| solid.half_edge(he).origin).collect();
 
 			// Oriented edges around this loop.
 			let n = verts.len();
@@ -1069,11 +1044,7 @@ fn emit_brep(w: &mut StepWriter, solid: &Solid, patches: &[FreeformFace], produc
 				continue; // degenerate inner sliver: drop just this hole
 			}
 
-			let refs = oriented_edges
-				.iter()
-				.map(|id| format!("#{id}"))
-				.collect::<Vec<_>>()
-				.join(",");
+			let refs = oriented_edges.iter().map(|id| format!("#{id}")).collect::<Vec<_>>().join(",");
 			let edge_loop = w.emit(&format!("EDGE_LOOP('',({refs}))"));
 			let bound = if li == 0 {
 				w.emit(&format!("FACE_OUTER_BOUND('',#{edge_loop},.T.)"))
@@ -1086,14 +1057,8 @@ fn emit_brep(w: &mut StepWriter, solid: &Solid, patches: &[FreeformFace], produc
 		if bound_refs.is_empty() {
 			continue; // no valid outer bound for this face
 		}
-		let bounds = bound_refs
-			.iter()
-			.map(|id| format!("#{id}"))
-			.collect::<Vec<_>>()
-			.join(",");
-		let af = w.emit(&format!(
-			"ADVANCED_FACE('',({bounds}),#{surface_id},.T.)"
-		));
+		let bounds = bound_refs.iter().map(|id| format!("#{id}")).collect::<Vec<_>>().join(",");
+		let af = w.emit(&format!("ADVANCED_FACE('',({bounds}),#{surface_id},.T.)"));
 		advanced_faces.push(af);
 	}
 
@@ -1118,15 +1083,16 @@ fn emit_brep(w: &mut StepWriter, solid: &Solid, patches: &[FreeformFace], produc
 				})
 				.collect();
 			let n = p2.len();
-			(0..n).map(|i| {
-				let (x0, y0) = p2[i];
-				let (x1, y1) = p2[(i + 1) % n];
-				x0 * y1 - x1 * y0
-			}).sum::<f64>().abs()
+			(0..n)
+				.map(|i| {
+					let (x0, y0) = p2[i];
+					let (x1, y1) = p2[(i + 1) % n];
+					x0 * y1 - x1 * y0
+				})
+				.sum::<f64>()
+				.abs()
 		};
-		let outer_idx = (0..region.loops.len())
-			.max_by(|&i, &j| area2(&region.loops[i]).total_cmp(&area2(&region.loops[j])))
-			.unwrap_or(0);
+		let outer_idx = (0..region.loops.len()).max_by(|&i, &j| area2(&region.loops[i]).total_cmp(&area2(&region.loops[j]))).unwrap_or(0);
 		let mut bound_refs: Vec<u32> = Vec::new();
 		for (li, ring) in region.loops.iter().enumerate() {
 			let n = ring.len();
@@ -1218,16 +1184,9 @@ fn emit_brep(w: &mut StepWriter, solid: &Solid, patches: &[FreeformFace], produc
 	}
 
 	// --- Shell + solid ---------------------------------------------------------
-	let shell_refs = advanced_faces
-		.iter()
-		.map(|id| format!("#{id}"))
-		.collect::<Vec<_>>()
-		.join(",");
+	let shell_refs = advanced_faces.iter().map(|id| format!("#{id}")).collect::<Vec<_>>().join(",");
 	let closed_shell = w.emit(&format!("CLOSED_SHELL('',({shell_refs}))"));
-	let brep = w.emit(&format!(
-		"MANIFOLD_SOLID_BREP('{}',#{closed_shell})",
-		escape(product_name)
-	));
+	let brep = w.emit(&format!("MANIFOLD_SOLID_BREP('{}',#{closed_shell})", escape(product_name)));
 	// Disarm the geometry cache: entity sharing is scoped to ONE solid — the
 	// next brep of an assembly (and the assembly's own placements) must not
 	// reference records inside this MANIFOLD_SOLID_BREP's subgraph.
@@ -1269,9 +1228,7 @@ fn emit_app_context(w: &mut StepWriter, flavor: StepFlavor) -> u32 {
 	match flavor {
 		StepFlavor::Ap203 => {
 			let app = w.emit("APPLICATION_CONTEXT('configuration controlled 3d designs of mechanical parts and assemblies')");
-			w.emit(&format!(
-				"APPLICATION_PROTOCOL_DEFINITION('international standard','config_control_design',1994,#{app})"
-			));
+			w.emit(&format!("APPLICATION_PROTOCOL_DEFINITION('international standard','config_control_design',1994,#{app})"));
 			app
 		}
 		StepFlavor::Ap242 => {
@@ -1292,9 +1249,7 @@ fn emit_product(w: &mut StepWriter, name: &str, flavor: StepFlavor, app_context:
 	let product_context = w.emit(&format!("PRODUCT_CONTEXT('',#{app_context},'mechanical')"));
 	let product = w.emit(&format!("PRODUCT('{0}','{0}','',(#{product_context}))", escape(name)));
 	let formation = match flavor {
-		StepFlavor::Ap203 => w.emit(&format!(
-			"PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE('','',#{product},.NOT_KNOWN.)"
-		)),
+		StepFlavor::Ap203 => w.emit(&format!("PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE('','',#{product},.NOT_KNOWN.)")),
 		StepFlavor::Ap242 => {
 			let f = w.emit(&format!("PRODUCT_DEFINITION_FORMATION('','',#{product})"));
 			w.emit(&format!("PRODUCT_RELATED_PRODUCT_CATEGORY('part',$,(#{product}))"));
@@ -1314,10 +1269,7 @@ fn assemble_file(body: &str, product_name: &str, flavor: StepFlavor) -> String {
 	let mut out = String::new();
 	out.push_str("ISO-10303-21;\n");
 	out.push_str("HEADER;\n");
-	out.push_str(&format!(
-		"FILE_DESCRIPTION(('{}'),'2;1');\n",
-		escape(&format!("STEP {ap} export of {product_name}"))
-	));
+	out.push_str(&format!("FILE_DESCRIPTION(('{}'),'2;1');\n", escape(&format!("STEP {ap} export of {product_name}"))));
 	out.push_str(&format!(
 		"FILE_NAME('{}','{}',(''),(''),'LMCAD kernel-brep','LMCAD','');\n",
 		escape(product_name),
@@ -1338,10 +1290,7 @@ fn export_step_solid(solid: &Solid, patches: &[FreeformFace], product_name: &str
 	let mut w = StepWriter::new();
 	let brep = emit_brep(&mut w, solid, patches, product_name, coalesce);
 	let geom_context = emit_geom_context(&mut w);
-	let shape_rep = w.emit(&format!(
-		"ADVANCED_BREP_SHAPE_REPRESENTATION('{}',(#{brep}),#{geom_context})",
-		escape(product_name)
-	));
+	let shape_rep = w.emit(&format!("ADVANCED_BREP_SHAPE_REPRESENTATION('{}',(#{brep}),#{geom_context})", escape(product_name)));
 	let app_context = emit_app_context(&mut w, flavor);
 	let product_def = emit_product(&mut w, product_name, flavor, app_context);
 	let product_def_shape = w.emit(&format!("PRODUCT_DEFINITION_SHAPE('','',#{product_def})"));
@@ -1442,10 +1391,7 @@ pub fn export_step_assembly(parts: &[(String, Solid, DAffine3)], assembly_name: 
 	let root_pd = emit_product(&mut w, assembly_name, StepFlavor::Ap203, app_context);
 	let root_pds = w.emit(&format!("PRODUCT_DEFINITION_SHAPE('','',#{root_pd})"));
 	let origin = emit_placement(&mut w, DVec3::ZERO, DVec3::Z, DVec3::X);
-	let root_rep = w.emit(&format!(
-		"SHAPE_REPRESENTATION('{}',(#{origin}),#{geom_context})",
-		escape(assembly_name)
-	));
+	let root_rep = w.emit(&format!("SHAPE_REPRESENTATION('{}',(#{origin}),#{geom_context})", escape(assembly_name)));
 	w.emit(&format!("SHAPE_DEFINITION_REPRESENTATION(#{root_pds},#{root_rep})"));
 
 	// One product + brep per distinct part name (first instance's geometry wins).
@@ -1457,10 +1403,7 @@ pub fn export_step_assembly(parts: &[(String, Solid, DAffine3)], assembly_name: 
 		let pd = emit_product(&mut w, name, StepFlavor::Ap203, app_context);
 		let co = coalesce_roundtrip_ok(solid, name);
 		let brep = emit_brep(&mut w, solid, &[], name, co);
-		let rep = w.emit(&format!(
-			"ADVANCED_BREP_SHAPE_REPRESENTATION('{}',(#{brep}),#{geom_context})",
-			escape(name)
-		));
+		let rep = w.emit(&format!("ADVANCED_BREP_SHAPE_REPRESENTATION('{}',(#{brep}),#{geom_context})", escape(name)));
 		let pds = w.emit(&format!("PRODUCT_DEFINITION_SHAPE('','',#{pd})"));
 		w.emit(&format!("SHAPE_DEFINITION_REPRESENTATION(#{pds},#{rep})"));
 		part_ids.insert(name.as_str(), (pd, rep));
@@ -1469,10 +1412,7 @@ pub fn export_step_assembly(parts: &[(String, Solid, DAffine3)], assembly_name: 
 	// One NAUO + placed CONTEXT_DEPENDENT_SHAPE_REPRESENTATION per instance.
 	for (k, (name, _, t)) in parts.iter().enumerate() {
 		let (part_pd, part_rep) = part_ids[name.as_str()];
-		let nauo = w.emit(&format!(
-			"NEXT_ASSEMBLY_USAGE_OCCURRENCE('NAUO{k}','{}','',#{root_pd},#{part_pd},$)",
-			escape(name)
-		));
+		let nauo = w.emit(&format!("NEXT_ASSEMBLY_USAGE_OCCURRENCE('NAUO{k}','{}','',#{root_pd},#{part_pd},$)", escape(name)));
 		let pds = w.emit(&format!("PRODUCT_DEFINITION_SHAPE('placement','',#{nauo})"));
 		let f1 = emit_placement(&mut w, DVec3::ZERO, DVec3::Z, DVec3::X);
 		let f2 = emit_placement(&mut w, t.translation, t.matrix3.z_axis, t.matrix3.x_axis);
@@ -1515,10 +1455,7 @@ mod tests {
 
 		// Envelope.
 		assert!(step.starts_with("ISO-10303-21;"), "must start with magic header");
-		assert!(
-			step.trim_end().ends_with("END-ISO-10303-21;"),
-			"must end with magic footer"
-		);
+		assert!(step.trim_end().ends_with("END-ISO-10303-21;"), "must end with magic footer");
 
 		// Required structural records.
 		assert!(step.contains("MANIFOLD_SOLID_BREP"));
@@ -1543,10 +1480,7 @@ mod tests {
 			if let Some(rest) = line.strip_prefix('#') {
 				if let Some(eq) = rest.find(" =") {
 					let id = &rest[..eq];
-					assert!(
-						ids.insert(id.to_string()),
-						"duplicate entity id #{id}"
-					);
+					assert!(ids.insert(id.to_string()), "duplicate entity id #{id}");
 				}
 			}
 		}
@@ -1630,12 +1564,7 @@ mod tests {
 		let arc_edges = step
 			.lines()
 			.filter(|l| l.contains("= EDGE_CURVE("))
-			.filter(|l| {
-				l.split(",#")
-					.nth(3)
-					.and_then(|t| t.split(',').next())
-					.is_some_and(|geom| circle_ids.contains(geom))
-			})
+			.filter(|l| l.split(",#").nth(3).and_then(|t| t.split(',').next()).is_some_and(|geom| circle_ids.contains(geom)))
 			.count();
 		assert!(
 			circle_ids.len() == 2 && arc_edges == 24,

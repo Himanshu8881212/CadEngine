@@ -39,11 +39,7 @@ fn num(report: &Report, id: &str, key: &str) -> f64 {
 
 /// A named measure of op `id`.
 fn measure<'r>(report: &'r Report, id: &str, key: &str) -> &'r Value {
-	entry(report, id)
-		.measures
-		.as_ref()
-		.map(|m| &m[key])
-		.unwrap_or_else(|| panic!("op '{id}' has no measures in {report:#?}"))
+	entry(report, id).measures.as_ref().map(|m| &m[key]).unwrap_or_else(|| panic!("op '{id}' has no measures in {report:#?}"))
 }
 
 /// Assert the FIRST failing op is `id` with `kind`, and its message carries
@@ -142,8 +138,11 @@ fn pipe_path_leaf_matches_the_general_pipe_leaf_exactly() {
 		"pipe_path must be the exact same field as pipe (uniform radii): volumes {a:.6} vs {b:.6} mm³ (chain of two Ø4 capsules ≈ 300+ mm³) — {r:#?}"
 	);
 
-	let short = run(&dir, json!([{"id": "p", "op": "implicit", "voxel": 0.5,
-		"expr": {"shape": "pipe_path", "points": [[0, 0, 0]], "radius": 2.0}}]));
+	let short = run(
+		&dir,
+		json!([{"id": "p", "op": "implicit", "voxel": 0.5,
+		"expr": {"shape": "pipe_path", "points": [[0, 0, 0]], "radius": 2.0}}]),
+	);
 	assert_refusal(&short, "p", ErrorKind::InvalidParam, &["at least 2 points"]);
 	let _ = std::fs::remove_dir_all(&dir);
 }
@@ -216,14 +215,20 @@ fn displace_knurl_grows_the_box_and_stays_narrowband_safe() {
 		"knurl amplitude +0.4 must GROW the 16³ box (base {base:.0} mm³) and narrow-band must agree with dense (≤ 1-Lipschitz contract): nb {nb:.1} vs dense {dense:.1} mm³ — {r:#?}"
 	);
 
-	let bad_kind = run(&dir, json!([{"id": "d", "op": "implicit", "voxel": 0.4,
+	let bad_kind = run(
+		&dir,
+		json!([{"id": "d", "op": "implicit", "voxel": 0.4,
 		"expr": {"op": "displace", "amplitude": 0.4, "texture": {"kind": "wavy", "pitch": 2.0},
-		         "in": {"shape": "box", "min": [0, 0, 0], "max": [8, 8, 8]}}}]));
+		         "in": {"shape": "box", "min": [0, 0, 0], "max": [8, 8, 8]}}}]),
+	);
 	assert_refusal(&bad_kind, "d", ErrorKind::InvalidParam, &["knurl|stipple|noise", "wavy"]);
 
-	let bad_frac = run(&dir, json!([{"id": "d", "op": "implicit", "voxel": 0.4,
+	let bad_frac = run(
+		&dir,
+		json!([{"id": "d", "op": "implicit", "voxel": 0.4,
 		"expr": {"op": "displace", "amplitude": 0.4, "texture": {"kind": "knurl", "pitch": 2.0, "depth_frac": 1.5},
-		         "in": {"shape": "box", "min": [0, 0, 0], "max": [8, 8, 8]}}}]));
+		         "in": {"shape": "box", "min": [0, 0, 0], "max": [8, 8, 8]}}}]),
+	);
 	assert_refusal(&bad_frac, "d", ErrorKind::InvalidParam, &["depth_frac", "[0, 1]"]);
 	let _ = std::fs::remove_dir_all(&dir);
 }
@@ -443,7 +448,7 @@ fn roundtrip_strut_lattice_to_solid_to_step() {
 			{"id": "bridged", "op": "solid_from_implicit", "voxel": 0.5,
 			 "expr": {"op": "intersection",
 				"a": {"shape": "strut_lattice", "kind": "bcc", "cell": 10.0, "radius": 1.6,
-				      "min": [0, 0, 0], "max": [20, 20, 20]},
+					  "min": [0, 0, 0], "max": [20, 20, 20]},
 				"b": {"shape": "box", "min": [0, 0, 0], "max": [20, 20, 20]}}},
 			{"id": "val",  "op": "validate", "in": "bridged"},
 			{"id": "vol",  "op": "volume", "in": "bridged"},
@@ -537,8 +542,11 @@ fn thin_wall_empty_census_and_bad_params_are_explicit() {
 	);
 	assert_refusal(&both, "w", ErrorKind::InvalidParam, &["exactly one of 'in'", "'expr'"]);
 
-	let coarse = run(&dir, json!([{"id": "w", "op": "thin_wall", "t_min": 1.0, "samples": 4,
-		"expr": {"shape": "box", "min": [0, 0, 0], "max": [5, 5, 5]}}]));
+	let coarse = run(
+		&dir,
+		json!([{"id": "w", "op": "thin_wall", "t_min": 1.0, "samples": 4,
+		"expr": {"shape": "box", "min": [0, 0, 0], "max": [5, 5, 5]}}]),
+	);
 	assert_refusal(&coarse, "w", ErrorKind::InvalidParam, &["8..=256"]);
 	let _ = std::fs::remove_dir_all(&dir);
 }

@@ -98,9 +98,7 @@ fn nearest_named_edge(solid: &Solid, edge: EdgeName, witness: DVec3) -> Result<E
 		.edges_named(edge)
 		.into_iter()
 		.min_by(|&a, &b| {
-			edge_point_distance(solid, a, witness)
-				.partial_cmp(&edge_point_distance(solid, b, witness))
-				.unwrap_or(std::cmp::Ordering::Equal)
+			edge_point_distance(solid, a, witness).partial_cmp(&edge_point_distance(solid, b, witness)).unwrap_or(std::cmp::Ordering::Equal)
 		})
 		.ok_or(FilletError::EdgeNotFound)
 }
@@ -243,9 +241,7 @@ fn round_edge_by_id(solid: &Solid, eid: EdgeId, radius: f64, segments: usize, ki
 	//    the whole arc; all other faces are copied unchanged.
 	for f in solid.faces() {
 		let poly = solid.face_polygon(f);
-		let name = solid
-			.face_name(f)
-			.unwrap_or(FaceName { operand: FaceSource::Primitive, source_face: f.0 });
+		let name = solid.face_name(f).unwrap_or(FaceName { operand: FaceSource::Primitive, source_face: f.0 });
 		let n = poly.len();
 		let mut boundary: Vec<u32> = Vec::with_capacity(n + segments);
 		for i in 0..n {
@@ -510,10 +506,7 @@ fn clip_cap_loop(solid: &Solid, loop_verts: &[VertexId], frame: &RingFrame) -> O
 	if n < 3 {
 		return None;
 	}
-	let kept: Vec<bool> = loop_verts
-		.iter()
-		.map(|v| !rim_index.contains_key(v) && !consumed.contains(v))
-		.collect();
+	let kept: Vec<bool> = loop_verts.iter().map(|v| !rim_index.contains_key(v) && !consumed.contains(v)).collect();
 	let mut steps: Vec<CapStep> = Vec::new();
 	if kept.iter().all(|&k| !k) {
 		// Wholesale: every vertex must be rim (a rim+consumed-only loop has no surviving
@@ -767,7 +760,7 @@ fn rebuild_with_rim_band(solid: &Solid, rim: &Rim, radius: f64, radial_dir: f64,
 					let v = solid.half_edge(he).origin;
 					let p = match rim_index.get(&v) {
 						Some(&k) if rim.walls.contains(&f) => arcs[alias[k]][0], // wall tangent ring
-						Some(_) => return None, // a non-wall/cap face on the rim — out of scope
+						Some(_) => return None,                                  // a non-wall/cap face on the rim — out of scope
 						None => solid.position(v),
 					};
 					push(p, &mut boundary);
@@ -1498,7 +1491,10 @@ mod tests {
 		let v0 = validate(&part);
 		let sharp_true = (2.0 * a) * (2.0 * a) * t + PI * rb * rb * hb;
 		assert!(
-			v0.is_valid() && v0.genus == 0 && tessellate_default(&part).is_watertight() && (volume(&part) - sharp_true).abs() / sharp_true < 0.01,
+			v0.is_valid()
+				&& v0.genus == 0
+				&& tessellate_default(&part).is_watertight()
+				&& (volume(&part) - sharp_true).abs() / sharp_true < 0.01,
 			"fixture: {v0:?} tessellated volume {} (closed form {sharp_true})",
 			volume(&part)
 		);
@@ -1509,10 +1505,7 @@ mod tests {
 		let torus_faces: Vec<_> = rounded.faces().filter(|&f| matches!(rounded.face(f).surface, Surface::Torus { .. })).collect();
 		let surf = rounded.face(torus_faces[0]).surface;
 		let Surface::Torus { center, axis, major, minor } = surf else { unreachable!() };
-		let max_off = torus_faces
-			.iter()
-			.flat_map(|&f| rounded.face_polygon(f))
-			.fold(0.0_f64, |m, p| m.max(surf.unsigned_distance(p)));
+		let max_off = torus_faces.iter().flat_map(|&f| rounded.face_polygon(f)).fold(0.0_f64, |m, p| m.max(surf.unsigned_distance(p)));
 		let removed_exact = exact_volume(&part) - exact_volume(&rounded);
 		let removed_tess = volume(&part) - volume(&rounded);
 		let removed_true = TAU * (fr * fr * (rb - 0.5 * fr) - (PI * fr * fr / 4.0) * (rb - fr) - fr.powi(3) / 3.0);
@@ -1696,10 +1689,7 @@ mod tests {
 		let torus_faces: Vec<_> = rounded.faces().filter(|&f| matches!(rounded.face(f).surface, Surface::Torus { .. })).collect();
 		let surf = rounded.face(torus_faces[0]).surface;
 		let Surface::Torus { center, axis, major, minor } = surf else { unreachable!() };
-		let max_off = torus_faces
-			.iter()
-			.flat_map(|&f| rounded.face_polygon(f))
-			.fold(0.0_f64, |m, p| m.max(surf.unsigned_distance(p)));
+		let max_off = torus_faces.iter().flat_map(|&f| rounded.face_polygon(f)).fold(0.0_f64, |m, p| m.max(surf.unsigned_distance(p)));
 		let removed_exact = exact_volume(&nut).abs() - exact_volume(&rounded).abs();
 		let removed_tess = volume(&nut).abs() - volume(&rounded).abs();
 		let ring_true = TAU * (rb * fr * fr * (1.0 - PI / 4.0) + fr.powi(3) * (5.0 / 6.0 - PI / 4.0));
@@ -1772,7 +1762,11 @@ mod tests {
 		let beveled = chamfer_cylinder_rim(&cyl, 2.0, 48).expect("a primitive cylinder rim chamfers");
 		let v = validate(&beveled);
 		assert!(
-			v.closed && v.manifold && v.genus == 0 && tessellate_default(&beveled).is_watertight() && volume(&beveled).abs() < volume(&cyl).abs(),
+			v.closed
+				&& v.manifold
+				&& v.genus == 0
+				&& tessellate_default(&beveled).is_watertight()
+				&& volume(&beveled).abs() < volume(&cyl).abs(),
 			"in-place rim chamfer: {v:?} wt={} vol {} (orig {})",
 			tessellate_default(&beveled).is_watertight(),
 			volume(&beveled).abs(),
@@ -1901,7 +1895,10 @@ mod tests {
 		// axis moved from (0.7,0.7) to the bigger box's +X+Y corner (1.7,1.7). A name
 		// that mis-resolved to another edge would round a different corner and fail here.
 		let (ax2, ay2) = fillet_axis_xy(&f2);
-		assert!((ax2 - 1.7).abs() < 1e-9 && (ay2 - 1.7).abs() < 1e-9, "edited-box fillet axis at the resized +X+Y corner, got ({ax2},{ay2})");
+		assert!(
+			(ax2 - 1.7).abs() < 1e-9 && (ay2 - 1.7).abs() < 1e-9,
+			"edited-box fillet axis at the resized +X+Y corner, got ({ax2},{ay2})"
+		);
 	}
 
 	#[test]
@@ -1992,10 +1989,7 @@ mod tests {
 				if (normal.x - inv_sqrt2).abs() < 1e-6 && (normal.y - inv_sqrt2).abs() < 1e-6 && normal.z.abs() < 1e-6)),
 			"the chamfer adds a diagonal bevel plane"
 		);
-		assert!(
-			!c1.faces().any(|f| matches!(c1.face(f).surface, Surface::Cylinder { .. })),
-			"a chamfer has no cylindrical faces"
-		);
+		assert!(!c1.faces().any(|f| matches!(c1.face(f).surface, Surface::Cylinder { .. })), "a chamfer has no cylindrical faces");
 
 		// The same stored name re-resolves and chamfers the resized box.
 		let box2 = cuboid(DVec3::splat(-2.0), DVec3::splat(2.0));
@@ -2065,7 +2059,11 @@ mod tests {
 		assert_eq!(u1.edge_name(e).map(|n| n.faces[0].operand), Some(FaceSource::OperandA), "edge faces are operand-named");
 
 		let f1 = fillet_edge(&u1, edge, 0.5).expect("fillet a boolean-result edge");
-		assert!(validate(&f1).is_valid() && tessellate_default(&f1).is_watertight(), "filleted union valid+watertight: {:?}", validate(&f1));
+		assert!(
+			validate(&f1).is_valid() && tessellate_default(&f1).is_watertight(),
+			"filleted union valid+watertight: {:?}",
+			validate(&f1)
+		);
 		let (x1, y1) = fillet_axis_xy(&f1);
 		assert!((x1 + 1.5).abs() < 1e-9 && (y1 + 1.5).abs() < 1e-9, "fillet at A's −X−Y corner (−1.5,−1.5), got ({x1},{y1})");
 
@@ -2074,7 +2072,11 @@ mod tests {
 		let u2 = make(3.0);
 		assert_eq!(u2.edges_named(edge).len(), 1, "name re-resolves after growing operand A");
 		let f2 = fillet_edge(&u2, edge, 0.5).expect("fillet the edited union");
-		assert!(validate(&f2).is_valid() && tessellate_default(&f2).is_watertight(), "edited filleted union valid+watertight: {:?}", validate(&f2));
+		assert!(
+			validate(&f2).is_valid() && tessellate_default(&f2).is_watertight(),
+			"edited filleted union valid+watertight: {:?}",
+			validate(&f2)
+		);
 		let (x2, y2) = fillet_axis_xy(&f2);
 		assert!((x2 + 2.5).abs() < 1e-9 && (y2 + 2.5).abs() < 1e-9, "fillet re-attached to grown corner (−2.5,−2.5), got ({x2},{y2})");
 	}

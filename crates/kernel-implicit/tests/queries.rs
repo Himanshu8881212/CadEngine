@@ -171,10 +171,14 @@ fn bvh_min_distance_matches_bruteforce_and_analytic_gap() {
 	let cases: [(kernel_core::Mesh, kernel_core::Mesh, f64); 3] = [
 		(sphere_at(Vec3::new(-15.0, 0.0, 0.0), 8.0), sphere_at(Vec3::new(15.0, 0.0, 0.0), 8.0), 14.0),
 		(sphere_at(Vec3::new(-5.0, 0.0, 0.0), 8.0), sphere_at(Vec3::new(5.0, 0.0, 0.0), 8.0), 0.0),
-		({
-			let c = Node::primitive(Cuboid::new(Vec3::new(-20.0, 0.0, 0.0), Vec3::splat(5.0)));
-			surface_nets(&c, c.bounds(), Resolution::VoxelSize(0.6))
-		}, sphere_at(Vec3::ZERO, 8.0), 7.0),
+		(
+			{
+				let c = Node::primitive(Cuboid::new(Vec3::new(-20.0, 0.0, 0.0), Vec3::splat(5.0)));
+				surface_nets(&c, c.bounds(), Resolution::VoxelSize(0.6))
+			},
+			sphere_at(Vec3::ZERO, 8.0),
+			7.0,
+		),
 	];
 	for (a, b, expected) in &cases {
 		let brute = a.min_distance(b);

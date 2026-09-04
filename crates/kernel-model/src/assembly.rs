@@ -77,9 +77,7 @@ impl Instance {
 		match &self.source {
 			Source::Doc(doc) => match doc.evaluate() {
 				Some(node) => Some(f(&node)),
-				None => doc
-					.evaluate_brep()
-					.map(|solid| f(&kernel_implicit::MeshSdf::new(&kernel_brep::tessellate_default(&solid)))),
+				None => doc.evaluate_brep().map(|solid| f(&kernel_implicit::MeshSdf::new(&kernel_brep::tessellate_default(&solid)))),
 			},
 			Source::Built(node) => Some(f(node)),
 		}

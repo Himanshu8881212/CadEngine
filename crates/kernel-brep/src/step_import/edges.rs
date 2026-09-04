@@ -80,11 +80,7 @@ pub(crate) fn edge_sweep(t0: f64, t1: f64, same_sense: bool, ec_id: u32) -> Resu
 /// pitch.
 pub(super) fn sample_arc(start: DVec3, end: DVec3, t0: f64, sweep: f64, eval: impl Fn(f64) -> DVec3) -> Vec<DVec3> {
 	use std::f64::consts::TAU;
-	let n = if sweep.abs() <= MAX_CHORD_SWEEP {
-		1
-	} else {
-		(sweep.abs() / (TAU / FULL_TURN_SEGMENTS as f64)).ceil() as usize
-	};
+	let n = if sweep.abs() <= MAX_CHORD_SWEEP { 1 } else { (sweep.abs() / (TAU / FULL_TURN_SEGMENTS as f64)).ceil() as usize };
 	let mut pts = Vec::with_capacity(n + 1);
 	pts.push(start);
 	for k in 1..n {

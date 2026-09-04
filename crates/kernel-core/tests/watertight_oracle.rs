@@ -10,9 +10,13 @@ fn is_watertight_rejects_bowtie_vertex() {
 	// so non_manifold_edge_count()==0 (the old oracle's blind spot), but vertex 3's
 	// incident triangles form two disjoint fans -> not a 2-manifold.
 	let positions = vec![
-		Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0),
+		Vec3::new(1.0, 0.0, 0.0),
+		Vec3::new(0.0, 1.0, 0.0),
+		Vec3::new(0.0, 0.0, 1.0),
 		Vec3::ZERO,
-		Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, -1.0, 0.0), Vec3::new(0.0, 0.0, -1.0),
+		Vec3::new(-1.0, 0.0, 0.0),
+		Vec3::new(0.0, -1.0, 0.0),
+		Vec3::new(0.0, 0.0, -1.0),
 	];
 	let indices = vec![
 		0u32, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3, // tet A (closed, orientable)

@@ -25,8 +25,7 @@ use kernel_model::materials::pla;
 use serde_json::Value;
 
 fn vectors() -> Value {
-	let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-		.join("../../tools/materials/creep_crosslang_vectors.json");
+	let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/materials/creep_crosslang_vectors.json");
 	let raw = std::fs::read_to_string(&path)
 		.unwrap_or_else(|e| panic!("cannot read the cross-language creep vectors at {}: {e}", path.display()));
 	serde_json::from_str(&raw).unwrap_or_else(|e| panic!("{} is not valid JSON: {e}", path.display()))
@@ -146,19 +145,11 @@ fn creep_refusal_doctrine_is_hand_pinned() {
 	let above_hot = [55.000001_f64, 56.0, 70.0, 120.0, 1.0e6];
 	let refuses_above_hot = above_hot.iter().all(|t| {
 		let c = pla::creep_lookup(*t, 24.0, false);
-		c.sig_allow_mpa == 0.0
-			&& c.refused()
-			&& c.refusal == Some(pla::CreepRefusal::TempAboveTabulated)
-			&& c.row_used_c.is_none()
+		c.sig_allow_mpa == 0.0 && c.refused() && c.refusal == Some(pla::CreepRefusal::TempAboveTabulated) && c.row_used_c.is_none()
 	});
-	let refuses_nonsense = [
-		(f64::NAN, 24.0),
-		(23.0, f64::NAN),
-		(23.0, f64::INFINITY),
-		(f64::INFINITY, 24.0),
-	]
-	.iter()
-	.all(|(t, h)| pla::creep_lookup(*t, *h, false).refusal == Some(pla::CreepRefusal::InputNotFinite))
+	let refuses_nonsense = [(f64::NAN, 24.0), (23.0, f64::NAN), (23.0, f64::INFINITY), (f64::INFINITY, 24.0)]
+		.iter()
+		.all(|(t, h)| pla::creep_lookup(*t, *h, false).refusal == Some(pla::CreepRefusal::InputNotFinite))
 		&& pla::creep_lookup(23.0, -1.0, false).refusal == Some(pla::CreepRefusal::NegativeDuration);
 
 	// The 25 °C trap: a design whose declared ambient is 25 °C reads the 55 °C
@@ -181,9 +172,8 @@ fn creep_refusal_doctrine_is_hand_pinned() {
 	// Beyond the last duration column the last column is reused, and it is
 	// FLAGGED — the extrapolation is on the record, not implied.
 	let beyond = pla::creep_lookup(23.0, 87600.0, false);
-	let beyond_ok = beyond.sig_allow_mpa == 2.5
-		&& beyond.cell_match == pla::CreepCellMatch::ExtrapolatedBeyondLastDuration
-		&& !beyond.refused();
+	let beyond_ok =
+		beyond.sig_allow_mpa == 2.5 && beyond.cell_match == pla::CreepCellMatch::ExtrapolatedBeyondLastDuration && !beyond.refused();
 
 	assert!(
 		refuses_above_hot && refuses_nonsense && step_is_visible && cells_ok && beyond_ok,

@@ -174,7 +174,8 @@ mod tests {
 	fn check(s: &Solid, want_genus: i64) -> (bool, String) {
 		let v = validate(s);
 		let ok = v.closed
-			&& v.manifold && v.genus == want_genus
+			&& v.manifold
+			&& v.genus == want_genus
 			&& tessellate_default(s).is_watertight()
 			&& tessellate_adaptive_tol(s, 0.01).is_watertight();
 		(ok, format!("{v:?} wt={} adaptive_wt={}", tessellate_default(s).is_watertight(), tessellate_adaptive_tol(s, 0.01).is_watertight()))
@@ -198,19 +199,11 @@ mod tests {
 		// bosses for G1/8 (wall 2 × 10) and G1/2 (wall 3 × 15): genus-1 watertight×2
 		// revolves spanning tap/2 … major/2 + wall with the 45° mouth chamfer, and
 		// the exact 48-gon closed-form volume (tube − chamfer ring) to 1e-6.
-		let rows: Vec<_> = ["G1/8", "G1/4", "G3/8", "G1/2", "G3/4"]
-			.iter()
-			.map(|d| g_thread_spec(d).map(|s| (s.major_d, s.tpi, s.tap_drill_d)))
-			.collect();
+		let rows: Vec<_> =
+			["G1/8", "G1/4", "G3/8", "G1/2", "G3/4"].iter().map(|d| g_thread_spec(d).map(|s| (s.major_d, s.tpi, s.tap_drill_d))).collect();
 		assert_eq!(
 			rows,
-			vec![
-				Some((9.728, 28.0, 8.8)),
-				Some((13.157, 19.0, 11.8)),
-				Some((16.662, 19.0, 15.25)),
-				Some((20.955, 14.0, 19.0)),
-				None
-			],
+			vec![Some((9.728, 28.0, 8.8)), Some((13.157, 19.0, 11.8)), Some((16.662, 19.0, 15.25)), Some((20.955, 14.0, 19.0)), None],
 			"ISO 228-1 G-thread rows (G3/4 not stocked)"
 		);
 		for (des, wall, len) in [("G1/8", 2.0, 10.0), ("G1/2", 3.0, 15.0)] {

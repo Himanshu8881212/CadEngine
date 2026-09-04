@@ -11,7 +11,7 @@ use crate::interp::{err, fetch_solid, EnvValue, Outcome};
 use crate::program::OpKind;
 use crate::report::{ErrorKind, OpError};
 
-use super::support::{bind_solid};
+use super::support::bind_solid;
 
 /// Execute one op of this family. The dispatch table in [`crate::interp`]
 /// routes exactly the variants matched below, so the catch-all is dead code
@@ -56,12 +56,8 @@ pub(crate) fn exec(
 			// union), the touch-everything operand arranges last and once. The
 			// result is the same solid (union is associative); ties keep the
 			// argument order, so the fold stays deterministic.
-			let solids: Vec<&Solid> = input
-				.iter()
-				.map(|name| fetch_solid(env, all_ids, op_id, "in", name))
-				.collect::<Result<_, _>>()?;
-			let boxes: Vec<Option<kernel_brep::BoundingBox>> =
-				solids.iter().map(|s| kernel_brep::measure::bounding_box(s)).collect();
+			let solids: Vec<&Solid> = input.iter().map(|name| fetch_solid(env, all_ids, op_id, "in", name)).collect::<Result<_, _>>()?;
+			let boxes: Vec<Option<kernel_brep::BoundingBox>> = solids.iter().map(|s| kernel_brep::measure::bounding_box(s)).collect();
 			let touches = |i: usize, j: usize| -> bool {
 				match (&boxes[i], &boxes[j]) {
 					(Some(a), Some(b)) => {
@@ -74,8 +70,7 @@ pub(crate) fn exec(
 				}
 			};
 			let mut order: Vec<usize> = (0..solids.len()).collect();
-			let degree: Vec<usize> =
-				(0..solids.len()).map(|i| (0..solids.len()).filter(|&j| j != i && touches(i, j)).count()).collect();
+			let degree: Vec<usize> = (0..solids.len()).map(|i| (0..solids.len()).filter(|&j| j != i && touches(i, j)).count()).collect();
 			order.sort_by_key(|&i| (degree[i], i));
 			let mut acc = kernel_brep::union(solids[order[0]], solids[order[1]]);
 			for &i in &order[2..] {

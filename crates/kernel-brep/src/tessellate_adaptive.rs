@@ -69,8 +69,7 @@ pub fn tessellate_adaptive(solid: &Solid, edge_segments: usize) -> Mesh {
 					// Same dense shared-seam sampling for the hole rings as for the
 					// outer ring, so the hole tube's wall stays crack-free against
 					// the cap — then the hole-aware bridged ear-clip.
-					let holes: Vec<Vec<DVec3>> =
-						inner.iter().map(|&lid| loop_boundary(solid, lid, &edge_points)).collect();
+					let holes: Vec<Vec<DVec3>> = inner.iter().map(|&lid| loop_boundary(solid, lid, &edge_points)).collect();
 					crate::tessellate::tessellate_planar_with_holes(&mut mesh, &boundary, &holes, outward);
 				}
 			}
@@ -333,36 +332,34 @@ fn tessellate_curved(mesh: &mut Mesh, boundary: &[DVec3], surface: Surface, segs
 		if boundary.len() < 3 {
 			return;
 		}
-			// A MERGED wide-span curved face (a recover-pass chart face) is
-			// triangulated with interior refinement — the dense boundary is
-			// consumed verbatim (seam-shared, crack-free) and interior points
-			// restore the bulge a boundary-only clip would lose. Same routine as
-			// `tessellate_default` (see the tessellate.rs module doc).
-			if crate::tessellate::merged_curved_ring(boundary, &surface, face_outward)
-				&& push_refined(mesh, boundary, &surface, face_outward)
-			{
-				return;
-			}
-			// A ring WARPED off its plane (seam-snapped vertices on the true
-			// intersection curve) ear-clips in the surface's PARAMETER SPACE: a
-			// centroid fan of a warped non-convex ring can fold, and the boundary
-			// points are already the shared seam samples so a boundary-only clip
-			// stays crack-free.
-			if let Some(p2) = SurfaceChart::for_warped_ring(&surface, boundary, face_outward).and_then(|c| c.uv_ring(boundary)) {
-				crate::tessellate::ear_clip_ring_wound(mesh, boundary, &p2, (0..boundary.len()).collect(), &nrm, &wind);
-				return;
-			}
-			// Generic curved polygon: fan the dense boundary from its projected
-			// centroid. The boundary points are already shared, so the seam is
-			// crack-free; the interior fan is a reasonable approximation.
-			let centroid: DVec3 = boundary.iter().copied().sum::<DVec3>() / boundary.len() as f64;
-			let center = surface.project(centroid);
-			let n = boundary.len();
-			for k in 0..n {
-				let a = boundary[k];
-				let b = boundary[(k + 1) % n];
-				push_tri(mesh, center, a, b, nrm(center), nrm(a), nrm(b), wind(center, a, b));
-			}
+		// A MERGED wide-span curved face (a recover-pass chart face) is
+		// triangulated with interior refinement — the dense boundary is
+		// consumed verbatim (seam-shared, crack-free) and interior points
+		// restore the bulge a boundary-only clip would lose. Same routine as
+		// `tessellate_default` (see the tessellate.rs module doc).
+		if crate::tessellate::merged_curved_ring(boundary, &surface, face_outward) && push_refined(mesh, boundary, &surface, face_outward) {
+			return;
+		}
+		// A ring WARPED off its plane (seam-snapped vertices on the true
+		// intersection curve) ear-clips in the surface's PARAMETER SPACE: a
+		// centroid fan of a warped non-convex ring can fold, and the boundary
+		// points are already the shared seam samples so a boundary-only clip
+		// stays crack-free.
+		if let Some(p2) = SurfaceChart::for_warped_ring(&surface, boundary, face_outward).and_then(|c| c.uv_ring(boundary)) {
+			crate::tessellate::ear_clip_ring_wound(mesh, boundary, &p2, (0..boundary.len()).collect(), &nrm, &wind);
+			return;
+		}
+		// Generic curved polygon: fan the dense boundary from its projected
+		// centroid. The boundary points are already shared, so the seam is
+		// crack-free; the interior fan is a reasonable approximation.
+		let centroid: DVec3 = boundary.iter().copied().sum::<DVec3>() / boundary.len() as f64;
+		let center = surface.project(centroid);
+		let n = boundary.len();
+		for k in 0..n {
+			let a = boundary[k];
+			let b = boundary[(k + 1) % n];
+			push_tri(mesh, center, a, b, nrm(center), nrm(a), nrm(b), wind(center, a, b));
+		}
 	}
 }
 

@@ -93,12 +93,7 @@ fn sketch_feature_drafts_the_walls_when_a_draft_parameter_is_set() {
 	let mut doc = Document::new();
 	doc.set_param("h", 5.0);
 	doc.set_param("a", 0.05);
-	let f = doc.add(Feature::ExtrudeSketch {
-		sketch,
-		height: Dim::param("h"),
-		dims: vec![],
-		draft: Dim::param("a"),
-	});
+	let f = doc.add(Feature::ExtrudeSketch { sketch, height: Dim::param("h"), dims: vec![], draft: Dim::param("a") });
 	doc.set_root(f);
 
 	let s = doc.evaluate_brep().expect("drafted sketch extrudes");
@@ -134,10 +129,7 @@ fn instances_mate_by_derived_brep_faces() {
 	let (pb, nb) = face_facing(&b, -DVec3::Z).expect("B has a -Z face");
 
 	// Instance 0 (A) is ground at the identity; instance 1 (B) starts offset.
-	let mut sys = ConstraintSystem::new(
-		vec![Affine3A::IDENTITY, Affine3A::from_translation(Vec3::new(5.0, 4.0, 9.0))],
-		vec![],
-	);
+	let mut sys = ConstraintSystem::new(vec![Affine3A::IDENTITY, Affine3A::from_translation(Vec3::new(5.0, 4.0, 9.0))], vec![]);
 	sys.add_face_mate(0, pa, na, 1, pb, nb);
 	let residual = sys.solve(256);
 
@@ -192,20 +184,13 @@ fn chamfered_cylinder_feature_rebuilds_when_the_chamfer_parameter_changes() {
 	// The chamfer counterpart of the parametric rounded boss: a bigger 45° top-rim chamfer
 	// removes more material, so editing the chamfer parameter shrinks the volume.
 	let mut doc = Document::new();
-	let f = doc.add(Feature::ChamferedCylinder {
-		radius: Dim::Literal(5.0),
-		height: Dim::Literal(12.0),
-		chamfer: Dim::param("c"),
-	});
+	let f = doc.add(Feature::ChamferedCylinder { radius: Dim::Literal(5.0), height: Dim::Literal(12.0), chamfer: Dim::param("c") });
 	doc.set_root(f);
 	doc.set_param("c", 1.0);
 	let v1 = doc.mass_properties().expect("brep").volume;
 	doc.set_param("c", 3.0);
 	let v3 = doc.mass_properties().expect("brep").volume;
-	assert!(
-		v3 < v1 && v1 < std::f64::consts::PI * 25.0 * 12.0,
-		"parametric chamfer: c=1 → vol {v1}, c=3 → vol {v3}"
-	);
+	assert!(v3 < v1 && v1 < std::f64::consts::PI * 25.0 * 12.0, "parametric chamfer: c=1 → vol {v1}, c=3 → vol {v3}");
 }
 
 #[test]
@@ -214,21 +199,14 @@ fn filleted_cylinder_feature_rebuilds_when_the_fillet_parameter_changes() {
 	// top-rim fillet removes more material, so editing the fillet parameter shrinks the volume,
 	// and it stays below the sharp cylinder πR²h. Proves the torus-fillet feature is parametric.
 	let mut doc = Document::new();
-	let f = doc.add(Feature::FilletedCylinder {
-		radius: Dim::Literal(5.0),
-		height: Dim::Literal(12.0),
-		fillet: Dim::param("fr"),
-	});
+	let f = doc.add(Feature::FilletedCylinder { radius: Dim::Literal(5.0), height: Dim::Literal(12.0), fillet: Dim::param("fr") });
 	doc.set_root(f);
 	doc.set_param("fr", 1.0);
 	let v1 = doc.mass_properties().expect("brep").volume;
 	doc.set_param("fr", 3.0);
 	let v3 = doc.mass_properties().expect("brep").volume;
 	let sharp = std::f64::consts::PI * 25.0 * 12.0;
-	assert!(
-		v3 < v1 && v1 < sharp,
-		"parametric rounded boss: fr=1 → vol {v1}, fr=3 → vol {v3} (sharp cyl {sharp})"
-	);
+	assert!(v3 < v1 && v1 < sharp, "parametric rounded boss: fr=1 → vol {v1}, fr=3 → vol {v3} (sharp cyl {sharp})");
 }
 
 #[test]
@@ -246,10 +224,7 @@ fn document_mass_properties_track_a_parameter_edit() {
 	let v3 = doc.mass_properties().expect("brep").volume; // 3·4·2 = 24
 	doc.set_param("w", 6.0);
 	let v6 = doc.mass_properties().expect("brep").volume; // 6·4·2 = 48
-	assert!(
-		(v3 - 24.0).abs() < 1e-6 && (v6 - 48.0).abs() < 1e-6,
-		"parametric mass: w=3 → vol {v3} (want 24), w=6 → vol {v6} (want 48)"
-	);
+	assert!((v3 - 24.0).abs() < 1e-6 && (v6 - 48.0).abs() < 1e-6, "parametric mass: w=3 → vol {v3} (want 24), w=6 → vol {v6} (want 48)");
 }
 
 #[test]
@@ -319,10 +294,7 @@ fn assembly_interferences_flag_only_the_overlapping_parts() {
 	asm.add(Instance::document(unit_box(), Affine3A::from_translation(Vec3::new(10.0, 0.0, 0.0)))); // C x∈[9,11], clear
 	let hits = asm.interferences(1e-6, Resolution::VoxelSize(0.2));
 	let gap_ac = asm.clearance(0, 2, Resolution::VoxelSize(0.2));
-	assert!(
-		hits == vec![(0, 1)] && (gap_ac - 8.0).abs() < 0.5,
-		"interferences {hits:?} (want [(0,1)]); A–C clearance {gap_ac} (want ~8)"
-	);
+	assert!(hits == vec![(0, 1)] && (gap_ac - 8.0).abs() < 0.5, "interferences {hits:?} (want [(0,1)]); A–C clearance {gap_ac} (want ~8)");
 }
 
 #[test]
@@ -336,9 +308,7 @@ fn assembly_checks_see_brep_only_parts() {
 	// (d/2)·√(4r²−d²) ≈ 7.25 mm² × 20 mm ≈ 145 mm³ for the 32-gon facets).
 	let shaft = || {
 		let mut doc = Document::new();
-		let s = doc.add(Feature::CatalogPart {
-			part: CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(20.0) },
-		});
+		let s = doc.add(Feature::CatalogPart { part: CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(20.0) } });
 		doc.set_root(s);
 		doc
 	};
@@ -351,8 +321,12 @@ fn assembly_checks_see_brep_only_parts() {
 	let overlap_ac = asm.interference_volume(0, 2, 0.2);
 	let prox = asm.proximity_pairs(3.0, 0.05, Resolution::VoxelSize(0.4));
 	let prox_ok = prox.len() == 2
-		&& prox[0].0 == 0 && prox[0].1 == 1 && (prox[0].2 - 2.0).abs() < 0.1
-		&& prox[1].0 == 0 && prox[1].1 == 2 && prox[1].2 <= 1e-9;
+		&& prox[0].0 == 0
+		&& prox[0].1 == 1
+		&& (prox[0].2 - 2.0).abs() < 0.1
+		&& prox[1].0 == 0
+		&& prox[1].1 == 2
+		&& prox[1].2 <= 1e-9;
 	assert!(
 		(gap_ab - 2.0).abs() < 0.1 && hits == vec![(0, 2)] && (overlap_ac - 145.0).abs() / 145.0 < 0.1 && prox_ok,
 		"B-rep-only parts must be visible to the assembly checks (used to be inf/none/0 silently): \
@@ -381,9 +355,9 @@ fn threaded_bolt_thread_adds_material_and_stays_watertight() {
 		})
 		.collect();
 	let hw = pitch * 0.25; // ridge ~half the pitch, leaving wide valleys that mesh watertight
-	// Wound so the sweep's outward normals point away from the helix (positive volume);
-	// the reverse order makes the sweep inside-out, which would carve a groove instead
-	// of adding a thread ridge in the winding-number heal.
+						// Wound so the sweep's outward normals point away from the helix (positive volume);
+						// the reverse order makes the sweep inside-out, which would carve a groove instead
+						// of adding a thread ridge in the winding-number heal.
 	let profile = vec![DVec3::new(4.0, 0.0, 2.0 + hw), DVec3::new(4.9, 0.0, 2.0), DVec3::new(4.0, 0.0, 2.0 - hw)];
 	let thread = kernel_brep::sweep_solid(&profile, &path).expect("thread sweeps");
 	assert!(kernel_brep::volume(&thread) > 0.0, "thread sweep should be outward (vol {})", kernel_brep::volume(&thread));
@@ -431,11 +405,7 @@ fn precise_mesh_is_exact_and_watertight_for_curved_solids() {
 	// the true surface: the midpoint of each wall chord must sit within ~tol of radius 5.
 	let mut max_dev = 0.0f64;
 	for t in mc.indices.chunks_exact(3) {
-		let p = [
-			mc.positions[t[0] as usize].as_dvec3(),
-			mc.positions[t[1] as usize].as_dvec3(),
-			mc.positions[t[2] as usize].as_dvec3(),
-		];
+		let p = [mc.positions[t[0] as usize].as_dvec3(), mc.positions[t[1] as usize].as_dvec3(), mc.positions[t[2] as usize].as_dvec3()];
 		let on_cyl = p.iter().all(|v| ((v.x * v.x + v.y * v.y).sqrt() - 5.0).abs() < 1e-2);
 		// Exclude the flat caps (all three vertices on one z-plane); their rim-spanning
 		// chords cut across the disk and are not a measure of curved-wall fidelity.
@@ -448,7 +418,12 @@ fn precise_mesh_is_exact_and_watertight_for_curved_solids() {
 		}
 	}
 	assert!(
-		mp.is_watertight() && mp.triangle_count() > 1000 && mc.is_watertight() && mc.triangle_count() > 400 && max_dev > 0.0 && max_dev <= 0.005 * 1.5,
+		mp.is_watertight()
+			&& mp.triangle_count() > 1000
+			&& mc.is_watertight()
+			&& mc.triangle_count() > 400
+			&& max_dev > 0.0
+			&& max_dev <= 0.005 * 1.5,
 		"precise_mesh: plate wt={} tris={}, cyl wt={} tris={}, cyl chord_dev={max_dev} (want 0 < dev ≤ {})",
 		mp.is_watertight(),
 		mp.triangle_count(),
@@ -637,7 +612,11 @@ fn gyroid_feature_meshes_a_bounded_lattice_infill() {
 	let cube_vol = 8.0 * half * half * half;
 	let bb = mesh.aabb();
 	assert!(
-		mesh.triangle_count() > 5000 && vol > 0.01 * cube_vol && vol < 0.6 * cube_vol && bb.min.x >= -(half as f32) - 1.0 && bb.max.x <= half as f32 + 1.0,
+		mesh.triangle_count() > 5000
+			&& vol > 0.01 * cube_vol
+			&& vol < 0.6 * cube_vol
+			&& bb.min.x >= -(half as f32) - 1.0
+			&& bb.max.x <= half as f32 + 1.0,
 		"gyroid feature must mesh a rich bounded lattice: tris={} vol={} (cube {cube_vol})",
 		mesh.triangle_count(),
 		vol
@@ -660,10 +639,7 @@ fn smooth_union_blend_radius_is_a_live_parameter() {
 	let v_small = doc.mesh(Resolution::VoxelSize(0.4)).signed_volume();
 	doc.set_param("k", 4.0);
 	let v_big = doc.mesh(Resolution::VoxelSize(0.4)).signed_volume();
-	assert!(
-		v_small > 0.0 && v_big > v_small,
-		"larger blend radius must add fillet material: v(k=0.5)={v_small} v(k=4)={v_big}"
-	);
+	assert!(v_small > 0.0 && v_big > v_small, "larger blend radius must add fillet material: v(k=0.5)={v_small} v(k=4)={v_big}");
 }
 
 #[test]
@@ -685,10 +661,7 @@ fn gyroid_thickness_is_a_live_parameter() {
 	let v_thin = doc.mesh(Resolution::VoxelSize(0.8)).signed_volume();
 	doc.set_param("t", 0.5);
 	let v_thick = doc.mesh(Resolution::VoxelSize(0.8)).signed_volume();
-	assert!(
-		v_thin > 0.0 && v_thick > v_thin,
-		"thicker lattice walls must add material: vol(t=0.2)={v_thin} vol(t=0.5)={v_thick}"
-	);
+	assert!(v_thin > 0.0 && v_thick > v_thin, "thicker lattice walls must add material: vol(t=0.2)={v_thin} vol(t=0.5)={v_thick}");
 }
 
 #[test]
@@ -823,11 +796,8 @@ fn parametric_fillet_survives_a_split_edge_with_a_witness() {
 		}
 	}
 	// First split name in deterministic (sorted) order.
-	let split = seen
-		.iter()
-		.find(|(_, &c)| c > 1)
-		.map(|(k, _)| counts[k])
-		.expect("the box+bar union splits at least one named edge into fragments");
+	let split =
+		seen.iter().find(|(_, &c)| c > 1).map(|(k, _)| counts[k]).expect("the box+bar union splits at least one named edge into fragments");
 
 	// Without a witness the kernel reports the split edge ambiguous …
 	assert!(
@@ -837,9 +807,8 @@ fn parametric_fillet_survives_a_split_edge_with_a_witness() {
 	// … and a witness resolves it to a single fragment — never EdgeAmbiguous — for every
 	// witness near the part (the nearest-fragment pick always disambiguates).
 	let witnesses = [DVec3::new(0.0, 5.0, 10.0), DVec3::new(10.0, 5.0, 10.0), DVec3::ZERO, DVec3::splat(10.0)];
-	let all_resolve = witnesses
-		.iter()
-		.all(|&wp| !matches!(kernel_brep::fillet_edge_near(&solid, split, 0.4, wp), Err(FilletError::EdgeAmbiguous)));
+	let all_resolve =
+		witnesses.iter().all(|&wp| !matches!(kernel_brep::fillet_edge_near(&solid, split, 0.4, wp), Err(FilletError::EdgeAmbiguous)));
 	assert!(all_resolve, "a witness must resolve the ambiguous split edge to one fragment");
 }
 
@@ -893,10 +862,7 @@ fn assembly_mates_two_parts_through_solve_mates() {
 	asm.add(Instance::node(cube(), Affine3A::from_translation(Vec3::new(5.0, 4.0, 9.0))));
 
 	let residual = asm.solve_mates(
-		&[
-			Constraint::Coincident { a: 0, a_point: pa, b: 1, b_point: pb },
-			Constraint::Parallel { a: 0, a_dir: na, b: 1, b_dir: nb },
-		],
+		&[Constraint::Coincident { a: 0, a_point: pa, b: 1, b_point: pb }, Constraint::Parallel { a: 0, a_dir: na, b: 1, b_dir: nb }],
 		256,
 	);
 
@@ -923,10 +889,7 @@ fn instances_mate_coaxial_by_derived_cylinder_axes() {
 	let (pb, db) = axis_of(&sleeve).expect("sleeve has a cylindrical face");
 
 	let mut sys = ConstraintSystem::new(
-		vec![
-			Affine3A::IDENTITY,
-			Affine3A::from_translation(Vec3::new(3.0, 4.0, 5.0)) * Affine3A::from_axis_angle(Vec3::Y, 0.6),
-		],
+		vec![Affine3A::IDENTITY, Affine3A::from_translation(Vec3::new(3.0, 4.0, 5.0)) * Affine3A::from_axis_angle(Vec3::Y, 0.6)],
 		vec![],
 	);
 	sys.add_axis_mate(0, pa, da, 1, pb, db);
@@ -954,11 +917,7 @@ fn touching_linear_pattern_fuses_into_one_solid() {
 		center: [Dim::Literal(0.0), Dim::Literal(0.0), Dim::Literal(0.0)],
 		size: [Dim::Literal(1.0), Dim::Literal(1.0), Dim::Literal(1.0)],
 	});
-	let bar = doc.add(Feature::LinearPattern {
-		input: cube,
-		count: 4,
-		step: [Dim::Literal(1.0), Dim::Literal(0.0), Dim::Literal(0.0)],
-	});
+	let bar = doc.add(Feature::LinearPattern { input: cube, count: 4, step: [Dim::Literal(1.0), Dim::Literal(0.0), Dim::Literal(0.0)] });
 	doc.set_root(bar);
 
 	let solid = doc.evaluate_brep().expect("touching pattern evaluates");
@@ -992,7 +951,10 @@ fn curved_circular_pattern_of_cylinders_is_exact_via_brep() {
 	let v = kernel_brep::validate(&solid);
 	let expected = 6.0 * std::f64::consts::PI * 2.0 * 2.0 * 4.0;
 	assert!(
-		v.is_valid() && v.shells == 6 && !kernel_brep::self_intersects(&solid) && (kernel_brep::volume(&solid).abs() - expected).abs() / expected < 0.03,
+		v.is_valid()
+			&& v.shells == 6
+			&& !kernel_brep::self_intersects(&solid)
+			&& (kernel_brep::volume(&solid).abs() - expected).abs() / expected < 0.03,
 		"curved circular pattern must be exact (valid 6-shell, no self-int, vol ~{expected:.0}): {v:?} self_int={} vol={:.0}",
 		kernel_brep::self_intersects(&solid),
 		kernel_brep::volume(&solid).abs()
@@ -1042,11 +1004,7 @@ fn linear_pattern_repeats_a_feature_parametrically() {
 		center: [Dim::Literal(0.0), Dim::Literal(0.0), Dim::Literal(0.0)],
 		size: [Dim::Literal(1.0), Dim::Literal(1.0), Dim::Literal(1.0)],
 	});
-	let pat = doc.add(Feature::LinearPattern {
-		input: cube,
-		count: 4,
-		step: [Dim::param("gap"), Dim::Literal(0.0), Dim::Literal(0.0)],
-	});
+	let pat = doc.add(Feature::LinearPattern { input: cube, count: 4, step: [Dim::param("gap"), Dim::Literal(0.0), Dim::Literal(0.0)] });
 	doc.set_root(pat);
 
 	let solid = doc.evaluate_brep().expect("pattern evaluates");
@@ -1100,7 +1058,10 @@ fn mirror_of_a_curved_part_is_exact_via_brep() {
 	let v = kernel_brep::validate(&solid);
 	let expected = 2.0 * std::f64::consts::PI * 2.0 * 2.0 * 4.0;
 	assert!(
-		v.is_valid() && v.shells == 2 && !kernel_brep::self_intersects(&solid) && (kernel_brep::volume(&solid).abs() - expected).abs() / expected < 0.03,
+		v.is_valid()
+			&& v.shells == 2
+			&& !kernel_brep::self_intersects(&solid)
+			&& (kernel_brep::volume(&solid).abs() - expected).abs() / expected < 0.03,
 		"mirrored cylinder must be exact (valid 2-shell, no self-int, vol ~{expected:.0}): {v:?} self_int={} vol={:.0}",
 		kernel_brep::self_intersects(&solid),
 		kernel_brep::volume(&solid).abs()
@@ -1220,23 +1181,13 @@ fn difference_features_mesh_to_a_watertight_manifold() {
 	let plate = plate_with_hole().mesh(Resolution::VoxelSize(0.6));
 
 	let mut doc = Document::new();
-	let a = doc.add(Feature::Sphere {
-		center: [Dim::Literal(0.0), Dim::Literal(0.0), Dim::Literal(0.0)],
-		radius: Dim::Literal(8.0),
-	});
-	let b = doc.add(Feature::Sphere {
-		center: [Dim::Literal(8.0), Dim::Literal(0.0), Dim::Literal(0.0)],
-		radius: Dim::Literal(8.0),
-	});
+	let a = doc.add(Feature::Sphere { center: [Dim::Literal(0.0), Dim::Literal(0.0), Dim::Literal(0.0)], radius: Dim::Literal(8.0) });
+	let b = doc.add(Feature::Sphere { center: [Dim::Literal(8.0), Dim::Literal(0.0), Dim::Literal(0.0)], radius: Dim::Literal(8.0) });
 	let cut = doc.add(Feature::Boolean { op: BooleanOp::Difference, a, b });
 	doc.set_root(cut);
 	let spheres = doc.mesh(Resolution::VoxelSize(0.5));
 
-	assert_eq!(
-		(plate.is_watertight(), spheres.is_watertight()),
-		(true, true),
-		"difference features must mesh to a watertight manifold"
-	);
+	assert_eq!((plate.is_watertight(), spheres.is_watertight()), (true, true), "difference features must mesh to a watertight manifold");
 }
 
 #[test]
@@ -1250,10 +1201,7 @@ fn brep_document_face_names_survive_a_parameter_edit() {
 	let mut doc = Document::new();
 	doc.set_param("c", 5.0);
 	let a = doc.add(Feature::Box { center: lit3(0.0, 0.0, 0.0), size: lit3(10.0, 10.0, 10.0) });
-	let b = doc.add(Feature::Box {
-		center: [Dim::param("c"), Dim::param("c"), Dim::param("c")],
-		size: lit3(10.0, 10.0, 10.0),
-	});
+	let b = doc.add(Feature::Box { center: [Dim::param("c"), Dim::param("c"), Dim::param("c")], size: lit3(10.0, 10.0, 10.0) });
 	let d = doc.add(Feature::Boolean { op: BooleanOp::Difference, a, b });
 	doc.set_root(d);
 
@@ -1309,9 +1257,16 @@ fn brep_document_fillet_survives_a_parameter_edit() {
 	// re-attaches — its axis moves from (3,3) to the resized corner (8,8).
 	doc.set_param("s", 20.0);
 	let r2 = doc.evaluate_brep().expect("edited filleted document evaluates");
-	assert!(validate(&r2).is_valid() && tessellate_default(&r2).is_watertight(), "edited filleted doc valid+watertight: {:?}", validate(&r2));
+	assert!(
+		validate(&r2).is_valid() && tessellate_default(&r2).is_watertight(),
+		"edited filleted doc valid+watertight: {:?}",
+		validate(&r2)
+	);
 	let (x2, y2) = cyl_axis_xy(&r2);
-	assert!((x2 - 8.0).abs() < 1e-9 && (y2 - 8.0).abs() < 1e-9, "size-20 box fillet re-attached to resized +X+Y corner (8,8), got ({x2},{y2})");
+	assert!(
+		(x2 - 8.0).abs() < 1e-9 && (y2 - 8.0).abs() < 1e-9,
+		"size-20 box fillet re-attached to resized +X+Y corner (8,8), got ({x2},{y2})"
+	);
 }
 
 #[test]
@@ -1343,7 +1298,7 @@ fn feature_suppress_toggles_a_fillet_in_the_rebuild() {
 			&& (vol_supp - 1000.0).abs() < 1e-6   // suppressed = the exact plain box
 			&& vol_on < 999.0
 			&& vol_on > 985.0                     // fillet removed a little material
-			&& (vol_back - vol_on).abs() < 1e-6,  // unsuppress restores the fillet
+			&& (vol_back - vol_on).abs() < 1e-6, // unsuppress restores the fillet
 		"suppress toggle: on={vol_on} suppressed={vol_supp} back={vol_back}"
 	);
 }

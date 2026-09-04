@@ -25,15 +25,9 @@ pub fn gate(label: &str, pass: bool, detail: String, ok: &mut bool) {
 	// cannot break the JSON line.
 	let esc = |s: &str| s.replace('"', "'");
 	if kernel_core::telemetry::enabled() {
-		kernel_core::telemetry::log(
-			"gate",
-			&format!("\"label\":\"{}\",\"pass\":{pass},\"detail\":\"{}\"", esc(label), esc(&detail)),
-		);
+		kernel_core::telemetry::log("gate", &format!("\"label\":\"{}\",\"pass\":{pass},\"detail\":\"{}\"", esc(label), esc(&detail)));
 	}
 	if !pass {
-		kernel_core::telemetry::log_friction(
-			"gate_fail",
-			&format!("\"label\":\"{}\",\"detail\":\"{}\"", esc(label), esc(&detail)),
-		);
+		kernel_core::telemetry::log_friction("gate_fail", &format!("\"label\":\"{}\",\"detail\":\"{}\"", esc(label), esc(&detail)));
 	}
 }

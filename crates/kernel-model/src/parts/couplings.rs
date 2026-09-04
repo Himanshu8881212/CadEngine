@@ -39,12 +39,8 @@ pub struct JawCouplingSpec {
 /// listings, e.g. StepperOnline & uxcell "flexible shaft coupling"); the D40 max bore is
 /// trimmed from the listed 24 to 22 so the bore always leaves a 0.5 mm spigot wall
 /// (structural floor of this model, documented at `JAW_SPIGOT_R`).
-const JAW: [(f64, f64, f64, f64, f64); 4] = [
-	(20.0, 25.0, 4.0, 3.0, 8.0),
-	(25.0, 30.0, 5.0, 4.0, 12.0),
-	(30.0, 35.0, 6.0, 5.0, 16.0),
-	(40.0, 50.0, 8.0, 8.0, 22.0),
-];
+const JAW: [(f64, f64, f64, f64, f64); 4] =
+	[(20.0, 25.0, 4.0, 3.0, 8.0), (25.0, 30.0, 5.0, 4.0, 12.0), (30.0, 35.0, 6.0, 5.0, 16.0), (40.0, 50.0, 8.0, 8.0, 22.0)];
 
 /// Internal proportions of the jaw interface, as fractions of the OD (chosen mid-range
 /// of the commercial GR-style geometry; every contact figure below is exercised by the
@@ -63,9 +59,13 @@ const RADIAL_PLAY: f64 = 0.2;
 
 /// The jaw-coupling table row for a body `od` (20, 25, 30, 40), or `None`.
 pub fn jaw_coupling_spec(od: f64) -> Option<JawCouplingSpec> {
-	JAW.iter()
-		.find(|r| (r.0 - od).abs() < 1e-9)
-		.map(|&(od, length, jaw_height, bore_min, bore_max)| JawCouplingSpec { od, length, jaw_height, bore_min, bore_max })
+	JAW.iter().find(|r| (r.0 - od).abs() < 1e-9).map(|&(od, length, jaw_height, bore_min, bore_max)| JawCouplingSpec {
+		od,
+		length,
+		jaw_height,
+		bore_min,
+		bore_max,
+	})
 }
 
 /// An annular-sector polygon: radial span `r0..r1`, angular span `a0..a1` (radians,
@@ -205,10 +205,7 @@ const CLAMP: [(f64, f64, f64, f64); 6] = [
 ];
 
 fn rigid_spec(table: &[(f64, f64, f64, f64)], bore: f64) -> Option<RigidCouplingSpec> {
-	table
-		.iter()
-		.find(|r| (r.0 - bore).abs() < 1e-9)
-		.map(|&(bore, od, length, screw_m)| RigidCouplingSpec { bore, od, length, screw_m })
+	table.iter().find(|r| (r.0 - bore).abs() < 1e-9).map(|&(bore, od, length, screw_m)| RigidCouplingSpec { bore, od, length, screw_m })
 }
 
 /// The set-screw coupling table row for a stocked `bore` (4, 5, 6, 6.35, 8, 10, 12), or `None`.
@@ -265,12 +262,7 @@ pub fn set_screw_coupling(bore1: f64, bore2: f64) -> Option<Solid> {
 	let body = kernel_brep::extrude(&super::circle48(od * 0.5), len);
 	let mut s = stepped_bore(body, bore1, bore2, len);
 	// Two set screws per shaft side, 90° apart; the hole pierces one wall to the bore.
-	for (z, dir) in [
-		(len / 6.0, DVec3::X),
-		(len / 3.0, DVec3::Y),
-		(len - len / 3.0, DVec3::Y),
-		(len - len / 6.0, DVec3::X),
-	] {
+	for (z, dir) in [(len / 6.0, DVec3::X), (len / 3.0, DVec3::Y), (len - len / 3.0, DVec3::Y), (len - len / 6.0, DVec3::X)] {
 		let at = dir * (od * 0.5) + DVec3::new(0.0, 0.0, z);
 		s = tap_drill_hole(&s, at, -dir, m, HoleDepth::Through(od * 0.5), None).ok()?;
 	}
@@ -296,10 +288,7 @@ pub fn clamp_coupling(bore1: f64, bore2: f64) -> Option<Solid> {
 	let mut s = stepped_bore(body, bore1, bore2, len);
 	// Full-length slit: from inside the bore void out past the OD on +X.
 	let small_r = bore1.min(bore2) * 0.5;
-	s = difference(
-		&s,
-		&cuboid(DVec3::new(small_r - 0.5, -slit * 0.5, -1.0), DVec3::new(od * 0.5 + 1.0, slit * 0.5, len + 1.0)),
-	);
+	s = difference(&s, &cuboid(DVec3::new(small_r - 0.5, -slit * 0.5, -1.0), DVec3::new(od * 0.5 + 1.0, slit * 0.5, len + 1.0)));
 	// Two cross screws through the slit, mid-wall of the +X lobe.
 	let x = (bore1.max(bore2) * 0.5 + od * 0.5) * 0.5;
 	let y_surf = (od * 0.5 * od * 0.5 - x * x).sqrt();
@@ -376,13 +365,10 @@ mod tests {
 		let spec = jaw_coupling_spec(25.0).expect("table row");
 		let a = jaw_coupling_hub(25.0, 8.0).expect("hub A");
 		let flip = DAffine3::from_cols(DVec3::X, -DVec3::Y, -DVec3::Z, DVec3::new(0.0, 0.0, spec.length));
-		let b = jaw_coupling_hub(25.0, 10.0)
-			.expect("hub B")
-			.transformed(flip * DAffine3::from_rotation_z(PI / 3.0));
+		let b = jaw_coupling_hub(25.0, 10.0).expect("hub B").transformed(flip * DAffine3::from_rotation_z(PI / 3.0));
 		let hub_len = (spec.length - spec.jaw_height) * 0.5;
-		let spider = jaw_coupling_spider(25.0)
-			.expect("spider")
-			.transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, hub_len + 0.05)));
+		let spider =
+			jaw_coupling_spider(25.0).expect("spider").transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, hub_len + 0.05)));
 		// The spider is 0.1 thinner than the band: floated 0.05 off each hub face.
 		let clash = |a: &Solid, b: &Solid, label: &str| {
 			let i = intersection(a, b);
@@ -411,7 +397,8 @@ mod tests {
 			let c = set_screw_coupling(b1, b2).expect("stocked bores");
 			let v = validate(&c);
 			let (od_r, len) = (spec.od * 0.5, spec.length);
-			let sleeve = disc48(od_r) * len - disc48(b1.min(b2) * 0.5) * len - (disc48(b1.max(b2) * 0.5) - disc48(b1.min(b2) * 0.5)) * len * 0.5;
+			let sleeve =
+				disc48(od_r) * len - disc48(b1.min(b2) * 0.5) * len - (disc48(b1.max(b2) * 0.5) - disc48(b1.min(b2) * 0.5)) * len * 0.5;
 			let pitch = crate::parts::iso_coarse_pitch(spec.screw_m).expect("coarse pitch");
 			// The drill tool is a circumscribed 32-gon (apothem-true Ø): area = πr²·1.0033.
 			let tap_holes = 4.0 * PI * 1.01 * ((spec.screw_m - pitch) * 0.5).powi(2) * (od_r - b1.min(b2) * 0.5);
@@ -449,8 +436,8 @@ mod tests {
 			let small_r = b1.min(b2) * 0.5;
 			let sleeve = disc48(od_r) * len - disc48(small_r) * len - (disc48(b1.max(b2) * 0.5) - disc48(small_r)) * len * 0.5;
 			let slit_cut = (od_r - small_r) * slit * len; // chord-level over-bound of the web removed
-			// DIN 974 counterbores run ~1 mm over the DIN 912 head Ø dk; bound the screw
-			// stock by two full-length bores at (dk/2 + 1).
+												 // DIN 974 counterbores run ~1 mm over the DIN 912 head Ø dk; bound the screw
+												 // stock by two full-length bores at (dk/2 + 1).
 			let cbore = crate::parts::din912_dims(spec.screw_m).map(|d| d.0).unwrap_or(2.0 * spec.screw_m);
 			let screws = 2.0 * (PI * (cbore * 0.5 + 1.0).powi(2) * 2.0 * od_r);
 			let slit_verts = (0..c.vertex_count() as u32)

@@ -77,12 +77,7 @@ pub fn par_map_indexed<T: Sync, R: Send>(items: &[T], f: impl Fn(usize, &T) -> R
 /// Panics in `f` propagate to the caller like a serial map (scoped threads
 /// re-raise on join); `f` must be side-effect-free for the schedules to be
 /// equivalent, which the purity requirement above already demands.
-pub fn par_flat_map_chunks<T: Sync, R: Send>(
-	workers: usize,
-	items: &[T],
-	chunk_len: usize,
-	f: impl Fn(&[T]) -> Vec<R> + Sync,
-) -> Vec<R> {
+pub fn par_flat_map_chunks<T: Sync, R: Send>(workers: usize, items: &[T], chunk_len: usize, f: impl Fn(&[T]) -> Vec<R> + Sync) -> Vec<R> {
 	let chunk_len = chunk_len.max(1);
 	let n_chunks = items.len().div_ceil(chunk_len).max(1);
 	let workers = workers.min(n_chunks);
@@ -128,10 +123,7 @@ mod tests {
 	/// decline to oversubscribe; the calling thread is never flagged.
 	#[test]
 	fn worker_threads_are_flagged_and_caller_is_not() {
-		assert!(
-			!in_worker_thread(),
-			"the calling thread must not be flagged as a pool worker before any map runs"
-		);
+		assert!(!in_worker_thread(), "the calling thread must not be flagged as a pool worker before any map runs");
 		let items: Vec<u32> = (0..64).collect();
 		let flags = par_map_indexed(&items, |_, _| in_worker_thread());
 		assert!(

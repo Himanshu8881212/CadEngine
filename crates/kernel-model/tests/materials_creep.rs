@@ -34,11 +34,11 @@ fn creep_lookup_is_conservative_and_monotone() {
 	let nonsense = pla::creep_allowable_mpa(f64::NAN, 1.0) + pla::creep_allowable_mpa(23.0, -5.0);
 
 	// Monotonicity: longer is never stronger, hotter is never stronger.
-	let time_monotone = (0..pla::CREEP_HOURS.len() - 1)
-		.all(|i| pla::CREEP_SIG_ALLOW_MPA[0][i] >= pla::CREEP_SIG_ALLOW_MPA[0][i + 1]
-			&& pla::CREEP_SIG_ALLOW_MPA[1][i] >= pla::CREEP_SIG_ALLOW_MPA[1][i + 1]);
-	let temp_monotone =
-		(0..pla::CREEP_HOURS.len()).all(|i| pla::CREEP_SIG_ALLOW_MPA[0][i] >= pla::CREEP_SIG_ALLOW_MPA[1][i]);
+	let time_monotone = (0..pla::CREEP_HOURS.len() - 1).all(|i| {
+		pla::CREEP_SIG_ALLOW_MPA[0][i] >= pla::CREEP_SIG_ALLOW_MPA[0][i + 1]
+			&& pla::CREEP_SIG_ALLOW_MPA[1][i] >= pla::CREEP_SIG_ALLOW_MPA[1][i + 1]
+	});
+	let temp_monotone = (0..pla::CREEP_HOURS.len()).all(|i| pla::CREEP_SIG_ALLOW_MPA[0][i] >= pla::CREEP_SIG_ALLOW_MPA[1][i]);
 
 	// The static RT design point must be STRONGER than any sustained cell —
 	// if it were not, the static tier would be the unsafe one.
@@ -78,24 +78,16 @@ fn rust_creep_table_matches_the_researched_json() {
 	// Minimal scrape (kernel-model has no JSON-value dependency in tests):
 	// find "sig_allow_mpa", then read the four numbers after each temperature
 	// key in tabulated order.
-	let table = raw
-		.split_once("\"sig_allow_mpa\"")
-		.unwrap_or_else(|| panic!("pla.json has no creep.sig_allow_mpa block"))
-		.1;
+	let table = raw.split_once("\"sig_allow_mpa\"").unwrap_or_else(|| panic!("pla.json has no creep.sig_allow_mpa block")).1;
 	let mut found = [[f64::NAN; 4]; 2];
 	for (row, temp_key) in ["\"23C\"", "\"55C\""].iter().enumerate() {
-		let seg = table
-			.split_once(temp_key)
-			.unwrap_or_else(|| panic!("pla.json creep table has no {temp_key} row"))
-			.1;
+		let seg = table.split_once(temp_key).unwrap_or_else(|| panic!("pla.json creep table has no {temp_key} row")).1;
 		let end = seg.find('}').unwrap_or(seg.len());
 		// `rsplit_once` (not `split_once`): the first comma-chunk still carries
 		// the block's own `": {"` separator, so splitting on the FIRST colon
 		// reads the wrong side and silently drops that cell.
-		let cells: Vec<f64> = seg[..end]
-			.split(',')
-			.filter_map(|kv| kv.rsplit_once(':').and_then(|(_, v)| v.trim().parse::<f64>().ok()))
-			.collect();
+		let cells: Vec<f64> =
+			seg[..end].split(',').filter_map(|kv| kv.rsplit_once(':').and_then(|(_, v)| v.trim().parse::<f64>().ok())).collect();
 		assert!(
 			cells.len() == 4,
 			"pla.json creep row {temp_key} parsed {} cells, want 4 (segment: {:?})",
@@ -105,10 +97,8 @@ fn rust_creep_table_matches_the_researched_json() {
 		found[row].copy_from_slice(&cells);
 	}
 
-	let matches = found
-		.iter()
-		.zip(pla::CREEP_SIG_ALLOW_MPA.iter())
-		.all(|(j, r)| j.iter().zip(r.iter()).all(|(a, b)| (a - b).abs() < 1e-12));
+	let matches =
+		found.iter().zip(pla::CREEP_SIG_ALLOW_MPA.iter()).all(|(j, r)| j.iter().zip(r.iter()).all(|(a, b)| (a - b).abs() < 1e-12));
 
 	assert!(
 		matches,

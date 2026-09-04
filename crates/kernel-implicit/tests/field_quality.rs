@@ -12,11 +12,11 @@
 
 use std::sync::Arc;
 
+use kernel_core::math::{Aabb, Affine3A, Vec3};
+use kernel_core::sdf::Sdf;
 use kernel_implicit::features::{chamfer_union, fillet_difference, fillet_union};
 use kernel_implicit::primitives::{Capsule, Cone, Cuboid, Cylinder, Gyroid, Plane, Sphere, Torus};
 use kernel_implicit::{FieldQuality, Node};
-use kernel_core::math::{Aabb, Affine3A, Vec3};
-use kernel_core::sdf::Sdf;
 
 use FieldQuality::{DistanceBound as Bound, ExactSdf as Exact};
 
@@ -109,7 +109,9 @@ fn checked_offset_surfaces_quality_without_changing_the_result() {
 	let blended = sphere().smooth_union(cube(), 3.0).offset_checked(1.5);
 	let w = blended.warning();
 	assert!(
-		blended.is_approximate() && blended.input_quality == Bound && w.as_deref().is_some_and(|s| s.contains("APPROXIMATE") && s.contains("offset")),
+		blended.is_approximate()
+			&& blended.input_quality == Bound
+			&& w.as_deref().is_some_and(|s| s.contains("APPROXIMATE") && s.contains("offset")),
 		"smooth-blend offset must be reported approximate with a loud warning: approx={} q={:?} warn={w:?}",
 		blended.is_approximate(),
 		blended.input_quality

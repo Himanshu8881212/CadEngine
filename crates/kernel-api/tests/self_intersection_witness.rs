@@ -118,9 +118,6 @@ fn the_reported_witness_is_real() {
 fn clean_solids_carry_no_witness() {
 	for name in ["box", "cylinder", "sphere", "cone", "torus", "drilled_plate", "pocket", "tube", "frustum"] {
 		let (_, s) = battery().into_iter().find(|(n, _)| *n == name).unwrap();
-		assert!(
-			kernel_brep::tessellate_default(&s).self_intersection_witness().is_none(),
-			"{name} must be geometrically clean"
-		);
+		assert!(kernel_brep::tessellate_default(&s).self_intersection_witness().is_none(), "{name} must be geometrically clean");
 	}
 }

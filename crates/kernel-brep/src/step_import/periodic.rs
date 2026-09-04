@@ -18,8 +18,7 @@ use super::StepError;
 /// Whether an entity is a B-spline surface (plain `B_SPLINE_SURFACE_WITH_KNOTS` or a
 /// rational `_COMPLEX` instance carrying that record).
 pub(super) fn is_bspline_surface(e: &Entity) -> bool {
-	e.name == "B_SPLINE_SURFACE_WITH_KNOTS"
-		|| (e.name == "_COMPLEX" && complex_part(&e.args, "B_SPLINE_SURFACE_WITH_KNOTS").is_some())
+	e.name == "B_SPLINE_SURFACE_WITH_KNOTS" || (e.name == "_COMPLEX" && complex_part(&e.args, "B_SPLINE_SURFACE_WITH_KNOTS").is_some())
 }
 
 /// Whether a curved-tagged boundary with more than four vertices is a flat CHORD FACET
@@ -135,9 +134,7 @@ pub(super) fn split_periodic_face(pts: &[DVec3], surface: &Surface, fid: u32) ->
 			)));
 		}
 		Surface::Plane { .. } => {
-			return Err(StepError::Topology(format!(
-				"ADVANCED_FACE #{fid}: planar face reached the periodic splitter"
-			)));
+			return Err(StepError::Topology(format!("ADVANCED_FACE #{fid}: planar face reached the periodic splitter")));
 		}
 	};
 	let axis = axis.normalize_or_zero();
@@ -159,9 +156,7 @@ pub(super) fn split_periodic_face(pts: &[DVec3], surface: &Surface, fid: u32) ->
 		}
 	}
 	if r_rep <= 0.0 {
-		return Err(StepError::Topology(format!(
-			"ADVANCED_FACE #{fid}: face boundary collapses onto its surface axis"
-		)));
+		return Err(StepError::Topology(format!("ADVANCED_FACE #{fid}: face boundary collapses onto its surface axis")));
 	}
 	// Unwrap the angle along the loop: each defined step stays within half a turn of
 	// the previous defined value, so the seam's second copy lands a full period away.
@@ -180,9 +175,7 @@ pub(super) fn split_periodic_face(pts: &[DVec3], surface: &Surface, fid: u32) ->
 		prev = Some(i);
 	}
 	let (Some(first), Some(last)) = (first, prev) else {
-		return Err(StepError::Topology(format!(
-			"ADVANCED_FACE #{fid}: face boundary has no off-axis points"
-		)));
+		return Err(StepError::Topology(format!("ADVANCED_FACE #{fid}: face boundary has no off-axis points")));
 	};
 	if defined.iter().all(|&d| d) {
 		// A fully defined loop must close in angle (winding 0): one that comes back a
@@ -217,7 +210,8 @@ pub(super) fn split_periodic_face(pts: &[DVec3], surface: &Surface, fid: u32) ->
 	}
 	// Strip coordinates: angle scaled to arc length (conditioning), axial as-is.
 	let uv: Vec<DVec2> = (0..n).map(|i| DVec2::new(u[i] * r_rep, axial[i])).collect();
-	triangulate_monotone(&uv).or_else(|_| triangulate_earclip(&uv))
+	triangulate_monotone(&uv)
+		.or_else(|_| triangulate_earclip(&uv))
 		.map_err(|m| StepError::Unsupported(format!("ADVANCED_FACE #{fid}: cannot triangulate the unwrapped boundary ({m})")))
 }
 
@@ -378,9 +372,7 @@ impl PeriodicFrame {
 		let u = self.e1 * phi.cos() + self.e2 * phi.sin();
 		match self.kind {
 			FrameKind::Sphere { radius } => self.center + (u * level.cos() + self.axis * level.sin()) * radius,
-			FrameKind::Torus { major, minor } => {
-				self.center + u * (major + minor * level.cos()) + self.axis * (minor * level.sin())
-			}
+			FrameKind::Torus { major, minor } => self.center + u * (major + minor * level.cos()) + self.axis * (minor * level.sin()),
 		}
 	}
 
@@ -479,9 +471,7 @@ pub(super) fn resample_periodic_region(
 			Err(m) => last_err = m,
 		}
 	}
-	Err(StepError::Unsupported(format!(
-		"ADVANCED_FACE #{fid}: periodic sphere/torus region not importable — {last_err}"
-	)))
+	Err(StepError::Unsupported(format!("ADVANCED_FACE #{fid}: periodic sphere/torus region not importable — {last_err}")))
 }
 
 /// The grid construction behind [`resample_periodic_region`] for one axis candidate.
@@ -556,10 +546,7 @@ fn try_resample_grid(pts: &[DVec3], frame: &PeriodicFrame, same_sense: bool) -> 
 		} else {
 			for &i in c {
 				if multiplicity(i) < 2 {
-					return Err(format!(
-						"boundary point {:?} is neither on a full ring, a pole, nor a seam traversed twice",
-						pts[i]
-					));
+					return Err(format!("boundary point {:?} is neither on a full ring, a pole, nor a seam traversed twice", pts[i]));
 				}
 			}
 		}
@@ -572,10 +559,7 @@ fn try_resample_grid(pts: &[DVec3], frame: &PeriodicFrame, same_sense: bool) -> 
 		return Err("ring with fewer than three samples".into());
 	}
 	let pitch = TAU / n_cols as f64;
-	let phi0 = rings
-		.first()
-		.map(|r| coords[r.cols[0]].0)
-		.unwrap_or_else(|| coords.iter().find(|c| c.2).map(|c| c.0).unwrap_or(0.0));
+	let phi0 = rings.first().map(|r| coords[r.cols[0]].0).unwrap_or_else(|| coords.iter().find(|c| c.2).map(|c| c.0).unwrap_or(0.0));
 	for ring in &mut rings {
 		if ring.cols.len() != n_cols {
 			return Err(format!("rings with mismatched sample counts ({} vs {n_cols})", ring.cols.len()));
@@ -720,11 +704,7 @@ fn try_resample_grid(pts: &[DVec3], frame: &PeriodicFrame, same_sense: bool) -> 
 				}
 				rows.push(GridRow::Ring(hi.cols));
 			}
-			(nr, np) => {
-				return Err(format!(
-					"{nr} ring(s) + {np} pole(s) is not a sphere cap, band or full sphere"
-				))
-			}
+			(nr, np) => return Err(format!("{nr} ring(s) + {np} pole(s) is not a sphere cap, band or full sphere")),
 		}
 	}
 	if rows.len() < 2 {
@@ -751,8 +731,7 @@ fn try_resample_grid(pts: &[DVec3], frame: &PeriodicFrame, same_sense: bool) -> 
 		}
 	}
 	// Mark every index sharing a used position, then require leftovers to be slits.
-	let used_keys: std::collections::HashSet<PosKey> =
-		(0..n_pts).filter(|&i| used[i]).map(|i| pos_key(pts[i])).collect();
+	let used_keys: std::collections::HashSet<PosKey> = (0..n_pts).filter(|&i| used[i]).map(|i| pos_key(pts[i])).collect();
 	for (i, &p) in pts.iter().enumerate() {
 		if !used_keys.contains(&pos_key(p)) && multiplicity(i) < 2 {
 			return Err(format!("boundary point {p:?} was not consumed by the ring grid"));
@@ -868,8 +847,7 @@ fn loop_ring_step(pts: &[DVec3], rows: &[GridRow], n_pts: usize, n_cols: usize) 
 				steps.push((i, j));
 			}
 		}
-		let keyed: std::collections::HashSet<(PosKey, PosKey)> =
-			steps.iter().map(|&(i, j)| (pos_key(pts[i]), pos_key(pts[j]))).collect();
+		let keyed: std::collections::HashSet<(PosKey, PosKey)> = steps.iter().map(|&(i, j)| (pos_key(pts[i]), pos_key(pts[j]))).collect();
 		let two_way = steps.iter().any(|&(i, j)| keyed.contains(&(pos_key(pts[j]), pos_key(pts[i]))));
 		if two_way {
 			continue;

@@ -37,12 +37,31 @@ fn gauss_legendre_5<F: Fn(f64) -> f64>(f: F, t0: f64, t1: f64) -> f64 {
 /// A closed-form analytic surface. All direction fields are expected unit length.
 #[derive(Clone, Copy, Debug)]
 pub enum Surface {
-	Plane { origin: DVec3, normal: DVec3 },
-	Cylinder { origin: DVec3, axis: DVec3, radius: f64 },
-	Sphere { center: DVec3, radius: f64 },
+	Plane {
+		origin: DVec3,
+		normal: DVec3,
+	},
+	Cylinder {
+		origin: DVec3,
+		axis: DVec3,
+		radius: f64,
+	},
+	Sphere {
+		center: DVec3,
+		radius: f64,
+	},
 	/// Cone with `axis` pointing from `apex` into the body; `half_angle` in radians.
-	Cone { apex: DVec3, axis: DVec3, half_angle: f64 },
-	Torus { center: DVec3, axis: DVec3, major: f64, minor: f64 },
+	Cone {
+		apex: DVec3,
+		axis: DVec3,
+		half_angle: f64,
+	},
+	Torus {
+		center: DVec3,
+		axis: DVec3,
+		major: f64,
+		minor: f64,
+	},
 }
 
 impl Surface {
@@ -201,19 +220,12 @@ impl Surface {
 		let dir = |d: DVec3| m.transform_vector3(d).normalize_or_zero();
 		match *self {
 			Surface::Plane { origin, normal } => Surface::Plane { origin: pt(origin), normal: dir(normal) },
-			Surface::Cylinder { origin, axis, radius } => {
-				Surface::Cylinder { origin: pt(origin), axis: dir(axis), radius: radius * scale }
-			}
+			Surface::Cylinder { origin, axis, radius } => Surface::Cylinder { origin: pt(origin), axis: dir(axis), radius: radius * scale },
 			Surface::Sphere { center, radius } => Surface::Sphere { center: pt(center), radius: radius * scale },
-			Surface::Cone { apex, axis, half_angle } => {
-				Surface::Cone { apex: pt(apex), axis: dir(axis), half_angle }
+			Surface::Cone { apex, axis, half_angle } => Surface::Cone { apex: pt(apex), axis: dir(axis), half_angle },
+			Surface::Torus { center, axis, major, minor } => {
+				Surface::Torus { center: pt(center), axis: dir(axis), major: major * scale, minor: minor * scale }
 			}
-			Surface::Torus { center, axis, major, minor } => Surface::Torus {
-				center: pt(center),
-				axis: dir(axis),
-				major: major * scale,
-				minor: minor * scale,
-			},
 		}
 	}
 
@@ -231,20 +243,14 @@ impl Surface {
 			(Surface::Plane { origin: o1, normal: n1 }, Surface::Plane { origin: o2, normal: n2 }) => {
 				dir_eq(n1, n2) && (o2 - o1).dot(n1).abs() < tol
 			}
-			(
-				Surface::Cylinder { origin: o1, axis: a1, radius: r1 },
-				Surface::Cylinder { origin: o2, axis: a2, radius: r2 },
-			) => {
+			(Surface::Cylinder { origin: o1, axis: a1, radius: r1 }, Surface::Cylinder { origin: o2, axis: a2, radius: r2 }) => {
 				let d = o2 - o1;
 				dir_eq(a1, a2) && (r1 - r2).abs() < tol && (d - a1 * d.dot(a1)).length() < tol
 			}
 			(Surface::Sphere { center: c1, radius: r1 }, Surface::Sphere { center: c2, radius: r2 }) => {
 				(c1 - c2).length() < tol && (r1 - r2).abs() < tol
 			}
-			(
-				Surface::Cone { apex: p1, axis: a1, half_angle: h1 },
-				Surface::Cone { apex: p2, axis: a2, half_angle: h2 },
-			) => {
+			(Surface::Cone { apex: p1, axis: a1, half_angle: h1 }, Surface::Cone { apex: p2, axis: a2, half_angle: h2 }) => {
 				// Same nappe only: the axis must point the same way.
 				(p1 - p2).length() < tol && a1.dot(a2) > 0.0 && dir_eq(a1, a2) && (h1 - h2).abs() < tol
 			}
@@ -282,12 +288,8 @@ impl Surface {
 		match *self {
 			Surface::Plane { origin, normal } => plane_plane_section(origin, normal.normalize_or_zero(), plane_origin, n),
 			Surface::Sphere { center, radius } => sphere_plane_section(center, radius, plane_origin, n),
-			Surface::Cylinder { origin, axis, radius } => {
-				cylinder_plane_section(origin, axis.normalize_or_zero(), radius, plane_origin, n)
-			}
-			Surface::Cone { apex, axis, half_angle } => {
-				cone_plane_section(apex, axis.normalize_or_zero(), half_angle, plane_origin, n)
-			}
+			Surface::Cylinder { origin, axis, radius } => cylinder_plane_section(origin, axis.normalize_or_zero(), radius, plane_origin, n),
+			Surface::Cone { apex, axis, half_angle } => cone_plane_section(apex, axis.normalize_or_zero(), half_angle, plane_origin, n),
 			Surface::Torus { center, axis, major, minor } => {
 				torus_perp_plane_section(center, axis.normalize_or_zero(), major, minor, plane_origin, n)
 			}
@@ -368,10 +370,7 @@ fn cylinder_plane_section(o: DVec3, axis: DVec3, radius: f64, po: DVec3, n: DVec
 		if h < 1e-9 || perp.length_squared() < 0.5 {
 			return vec![Curve::Line { origin: foot, dir: axis }]; // tangent
 		}
-		return vec![
-			Curve::Line { origin: foot + perp * h, dir: axis },
-			Curve::Line { origin: foot - perp * h, dir: axis },
-		];
+		return vec![Curve::Line { origin: foot + perp * h, dir: axis }, Curve::Line { origin: foot - perp * h, dir: axis }];
 	}
 	// Center: where the axis pierces the plane.
 	let t = (po - o).dot(n) / cos;
@@ -461,12 +460,12 @@ fn cone_plane_conic(apex: DVec3, axis: DVec3, half_angle: f64, po: DVec3, n: DVe
 	let (p0, p1, p2) = (axis.dot(w), axis.dot(e1), axis.dot(e2));
 	let (q0, q1, q2) = (w.length_squared(), w.dot(e1), w.dot(e2));
 	let coeffs = [
-		p1 * p1 - k,             // A x²
-		2.0 * p1 * p2,           // B xy
-		p2 * p2 - k,             // C y²
+		p1 * p1 - k,              // A x²
+		2.0 * p1 * p2,            // B xy
+		p2 * p2 - k,              // C y²
 		2.0 * (p0 * p1 - k * q1), // D x
 		2.0 * (p0 * p2 - k * q2), // E y
-		p0 * p0 - k * q0,        // F
+		p0 * p0 - k * q0,         // F
 	];
 	(e1, e2, coeffs)
 }
@@ -529,11 +528,7 @@ fn cone_hyperbola(apex: DVec3, axis: DVec3, half_angle: f64, po: DVec3, n: DVec3
 	// is real (the conjugate axis takes the imaginary √).
 	let (l1, l2) = conic_eigvals(a, b, c);
 	let (p1sq, p2sq) = (-fc / l1, -fc / l2);
-	let (a_sq, b_sq, ev_t) = if p1sq > 0.0 {
-		(p1sq, -p2sq, conic_eigvec(a, b, c, l1))
-	} else {
-		(p2sq, -p1sq, conic_eigvec(a, b, c, l2))
-	};
+	let (a_sq, b_sq, ev_t) = if p1sq > 0.0 { (p1sq, -p2sq, conic_eigvec(a, b, c, l1)) } else { (p2sq, -p1sq, conic_eigvec(a, b, c, l2)) };
 	if !(a_sq > 0.0 && b_sq > 0.0 && a_sq.is_finite() && b_sq.is_finite()) {
 		return Vec::new();
 	}
@@ -791,10 +786,7 @@ impl SurfaceChart {
 					return None; // on the tube's spine circle: ψ undefined
 				}
 				// ψ̃ = ψ − ψ₀ via the 2-D rotation (cos, sin)·(anchor conjugate).
-				let psi = DVec2::new(
-					tube.x * psi_anchor.x + tube.y * psi_anchor.y,
-					tube.y * psi_anchor.x - tube.x * psi_anchor.y,
-				);
+				let psi = DVec2::new(tube.x * psi_anchor.x + tube.y * psi_anchor.y, tube.y * psi_anchor.x - tube.x * psi_anchor.y);
 				DVec2::new(major * y.atan2(x), minor * psi.y.atan2(psi.x))
 			}
 		};
@@ -811,17 +803,41 @@ impl SurfaceChart {
 /// A closed-form analytic curve.
 #[derive(Clone, Copy, Debug)]
 pub enum Curve {
-	Line { origin: DVec3, dir: DVec3 },
-	Circle { center: DVec3, normal: DVec3, radius: f64 },
+	Line {
+		origin: DVec3,
+		dir: DVec3,
+	},
+	Circle {
+		center: DVec3,
+		normal: DVec3,
+		radius: f64,
+	},
 	/// An ellipse `center + u·a·cos(t) + (normal×u)·b·sin(t)`, where `u` is the unit
 	/// semi-major direction, `a >= b > 0` the semi-axes, and `normal` the plane normal.
-	Ellipse { center: DVec3, normal: DVec3, u: DVec3, a: f64, b: f64 },
+	Ellipse {
+		center: DVec3,
+		normal: DVec3,
+		u: DVec3,
+		a: f64,
+		b: f64,
+	},
 	/// A parabola `vertex + dir·t + axis·t²/(4·focal)` opening along unit `axis`,
 	/// with unit `dir ⟂ axis` spanning the width and focal length `focal > 0`.
-	Parabola { vertex: DVec3, axis: DVec3, dir: DVec3, focal: f64 },
+	Parabola {
+		vertex: DVec3,
+		axis: DVec3,
+		dir: DVec3,
+		focal: f64,
+	},
 	/// One branch of a hyperbola `center + u·a·cosh(s) + (normal×u)·b·sinh(s)`, with
 	/// unit transverse direction `u` (pointing at the vertex) and semi-axes `a, b > 0`.
-	Hyperbola { center: DVec3, normal: DVec3, u: DVec3, a: f64, b: f64 },
+	Hyperbola {
+		center: DVec3,
+		normal: DVec3,
+		u: DVec3,
+		a: f64,
+		b: f64,
+	},
 }
 
 impl Curve {
@@ -838,9 +854,7 @@ impl Curve {
 				let v = normal.cross(u).normalize_or_zero();
 				center + u * (a * t.cos()) + v * (b * t.sin())
 			}
-			Curve::Parabola { vertex, axis, dir, focal } => {
-				vertex + dir * t + axis * (t * t / (4.0 * focal))
-			}
+			Curve::Parabola { vertex, axis, dir, focal } => vertex + dir * t + axis * (t * t / (4.0 * focal)),
 			Curve::Hyperbola { center, normal, u, a, b } => {
 				let v = normal.cross(u).normalize_or_zero();
 				center + u * (a * t.cosh()) + v * (b * t.sinh())
@@ -901,9 +915,7 @@ impl Curve {
 	pub fn transformed(&self, m: DAffine3) -> Curve {
 		let scale = m.matrix3.x_axis.length();
 		match *self {
-			Curve::Line { origin, dir } => {
-				Curve::Line { origin: m.transform_point3(origin), dir: m.transform_vector3(dir) }
-			}
+			Curve::Line { origin, dir } => Curve::Line { origin: m.transform_point3(origin), dir: m.transform_vector3(dir) },
 			Curve::Circle { center, normal, radius } => Curve::Circle {
 				center: m.transform_point3(center),
 				normal: m.transform_vector3(normal).normalize_or_zero(),
@@ -1043,12 +1055,7 @@ mod tests {
 		// horizon) must refuse rather than guess.
 		let cyl = Surface::Cylinder { origin: DVec3::ZERO, axis: DVec3::Z, radius: 2.0 };
 		// A flat chord facet of the cylinder: two generators at θ = ±0.3.
-		let chord = vec![
-			cyl.point_at(-0.3, 0.0),
-			cyl.point_at(0.3, 0.0),
-			cyl.point_at(0.3, 1.0),
-			cyl.point_at(-0.3, 1.0),
-		];
+		let chord = vec![cyl.point_at(-0.3, 0.0), cyl.point_at(0.3, 0.0), cyl.point_at(0.3, 1.0), cyl.point_at(-0.3, 1.0)];
 		let flat_refused = SurfaceChart::for_warped_ring(&cyl, &chord, newell(&chord)).is_none();
 		// Gnomonic horizon: a ring spanning a great circle's diameter has a vertex
 		// with rel·w ≤ 0 — uv must refuse it (the caller falls back).

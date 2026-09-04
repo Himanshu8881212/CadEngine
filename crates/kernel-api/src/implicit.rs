@@ -28,9 +28,8 @@ use kernel_implicit::strut::{pipe_path, StrutKind, StrutLattice};
 use kernel_implicit::text::text_field;
 use kernel_implicit::texture::{displaced, Texture};
 use kernel_implicit::{
-	chamfer_difference, chamfer_union, fillet_difference, fillet_union, scalar_field, BeamLattice, Capsule, Cone,
-	Cuboid, Cylinder, Expr, ExprSdf, Gyroid, LatticeCell, Node, Pipe, Plane, ScalarField, Sphere, Torus, Tpms, TpmsKind,
-	VoronoiLattice,
+	chamfer_difference, chamfer_union, fillet_difference, fillet_union, scalar_field, BeamLattice, Capsule, Cone, Cuboid, Cylinder, Expr,
+	ExprSdf, Gyroid, LatticeCell, Node, Pipe, Plane, ScalarField, Sphere, Torus, Tpms, TpmsKind, VoronoiLattice,
 };
 use serde_json::{Map, Value};
 
@@ -207,10 +206,7 @@ impl Ctx<'_> {
 	}
 
 	fn num(&self, obj: &Map<String, Value>, key: &str, path: &str) -> Result<f64, OpError> {
-		let n = self
-			.require(obj, key, path)?
-			.as_f64()
-			.ok_or_else(|| self.bad(path, format!("field '{key}' must be a number")))?;
+		let n = self.require(obj, key, path)?.as_f64().ok_or_else(|| self.bad(path, format!("field '{key}' must be a number")))?;
 		if !n.is_finite() {
 			return Err(self.bad(path, format!("field '{key}' must be finite, got {n}")));
 		}
@@ -237,10 +233,8 @@ impl Ctx<'_> {
 	}
 
 	fn vec3(&self, obj: &Map<String, Value>, key: &str, path: &str) -> Result<Vec3, OpError> {
-		let arr = self
-			.require(obj, key, path)?
-			.as_array()
-			.ok_or_else(|| self.bad(path, format!("field '{key}' must be an [x, y, z] array")))?;
+		let arr =
+			self.require(obj, key, path)?.as_array().ok_or_else(|| self.bad(path, format!("field '{key}' must be an [x, y, z] array")))?;
 		self.vec3_value(arr, key, path)
 	}
 
@@ -426,10 +420,7 @@ impl Ctx<'_> {
 				// `height`). Charset is PRE-validated here so an unsupported character
 				// is a structured op error naming the character — the kernel's own
 				// loud panic is never reachable from JSON.
-				let text = self
-					.require(obj, "text", path)?
-					.as_str()
-					.ok_or_else(|| self.bad(path, "'text' must be a string"))?;
+				let text = self.require(obj, "text", path)?.as_str().ok_or_else(|| self.bad(path, "'text' must be a string"))?;
 				if text.chars().count() > MAX_TEXT_CHARS {
 					return Err(self.bad(path, format!("'text' has {} characters, the cap is {MAX_TEXT_CHARS}", text.chars().count())));
 				}
@@ -458,7 +449,8 @@ impl Ctx<'_> {
 				}
 				let segments = (turns * samples as f64).ceil() as usize;
 				if segments > MAX_PIPE_SEGMENTS {
-					return Err(self.bad(path, format!("helix needs {segments} segments (turns × samples_per_turn), the cap is {MAX_PIPE_SEGMENTS}")));
+					return Err(self
+						.bad(path, format!("helix needs {segments} segments (turns × samples_per_turn), the cap is {MAX_PIPE_SEGMENTS}")));
 				}
 				Ok(Node::primitive(Pipe::helix(center, axis, r_helix as f32, pitch as f32, turns as f32, samples, radius as f32)))
 			}
@@ -483,7 +475,9 @@ impl Ctx<'_> {
 						let (min, max) = self.corner_box(obj, path)?;
 						Some(Aabb::new(min, max))
 					}
-					_ => return Err(self.bad(path, "'min' and 'max' bounds must be given together (or both omitted for an unbounded field)")),
+					_ => {
+						return Err(self.bad(path, "'min' and 'max' bounds must be given together (or both omitted for an unbounded field)"))
+					}
 				};
 				Ok(Node::primitive(ExprSdf::new(expr, lipschitz, bounds)))
 			}
@@ -518,7 +512,9 @@ impl Ctx<'_> {
 				let ia = arr[0].as_u64().ok_or_else(|| self.bad(path, format!("'struts'[{i}][0] must be a node index")))?;
 				let ib = arr[1].as_u64().ok_or_else(|| self.bad(path, format!("'struts'[{i}][1] must be a node index")))?;
 				if ia as usize >= nodes.len() || ib as usize >= nodes.len() {
-					return Err(self.bad(path, format!("'struts'[{i}] references node {} but there are only {} nodes", ia.max(ib), nodes.len())));
+					return Err(
+						self.bad(path, format!("'struts'[{i}] references node {} but there are only {} nodes", ia.max(ib), nodes.len()))
+					);
 				}
 				let ra = arr[2].as_f64().unwrap_or(f64::NAN);
 				let rb = arr[3].as_f64().unwrap_or(f64::NAN);
@@ -538,12 +534,12 @@ impl Ctx<'_> {
 			};
 			let (cell_size, radius) = (self.positive(obj, "cell_size", path)?, self.positive(obj, "radius", path)?);
 			let size = max - min;
-			let cells = [size.x, size.y, size.z]
-				.iter()
-				.map(|s| ((*s as f64 / cell_size).floor() as usize).max(1))
-				.product::<usize>();
+			let cells = [size.x, size.y, size.z].iter().map(|s| ((*s as f64 / cell_size).floor() as usize).max(1)).product::<usize>();
 			if cells > MAX_LATTICE_CELLS {
-				return Err(self.bad(path, format!("the region holds {cells} cells of size {cell_size}, the cap is {MAX_LATTICE_CELLS} — coarsen 'cell_size'")));
+				return Err(self.bad(
+					path,
+					format!("the region holds {cells} cells of size {cell_size}, the cap is {MAX_LATTICE_CELLS} — coarsen 'cell_size'"),
+				));
 			}
 			Ok(Node::primitive(BeamLattice::from_cells(Aabb::new(min, max), cell, cell_size as f32, radius as f32)))
 		}
@@ -564,7 +560,10 @@ impl Ctx<'_> {
 			return Err(self.bad(path, format!("'seeds' needs at least 5 points to form a foam, got {}", seeds_arr.len())));
 		}
 		if seeds_arr.len() > MAX_VORONOI_SEEDS {
-			return Err(self.bad(path, format!("'seeds' has {} points, the cap is {MAX_VORONOI_SEEDS} (the in-kernel Delaunay is O(seeds²))", seeds_arr.len())));
+			return Err(self.bad(
+				path,
+				format!("'seeds' has {} points, the cap is {MAX_VORONOI_SEEDS} (the in-kernel Delaunay is O(seeds²))", seeds_arr.len()),
+			));
 		}
 		let mut seeds = Vec::with_capacity(seeds_arr.len());
 		for (i, v) in seeds_arr.iter().enumerate() {
@@ -575,10 +574,8 @@ impl Ctx<'_> {
 	}
 
 	fn pipe(&mut self, obj: &Map<String, Value>, path: &str) -> Result<Node, OpError> {
-		let pts_arr = self
-			.require(obj, "path", path)?
-			.as_array()
-			.ok_or_else(|| self.bad(path, "'path' must be an array of [x, y, z] points"))?;
+		let pts_arr =
+			self.require(obj, "path", path)?.as_array().ok_or_else(|| self.bad(path, "'path' must be an array of [x, y, z] points"))?;
 		if pts_arr.len() < 2 {
 			return Err(self.bad(path, format!("'path' needs at least 2 points, got {}", pts_arr.len())));
 		}
@@ -594,7 +591,9 @@ impl Ctx<'_> {
 			(Some(arr), None) => {
 				let arr = arr.as_array().ok_or_else(|| self.bad(path, "'radii' must be an array of numbers"))?;
 				if arr.len() != pts.len() {
-					return Err(self.bad(path, format!("'radii' must have one entry per path point ({} points, {} radii)", pts.len(), arr.len())));
+					return Err(
+						self.bad(path, format!("'radii' must have one entry per path point ({} points, {} radii)", pts.len(), arr.len()))
+					);
 				}
 				let mut out = Vec::with_capacity(arr.len());
 				for (i, v) in arr.iter().enumerate() {
@@ -747,9 +746,8 @@ impl Ctx<'_> {
 	fn texture(&self, obj: &Map<String, Value>, path: &str) -> Result<Texture, OpError> {
 		let tv = self.require(obj, "texture", path)?;
 		let tpath = format!("{path}.texture");
-		let tobj = tv
-			.as_object()
-			.ok_or_else(|| self.bad(&tpath, "'texture' must be an object with a 'kind' field (knurl | stipple | noise)"))?;
+		let tobj =
+			tv.as_object().ok_or_else(|| self.bad(&tpath, "'texture' must be an object with a 'kind' field (knurl | stipple | noise)"))?;
 		let unit = |me: &Self, key: &str, default: f64| -> Result<f64, OpError> {
 			let v = match tobj.get(key) {
 				None => default,
@@ -816,13 +814,8 @@ impl Ctx<'_> {
 	/// an unreadable file is `io`, a malformed one `invalid_param` with the
 	/// kernel's precise reason (dtype, shape, Fortran order, non-finite values).
 	fn grid_source(&self, v: &Value, path: &str) -> Result<ScalarField, OpError> {
-		let obj = v
-			.as_object()
-			.ok_or_else(|| self.bad(path, "'grid' must be an object {path, origin, cell, normalize?, law?}"))?;
-		let file = self
-			.require(obj, "path", path)?
-			.as_str()
-			.ok_or_else(|| self.bad(path, "'path' must be a string naming a .npy file"))?;
+		let obj = v.as_object().ok_or_else(|| self.bad(path, "'grid' must be an object {path, origin, cell, normalize?, law?}"))?;
+		let file = self.require(obj, "path", path)?.as_str().ok_or_else(|| self.bad(path, "'path' must be a string naming a .npy file"))?;
 		let origin = self.vec3(obj, "origin", path)?;
 		let cell = self.positive(obj, "cell", path)?;
 		let resolved = crate::ops::meshio::resolve_input_path(self.op_id, self.input_base, file)?;
@@ -851,10 +844,7 @@ impl Ctx<'_> {
 
 	/// A `[a, b]` pair of finite numbers.
 	fn num_pair(&self, v: &Value, what: &str, path: &str) -> Result<(f64, f64), OpError> {
-		let arr = v
-			.as_array()
-			.filter(|a| a.len() == 2)
-			.ok_or_else(|| self.bad(path, format!("'{what}' must be a 2-number array")))?;
+		let arr = v.as_array().filter(|a| a.len() == 2).ok_or_else(|| self.bad(path, format!("'{what}' must be a 2-number array")))?;
 		let mut out = [0.0f64; 2];
 		for (i, x) in arr.iter().enumerate() {
 			out[i] = x
@@ -877,7 +867,8 @@ impl Ctx<'_> {
 	fn expr(&self, v: &Value, path: &str) -> Result<Expr, OpError> {
 		match v {
 			Value::Number(_) => {
-				let n = v.as_f64().filter(|n| n.is_finite()).ok_or_else(|| self.bad(path, format!("constant {v} is not a finite number")))?;
+				let n =
+					v.as_f64().filter(|n| n.is_finite()).ok_or_else(|| self.bad(path, format!("constant {v} is not a finite number")))?;
 				Ok(Expr::Const(n))
 			}
 			Value::String(s) => match s.as_str() {
@@ -887,10 +878,7 @@ impl Ctx<'_> {
 				other => Err(self.bad(path, format!("unknown variable '{other}' — the only variables are \"x\", \"y\", \"z\""))),
 			},
 			Value::Object(obj) => {
-				let op = self
-					.require(obj, "op", path)?
-					.as_str()
-					.ok_or_else(|| self.bad(path, "scalar 'op' must be a string"))?;
+				let op = self.require(obj, "op", path)?.as_str().ok_or_else(|| self.bad(path, "scalar 'op' must be a string"))?;
 				let sub = |me: &Self, key: &str| -> Result<Box<Expr>, OpError> {
 					Ok(Box::new(me.expr(me.require(obj, key, path)?, &format!("{path}.{key}"))?))
 				};
@@ -914,7 +902,10 @@ impl Ctx<'_> {
 					other => Err(self.bad(path, format!("unknown scalar op '{other}' — supported scalar ops: {SCALAR_OPS}"))),
 				}
 			}
-			other => Err(self.bad(path, format!("a scalar expression is a number, one of \"x\"/\"y\"/\"z\", or an {{\"op\": ...}} object — got {other}"))),
+			other => Err(self.bad(
+				path,
+				format!("a scalar expression is a number, one of \"x\"/\"y\"/\"z\", or an {{\"op\": ...}} object — got {other}"),
+			)),
 		}
 	}
 }

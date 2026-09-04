@@ -233,10 +233,7 @@ fn loops_equal_cyclic(a: &[DVec3], b: &[DVec3]) -> bool {
 /// All boundary loops of a face (outer first, then inner), as vertex positions.
 fn face_loops(s: &Solid, f: FaceId) -> Vec<Vec<DVec3>> {
 	let face = s.face(f);
-	std::iter::once(face.outer)
-		.chain(face.inner.iter().copied())
-		.map(|lid| s.loop_polygon(lid))
-		.collect()
+	std::iter::once(face.outer).chain(face.inner.iter().copied()).map(|lid| s.loop_polygon(lid)).collect()
 }
 
 /// Whether result face `rf` is geometrically identical to input face `af`:
@@ -297,11 +294,7 @@ fn face_area(s: &Solid, f: FaceId) -> f64 {
 /// consumed (no result face left). Everything is measured — areas in f64 from
 /// the actual result polygons, never inferred from the classification.
 fn measure_report(input: &Solid, result: &Solid, operand_triangles: usize) -> HybridReport {
-	let mut report = HybridReport {
-		brep_faces: input.face_count(),
-		operand_triangles,
-		..HybridReport::default()
-	};
+	let mut report = HybridReport { brep_faces: input.face_count(), operand_triangles, ..HybridReport::default() };
 	for k in 0..input.face_count() as u32 {
 		let af = FaceId(k);
 		let name = FaceName { operand: FaceSource::OperandA, source_face: k };
@@ -411,11 +404,7 @@ pub fn hybrid_boolean(brep: &Solid, other: HybridOperand<'_>, op: BooleanOp, vox
 	if op_mesh.triangle_count() == 0 {
 		// A ∪ ∅ = A − ∅ = A; A ∩ ∅ = ∅.
 		let keep_a = !matches!(op, BooleanOp::Intersection);
-		let (solid, mesh) = if keep_a {
-			(brep.clone(), tessellate_default(brep))
-		} else {
-			(Solid::default(), Mesh::new())
-		};
+		let (solid, mesh) = if keep_a { (brep.clone(), tessellate_default(brep)) } else { (Solid::default(), Mesh::new()) };
 		watertight_or(&mesh, "operand-less result tessellation").map_err(|detail| HybridError::NotWatertight { detail })?;
 		let report = if keep_a {
 			// Every face is untouched by a void operand — and verbatim by identity.
@@ -513,11 +502,7 @@ pub fn hybrid_boolean(brep: &Solid, other: HybridOperand<'_>, op: BooleanOp, vox
 		mesh: healed,
 		solid: None,
 		route: HybridRoute::Healed { reason },
-		report: HybridReport {
-			brep_faces: brep.face_count(),
-			operand_triangles,
-			..HybridReport::default()
-		},
+		report: HybridReport { brep_faces: brep.face_count(), operand_triangles, ..HybridReport::default() },
 	})
 }
 
@@ -593,8 +578,7 @@ mod tests {
 		// (c) stay within 1% of the twin-route volume (it IS the twin route here).
 		let block = cuboid(BDVec3::ZERO, BDVec3::new(40.0, 40.0, 20.0));
 		let scan = scanned_torus(BDVec3::new(20.0, 20.0, 19.5), 8.0, 3.0); // tube top 22.5 > 20
-		let out = hybrid_boolean(&block, HybridOperand::Mesh(&scan), BooleanOp::Difference, 0.4)
-			.expect("hybrid must heal, not fail");
+		let out = hybrid_boolean(&block, HybridOperand::Mesh(&scan), BooleanOp::Difference, 0.4).expect("hybrid must heal, not fail");
 		let twin = mesh_boolean_implicit(&tessellate_default(&block), &scan, BoolOp::Difference, 0.4);
 		let (v, vt) = (out.mesh.signed_volume(), twin.signed_volume());
 		assert!(
@@ -657,8 +641,7 @@ mod tests {
 		let region = kernel_core::math::Aabb { min: Vec3::new(-8.0, -8.0, 1.0), max: Vec3::new(8.0, 8.0, 17.0) };
 		let node = Node::primitive(Gyroid::new(region, 0.8, 0.45))
 			.intersection(Node::primitive(VoxCuboid::new(Vec3::new(0.0, 0.0, 9.0), Vec3::splat(6.0))));
-		let out = hybrid_boolean(&f, HybridOperand::Node(&node), BooleanOp::Union, 0.4)
-			.expect("hybrid union must produce a result");
+		let out = hybrid_boolean(&f, HybridOperand::Node(&node), BooleanOp::Union, 0.4).expect("hybrid union must produce a result");
 
 		// Twin-route reference at the same voxel.
 		let gyroid_mesh = manifold_dual_contour(&node, node.bounds(), Resolution::VoxelSize(0.4));
@@ -711,8 +694,7 @@ mod tests {
 
 		let out = hybrid_boolean(&block, HybridOperand::Mesh(&open), BooleanOp::Difference, 0.4)
 			.expect("hybrid must heal an open scan, not fail");
-		let exact = hybrid_boolean(&block, HybridOperand::Mesh(&closed), BooleanOp::Difference, 0.4)
-			.expect("closed-scan reference");
+		let exact = hybrid_boolean(&block, HybridOperand::Mesh(&closed), BooleanOp::Difference, 0.4).expect("closed-scan reference");
 		let (v, ve) = (out.mesh.signed_volume(), exact.mesh.signed_volume());
 		assert!(
 			matches!(&out.route, HybridRoute::Healed { reason } if reason.contains("not a closed 2-manifold"))

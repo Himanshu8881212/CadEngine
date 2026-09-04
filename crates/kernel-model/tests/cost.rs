@@ -21,7 +21,9 @@
 
 use kernel_brep::math::DVec3;
 use kernel_brep::{area, cuboid, exact_volume, sphere, Solid};
-use kernel_model::cost::{costed_bom, support_envelope_mm3, CostBreakdown, CostError, CostItem, CostProcess, FdmCostModel, FDM_ACCURACY_CLASS};
+use kernel_model::cost::{
+	costed_bom, support_envelope_mm3, CostBreakdown, CostError, CostItem, CostProcess, FdmCostModel, FDM_ACCURACY_CLASS,
+};
 use kernel_model::materials::PLA_G_PER_MM3;
 
 /// A 40 × 40 × 20 block: V = 32 000 mm³, A = 6 400 mm², 20 mm tall.
@@ -48,10 +50,7 @@ fn a_solid_parts_mass_is_exact_volume_times_density() {
 	let m = solid_model();
 	let c = m.estimate(&b).expect("FDM is the implemented process");
 	let v = exact_volume(&b).abs();
-	assert!(
-		(v - 32000.0).abs() < 1e-9,
-		"fixture drifted: kernel_brep::exact_volume reads {v} for a 40×40×20 block, expected 32000"
-	);
+	assert!((v - 32000.0).abs() < 1e-9, "fixture drifted: kernel_brep::exact_volume reads {v} for a 40×40×20 block, expected 32000");
 	assert!(
 		(c.material_g - v * m.density_g_mm3).abs() < 1e-12,
 		"a 100%-infill part must weigh exactly exact_volume × density: got {} g, exact_volume × density = {} g (delta {:e})",
@@ -171,10 +170,7 @@ fn layer_count_is_exact_against_hand_arithmetic_including_the_ieee_trap() {
 #[test]
 fn support_appears_only_where_the_support_report_says_it_does() {
 	let flat = support_envelope_mm3(&block(), 45.0, 0.3);
-	assert_eq!(
-		flat, 0.0,
-		"a flat-bottomed block prints support-free at 45°; the envelope must be exactly 0, got {flat} mm³"
-	);
+	assert_eq!(flat, 0.0, "a flat-bottomed block prints support-free at 45°; the envelope must be exactly 0, got {flat} mm³");
 
 	let b = ball();
 	let env = support_envelope_mm3(&b, 45.0, 0.3);
@@ -185,10 +181,7 @@ fn support_appears_only_where_the_support_report_says_it_does() {
 	// The envelope is an UPPER bound by construction: it can never exceed the
 	// prism under the part's own footprint.
 	let footprint_prism = std::f64::consts::PI * 20.0 * 20.0 * 40.0;
-	assert!(
-		env < footprint_prism,
-		"the support envelope ({env}) cannot exceed the whole prism under the part ({footprint_prism})"
-	);
+	assert!(env < footprint_prism, "the support envelope ({env}) cannot exceed the whole prism under the part ({footprint_prism})");
 
 	let m = FdmCostModel::conservative_default();
 	let c = m.estimate(&b).expect("FDM");
@@ -219,11 +212,7 @@ fn support_appears_only_where_the_support_report_says_it_does() {
 #[test]
 fn sibling_processes_refuse_instead_of_inventing_a_cost_model() {
 	let b = block();
-	for (p, name) in [
-		(CostProcess::SheetMetal, "sheet_metal"),
-		(CostProcess::Casting, "casting"),
-		(CostProcess::Cnc, "cnc"),
-	] {
+	for (p, name) in [(CostProcess::SheetMetal, "sheet_metal"), (CostProcess::Casting, "casting"), (CostProcess::Cnc, "cnc")] {
 		let err = p.estimate(&b).expect_err("only FDM has a cost model today");
 		match &err {
 			CostError::NotImplemented { process, note } => {
@@ -257,14 +246,8 @@ fn absurd_parameters_refuse_loudly_and_never_produce_a_number() {
 	];
 	for (field, m) in cases {
 		let err = m.validate().expect_err("an impossible model must not validate");
-		assert!(
-			matches!(&err, CostError::BadParameter { field: f, .. } if *f == field),
-			"expected BadParameter on '{field}', got {err:?}"
-		);
-		assert!(
-			m.estimate(&b).is_err(),
-			"'{field}' is out of range, so estimate() must refuse rather than return a number"
-		);
+		assert!(matches!(&err, CostError::BadParameter { field: f, .. } if *f == field), "expected BadParameter on '{field}', got {err:?}");
+		assert!(m.estimate(&b).is_err(), "'{field}' is out of range, so estimate() must refuse rather than return a number");
 		assert!(err.to_string().contains("refusing to produce a number"), "the '{field}' refusal must say why, got '{err}'");
 	}
 	// A zero flow rate would be an INFINITE time, not a free print.
@@ -332,7 +315,12 @@ fn the_conservative_defaults_are_pinned_with_their_provenance() {
 	m.validate().expect("the declared default must pass its own range check");
 	let pinned: [(&str, f64, f64, &str); 9] = [
 		("layer_height_mm", m.layer_height_mm, 0.2, "the 0.4 mm-nozzle default every shipped campaign was sliced at"),
-		("volumetric_flow_mm3_s", m.volumetric_flow_mm3_s, 12.0, "deliberately below advertised peak: a sliced average over short perimeters"),
+		(
+			"volumetric_flow_mm3_s",
+			m.volumetric_flow_mm3_s,
+			12.0,
+			"deliberately below advertised peak: a sliced average over short perimeters",
+		),
 		("per_layer_overhead_s", m.per_layer_overhead_s, 1.5, "layer change + Z move + seam + prime"),
 		("travel_fraction", m.travel_fraction, 0.12, "travel as a fraction of extrusion time"),
 		("shell_thickness_mm", m.shell_thickness_mm, 1.2, "drybox_roller RIB_T — the thinnest wall a shipped campaign prints"),
@@ -430,8 +418,5 @@ fn an_empty_bom_is_empty_but_still_declares_its_accuracy_class() {
 	let bom = costed_bom(&[], &CostProcess::Fdm(FdmCostModel::conservative_default()), "EUR").expect("an empty set costs nothing");
 	assert!(bom.lines.is_empty(), "no items, no lines");
 	assert_eq!(bom.total, 0.0, "an empty BOM totals zero");
-	assert!(
-		bom.model_accuracy_note.contains("+/-30%"),
-		"even an empty table declares which model produced its (absent) numbers"
-	);
+	assert!(bom.model_accuracy_note.contains("+/-30%"), "even an empty table declares which model produced its (absent) numbers");
 }

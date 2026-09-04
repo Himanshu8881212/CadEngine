@@ -46,12 +46,12 @@
 //! structurally unchanged with a zeroed report. The v1 entry points are
 //! untouched in behavior.
 
+use kernel_brep::recover::recover_quadrics;
+use kernel_brep::{coalesce_coplanar, solid_from_mesh, validate, volume, Solid};
 use kernel_core::math::{Aabb, Vec3};
 use kernel_core::mesh::Mesh;
 use kernel_core::mesher::Resolution;
 use kernel_core::sdf::Sdf;
-use kernel_brep::recover::recover_quadrics;
-use kernel_brep::{coalesce_coplanar, solid_from_mesh, validate, volume, Solid};
 use kernel_implicit::manifold_dual_contour;
 
 pub use kernel_brep::recover::RecoveryReport;

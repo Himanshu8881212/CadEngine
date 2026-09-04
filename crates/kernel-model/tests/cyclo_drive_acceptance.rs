@@ -23,14 +23,21 @@ fn cycloid_profile(n: usize) -> Vec<DVec2> {
 		.map(|i| {
 			let t = TAU * i as f64 / n as f64;
 			let psi = ((1.0 - ZP) * t).sin().atan2(RP / (E * ZP) - ((1.0 - ZP) * t).cos());
-			DVec2::new(
-				RP * t.cos() - RR * (t + psi).cos() - E * (ZP * t).cos(),
-				-RP * t.sin() + RR * (t + psi).sin() + E * (ZP * t).sin(),
-			)
+			DVec2::new(RP * t.cos() - RR * (t + psi).cos() - E * (ZP * t).cos(), -RP * t.sin() + RR * (t + psi).sin() + E * (ZP * t).sin())
 		})
 		.collect();
-	let area: f64 = 0.5 * (0..n).map(|i| { let j = (i + 1) % n; p[i].x * p[j].y - p[j].x * p[i].y }).sum::<f64>();
-	if area < 0.0 { p.into_iter().rev().collect() } else { p }
+	let area: f64 = 0.5
+		* (0..n)
+			.map(|i| {
+				let j = (i + 1) % n;
+				p[i].x * p[j].y - p[j].x * p[i].y
+			})
+			.sum::<f64>();
+	if area < 0.0 {
+		p.into_iter().rev().collect()
+	} else {
+		p
+	}
 }
 
 fn cycloid_disc() -> Solid {

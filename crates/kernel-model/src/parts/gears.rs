@@ -86,7 +86,15 @@ pub fn spur_gear(module: f64, teeth: usize, face_width: f64, bore_d: f64, pressu
 /// that sharp-root generators silently lose versus handbook (hobbed-tooth) ratings. Typical
 /// values 0.2–0.4; the generator clamps per tooth and keeps a sharp root wherever the fillet
 /// would not fit (documented in [`involute_outline_df`]).
-pub fn spur_gear_filleted(module: f64, teeth: usize, face_width: f64, bore_d: f64, pressure_angle_deg: f64, keyway: Option<KeySize>, root_fillet_coeff: f64) -> Solid {
+pub fn spur_gear_filleted(
+	module: f64,
+	teeth: usize,
+	face_width: f64,
+	bore_d: f64,
+	pressure_angle_deg: f64,
+	keyway: Option<KeySize>,
+	root_fillet_coeff: f64,
+) -> Solid {
 	let rp = module * teeth as f64 / 2.0;
 	let rf = (root_fillet_coeff * module).max(0.0);
 	let poly = involute_outline_df(module, teeth, pressure_angle_deg.to_radians(), rp + module, rp - 1.25 * module, 0.0, rf);
@@ -137,7 +145,15 @@ pub fn spur_gear_filleted(module: f64, teeth: usize, face_width: f64, bore_d: f6
 /// simulator's S1 interference sweep.) `shift_coeff = 0` reproduces the
 /// unshifted outline byte-for-byte (the added terms are exactly `0.0`), so every
 /// existing caller — via [`involute_ring_outline_thinned`] — is unchanged.
-pub fn involute_ring_outline_shifted(module: f64, teeth: usize, pressure_angle_deg: f64, external: bool, half_pitch_shift: bool, thin_mm: f64, shift_coeff: f64) -> Option<Vec<DVec2>> {
+pub fn involute_ring_outline_shifted(
+	module: f64,
+	teeth: usize,
+	pressure_angle_deg: f64,
+	external: bool,
+	half_pitch_shift: bool,
+	thin_mm: f64,
+	shift_coeff: f64,
+) -> Option<Vec<DVec2>> {
 	involute_ring_outline_shifted_filleted(module, teeth, pressure_angle_deg, external, half_pitch_shift, thin_mm, shift_coeff, 0.0)
 }
 
@@ -155,7 +171,16 @@ pub fn involute_ring_outline_shifted(module: f64, teeth: usize, pressure_angle_d
 /// fillet would overrun the root land or the base circle (documented, never a silent
 /// self-intersection). See [`involute_outline_df`] for the exact construction.
 #[allow(clippy::too_many_arguments)] // each arg is an independent gear-profile dimension
-pub fn involute_ring_outline_shifted_filleted(module: f64, teeth: usize, pressure_angle_deg: f64, external: bool, half_pitch_shift: bool, thin_mm: f64, shift_coeff: f64, root_fillet_coeff: f64) -> Option<Vec<DVec2>> {
+pub fn involute_ring_outline_shifted_filleted(
+	module: f64,
+	teeth: usize,
+	pressure_angle_deg: f64,
+	external: bool,
+	half_pitch_shift: bool,
+	thin_mm: f64,
+	shift_coeff: f64,
+	root_fillet_coeff: f64,
+) -> Option<Vec<DVec2>> {
 	let (m, z) = (module, teeth);
 	let rp = m * z as f64 / 2.0;
 	let alpha = pressure_angle_deg.to_radians();
@@ -195,12 +220,25 @@ pub fn involute_ring_outline_shifted_filleted(module: f64, teeth: usize, pressur
 /// Zero-profile-shift wrapper over [`involute_ring_outline_shifted`]: the
 /// backlash-thinned outline every existing caller builds from. Byte-identical to
 /// the pre-profile-shift generator (`shift_coeff = 0.0`).
-pub fn involute_ring_outline_thinned(module: f64, teeth: usize, pressure_angle_deg: f64, external: bool, half_pitch_shift: bool, thin_mm: f64) -> Option<Vec<DVec2>> {
+pub fn involute_ring_outline_thinned(
+	module: f64,
+	teeth: usize,
+	pressure_angle_deg: f64,
+	external: bool,
+	half_pitch_shift: bool,
+	thin_mm: f64,
+) -> Option<Vec<DVec2>> {
 	involute_ring_outline_shifted(module, teeth, pressure_angle_deg, external, half_pitch_shift, thin_mm, 0.0)
 }
 
 /// Backward-compatible zero-backlash variant.
-pub fn involute_ring_outline(module: f64, teeth: usize, pressure_angle_deg: f64, external: bool, half_pitch_shift: bool) -> Option<Vec<DVec2>> {
+pub fn involute_ring_outline(
+	module: f64,
+	teeth: usize,
+	pressure_angle_deg: f64,
+	external: bool,
+	half_pitch_shift: bool,
+) -> Option<Vec<DVec2>> {
 	involute_ring_outline_thinned(module, teeth, pressure_angle_deg, external, half_pitch_shift, 0.0)
 }
 
@@ -256,8 +294,8 @@ fn root_fillet_arc(rr: f64, rf: f64, foot: f64, phi_c: f64, rft: f64, flank_firs
 fn involute_outline_df(m: f64, z: usize, alpha: f64, ra: f64, rr: f64, dhalf: f64, rf: f64) -> Vec<DVec2> {
 	let rp = m * z as f64 / 2.0; // pitch radius
 	let rb = rp * alpha.cos(); // base radius
-	// Roll parameter where the involute reaches the tip, and where it starts: at the base
-	// circle (t = 0) when the root is inside it, else already out at the root radius.
+							// Roll parameter where the involute reaches the tip, and where it starts: at the base
+							// circle (t = 0) when the root is inside it, else already out at the root radius.
 	let t_tip = ((ra / rb).powi(2) - 1.0).sqrt();
 	let t_start = if rr > rb { ((rr / rb).powi(2) - 1.0).sqrt() } else { 0.0 };
 	let inv = |t: f64| t - t.atan(); // involute polar-angle function
@@ -356,10 +394,12 @@ pub fn internal_gear(module: f64, teeth: usize, face_width: f64, rim_od: f64, pr
 	// NaN-safe rejection: conjunctions refuse non-finite input too.
 	if z < 8
 		|| !(m > 0.0
-			&& face_width > 0.0 && face_width.is_finite()
+			&& face_width > 0.0
+			&& face_width.is_finite()
 			&& rim_od * 0.5 > r_root
 			&& rim_od.is_finite()
-			&& alpha > 0.0 && alpha < 0.6)
+			&& alpha > 0.0
+			&& alpha < 0.6)
 	{
 		return None;
 	}
@@ -401,7 +441,7 @@ pub fn gear_rack(module: f64, length: f64, width: f64, pressure_angle_deg: f64) 
 	let w_tip = 0.25 * p - m * alpha.tan(); // tooth half-thickness at the tip line
 	let w_root = 0.25 * p + 1.25 * m * alpha.tan(); // tooth half-thickness at the root line
 	let root_gap = p - 2.0 * w_root; // flat between adjacent root corners
-	// NaN-safe rejection: conjunctions refuse non-finite or NaN input too.
+								  // NaN-safe rejection: conjunctions refuse non-finite or NaN input too.
 	if !(m > 0.0 && length.is_finite() && width > 0.0 && width.is_finite() && alpha > 0.0 && w_tip > 0.0 && root_gap > 0.0) {
 		return None;
 	}
@@ -509,10 +549,9 @@ mod tests {
 	#[test]
 	fn trapezoid_tooth_tapers_wide_root_narrow_tip() {
 		let module = 0.6;
-		for (teeth, tip_r, root_r, external, name) in [
-			(54usize, 15.78, 16.74, false, "circular spline (internal)"),
-			(52usize, 16.02, 15.06, true, "flexspline (external)"),
-		] {
+		for (teeth, tip_r, root_r, external, name) in
+			[(54usize, 15.78, 16.74, false, "circular spline (internal)"), (52usize, 16.02, 15.06, true, "flexspline (external)")]
+		{
 			let pitch_r = module * teeth as f64 / 2.0;
 			let offs = trapezoid_tooth_offsets(teeth, pitch_r, tip_r, root_r, 25.0, external, 0.05);
 			// widest angular half-extent among the tip points vs the root points
@@ -610,10 +649,8 @@ mod tests {
 			let (w_tip, w_root) = (0.25 * p - m * tan, 0.25 * p + 1.25 * m * tan);
 			let n = ((len - 2.0 * w_root) / p).floor() as usize + 1;
 			let expected = (len * 1.75 * m + n as f64 * (w_root + w_tip) * 2.25 * m) * w;
-			let crest = (0..rack.vertex_count() as u32)
-				.map(|i| rack.position(VertexId(i)))
-				.filter(|q| (q.y - 4.0 * m).abs() < 1e-9)
-				.count();
+			let crest =
+				(0..rack.vertex_count() as u32).map(|i| rack.position(VertexId(i))).filter(|q| (q.y - 4.0 * m).abs() < 1e-9).count();
 			let vol = volume(&rack).abs();
 			assert!(
 				v.closed
@@ -820,13 +857,11 @@ mod tests {
 		let worst = fil
 			.iter()
 			.filter(|p| rad(p) > rr + 1e-6 && rad(p) < rft - 1e-6)
-			.map(|p| {
-				centers
-					.iter()
-					.map(|c| (((p.x - c.x).powi(2) + (p.y - c.y).powi(2)).sqrt() - rf).abs())
-					.fold(f64::INFINITY, f64::min)
-			})
+			.map(|p| centers.iter().map(|c| (((p.x - c.x).powi(2) + (p.y - c.y).powi(2)).sqrt() - rf).abs()).fold(f64::INFINITY, f64::min))
 			.fold(0.0_f64, f64::max);
-		assert!(worst < 1e-9, "every fillet point must lie exactly on its rf-radius arc about a centre at rr+rf; worst residual {worst:.2e} mm");
+		assert!(
+			worst < 1e-9,
+			"every fillet point must lie exactly on its rf-radius arc about a centre at rr+rf; worst residual {worst:.2e} mm"
+		);
 	}
 }

@@ -18,9 +18,9 @@
 //! leaves. That makes the per-query sign cost ≈ O(log n) instead of O(n), so
 //! voxelizing a large mesh (`VoxelGrid::from_sdf(&mesh_sdf, …)`) scales.
 
+use kernel_core::closest_point_on_triangle;
 use kernel_core::math::{Aabb, DMat3, DVec3, Vec3};
 use kernel_core::mesh::Mesh;
-use kernel_core::closest_point_on_triangle;
 use kernel_core::sdf::Sdf;
 
 /// Far-field threshold: a node is approximated by its multipole only when the
@@ -219,7 +219,13 @@ impl MeshSdf {
 				let [i, j, k] = tri;
 				let (a, b, c) = (self.verts[i as usize], self.verts[j as usize], self.verts[k as usize]);
 				let e = [(b - a).length_squared(), (c - b).length_squared(), (a - c).length_squared()];
-				let longest = if e[0] >= e[1] && e[0] >= e[2] { 0 } else if e[1] >= e[2] { 1 } else { 2 };
+				let longest = if e[0] >= e[1] && e[0] >= e[2] {
+					0
+				} else if e[1] >= e[2] {
+					1
+				} else {
+					2
+				};
 				// Depth cap: 12 halvings shrink any finite edge below the
 				// threshold (2¹² ≫ 1/REFINE_FRAC); it only guards degenerate
 				// arithmetic (e.g. midpoint rounding onto an endpoint).
@@ -315,11 +321,7 @@ impl MeshSdf {
 				weighted_centroid[ni] = weighted_centroid[l] + weighted_centroid[r];
 			}
 			let area = total_area[ni];
-			self.nodes[ni].centroid = if area > 0.0 {
-				weighted_centroid[ni] / area
-			} else {
-				self.nodes[ni].aabb.center().as_dvec3()
-			};
+			self.nodes[ni].centroid = if area > 0.0 { weighted_centroid[ni] / area } else { self.nodes[ni].aabb.center().as_dvec3() };
 			// Order-1 and order-2 moments about THIS node's centroid. The triangle
 			// first moment `∫_T (x − c) dA = aₜ(p̄ₜ − c)` is exact; the quadratic
 			// integrals use the exact 3-midpoint rule. A child's moments shift to
@@ -336,11 +338,8 @@ impl MeshSdf {
 				for &t in &self.tri_order[node.start as usize..(node.start + node.count) as usize] {
 					let (_, dip) = dipoles[t as usize];
 					let [i, j, k] = self.tris[t as usize];
-					let (a, b, cc) = (
-						self.verts[i as usize].as_dvec3(),
-						self.verts[j as usize].as_dvec3(),
-						self.verts[k as usize].as_dvec3(),
-					);
+					let (a, b, cc) =
+						(self.verts[i as usize].as_dvec3(), self.verts[j as usize].as_dvec3(), self.verts[k as usize].as_dvec3());
 					m += outer(dip, (a + b + cc) / 3.0 - c);
 					let w = dip / 3.0;
 					for md in [(a + b) * 0.5 - c, (b + cc) * 0.5 - c, (cc + a) * 0.5 - c] {
@@ -362,11 +361,7 @@ impl MeshSdf {
 			}
 			// Pre-fold the query-time linear Hessian coefficient −3a − 1.5u, where
 			// a_k = Σᵢ T_iik and u = T(xx) + T(yy) + T(zz).
-			let a_vec = DVec3::new(
-				t2[0].x + t2[3].y + t2[4].z,
-				t2[3].x + t2[1].y + t2[5].z,
-				t2[4].x + t2[5].y + t2[2].z,
-			);
+			let a_vec = DVec3::new(t2[0].x + t2[3].y + t2[4].z, t2[3].x + t2[1].y + t2[5].z, t2[4].x + t2[5].y + t2[2].z);
 			let u_vec = t2[0] + t2[1] + t2[2];
 			self.nodes[ni].moment = m;
 			self.nodes[ni].moment_trace = m.x_axis.x + m.y_axis.y + m.z_axis.z;

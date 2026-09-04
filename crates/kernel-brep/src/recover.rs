@@ -188,11 +188,7 @@ const DRIFT_MAX: f64 = 0.005;
 /// cyclic Jacobi rotations (deterministic: fixed sweep order, fixed rounds;
 /// ties resolve to the lowest index). Zero matrix → `DVec3::Z`.
 fn smallest_eigenvector(m: DMat3) -> DVec3 {
-	let mut a = [
-		[m.col(0).x, m.col(1).x, m.col(2).x],
-		[m.col(0).y, m.col(1).y, m.col(2).y],
-		[m.col(0).z, m.col(1).z, m.col(2).z],
-	];
+	let mut a = [[m.col(0).x, m.col(1).x, m.col(2).x], [m.col(0).y, m.col(1).y, m.col(2).y], [m.col(0).z, m.col(1).z, m.col(2).z]];
 	let mut v = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
 	let scale = a.iter().flatten().fold(0.0_f64, |s, &x| s.max(x.abs()));
 	if scale <= 0.0 {
@@ -819,8 +815,7 @@ pub fn recover_quadrics(solid: &Solid, tol: f64) -> Result<(Solid, RecoveryRepor
 						accepted = Some(Region { faces: active, surface, kind, vertex_residual });
 						continue 'kinds;
 					}
-					let kept: Vec<u32> =
-						active.iter().zip(&per_facet).filter(|&(_, &r)| r <= tol).map(|(&f, _)| f).collect();
+					let kept: Vec<u32> = active.iter().zip(&per_facet).filter(|&(_, &r)| r <= tol).map(|(&f, _)| f).collect();
 					if kept.len() == active.len() {
 						continue 'kinds; // defensive: worst > tol implies at least one peel
 					}
@@ -880,8 +875,7 @@ pub fn recover_quadrics(solid: &Solid, tol: f64) -> Result<(Solid, RecoveryRepor
 					// legacy budget (never wider than the span whose chord sag would
 					// exceed `tol`) on the fallback rung.
 					let span = if policy == MergePolicy::LegacySectors {
-						let span_tol =
-							if tol < r_eff { 2.0 * (1.0 - tol / r_eff).clamp(-1.0, 1.0).acos() } else { std::f64::consts::TAU };
+						let span_tol = if tol < r_eff { 2.0 * (1.0 - tol / r_eff).clamp(-1.0, 1.0).acos() } else { std::f64::consts::TAU };
 						span_tol.clamp(1e-6, LEGACY_SECTOR_SPAN_MAX)
 					} else {
 						CHART_SPAN

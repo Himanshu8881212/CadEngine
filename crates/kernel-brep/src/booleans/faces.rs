@@ -72,7 +72,13 @@ pub(super) fn cancel_coincident(raw: &[RawTri]) -> (Vec<[u32; 3]>, Vec<DVec3>, V
 		let (count, pos, neg) = acc.remove(&k).expect("every recorded key was inserted exactly once");
 		// Net zero ⇒ membrane (equal opposite copies) ⇒ drop. Otherwise keep one
 		// copy in the winning winding, with its original (un-reconstructed) order.
-		let pick = if count > 0 { pos } else if count < 0 { neg } else { None };
+		let pick = if count > 0 {
+			pos
+		} else if count < 0 {
+			neg
+		} else {
+			None
+		};
 		if let Some((t, n, src, surf)) = pick {
 			tris.push(t);
 			normals.push(n);
@@ -170,9 +176,7 @@ pub(super) fn recover_faces(
 		// back to per-triangle faces, which always stitch into a valid closed solid.
 		// (Whether the merged polygon also EAR-CLIPS to the region's area is verified
 		// after T-junction healing, in `stitch` — failures re-expand to triangles.)
-		let recovered = region_boundary(members, itris)
-			.filter(|b| b.len() >= 3)
-			.and_then(|b| orient_boundary(b, normal, verts));
+		let recovered = region_boundary(members, itris).filter(|b| b.len() >= 3).and_then(|b| orient_boundary(b, normal, verts));
 		match recovered {
 			Some(boundary) => {
 				let origin = verts[boundary[0] as usize];

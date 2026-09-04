@@ -59,7 +59,7 @@ pub mod sketch;
 pub mod sweep;
 pub mod tolerance;
 
-pub use assembly::{Assembly, AsmState, Instance, Source};
+pub use assembly::{AsmState, Assembly, Instance, Source};
 pub use constraints::{Constraint, ConstraintSystem, DofReport};
 pub use document::{Document, DocumentHistory, LATTICE_FILL_MAX_CELLS};
 pub use feature::{BooleanOp, CatalogPart, Dim, Feature, FeatureId, HoleFit, HoleKind, LatticeCellKind, LinearGrade, TpmsFamily};
@@ -67,9 +67,7 @@ pub use hybrid::{hybrid_boolean, HybridError, HybridOperand, HybridReport, Hybri
 pub use kinematics::{CycloidTrain, EpicyclicPoses, EpicyclicTrain, PlanetPose, StrainWaveTrain};
 pub use meshing::{precise_mesh, routed_mesh, watertight_mesh, watertight_mesh_of, MeshRoute, RouteReport};
 pub use rate::{cantilever_bending_stress, lewis_form_factor, lewis_tooth_load, thin_ring_bending_strain, Stackup};
-pub use sketch::{
-	Arc, Circle, ConstraintState, Segment, Sketch, SketchAnalysis, SketchConstraint, SketchError, SolveReport,
-};
+pub use sketch::{Arc, Circle, ConstraintState, Segment, Sketch, SketchAnalysis, SketchConstraint, SketchError, SolveReport};
 pub use sweep::{penetration_estimate, sweep_check, SweepPose, SweepReport};
 
 #[cfg(test)]

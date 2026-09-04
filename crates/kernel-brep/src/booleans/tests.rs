@@ -40,9 +40,7 @@ fn edge_name_persists_and_re_resolves_across_an_edit() {
 	// An edge whose two faces come from different operands (an A-face meets a B-cut).
 	let mixed = d1
 		.edges()
-		.find(|&e| {
-			d1.edge_name(e).is_some_and(|n| n.faces[0].operand != n.faces[1].operand)
-		})
+		.find(|&e| d1.edge_name(e).is_some_and(|n| n.faces[0].operand != n.faces[1].operand))
 		.expect("an edge where operand A meets operand B");
 	let name = d1.edge_name(mixed).unwrap();
 	assert!(d1.edges_named(name).contains(&mixed), "an edge is among those bearing its own name");
@@ -199,17 +197,11 @@ fn cut_seam_vertices_land_on_the_true_cylinder() {
 	let corners: Vec<f64> = (0..keyed.vertex_count() as u32)
 		.map(|i| keyed.position(crate::topo::VertexId(i)))
 		.filter(|p| {
-			(p.x.abs() - 2.0).abs() < 1e-7
-				&& p.y > y_true - 0.05
-				&& p.y <= y_true + 1e-9
-				&& (p.z.abs() < 1e-7 || (p.z - 30.0).abs() < 1e-7)
+			(p.x.abs() - 2.0).abs() < 1e-7 && p.y > y_true - 0.05 && p.y <= y_true + 1e-9 && (p.z.abs() < 1e-7 || (p.z - 30.0).abs() < 1e-7)
 		})
 		.map(|p| (p.y - y_true).abs())
 		.collect();
-	assert!(
-		corners.len() == 4 && corners.iter().all(|&d| d <= 1e-9),
-		"all 4 keyway∩bore corners sit at y=√21 to ≤1e-9: {corners:?}"
-	);
+	assert!(corners.len() == 4 && corners.iter().all(|&d| d <= 1e-9), "all 4 keyway∩bore corners sit at y=√21 to ≤1e-9: {corners:?}");
 }
 
 #[test]
@@ -238,7 +230,7 @@ fn quadric_quadric_seam_keeps_the_chord_contract() {
 	let sa = Surface::Cylinder { origin: DVec3::ZERO, axis: DVec3::Z, radius: 2.0 };
 	let sb = Surface::Cylinder { origin: DVec3::ZERO, axis: DVec3::X, radius: 1.5 };
 	let band = 2.0 * (1.0 - (std::f64::consts::PI / 24.0).cos()); // larger sagitta
-	// Seam vertices = on faces tagged with BOTH cylinders' surfaces.
+															   // Seam vertices = on faces tagged with BOTH cylinders' surfaces.
 	let mut on_a: Vec<u32> = Vec::new();
 	let mut on_b: Vec<u32> = Vec::new();
 	for f in u.faces() {
@@ -248,15 +240,8 @@ fn quadric_quadric_seam_keeps_the_chord_contract() {
 			_ => {}
 		}
 	}
-	let seam: Vec<DVec3> = on_a
-		.iter()
-		.filter(|i| on_b.contains(i))
-		.map(|&i| u.position(crate::topo::VertexId(i)))
-		.collect();
-	let max_dev = seam
-		.iter()
-		.map(|&p| sa.signed_value(p).abs().max(sb.signed_value(p).abs()))
-		.fold(0.0f64, f64::max);
+	let seam: Vec<DVec3> = on_a.iter().filter(|i| on_b.contains(i)).map(|&i| u.position(crate::topo::VertexId(i))).collect();
+	let max_dev = seam.iter().map(|&p| sa.signed_value(p).abs().max(sb.signed_value(p).abs())).fold(0.0f64, f64::max);
 	// The chained op crosses the warped seam region (a box clipping the junction).
 	let chained = difference(&u, &cuboid(DVec3::new(0.5, -3.0, -1.5), DVec3::new(6.0, 3.0, 1.5)));
 	let vc = validate(&chained);
@@ -311,7 +296,8 @@ fn quadric_quadric_union_volume_stays_facet_level_and_beats_faceted() {
 		const N: usize = 200;
 		let h = (b - a) / N as f64;
 		const X: [f64; 5] = [-0.906_179_845_938_664, -0.538_469_310_105_683, 0.0, 0.538_469_310_105_683, 0.906_179_845_938_664];
-		const W: [f64; 5] = [0.236_926_885_056_189, 0.478_628_670_499_366, 0.568_888_888_888_889, 0.478_628_670_499_366, 0.236_926_885_056_189];
+		const W: [f64; 5] =
+			[0.236_926_885_056_189, 0.478_628_670_499_366, 0.568_888_888_888_889, 0.478_628_670_499_366, 0.236_926_885_056_189];
 		let mut s = 0.0;
 		for p in 0..N {
 			let mid = a + h * (p as f64 + 0.5);
@@ -368,29 +354,17 @@ fn oblique_cut_seam_snaps_and_carries_the_exact_ellipse() {
 	for f in cut.faces() {
 		match cut.face(f).surface {
 			Surface::Cylinder { .. } => on_cyl.extend(cut.face_vertices(f).iter().map(|v| v.0)),
-			Surface::Plane { origin, normal }
-				if normal.cross(pn).length() < 1e-9 && (origin - po).dot(pn).abs() < 1e-9 =>
-			{
+			Surface::Plane { origin, normal } if normal.cross(pn).length() < 1e-9 && (origin - po).dot(pn).abs() < 1e-9 => {
 				on_plane.extend(cut.face_vertices(f).iter().map(|v| v.0));
 			}
 			_ => {}
 		}
 	}
-	let seam: Vec<DVec3> = on_cyl
-		.iter()
-		.filter(|i| on_plane.contains(i))
-		.map(|&i| cut.position(crate::topo::VertexId(i)))
-		.collect();
-	let max_dev = seam
-		.iter()
-		.map(|&p| true_cyl.signed_value(p).abs().max((p - po).dot(pn).abs()))
-		.fold(0.0f64, f64::max);
+	let seam: Vec<DVec3> = on_cyl.iter().filter(|i| on_plane.contains(i)).map(|&i| cut.position(crate::topo::VertexId(i))).collect();
+	let max_dev = seam.iter().map(|&p| true_cyl.signed_value(p).abs().max((p - po).dot(pn).abs())).fold(0.0f64, f64::max);
 	let sagitta = r * (1.0 - (std::f64::consts::PI / segs as f64).cos());
 	// The snapped seam edges carry the exact analytic ellipse.
-	let ellipse_edges = cut
-		.edges()
-		.filter(|&e| matches!(cut.edge_curve(e), Some(Curve::Ellipse { .. })))
-		.count();
+	let ellipse_edges = cut.edges().filter(|&e| matches!(cut.edge_curve(e), Some(Curve::Ellipse { .. }))).count();
 	let chained = difference(&cut, &cuboid(DVec3::new(0.0, -3.0, 2.0), DVec3::new(3.0, 3.0, 9.0)));
 	let vc = validate(&chained);
 	assert!(
@@ -431,23 +405,14 @@ fn sphere_plane_seam_snaps_within_w3_budgets() {
 	for f in cut.faces() {
 		match cut.face(f).surface {
 			Surface::Sphere { .. } => on_sph.extend(cut.face_vertices(f).iter().map(|v| v.0)),
-			Surface::Plane { origin, normal }
-				if normal.cross(DVec3::Z).length() < 1e-9 && (origin.z - 1.2).abs() < 1e-9 =>
-			{
+			Surface::Plane { origin, normal } if normal.cross(DVec3::Z).length() < 1e-9 && (origin.z - 1.2).abs() < 1e-9 => {
 				on_cap.extend(cut.face_vertices(f).iter().map(|v| v.0));
 			}
 			_ => {}
 		}
 	}
-	let seam: Vec<DVec3> = on_sph
-		.iter()
-		.filter(|i| on_cap.contains(i))
-		.map(|&i| cut.position(crate::topo::VertexId(i)))
-		.collect();
-	let max_dev = seam
-		.iter()
-		.map(|&p| true_sph.signed_value(p).abs().max((p.z - 1.2).abs()))
-		.fold(0.0f64, f64::max);
+	let seam: Vec<DVec3> = on_sph.iter().filter(|i| on_cap.contains(i)).map(|&i| cut.position(crate::topo::VertexId(i))).collect();
+	let max_dev = seam.iter().map(|&p| true_sph.signed_value(p).abs().max((p.z - 1.2).abs())).fold(0.0f64, f64::max);
 	let chained = difference(&cut, &cuboid(DVec3::new(0.5, -4.0, -0.5), DVec3::new(4.0, 4.0, 2.0)));
 	let vc = validate(&chained);
 	assert!(
@@ -482,7 +447,10 @@ fn torus_perpendicular_plane_section_is_concentric_circles() {
 	assert!((radii[0] - 3.0).abs() < 1e-9 && (radii[1] - 7.0).abs() < 1e-9, "radii R∓r = 3 and 7, got {radii:?}");
 	// Plane tangent to the tube (z = r = 2) → one circle of radius R = 5.
 	let tan = t.plane_section(DVec3::new(0.0, 0.0, 2.0), DVec3::Z);
-	assert!(matches!(tan.as_slice(), [Curve::Circle { radius, .. }] if (*radius - 5.0).abs() < 1e-9), "tangent section is one R=5 circle, got {tan:?}");
+	assert!(
+		matches!(tan.as_slice(), [Curve::Circle { radius, .. }] if (*radius - 5.0).abs() < 1e-9),
+		"tangent section is one R=5 circle, got {tan:?}"
+	);
 	// Beyond the tube (z=3) → empty; an oblique plane → empty (quartic, unimplemented).
 	assert!(t.plane_section(DVec3::new(0.0, 0.0, 3.0), DVec3::Z).is_empty(), "a plane past the tube misses it");
 	assert!(t.plane_section(DVec3::ZERO, DVec3::new(1.0, 0.0, 1.0)).is_empty(), "oblique torus section is not yet closed-form");
@@ -510,11 +478,7 @@ fn adaptive_curved_tessellation_is_watertight_and_refines() {
 	// watertight even at high subdivision — the watertight-curved keystone (which the
 	// default subdiv=1 tessellator avoids by faceting). Validate on all three quadrics,
 	// and that more subdivision yields a finer (converging) mesh.
-	for solid in [
-		cylinder(DVec3::ZERO, DVec3::Z, 2.0, 5.0, 8),
-		sphere(DVec3::ZERO, 3.0, 12, 6),
-		cone(DVec3::ZERO, DVec3::Z, 2.0, 5.0, 8),
-	] {
+	for solid in [cylinder(DVec3::ZERO, DVec3::Z, 2.0, 5.0, 8), sphere(DVec3::ZERO, 3.0, 12, 6), cone(DVec3::ZERO, DVec3::Z, 2.0, 5.0, 8)] {
 		for seg in [1usize, 3, 6] {
 			assert!(tessellate_adaptive(&solid, seg).is_watertight(), "adaptive curved tessellation is watertight at edge_segments={seg}");
 		}
@@ -535,10 +499,22 @@ fn multiloop_faces_build_a_valid_washer() {
 	// so it is a genus-1 solid (χ = 0). The prerequisite topology for periodic curved faces.
 	let q = |x: f64, y: f64, z: f64| DVec3::new(x, y, z);
 	let positions = vec![
-		q(-3., -3., 0.), q(3., -3., 0.), q(3., 3., 0.), q(-3., 3., 0.), // 0-3 outer bottom
-		q(-3., -3., 2.), q(3., -3., 2.), q(3., 3., 2.), q(-3., 3., 2.), // 4-7 outer top
-		q(-1., -1., 0.), q(1., -1., 0.), q(1., 1., 0.), q(-1., 1., 0.), // 8-11 inner bottom
-		q(-1., -1., 2.), q(1., -1., 2.), q(1., 1., 2.), q(-1., 1., 2.), // 12-15 inner top
+		q(-3., -3., 0.),
+		q(3., -3., 0.),
+		q(3., 3., 0.),
+		q(-3., 3., 0.), // 0-3 outer bottom
+		q(-3., -3., 2.),
+		q(3., -3., 2.),
+		q(3., 3., 2.),
+		q(-3., 3., 2.), // 4-7 outer top
+		q(-1., -1., 0.),
+		q(1., -1., 0.),
+		q(1., 1., 0.),
+		q(-1., 1., 0.), // 8-11 inner bottom
+		q(-1., -1., 2.),
+		q(1., -1., 2.),
+		q(1., 1., 2.),
+		q(-1., 1., 2.), // 12-15 inner top
 	];
 	let pl = |o: DVec3, n: DVec3| Surface::Plane { origin: o, normal: n };
 	let face = |loops: Vec<Vec<u32>>, s: Surface| FaceLoops { loops, surface: s };
@@ -651,7 +627,8 @@ fn boolean_carries_an_uncut_curved_face_through() {
 	assert!(sv.is_valid() && sv.euler_characteristic == 2, "sphere∪box valid genus-0: {sv:?}");
 	assert!(su.faces().any(|f| matches!(su.face(f).surface, Surface::Sphere { .. })), "uncut sphere faces keep their Surface::Sphere tag");
 
-	let cu = union(&crate::build::cone(DVec3::ZERO, DVec3::Z, 2.0, 5.0, 24), &cuboid(DVec3::new(-0.3, -0.3, -1.0), DVec3::new(0.3, 0.3, 1.0)));
+	let cu =
+		union(&crate::build::cone(DVec3::ZERO, DVec3::Z, 2.0, 5.0, 24), &cuboid(DVec3::new(-0.3, -0.3, -1.0), DVec3::new(0.3, 0.3, 1.0)));
 	let cv = validate(&cu);
 	assert!(cv.is_valid() && cv.euler_characteristic == 2, "cone∪box valid genus-0: {cv:?}");
 	assert!(cu.faces().any(|f| matches!(cu.face(f).surface, Surface::Cone { .. })), "uncut cone faces keep their Surface::Cone tag");
@@ -669,10 +646,7 @@ fn box_crossing_many_curved_facets_is_genus_zero() {
 	for seg in [8usize, 12, 16, 20, 24, 32, 48, 64] {
 		let u = union(&cylinder(DVec3::ZERO, DVec3::Z, 2.0, 5.0, seg), &cuboid(DVec3::new(1.0, -1.0, 1.0), DVec3::new(4.0, 1.0, 4.0)));
 		let v = validate(&u);
-		assert!(
-			v.is_valid() && v.euler_characteristic == 2,
-			"cyl{seg}∪box must be a valid genus-0 solid: {v:?}"
-		);
+		assert!(v.is_valid() && v.euler_characteristic == 2, "cyl{seg}∪box must be a valid genus-0 solid: {v:?}");
 	}
 	// (Watertight tessellation at very high facet counts is tracked separately — a
 	// distinct near-degenerate-cut issue from the orphaned-vertex topology bug fixed here.)
@@ -779,7 +753,9 @@ fn boolean_stays_valid_far_from_the_origin() {
 		assert!(
 			v.closed && v.manifold && v.euler_characteristic == 2,
 			"union at t={t:e} must be a valid genus-0 solid: closed={} manifold={} χ={}",
-			v.closed, v.manifold, v.euler_characteristic
+			v.closed,
+			v.manifold,
+			v.euler_characteristic
 		);
 	}
 }
@@ -808,20 +784,11 @@ fn union_of_overlapping_boxes_has_exact_volume() {
 
 	let u = union(&a, &b);
 	let v = validate(&u);
-	let expected =
-		box_vol(amin, amax) + box_vol(bmin, bmax) - overlap_volume(amin, amax, bmin, bmax);
+	let expected = box_vol(amin, amax) + box_vol(bmin, bmax) - overlap_volume(amin, amax, bmin, bmax);
 
 	assert!(v.is_valid(), "union must be closed + manifold: {v:?}");
-	assert!(
-		tessellate_default(&u).is_watertight(),
-		"union must tessellate watertight"
-	);
-	assert!(
-		(volume(&u).abs() - expected).abs() < 1e-6,
-		"union volume {} != expected {}",
-		volume(&u).abs(),
-		expected
-	);
+	assert!(tessellate_default(&u).is_watertight(), "union must tessellate watertight");
+	assert!((volume(&u).abs() - expected).abs() < 1e-6, "union volume {} != expected {}", volume(&u).abs(), expected);
 }
 
 #[test]
@@ -916,16 +883,8 @@ fn difference_of_overlapping_boxes_has_exact_volume() {
 	let expected = box_vol(amin, amax) - overlap_volume(amin, amax, bmin, bmax);
 
 	assert!(v.is_valid(), "difference must be closed + manifold: {v:?}");
-	assert!(
-		tessellate_default(&d).is_watertight(),
-		"difference must tessellate watertight"
-	);
-	assert!(
-		(volume(&d).abs() - expected).abs() < 1e-6,
-		"difference volume {} != expected {}",
-		volume(&d).abs(),
-		expected
-	);
+	assert!(tessellate_default(&d).is_watertight(), "difference must tessellate watertight");
+	assert!((volume(&d).abs() - expected).abs() < 1e-6, "difference volume {} != expected {}", volume(&d).abs(), expected);
 }
 
 #[test]
@@ -942,16 +901,8 @@ fn intersection_of_overlapping_boxes_has_exact_volume() {
 	let expected = overlap_volume(amin, amax, bmin, bmax);
 
 	assert!(v.is_valid(), "intersection must be closed + manifold: {v:?}");
-	assert!(
-		tessellate_default(&i).is_watertight(),
-		"intersection must tessellate watertight"
-	);
-	assert!(
-		(volume(&i).abs() - expected).abs() < 1e-6,
-		"intersection volume {} != expected {}",
-		volume(&i).abs(),
-		expected
-	);
+	assert!(tessellate_default(&i).is_watertight(), "intersection must tessellate watertight");
+	assert!((volume(&i).abs() - expected).abs() < 1e-6, "intersection volume {} != expected {}", volume(&i).abs(), expected);
 }
 
 #[test]
@@ -983,62 +934,33 @@ fn difference_removing_corner_is_general_nonconvex() {
 	let d = difference(&a, &b);
 	let expected = box_vol(amin, amax) - overlap_volume(amin, amax, bmin, bmax);
 	assert!(validate(&d).is_valid(), "corner-cut solid is valid: {:?}", validate(&d));
-	assert!(
-		(volume(&d).abs() - expected).abs() < 1e-6,
-		"corner cut volume {} != {}",
-		volume(&d).abs(),
-		expected
-	);
+	assert!((volume(&d).abs() - expected).abs() < 1e-6, "corner cut volume {} != {}", volume(&d).abs(), expected);
 }
 
 #[test]
 fn intersection_with_fully_containing_box_returns_inner_solid() {
 	// Generality (not a box-on-box special case): a triangular prism wholly
 	// inside a large box. A ∩ B == the prism, exactly.
-	let prism = crate::build::extrude(
-		&[
-			glam::DVec2::new(1.0, 1.0),
-			glam::DVec2::new(5.0, 1.0),
-			glam::DVec2::new(2.0, 4.0),
-		],
-		3.0,
-	);
+	let prism = crate::build::extrude(&[glam::DVec2::new(1.0, 1.0), glam::DVec2::new(5.0, 1.0), glam::DVec2::new(2.0, 4.0)], 3.0);
 	let big = cuboid(DVec3::new(-10.0, -10.0, -10.0), DVec3::new(20.0, 20.0, 20.0));
 	let prism_vol = volume(&prism).abs();
 
 	let i = intersection(&prism, &big);
 	assert!(validate(&i).is_valid(), "prism ∩ box valid: {:?}", validate(&i));
 	assert!(tessellate_default(&i).is_watertight(), "prism ∩ box watertight");
-	assert!(
-		(volume(&i).abs() - prism_vol).abs() < 1e-6,
-		"prism ∩ containing box == prism: {} vs {}",
-		volume(&i).abs(),
-		prism_vol
-	);
+	assert!((volume(&i).abs() - prism_vol).abs() < 1e-6, "prism ∩ containing box == prism: {} vs {}", volume(&i).abs(), prism_vol);
 }
 
 #[test]
 fn union_with_fully_contained_solid_returns_outer_volume() {
 	// B ⊂ A ⇒ A ∪ B == A (in volume), for a non-axis-aligned inner prism.
 	let outer = cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(10.0, 10.0, 10.0));
-	let inner = crate::build::extrude(
-		&[
-			glam::DVec2::new(3.0, 3.0),
-			glam::DVec2::new(7.0, 4.0),
-			glam::DVec2::new(5.0, 8.0),
-		],
-		4.0,
-	)
-	.transformed(kernel_core::math::DAffine3::from_translation(DVec3::new(0.0, 0.0, 2.0)));
+	let inner = crate::build::extrude(&[glam::DVec2::new(3.0, 3.0), glam::DVec2::new(7.0, 4.0), glam::DVec2::new(5.0, 8.0)], 4.0)
+		.transformed(kernel_core::math::DAffine3::from_translation(DVec3::new(0.0, 0.0, 2.0)));
 	let outer_vol = volume(&outer).abs();
 	let u = union(&outer, &inner);
 	assert!(validate(&u).is_valid(), "A ∪ (B⊂A) valid: {:?}", validate(&u));
-	assert!(
-		(volume(&u).abs() - outer_vol).abs() < 1e-6,
-		"A ∪ contained == A: {} vs {}",
-		volume(&u).abs(),
-		outer_vol
-	);
+	assert!((volume(&u).abs() - outer_vol).abs() < 1e-6, "A ∪ contained == A: {} vs {}", volume(&u).abs(), outer_vol);
 }
 
 #[test]
@@ -1047,22 +969,8 @@ fn difference_of_general_prism_overlap_is_valid_and_volume_correct() {
 	// The difference volume equals V(A) minus the volume A and B share, which
 	// here equals V(A) − V(A∩B); we verify the CSG identity numerically via the
 	// intersection operator (independent code path computing the same overlap).
-	let a = crate::build::extrude(
-		&[
-			glam::DVec2::new(0.0, 0.0),
-			glam::DVec2::new(6.0, 0.0),
-			glam::DVec2::new(3.0, 6.0),
-		],
-		5.0,
-	);
-	let b = crate::build::extrude(
-		&[
-			glam::DVec2::new(2.0, 2.0),
-			glam::DVec2::new(8.0, 2.0),
-			glam::DVec2::new(5.0, 8.0),
-		],
-		5.0,
-	);
+	let a = crate::build::extrude(&[glam::DVec2::new(0.0, 0.0), glam::DVec2::new(6.0, 0.0), glam::DVec2::new(3.0, 6.0)], 5.0);
+	let b = crate::build::extrude(&[glam::DVec2::new(2.0, 2.0), glam::DVec2::new(8.0, 2.0), glam::DVec2::new(5.0, 8.0)], 5.0);
 	let a_vol = volume(&a).abs();
 	let inter_vol = volume(&intersection(&a, &b)).abs();
 	let d = difference(&a, &b);
@@ -1092,9 +1000,7 @@ fn rotated_box_union_is_general_off_axis() {
 	// with an overlapping axis-aligned box. We verify the CSG identity
 	// V(A∪B) == V(A) + V(B) − V(A∩B) using the (independent) intersection path.
 	use kernel_core::math::DAffine3;
-	let a = cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(10.0, 10.0, 10.0)).transformed(
-		DAffine3::from_rotation_z(30.0_f64.to_radians()),
-	);
+	let a = cuboid(DVec3::new(0.0, 0.0, 0.0), DVec3::new(10.0, 10.0, 10.0)).transformed(DAffine3::from_rotation_z(30.0_f64.to_radians()));
 	let b = cuboid(DVec3::new(3.0, 3.0, 2.0), DVec3::new(13.0, 13.0, 8.0));
 	let va = volume(&a).abs();
 	let vb = volume(&b).abs();
@@ -1106,12 +1012,7 @@ fn rotated_box_union_is_general_off_axis() {
 	// Off-axis geometry carries irrational coordinates (cos/sin 30°), so the
 	// agreement is to floating-point relative precision rather than the ~1e-9
 	// exactness of axis-aligned planar input.
-	assert!(
-		(volume(&u).abs() - expected).abs() / expected < 1e-5,
-		"V(A∪B) {} != V(A)+V(B)−V(A∩B) {}",
-		volume(&u).abs(),
-		expected
-	);
+	assert!((volume(&u).abs() - expected).abs() / expected < 1e-5, "V(A∪B) {} != V(A)+V(B)−V(A∩B) {}", volume(&u).abs(), expected);
 }
 
 #[test]
@@ -1121,11 +1022,7 @@ fn self_union_is_idempotent() {
 	let a = cuboid(DVec3::new(-2.0, -2.0, -2.0), DVec3::new(2.0, 2.0, 2.0));
 	let u = union(&a, &a);
 	assert!(validate(&u).is_valid(), "A∪A valid: {:?}", validate(&u));
-	assert!(
-		(volume(&u).abs() - 64.0).abs() < 1e-6,
-		"A∪A volume {} != 64",
-		volume(&u).abs()
-	);
+	assert!((volume(&u).abs() - 64.0).abs() < 1e-6, "A∪A volume {} != 64", volume(&u).abs());
 }
 
 // --- Loop-aware chained booleans (R2/R3, BAR Level 6) -------------------------
@@ -1195,12 +1092,7 @@ fn coplanar_union_against_a_multiloop_holed_face_is_clean() {
 			glam::DVec2::new(45.0 + 3.5 * a.cos(), 20.0 + 3.5 * a.sin())
 		})
 		.collect();
-	let outer = vec![
-		glam::DVec2::new(0.0, 0.0),
-		glam::DVec2::new(60.0, 0.0),
-		glam::DVec2::new(60.0, 40.0),
-		glam::DVec2::new(0.0, 40.0),
-	];
+	let outer = vec![glam::DVec2::new(0.0, 0.0), glam::DVec2::new(60.0, 0.0), glam::DVec2::new(60.0, 40.0), glam::DVec2::new(0.0, 40.0)];
 	let plate = extrude_with_holes(&outer, &[circle], 8.0);
 	let upright = cuboid(DVec3::ZERO, DVec3::new(8.0, 40.0, 50.0));
 	let u = union(&plate, &upright);
@@ -1271,11 +1163,7 @@ fn chained_bolt_circle_differences_stay_valid() {
 		let bolt = cylinder(DVec3::new(22.0 * a.cos(), 22.0 * a.sin(), -1.0), DVec3::Z, 2.5, 8.0, 24);
 		cur = difference(&cur, &bolt);
 		let v = validate(&cur);
-		assert!(
-			v.is_valid() && v.genus == k + 1 && v.shells == 1,
-			"flange after bolt {k}: must be one valid genus-{} shell: {v:?}",
-			k + 1
-		);
+		assert!(v.is_valid() && v.genus == k + 1 && v.shells == 1, "flange after bolt {k}: must be one valid genus-{} shell: {v:?}", k + 1);
 	}
 	let expected = (ngon_area(30.0, 48) - 6.0 * ngon_area(2.5, 24)) * 6.0;
 	// 1e-3 mm³ tolerance: see `second_hole_into_the_same_face_stays_valid`.
@@ -1306,11 +1194,7 @@ fn degenerate_configurations_never_panic() {
 		("sliver-overlap", unit(DVec3::ZERO), unit(DVec3::new(2.0 - 1e-9, 0.0, 0.0))),
 	];
 	for (name, a, b) in configs {
-		for (op, r) in [
-			("union", union(&a, &b)),
-			("difference", difference(&a, &b)),
-			("intersection", intersection(&a, &b)),
-		] {
+		for (op, r) in [("union", union(&a, &b)), ("difference", difference(&a, &b)), ("intersection", intersection(&a, &b))] {
 			let _ = validate(&r); // must not panic
 			let mesh = tessellate_default(&r); // must not panic
 			assert!(

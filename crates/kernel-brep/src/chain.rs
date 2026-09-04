@@ -103,12 +103,7 @@ impl ChainLog {
 		let validity = validate(&self.current);
 		let watertight = if self.seal { Some(tessellate_default(&self.current).is_watertight()) } else { None };
 		let ok = validity.is_valid() && watertight != Some(false);
-		self.steps.push(ChainStep {
-			label: label.to_string(),
-			validity,
-			watertight,
-			faces: self.current.face_count(),
-		});
+		self.steps.push(ChainStep { label: label.to_string(), validity, watertight, faces: self.current.face_count() });
 		if ok {
 			Ok(())
 		} else {

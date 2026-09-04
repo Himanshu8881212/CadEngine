@@ -6,16 +6,7 @@
 //! topology, so the tables live here once rather than being duplicated per mesher.
 
 /// Corner offsets of a unit cell, indexed by the bit pattern `x | y<<1 | z<<2`.
-pub const CORNER_OFFSET: [[usize; 3]; 8] = [
-	[0, 0, 0],
-	[1, 0, 0],
-	[0, 1, 0],
-	[1, 1, 0],
-	[0, 0, 1],
-	[1, 0, 1],
-	[0, 1, 1],
-	[1, 1, 1],
-];
+pub const CORNER_OFFSET: [[usize; 3]; 8] = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]];
 
 /// Build the 12-edge table and the 256-entry per-cell edge-crossing mask.
 ///

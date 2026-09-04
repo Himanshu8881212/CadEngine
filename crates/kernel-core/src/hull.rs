@@ -30,10 +30,8 @@ pub fn convex_hull(points: &[Vec3]) -> Mesh {
 		return Mesh::new();
 	};
 	let interior = (points[i0] + points[i1] + points[i2] + points[i3]) / 4.0;
-	let mut faces: Vec<[usize; 3]> = [[i0, i1, i2], [i0, i1, i3], [i0, i2, i3], [i1, i2, i3]]
-		.into_iter()
-		.map(|f| orient_outward(points, f, interior))
-		.collect();
+	let mut faces: Vec<[usize; 3]> =
+		[[i0, i1, i2], [i0, i1, i3], [i0, i2, i3], [i1, i2, i3]].into_iter().map(|f| orient_outward(points, f, interior)).collect();
 
 	for p in 0..points.len() {
 		if p == i0 || p == i1 || p == i2 || p == i3 {

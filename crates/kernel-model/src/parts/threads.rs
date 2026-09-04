@@ -13,16 +13,7 @@ use std::f64::consts::TAU;
 /// ISO 261/262 **coarse** thread pitches, `(nominal Ø d, pitch P)` in mm, M3–M16.
 /// Source: ISO 261 general-purpose metric screw thread table (also printed as the `P` column of
 /// the DIN 912 table at fasteners.eu/standards/din/912).
-const ISO_COARSE: [(f64, f64); 8] = [
-	(3.0, 0.5),
-	(4.0, 0.7),
-	(5.0, 0.8),
-	(6.0, 1.0),
-	(8.0, 1.25),
-	(10.0, 1.5),
-	(12.0, 1.75),
-	(16.0, 2.0),
-];
+const ISO_COARSE: [(f64, f64); 8] = [(3.0, 0.5), (4.0, 0.7), (5.0, 0.8), (6.0, 1.0), (8.0, 1.25), (10.0, 1.5), (12.0, 1.75), (16.0, 2.0)];
 
 /// The ISO 261 coarse pitch for a nominal thread Ø `m` (3, 4, 5, 6, 8, 10, 12, 16), in mm.
 /// `None` for sizes outside the table.
@@ -87,10 +78,7 @@ pub fn iso_thread_solid(major_d: f64, pitch: f64, z0: f64, length: f64) -> Optio
 		.map(|k| {
 			let t = k as f64 / steps_per_turn as f64; // turns travelled
 			let (a, z) = (t * TAU, z0 + t * pitch);
-			section
-				.iter()
-				.map(|&(radius, dz)| DVec3::new(radius * a.cos(), radius * a.sin(), z + dz))
-				.collect()
+			section.iter().map(|&(radius, dz)| DVec3::new(radius * a.cos(), radius * a.sin(), z + dz)).collect()
 		})
 		.collect();
 	loft_solid(&sections)
@@ -120,8 +108,7 @@ pub fn threaded_hex_bolt(m: f64, length: f64) -> Option<(Solid, Solid)> {
 	let h = 3.0_f64.sqrt() * 0.5 * pitch;
 	let r_root = m * 0.5 - 0.625 * h;
 	let shank = cylinder(DVec3::ZERO, DVec3::Z, r_root, length, 48);
-	let head = extrude(&hexagon_across_flats(af), head_h)
-		.transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, length)));
+	let head = extrude(&hexagon_across_flats(af), head_h).transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, length)));
 	let body = union(&shank, &head);
 	// Threaded span inset half a pitch from tip and head so the ridge ends stay clear of the
 	// end face and the head seat.
@@ -180,7 +167,8 @@ mod tests {
 			.fold(0.0, f64::max);
 		assert!(
 			vb.closed
-				&& vb.manifold && vb.genus == 0
+				&& vb.manifold
+				&& vb.genus == 0
 				&& (volume(&body).abs() - expected).abs() / expected < 0.01
 				&& vt.closed && vt.manifold
 				&& tessellate_adaptive_tol(&thread, 0.01).is_watertight()

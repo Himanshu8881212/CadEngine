@@ -24,11 +24,7 @@ fn run(dir: &Path, ops: serde_json::Value) -> Report {
 
 /// The report entry for op `id` (panics with the report when absent).
 fn entry<'r>(report: &'r Report, id: &str) -> &'r OpReport {
-	report
-		.ops
-		.iter()
-		.find(|o| o.id == id)
-		.unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
+	report.ops.iter().find(|o| o.id == id).unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
 }
 
 /// A measure of op `id` as f64 (NaN when absent — assertions then fail loudly).
@@ -130,10 +126,7 @@ fn import_paths_are_confined_to_the_sandbox() {
 				json!([op, {"id": "c1", "op": "mesh_carve", "in": "c0", "file": "../tool.stl", "bool": "difference", "out": "x.stl"}]),
 			);
 			let e = entry(&r, "c1").error.as_ref().expect("must fail");
-			assert!(
-				e.kind == ErrorKind::InvalidParam && e.message.contains(".."),
-				"mesh_carve '..' must be refused invalid_param: {r:#?}"
-			);
+			assert!(e.kind == ErrorKind::InvalidParam && e.message.contains(".."), "mesh_carve '..' must be refused invalid_param: {r:#?}");
 		} else {
 			let r = run(&dir, json!([op]));
 			let e = entry(&r, id).error.as_ref().expect("must fail");
@@ -169,18 +162,10 @@ fn mesh_import_receipt_round_trip_and_obj() {
 	);
 
 	// OBJ path: a hand-written outward tetrahedron, volume 10³/6 = 166.667 mm³.
-	std::fs::write(
-		dir.join("tet.obj"),
-		"v 0 0 0\nv 10 0 0\nv 0 10 0\nv 0 0 10\nf 1 3 2\nf 1 2 4\nf 1 4 3\nf 2 3 4\n",
-	)
-	.expect("write obj");
+	std::fs::write(dir.join("tet.obj"), "v 0 0 0\nv 10 0 0\nv 0 10 0\nv 0 0 10\nf 1 3 2\nf 1 2 4\nf 1 4 3\nf 2 3 4\n").expect("write obj");
 	let r = run(&dir, json!([{"id": "tet", "op": "import_mesh", "file": "tet.obj"}]));
 	let vol = num(&r, "tet", "volume");
-	assert!(
-		r.ok && (vol - 1000.0 / 6.0).abs() < 1e-3,
-		"OBJ tetrahedron: volume={vol} (want {}) report={r:#?}",
-		1000.0 / 6.0
-	);
+	assert!(r.ok && (vol - 1000.0 / 6.0).abs() < 1e-3, "OBJ tetrahedron: volume={vol} (want {}) report={r:#?}", 1000.0 / 6.0);
 	let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -297,10 +282,7 @@ fn step_round_trip_resolves_across_the_out_dir_root() {
 	]});
 	// input base = `dir` (where the "program" lives), out dir = `dir/out`.
 	let report = kernel_api::run_program_with_input_base(&program.to_string(), &out, &dir);
-	assert!(
-		report.ok,
-		"write-then-import must resolve across roots (write lands under --out-dir): {report:#?}"
-	);
+	assert!(report.ok, "write-then-import must resolve across roots (write lands under --out-dir): {report:#?}");
 
 	// A total miss still refuses loudly, naming BOTH roots it tried.
 	let missing = serde_json::json!({"ops": [

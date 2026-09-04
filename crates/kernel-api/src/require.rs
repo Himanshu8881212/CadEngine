@@ -123,7 +123,9 @@ pub(crate) fn apply(op_id: &str, raw: &Map<String, Value>, measures: Option<&Val
 	if measured.contains_key("required") {
 		return Err(err(
 			ErrorKind::Internal,
-			format!("op '{op_id}': this op already reports a measure named 'required', which collides with the gate echo — rename the measure"),
+			format!(
+				"op '{op_id}': this op already reports a measure named 'required', which collides with the gate echo — rename the measure"
+			),
 		));
 	}
 	let mut out = measured.clone();
@@ -190,13 +192,7 @@ fn check(op_id: &str, path: &str, value: &Value, expectation: &Value, failures: 
 }
 
 /// The `{equals|min|max|within|not_null}` form. Every present clause must hold.
-fn check_object(
-	op_id: &str,
-	path: &str,
-	value: &Value,
-	spec: &Map<String, Value>,
-	failures: &mut Vec<String>,
-) -> Result<(), OpError> {
+fn check_object(op_id: &str, path: &str, value: &Value, spec: &Map<String, Value>, failures: &mut Vec<String>) -> Result<(), OpError> {
 	const CLAUSES: [&str; 5] = ["equals", "min", "max", "within", "not_null"];
 	if spec.is_empty() {
 		return Err(err(
@@ -253,7 +249,9 @@ fn check_object(
 		let Some(w) = w.as_object() else {
 			return Err(err(
 				ErrorKind::InvalidParam,
-				format!("op '{op_id}': require '{path}': 'within' must be {{\"target\": t, \"abs\": a}} or {{\"target\": t, \"percent\": p}}"),
+				format!(
+					"op '{op_id}': require '{path}': 'within' must be {{\"target\": t, \"abs\": a}} or {{\"target\": t, \"percent\": p}}"
+				),
 			));
 		};
 		for k in w.keys() {

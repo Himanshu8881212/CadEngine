@@ -226,8 +226,7 @@ fn tile_layout(domain: Aabb, voxel: f32) -> ([usize; 3], Vec3, f32) {
 				1.0
 			}
 		};
-		let dims_f = [count(size.x), count(size.y), count(size.z)]
-			.map(|c| ((c + 3.0) / TILE as f64).ceil() * TILE as f64);
+		let dims_f = [count(size.x), count(size.y), count(size.z)].map(|c| ((c + 3.0) / TILE as f64).ceil() * TILE as f64);
 		let tiles = (dims_f[0] / TILE as f64) * (dims_f[1] / TILE as f64) * (dims_f[2] / TILE as f64);
 		if tiles <= MAX_TILES {
 			let dims = dims_f.map(|d| d as usize);
@@ -306,12 +305,7 @@ impl SparseGrid {
 				let tz = t / (tile_dims[0] * tile_dims[1]);
 				let base = [tx * TILE, ty * TILE, tz * TILE];
 				// The stride-cube centre is itself a lattice point.
-				let centre = origin
-					+ Vec3::new(
-						(base[0] + TILE / 2) as f32,
-						(base[1] + TILE / 2) as f32,
-						(base[2] + TILE / 2) as f32,
-					) * vs;
+				let centre = origin + Vec3::new((base[0] + TILE / 2) as f32, (base[1] + TILE / 2) as f32, (base[2] + TILE / 2) as f32) * vs;
 				let dc = finite_or_inf(sdf.distance(centre));
 				if dc.abs() > band + h_tile {
 					// Lipschitz-pruned: the whole stride cube is provably
@@ -326,12 +320,7 @@ impl SparseGrid {
 				for lz in 0..TILE {
 					for ly in 0..TILE {
 						for lx in 0..TILE {
-							let p = origin
-								+ Vec3::new(
-									(base[0] + lx) as f32,
-									(base[1] + ly) as f32,
-									(base[2] + lz) as f32,
-								) * vs;
+							let p = origin + Vec3::new((base[0] + lx) as f32, (base[1] + ly) as f32, (base[2] + lz) as f32) * vs;
 							let d = finite_or_inf(sdf.distance(p));
 							samples[idx] = d;
 							min_abs = min_abs.min(d.abs());

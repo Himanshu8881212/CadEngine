@@ -46,11 +46,7 @@ pub fn coalesce_coplanar(s: &Solid) -> Solid {
 		match s.face(f).surface {
 			Surface::Plane { origin, normal } => {
 				let n = normal.normalize_or_zero();
-				let flip = if n.z < 0.0 || (n.z == 0.0 && n.y < 0.0) || (n.z == 0.0 && n.y == 0.0 && n.x < 0.0) {
-					-1.0
-				} else {
-					1.0
-				};
+				let flip = if n.z < 0.0 || (n.z == 0.0 && n.y < 0.0) || (n.z == 0.0 && n.y == 0.0 && n.x < 0.0) { -1.0 } else { 1.0 };
 				let n = n * flip;
 				let q = |x: f64| (x / crate::tol::SURF_KEY_QUANTUM).round() as i64;
 				Some((q(n.x), q(n.y), q(n.z), q(n.dot(origin) * flip)))
@@ -203,9 +199,7 @@ pub fn coalesce_coplanar(s: &Solid) -> Solid {
 			}
 			(a.dot(n) * 0.5).abs()
 		};
-		let outer_ix = (0..loops.len())
-			.max_by(|&i, &j| area(&loops[i]).total_cmp(&area(&loops[j])))
-			.unwrap();
+		let outer_ix = (0..loops.len()).max_by(|&i, &j| area(&loops[i]).total_cmp(&area(&loops[j]))).unwrap();
 		loops.swap(0, outer_ix);
 		faces_out.push(FaceLoops { loops, surface });
 		names_out.push(group.iter().map(|&f| s.face_name(f)).collect::<Option<Vec<_>>>().and_then(|ns| ns.into_iter().min()));

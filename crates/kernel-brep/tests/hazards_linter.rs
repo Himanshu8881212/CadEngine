@@ -10,15 +10,7 @@ use kernel_brep::math::{DVec2, DVec3};
 use kernel_brep::{boolean_hazards, cuboid, revolve, sector_prism, HazardKind};
 
 fn tube(seg: usize) -> kernel_brep::Solid {
-	revolve(
-		&[
-			DVec2::new(37.3, 0.0),
-			DVec2::new(40.5, 0.0),
-			DVec2::new(40.5, 12.0),
-			DVec2::new(37.3, 12.0),
-		],
-		seg,
-	)
+	revolve(&[DVec2::new(37.3, 0.0), DVec2::new(40.5, 0.0), DVec2::new(40.5, 12.0), DVec2::new(37.3, 12.0)], seg)
 }
 
 #[test]
@@ -34,9 +26,7 @@ fn linter_names_all_three_hazard_classes_and_stays_quiet_when_clean() {
 	// sliver band the linter exists for.
 	let boss_sliver = cuboid(DVec3::new(5.0, 5.0, 10.02), DVec3::new(25.0, 15.0, 18.0));
 	let sliver = boolean_hazards(&plate, &boss_sliver, 0.05);
-	let sliver_hit = sliver
-		.iter()
-		.any(|h| h.kind == HazardKind::NearCoincidentPlanes && (h.separation - 0.02).abs() < 1e-6);
+	let sliver_hit = sliver.iter().any(|h| h.kind == HazardKind::NearCoincidentPlanes && (h.separation - 0.02).abs() < 1e-6);
 
 	// (3) EdgeInFace: a sector cutter whose side plane lies exactly ON a facet
 	// meridian of a SEG=120 revolve (pitch 3°; 171° = facet boundary 57) — the

@@ -518,10 +518,9 @@ impl std::fmt::Display for MechanismError {
 				"mechanism '{mechanism}' has mobility {dof} but {driven} driven joint(s): the configuration is not determined by \
 				 the command. {hint}"
 			),
-			MechanismError::Overdriven { mechanism, dof, driven, hint } => write!(
-				f,
-				"mechanism '{mechanism}' has mobility {dof} but {driven} driven joint(s): the commands fight each other. {hint}"
-			),
+			MechanismError::Overdriven { mechanism, dof, driven, hint } => {
+				write!(f, "mechanism '{mechanism}' has mobility {dof} but {driven} driven joint(s): the commands fight each other. {hint}")
+			}
 			MechanismError::NoDrivenJoint { mechanism } => write!(
 				f,
 				"mechanism '{mechanism}' has no driven joint — mark the input joint with Joint::driven() before asking for motion"
@@ -637,16 +636,15 @@ impl Mechanism {
 		let jacobian_rank = matrix_rank(&mut jac);
 		let rank_dof = coordinates as i64 - jacobian_rank as i64;
 		let paradox = kutzbach_dof != rank_dof;
-		let formula = format!(
-			"Kutzbach (planar): F = 3(n-1) - 2*j1 - j2 = 3({n}-1) - 2*{lower_pairs} - {higher_pairs} = {kutzbach_dof}"
-		);
-		let verdict = if paradox {
-			format!("GRUBLER PARADOX: formula says {kutzbach_dof}, Jacobian rank at the declared pose says {rank_dof} (redundant constraints)")
-		} else if kutzbach_dof <= 0 {
-			format!("locked ({kutzbach_dof} DOF): a structure, not a mechanism")
-		} else {
-			format!("mobility {kutzbach_dof}")
-		};
+		let formula = format!("Kutzbach (planar): F = 3(n-1) - 2*j1 - j2 = 3({n}-1) - 2*{lower_pairs} - {higher_pairs} = {kutzbach_dof}");
+		let verdict =
+			if paradox {
+				format!("GRUBLER PARADOX: formula says {kutzbach_dof}, Jacobian rank at the declared pose says {rank_dof} (redundant constraints)")
+			} else if kutzbach_dof <= 0 {
+				format!("locked ({kutzbach_dof} DOF): a structure, not a mechanism")
+			} else {
+				format!("mobility {kutzbach_dof}")
+			};
 		MobilityReport {
 			links: n,
 			moving_links: moving,
@@ -779,10 +777,8 @@ impl Mechanism {
 			poses_per_step.push(poses.clone());
 		}
 
-		let initial_snap = poses_per_step[0]
-			.iter()
-			.zip(&declared)
-			.fold(0.0f64, |m, (a, b)| m.max(((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqrt()));
+		let initial_snap =
+			poses_per_step[0].iter().zip(&declared).fold(0.0f64, |m, (a, b)| m.max(((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqrt()));
 
 		// Ranges and traces.
 		let mut range_of_motion = Vec::with_capacity(self.links.len());
@@ -846,8 +842,7 @@ impl Mechanism {
 		let mut first: Option<Interference> = None;
 		for (i, j) in pairs {
 			let (Some(mi), Some(mj)) = (self.links[i].mesh.as_ref(), self.links[j].mesh.as_ref()) else { continue };
-			let rels: Vec<DAffine3> =
-				poses_per_step.iter().map(|step| step[i].to_affine().inverse() * step[j].to_affine()).collect();
+			let rels: Vec<DAffine3> = poses_per_step.iter().map(|step| step[i].to_affine().inverse() * step[j].to_affine()).collect();
 			let rep: SweepReport = sweep_check(mi, mj, &rels);
 			if rep.min_clearance.is_finite() {
 				min_clearance = min_clearance.min(rep.min_clearance);
@@ -933,8 +928,7 @@ impl Mechanism {
 				mechanism: self.name.clone(),
 				dof: m.kutzbach_dof,
 				driven: driven.len(),
-				hint: "drive exactly as many joints as the mechanism has mobility; extra commands over-determine the loop."
-					.to_string(),
+				hint: "drive exactly as many joints as the mechanism has mobility; extra commands over-determine the loop.".to_string(),
 			});
 		}
 		if m.kutzbach_dof != 1 {
@@ -1228,7 +1222,8 @@ fn matrix_rank(m: &mut [Vec<f64>]) -> usize {
 		if rank >= rows {
 			break;
 		}
-		let (best, mag) = (rank..rows).fold((rank, 0.0f64), |(bi, bm), r| if m[r][col].abs() > bm { (r, m[r][col].abs()) } else { (bi, bm) });
+		let (best, mag) =
+			(rank..rows).fold((rank, 0.0f64), |(bi, bm), r| if m[r][col].abs() > bm { (r, m[r][col].abs()) } else { (bi, bm) });
 		if mag <= eps {
 			continue;
 		}

@@ -12,9 +12,7 @@
 //! boolean-scarred part and the apex-full cone.
 
 use kernel_brep::math::DVec3;
-use kernel_brep::{
-	cone, cuboid, cylinder, difference, export_step, import_step, tessellate_default, union, validate, volume,
-};
+use kernel_brep::{cone, cuboid, cylinder, difference, export_step, import_step, tessellate_default, union, validate, volume};
 
 fn count(hay: &str, needle: &str) -> usize {
 	hay.matches(needle).count()
@@ -38,7 +36,9 @@ fn ids_of(step: &str, name: &str) -> Vec<String> {
 /// `ADVANCED_FACE('',(…),#surf,.T.)` puts the surface ref right before the flag.
 fn faces_on_surface(step: &str, surf_id: &str) -> usize {
 	step.lines()
-		.filter(|l| l.contains("= ADVANCED_FACE(") && (l.contains(&format!("),#{surf_id},.T.)")) || l.contains(&format!("),#{surf_id},.F.)"))))
+		.filter(|l| {
+			l.contains("= ADVANCED_FACE(") && (l.contains(&format!("),#{surf_id},.T.)")) || l.contains(&format!("),#{surf_id},.F.)")))
+		})
 		.count()
 }
 
@@ -164,10 +164,7 @@ fn drilled_plate_coalesces_bore_and_plane_but_falls_back_where_scarred() {
 	let step2 = export_step(&scarred, "scarred");
 	let back2 = import_step(&step2).expect("re-import scarred");
 	let dv2 = (volume(&scarred).abs() - volume(&back2).abs()).abs() / volume(&scarred).abs();
-	assert!(
-		dv2 < 0.01,
-		"scarred part must still export/import volume-stable: Δ {dv2:.4}"
-	);
+	assert!(dv2 < 0.01, "scarred part must still export/import volume-stable: Δ {dv2:.4}");
 }
 
 #[test]
@@ -179,10 +176,7 @@ fn cylinder_union_box_mixed_solid_round_trips() {
 	// and the file must re-import volume-stable either way. (Measured on this
 	// geometry: the round-trip volume delta is ~0; 0.5% is asserted, well inside
 	// the 2.5% acceptance bar for mixed solids.)
-	let mixed = union(
-		&cylinder(DVec3::ZERO, DVec3::Z, 10.0, 20.0, 32),
-		&cuboid(DVec3::new(5.0, -8.0, 4.0), DVec3::new(30.0, 8.0, 16.0)),
-	);
+	let mixed = union(&cylinder(DVec3::ZERO, DVec3::Z, 10.0, 20.0, 32), &cuboid(DVec3::new(5.0, -8.0, 4.0), DVec3::new(30.0, 8.0, 16.0)));
 	let step = export_step(&mixed, "mixed");
 	let back = import_step(&step).expect("mixed cylinder-union-box must re-import");
 	let dv = (volume(&mixed).abs() - volume(&back).abs()).abs() / volume(&mixed).abs();

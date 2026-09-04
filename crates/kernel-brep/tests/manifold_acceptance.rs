@@ -13,7 +13,7 @@ use kernel_brep::{cuboid, cylinder, tessellate_default, try_difference, validate
 fn build_manifold() -> Solid {
 	let mut m = cuboid(DVec3::new(-30.0, -20.0, -15.0), DVec3::new(30.0, 20.0, 15.0));
 	for bore in [
-		cylinder(DVec3::new(-35.0, 0.0, 0.0), DVec3::X, 6.0, 70.0, 48), // main X
+		cylinder(DVec3::new(-35.0, 0.0, 0.0), DVec3::X, 6.0, 70.0, 48),   // main X
 		cylinder(DVec3::new(-15.0, 0.0, -20.0), DVec3::Z, 4.0, 40.0, 48), // cross Z1
 		cylinder(DVec3::new(15.0, 0.0, -20.0), DVec3::Z, 4.0, 40.0, 48),  // cross Z2
 		cylinder(DVec3::new(0.0, -25.0, 0.0), DVec3::Y, 4.0, 50.0, 48),   // port Y

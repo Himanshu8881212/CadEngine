@@ -27,8 +27,7 @@ pub enum Dim {
 	Performance,
 	Contract,
 }
-pub const DIMS: [Dim; 7] =
-	[Dim::Safety, Dim::Trust, Dim::Discovery, Dim::Loop, Dim::Measure, Dim::Performance, Dim::Contract];
+pub const DIMS: [Dim; 7] = [Dim::Safety, Dim::Trust, Dim::Discovery, Dim::Loop, Dim::Measure, Dim::Performance, Dim::Contract];
 impl Dim {
 	pub fn name(self) -> &'static str {
 		match self {
@@ -66,9 +65,7 @@ fn get<'r>(r: &'r Report, id: &str) -> Option<&'r OpReport> {
 	r.ops.iter().find(|o| o.id == id)
 }
 fn refused_invalid(r: &Report, id: &str) -> bool {
-	get(r, id)
-		.map(|o| !o.ok && o.error.as_ref().map(|e| e.kind) == Some(ErrorKind::InvalidParam))
-		.unwrap_or(false)
+	get(r, id).map(|o| !o.ok && o.error.as_ref().map(|e| e.kind) == Some(ErrorKind::InvalidParam)).unwrap_or(false)
 }
 fn op_ok(r: &Report, id: &str) -> bool {
 	get(r, id).map(|o| o.ok).unwrap_or(false)
@@ -111,21 +108,30 @@ pub fn run_all() -> Vec<Criterion> {
 	let r = run(&dir, json!([{"id":"c","op":"cylinder","base":[0,0,0],"axis":[0,0,1],"radius":5,"height":10,"segments":20000}]));
 	c.push(crit(Dim::Safety, "alloc_cap_segments", "excessive cylinder segments refused before alloc", refused_invalid(&r, "c")));
 	// Coincident-fit hazard pre-check tool (V4): a Ø2 pin vs a Ø1.95 bore must flag true — FAST.
-	let r = run(&dir, json!([
-		{"id":"pin","op":"cylinder","base":[0,0,-1],"axis":[0,0,1],"radius":1.0,"height":12},
-		{"id":"block","op":"box","min":[-5,-5,0],"max":[5,5,10]},
-		{"id":"bore","op":"cylinder","base":[0,0,-1],"axis":[0,0,1],"radius":0.975,"height":12},
-		{"id":"housing","op":"difference","a":"block","b":"bore"},
-		{"id":"fit","op":"coincident_fit","a":"pin","b":"housing"}
-	]));
-	let flagged = get(&r, "fit").and_then(|o| o.measures.as_ref()).and_then(|m| m.get("coincident_fit")).and_then(Value::as_bool).unwrap_or(false);
+	let r = run(
+		&dir,
+		json!([
+			{"id":"pin","op":"cylinder","base":[0,0,-1],"axis":[0,0,1],"radius":1.0,"height":12},
+			{"id":"block","op":"box","min":[-5,-5,0],"max":[5,5,10]},
+			{"id":"bore","op":"cylinder","base":[0,0,-1],"axis":[0,0,1],"radius":0.975,"height":12},
+			{"id":"housing","op":"difference","a":"block","b":"bore"},
+			{"id":"fit","op":"coincident_fit","a":"pin","b":"housing"}
+		]),
+	);
+	let flagged =
+		get(&r, "fit").and_then(|o| o.measures.as_ref()).and_then(|m| m.get("coincident_fit")).and_then(Value::as_bool).unwrap_or(false);
 	c.push(crit(Dim::Safety, "coincident_fit_precheck", "coincident_fit tool flags the boolean-hang hazard class", flagged));
 
 	// ---- TRUST (M2) ----
 	let r = run(&dir, json!([cube(), {"id":"v","op":"validate","in":"b"}]));
 	c.push(crit(Dim::Trust, "geometric_ok_exposed", "validate exposes a geometric_ok flag", has_measure(&r, "v", "geometric_ok")));
 	let r = run(&dir, json!([cube(), {"id":"vol","op":"volume","in":"b"}]));
-	c.push(crit(Dim::Trust, "provenance_exposed", "a measurement carries exact|analytic|faceted provenance", has_measure(&r, "vol", "provenance")));
+	c.push(crit(
+		Dim::Trust,
+		"provenance_exposed",
+		"a measurement carries exact|analytic|faceted provenance",
+		has_measure(&r, "vol", "provenance"),
+	));
 
 	// ---- DISCOVERY (M3) ----
 	let r = run(&dir, json!([{"id":"d","op":"describe"}]));
@@ -160,17 +166,37 @@ pub fn run_all() -> Vec<Criterion> {
 
 	// -- trust: no false-flag, specific provenance values, mass_props provenance (RED gap) --
 	let r = run(&dir, json!([cube(), {"id":"v","op":"validate","in":"b"}]));
-	c.push(crit(Dim::Trust, "geometric_ok_true_clean", "a clean solid reads geometric_ok:true (no false-flag)", flag(&r, "v", "geometric_ok") == Some(true)));
+	c.push(crit(
+		Dim::Trust,
+		"geometric_ok_true_clean",
+		"a clean solid reads geometric_ok:true (no false-flag)",
+		flag(&r, "v", "geometric_ok") == Some(true),
+	));
 	let r = run(&dir, json!([cube(), {"id":"vol","op":"volume","in":"b"}, {"id":"xv","op":"exact_volume","in":"b"}]));
 	c.push(crit(Dim::Trust, "provenance_faceted", "volume is stamped provenance:faceted", text_eq(&r, "vol", "provenance", "faceted")));
-	c.push(crit(Dim::Trust, "provenance_analytic", "exact_volume is stamped provenance:analytic", text_eq(&r, "xv", "provenance", "analytic")));
+	c.push(crit(
+		Dim::Trust,
+		"provenance_analytic",
+		"exact_volume is stamped provenance:analytic",
+		text_eq(&r, "xv", "provenance", "analytic"),
+	));
 	let r = run(&dir, json!([cube(), {"id":"mp","op":"mass_properties","in":"b"}]));
-	c.push(crit(Dim::Trust, "provenance_on_mass_props", "mass_properties carries provenance too (RED gap)", has_measure(&r, "mp", "provenance")));
+	c.push(crit(
+		Dim::Trust,
+		"provenance_on_mass_props",
+		"mass_properties carries provenance too (RED gap)",
+		has_measure(&r, "mp", "provenance"),
+	));
 
 	// -- discovery: full enumeration, exists-filter, per-op params (RED gap) --
 	let r = run(&dir, json!([{"id":"d","op":"describe"}]));
 	let enumerated = num(&r, "d", "count").map(|n| n > 100.0).unwrap_or(false)
-		&& get(&r, "d").and_then(|o| o.measures.as_ref()).and_then(|m| m.get("ops")).and_then(|v| v.as_array()).map(|a| !a.is_empty()).unwrap_or(false);
+		&& get(&r, "d")
+			.and_then(|o| o.measures.as_ref())
+			.and_then(|m| m.get("ops"))
+			.and_then(|v| v.as_array())
+			.map(|a| !a.is_empty())
+			.unwrap_or(false);
 	c.push(crit(Dim::Discovery, "describe_enumerates", "describe returns the full op list + count", enumerated));
 	// describe_params tests the REAL per-op design (criterion updated 2026-07-09 when the feature
 	// landed — the placeholder written before the design existed probed the NO-ARG describe for a
@@ -200,27 +226,52 @@ pub fn run_all() -> Vec<Criterion> {
 	));
 	let real = run(&dir, json!([{"id":"y","op":"describe","name":"fillet_edge_near"}]));
 	let bogus = run(&dir, json!([{"id":"z","op":"describe","name":"filet_edge"}]));
-	c.push(crit(Dim::Discovery, "describe_exists_filter", "describe reports exists for real vs bogus op (did-you-mean)",
-		flag(&real, "y", "exists") == Some(true) && flag(&bogus, "z", "exists") == Some(false)));
+	c.push(crit(
+		Dim::Discovery,
+		"describe_exists_filter",
+		"describe reports exists for real vs bogus op (did-you-mean)",
+		flag(&real, "y", "exists") == Some(true) && flag(&bogus, "z", "exists") == Some(false),
+	));
 
 	// -- loop (M4, largely unbuilt): stateful session + edge refs read RED honestly --
 	let r = run(&dir, json!([{"id":"se","op":"open_session","doc":"x"}]));
-	c.push(crit(Dim::Loop, "session_stateful", "stateful session (server-layer; kernel-api stays pure — coverage gap, not a run_program op)", op_ok(&r, "se")));
+	c.push(crit(
+		Dim::Loop,
+		"session_stateful",
+		"stateful session (server-layer; kernel-api stays pure — coverage gap, not a run_program op)",
+		op_ok(&r, "se"),
+	));
 	let r = run(&dir, json!([cube(), {"id":"le","op":"list_edges","in":"b"}]));
 	c.push(crit(Dim::Loop, "entity_refs", "edge/entity refs op exists (RED: M4)", op_ok(&r, "le")));
 
 	// -- measure: overhang case, interference case, full inertia, bbox dims --
 	let r = run(&dir, json!([{"id":"s","op":"sphere","center":[0,0,10],"radius":10}, {"id":"sr","op":"support_report","in":"s"}]));
-	c.push(crit(Dim::Measure, "support_flags_overhang", "a sphere underside reads steep_area>0", num(&r, "sr", "steep_area").map(|a| a > 0.0).unwrap_or(false)));
-	let r = run(&dir, json!([
-		{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]}, {"id":"bb","op":"box","min":[5,5,5],"max":[15,15,15]},
-		{"id":"cl","op":"clearance","a":"a","b":"bb"}
-	]));
-	c.push(crit(Dim::Measure, "clearance_detects_overlap", "overlap -> interfering + overlap_volume>0",
-		flag(&r, "cl", "interfering") == Some(true) && num(&r, "cl", "overlap_volume").map(|v| v > 0.0).unwrap_or(false)));
+	c.push(crit(
+		Dim::Measure,
+		"support_flags_overhang",
+		"a sphere underside reads steep_area>0",
+		num(&r, "sr", "steep_area").map(|a| a > 0.0).unwrap_or(false),
+	));
+	let r = run(
+		&dir,
+		json!([
+			{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]}, {"id":"bb","op":"box","min":[5,5,5],"max":[15,15,15]},
+			{"id":"cl","op":"clearance","a":"a","b":"bb"}
+		]),
+	);
+	c.push(crit(
+		Dim::Measure,
+		"clearance_detects_overlap",
+		"overlap -> interfering + overlap_volume>0",
+		flag(&r, "cl", "interfering") == Some(true) && num(&r, "cl", "overlap_volume").map(|v| v > 0.0).unwrap_or(false),
+	));
 	let r = run(&dir, json!([cube(), {"id":"mp","op":"mass_properties","in":"b"}]));
-	c.push(crit(Dim::Measure, "mass_properties_full", "mass_properties returns com + inertia",
-		has_measure(&r, "mp", "center_of_mass") && has_measure(&r, "mp", "inertia_diag")));
+	c.push(crit(
+		Dim::Measure,
+		"mass_properties_full",
+		"mass_properties returns com + inertia",
+		has_measure(&r, "mp", "center_of_mass") && has_measure(&r, "mp", "inertia_diag"),
+	));
 	let r = run(&dir, json!([cube(), {"id":"bx","op":"bounding_box","in":"b"}]));
 	c.push(crit(Dim::Measure, "bounding_box_dims", "bounding_box returns size/min/max", has_measure(&r, "bx", "size")));
 
@@ -231,9 +282,18 @@ pub fn run_all() -> Vec<Criterion> {
 	}
 	let (rp, ms) = timed(&dir, json!(many));
 	c.push(crit(Dim::Performance, "perf_1000_ops", "a 1000-op program completes in a few seconds", rp.ok && ms < 5000));
-	let (rcb, mscb) = timed(&dir, json!([{"id":"c","op":"cylinder","base":[0,0,0],"axis":[0,0,1],"radius":5,"height":10,"segments":20000}]));
-	c.push(crit(Dim::Performance, "perf_countbomb_fast_fail", "an over-cap count-bomb refused in <100ms (pre-alloc)", refused_invalid(&rcb, "c") && mscb < 100));
-	let (rlb, mslb) = timed(&dir, json!([{"id":"c","op":"cylinder","base":[0,0,0],"axis":[0,0,1],"radius":20,"height":40,"segments":2000}, {"id":"vol","op":"volume","in":"c"}]));
+	let (rcb, mscb) =
+		timed(&dir, json!([{"id":"c","op":"cylinder","base":[0,0,0],"axis":[0,0,1],"radius":5,"height":10,"segments":20000}]));
+	c.push(crit(
+		Dim::Performance,
+		"perf_countbomb_fast_fail",
+		"an over-cap count-bomb refused in <100ms (pre-alloc)",
+		refused_invalid(&rcb, "c") && mscb < 100,
+	));
+	let (rlb, mslb) = timed(
+		&dir,
+		json!([{"id":"c","op":"cylinder","base":[0,0,0],"axis":[0,0,1],"radius":20,"height":40,"segments":2000}, {"id":"vol","op":"volume","in":"c"}]),
+	);
 	c.push(crit(Dim::Performance, "perf_large_legal_build", "a 2000-seg cylinder build completes <5s", op_ok(&rlb, "vol") && mslb < 5000));
 	let (rs, mss) = timed(&dir, json!([cube(), {"id":"vol","op":"volume","in":"b"}]));
 	let stable = serde_json::to_string(&r1).ok() == serde_json::to_string(&rs).ok();
@@ -244,9 +304,19 @@ pub fn run_all() -> Vec<Criterion> {
 	let r = run(&dir, json!([{"id":"u","op":"no_such_op_xyz"}]));
 	c.push(crit(Dim::Contract, "unknown_op_matchable", "an unknown op yields ErrorKind::UnknownOp", err_is(&r, "u", ErrorKind::UnknownOp)));
 	let r = run(&dir, json!([{"id":"bad","op":"volume","in":"nope"}, {"id":"after","op":"box","min":[0,0,0],"max":[1,1,1]}]));
-	c.push(crit(Dim::Contract, "stops_on_first_failure", "a program halts at the first failing op", !op_ok(&r, "bad") && get(&r, "after").is_none()));
+	c.push(crit(
+		Dim::Contract,
+		"stops_on_first_failure",
+		"a program halts at the first failing op",
+		!op_ok(&r, "bad") && get(&r, "after").is_none(),
+	));
 	let r = run(&dir, json!([cube(), {"id":"vol","op":"volume","in":"b"}]));
-	c.push(crit(Dim::Contract, "stable_ids_echoed", "each op's id is echoed in its report", get(&r, "b").is_some() && get(&r, "vol").is_some()));
+	c.push(crit(
+		Dim::Contract,
+		"stable_ids_echoed",
+		"each op's id is echoed in its report",
+		get(&r, "b").is_some() && get(&r, "vol").is_some(),
+	));
 
 	let _ = std::fs::remove_dir_all(&dir);
 	c

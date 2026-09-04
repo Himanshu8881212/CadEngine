@@ -14,10 +14,7 @@ use kernel_implicit::{manifold_dual_contour, Aabb, Cuboid, Gyroid, Node, Resolut
 /// Serialize an NPY buffer the way `numpy.save` does (v1: u16 header length,
 /// v2: u32), space-padded to 64-byte alignment with a trailing newline.
 fn npy_bytes(version: u8, descr: &str, fortran: bool, shape: &str, payload: &[u8]) -> Vec<u8> {
-	let dict = format!(
-		"{{'descr': '{descr}', 'fortran_order': {}, 'shape': {shape}, }}",
-		if fortran { "True" } else { "False" }
-	);
+	let dict = format!("{{'descr': '{descr}', 'fortran_order': {}, 'shape': {shape}, }}", if fortran { "True" } else { "False" });
 	let mut out = b"\x93NUMPY".to_vec();
 	out.push(version);
 	out.push(0);
@@ -73,8 +70,7 @@ fn npy_parse_and_trilinear_sampling_are_exact() {
 
 	// '<f8' narrows losslessly for these values and samples identically.
 	let payload8: Vec<u8> = vals.iter().flat_map(|v| (*v as f64).to_le_bytes()).collect();
-	let g8 = GridField::from_npy_bytes(&npy_bytes(1, "<f8", false, "(2, 2, 2)", &payload8), Vec3::ZERO, 1.0)
-		.expect("v1 <f8 must parse");
+	let g8 = GridField::from_npy_bytes(&npy_bytes(1, "<f8", false, "(2, 2, 2)", &payload8), Vec3::ZERO, 1.0).expect("v1 <f8 must parse");
 	check("f8 center", g8.sample(Vec3::splat(0.5)), 3.5);
 	check("f8 corner (1,1,1)", g8.sample(Vec3::ONE), 7.0);
 
@@ -141,11 +137,7 @@ fn stress_ramp_npy_grades_gyroid_thicker_in_high_stress_half() {
 	// (inflate the hot walls): the damper recipe of DESIGN_GUIDE §16.8, fed
 	// from data instead of a declarative LinearGrade.
 	let law: ScalarField = field.normalized(0.0, 80.0).into_grade_law(-0.25, 0.25);
-	let (l_lo, l_mid, l_hi) = (
-		law(Vec3::new(-15.0, 0.0, 10.0)),
-		law(Vec3::new(0.0, 0.0, 10.0)),
-		law(Vec3::new(15.0, 0.0, 10.0)),
-	);
+	let (l_lo, l_mid, l_hi) = (law(Vec3::new(-15.0, 0.0, 10.0)), law(Vec3::new(0.0, 0.0, 10.0)), law(Vec3::new(15.0, 0.0, 10.0)));
 
 	// Mesh each half with Manifold Dual Contouring: manifold by construction,
 	// so watertightness is assertable (plain surface_nets leaves a handful of
@@ -153,10 +145,7 @@ fn stress_ramp_npy_grades_gyroid_thicker_in_high_stress_half() {
 	let half_volume = |x0: f32, x1: f32| {
 		let node = Node::primitive_bound(Gyroid::new(region, 0.55, 1.3))
 			.offset_by(law.clone(), 0.3)
-			.intersection(Node::primitive(Cuboid::from_corners(
-				Vec3::new(x0, -15.0, 0.0),
-				Vec3::new(x1, 15.0, 20.0),
-			)));
+			.intersection(Node::primitive(Cuboid::from_corners(Vec3::new(x0, -15.0, 0.0), Vec3::new(x1, 15.0, 20.0))));
 		let mesh = manifold_dual_contour(&node, node.bounds().pad(1.0), Resolution::VoxelSize(0.25));
 		(mesh.signed_volume(), mesh.is_watertight())
 	};
@@ -167,12 +156,7 @@ fn stress_ramp_npy_grades_gyroid_thicker_in_high_stress_half() {
 	// Measured on landing: 3445 mm³ vs 4888 mm³, ratio 1.42; the 1.30 floor
 	// leaves real margin without weakening the direction-of-effect claim.
 	assert!(
-		l_lo == -0.25
-			&& l_mid == 0.0
-			&& l_hi == 0.25
-			&& wt_lo && wt_hi
-			&& vol_lo > 500.0
-			&& ratio >= 1.30,
+		l_lo == -0.25 && l_mid == 0.0 && l_hi == 0.25 && wt_lo && wt_hi && vol_lo > 500.0 && ratio >= 1.30,
 		"stress→density→grade→mesh loop: law endpoints {l_lo}/{l_mid}/{l_hi} mm (want -0.25/0/0.25); \
 		 low-stress-half volume {vol_lo:.0} mm³ (watertight={wt_lo}) vs high-stress-half {vol_hi:.0} mm³ \
 		 (watertight={wt_hi}), ratio {ratio:.2} (want ≥ 1.30, measured 1.42 on landing — the graded \

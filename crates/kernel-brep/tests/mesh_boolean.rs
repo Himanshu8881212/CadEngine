@@ -8,8 +8,8 @@ use kernel_brep::math::DVec3;
 use std::collections::HashSet;
 
 use kernel_brep::{
-	cuboid, exact_boolean, exact_boolean_auto, mesh_difference, mesh_intersection, mesh_union,
-	refine_seam_to_intersection, snap_seam_to_intersection, sphere, tessellate_default, Mesh, MeshBoolOp, Surface,
+	cuboid, exact_boolean, exact_boolean_auto, mesh_difference, mesh_intersection, mesh_union, refine_seam_to_intersection,
+	snap_seam_to_intersection, sphere, tessellate_default, Mesh, MeshBoolOp, Surface,
 };
 
 #[test]

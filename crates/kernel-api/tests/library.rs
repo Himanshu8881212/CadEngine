@@ -35,11 +35,7 @@ fn out_dir(name: &str) -> PathBuf {
 
 /// The report entry for op `id` (panics with the report when absent).
 fn entry<'r>(report: &'r Report, id: &str) -> &'r OpReport {
-	report
-		.ops
-		.iter()
-		.find(|o| o.id == id)
-		.unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
+	report.ops.iter().find(|o| o.id == id).unwrap_or_else(|| panic!("no report entry for op '{id}' in {report:#?}"))
 }
 
 /// True when `path` exists and is non-empty.
@@ -61,10 +57,10 @@ fn bushing_envelope() -> Value {
 			"params": {"outer_r": 12.0, "bore_r": 4.0, "h": 10.0},
 			"features": [
 				{"Cylinder": {"center": [{"Literal": 0.0}, {"Literal": 0.0}, {"Literal": 0.0}],
-				              "radius": {"Param": "outer_r"}, "height": {"Param": "h"}},
+							  "radius": {"Param": "outer_r"}, "height": {"Param": "h"}},
 				 "label": "body"},
 				{"Cylinder": {"center": [{"Literal": 0.0}, {"Literal": 0.0}, {"Literal": 0.0}],
-				              "radius": {"Param": "bore_r"}, "height": {"Literal": 200.0}},
+							  "radius": {"Param": "bore_r"}, "height": {"Literal": 200.0}},
 				 "label": "bore tool (always through)"},
 				{"Boolean": {"op": "Difference", "a": 0, "b": 1}}
 			],
@@ -174,9 +170,9 @@ fn i7_gate_rejects_breaking_corner_and_pollutes_nothing() {
 			"params": {"r": 5.0},
 			"features": [
 				{"Box": {"center": [{"Literal": 0.0}, {"Literal": 0.0}, {"Literal": 0.0}],
-				         "size": [{"Literal": 20.0}, {"Literal": 20.0}, {"Literal": 10.0}]}},
+						 "size": [{"Literal": 20.0}, {"Literal": 20.0}, {"Literal": 10.0}]}},
 				{"Cylinder": {"center": [{"Literal": 0.0}, {"Literal": 0.0}, {"Literal": 0.0}],
-				              "radius": {"Param": "r"}, "height": {"Literal": 50.0}}},
+							  "radius": {"Param": "r"}, "height": {"Literal": 50.0}}},
 				{"Boolean": {"op": "Difference", "a": 0, "b": 1}}
 			],
 			"root": 2,
@@ -195,10 +191,7 @@ fn i7_gate_rejects_breaking_corner_and_pollutes_nothing() {
 	let report = run_program(&serde_json::to_string(&program).expect("serialize"), &dir);
 	let error = report.ops[0].error.clone().expect("the gate must reject");
 
-	let search = run_program(
-		r#"{"ops": [{"id": "find", "op": "library_search", "dir": "lib"}]}"#,
-		&dir,
-	);
+	let search = run_program(r#"{"ops": [{"id": "find", "op": "library_search", "dir": "lib"}]}"#, &dir);
 	let matches = entry(&search, "find").measures.as_ref().and_then(|m| m["matches"].as_array().cloned()).unwrap_or_default();
 	assert!(
 		!report.ok

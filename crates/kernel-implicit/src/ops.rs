@@ -430,13 +430,10 @@ impl Node {
 		match self {
 			Node::Prim(..) => false,
 			// A distance-assuming op on a non-exact child is unsound here.
-			Node::Offset(a, _) | Node::Shell(a, _) | Node::OffsetBy(a, _, _) => {
-				!a.field_quality().is_exact() || a.has_approximate_offset()
+			Node::Offset(a, _) | Node::Shell(a, _) | Node::OffsetBy(a, _, _) => !a.field_quality().is_exact() || a.has_approximate_offset(),
+			Node::Transform(a, _) | Node::LinearArray(a, _, _) | Node::PolarArray(a, _, _, _, _) | Node::Mirror(a, _, _) => {
+				a.has_approximate_offset()
 			}
-			Node::Transform(a, _)
-			| Node::LinearArray(a, _, _)
-			| Node::PolarArray(a, _, _, _, _)
-			| Node::Mirror(a, _, _) => a.has_approximate_offset(),
 			Node::Union(a, b)
 			| Node::Intersection(a, b)
 			| Node::Difference(a, b)

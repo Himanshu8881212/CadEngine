@@ -13,8 +13,7 @@
 use kernel_implicit::text::{text_advance, text_field};
 use kernel_implicit::texture::{displaced, Displaced, Texture};
 use kernel_implicit::{
-	check_mesh, manifold_dual_contour, surface_nets, surface_nets_narrowband, Cuboid, Cylinder, Node, Resolution,
-	Sdf, Vec3,
+	check_mesh, manifold_dual_contour, surface_nets, surface_nets_narrowband, Cuboid, Cylinder, Node, Resolution, Sdf, Vec3,
 };
 
 /// Sampled `sup |∇f|` over an `n³` lattice on `[lo, hi]` (forward differences
@@ -157,11 +156,7 @@ fn stipple_field_honours_coverage_stays_in_cell_and_declared_lipschitz() {
 	// 1.013·L_t (forward-difference overshoot inside the 1.05 slack — the
 	// derived dome bound is essentially TIGHT), t ∈ [0.000, 0.9973].
 	assert!(
-		(frac - coverage).abs() < 0.06
-			&& grad <= 1.05 * l_t
-			&& t_min == 0.0
-			&& t_max > 0.5
-			&& t_max <= 1.0,
+		(frac - coverage).abs() < 0.06 && grad <= 1.05 * l_t && t_min == 0.0 && t_max > 0.5 && t_max <= 1.0,
 		"stipple: occupied fraction {frac:.3} (want {coverage} ± 0.06 over {} cells) \
 		 max|grad|={grad:.3} (declared L_t={l_t:.4}) t∈[{t_min:.3},{t_max:.3}] (want 0 exactly, peak >0.5, ≤1)",
 		n * n * n

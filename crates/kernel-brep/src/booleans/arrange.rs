@@ -273,7 +273,7 @@ fn clip_segment_to_triangle(seg: (DVec3, DVec3), tri: &Tri) -> Option<(DVec3, DV
 		let b = tri.v[(i + 1) % 3];
 		let edge = b - a;
 		let inward = n.cross(edge); // points into the triangle for CCW (n,winding)
-		// Constraint: inward · (P − a) >= 0.
+							  // Constraint: inward · (P − a) >= 0.
 		let denom = inward.dot(dir);
 		let num = inward.dot(seg.0 - a);
 		if denom.abs() < EPS {
@@ -369,12 +369,7 @@ pub(super) fn split_triangle_by_segments(t: &Tri, segments: &[(DVec3, DVec3)], o
 /// Split a convex polygon by the line `{x : line_n·(x − a) = 0}` (`line_n` is a
 /// UNIT normal) into the pieces on each side, appending the pieces to `out`. A
 /// polygon entirely on one side passes through unchanged.
-fn split_convex_by_line(
-	poly: &[glam::DVec2],
-	a: glam::DVec2,
-	line_n: glam::DVec2,
-	out: &mut Vec<Vec<glam::DVec2>>,
-) {
+fn split_convex_by_line(poly: &[glam::DVec2], a: glam::DVec2, line_n: glam::DVec2, out: &mut Vec<Vec<glam::DVec2>>) {
 	// NB: an absolute EPS (not an exact orient2d sign) is load-bearing here. This
 	// polygon lives in f64-*projected* 2-D coordinates, so a vertex that is
 	// geometrically on the split line is only approximately on it numerically; the

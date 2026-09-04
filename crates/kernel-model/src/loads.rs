@@ -501,8 +501,12 @@ impl LoadPath {
 	/// by the model is wrong (a different contact lifts off, or a real
 	/// fastener is missing). Returns the offending connection names.
 	pub fn gate_unilateral(&self) -> Result<(), Vec<String>> {
-		let bad: Vec<String> =
-			self.connections.iter().filter(|c| c.tension_on_unilateral).map(|c| format!("{} ({:.4} N)", c.name, c.force.length())).collect();
+		let bad: Vec<String> = self
+			.connections
+			.iter()
+			.filter(|c| c.tension_on_unilateral)
+			.map(|c| format!("{} ({:.4} N)", c.name, c.force.length()))
+			.collect();
 		if bad.is_empty() {
 			Ok(())
 		} else {

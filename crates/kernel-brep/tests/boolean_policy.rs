@@ -13,8 +13,8 @@
 
 use kernel_brep::math::{DAffine3, DVec2, DVec3};
 use kernel_brep::{
-	boolean_with_policy, cuboid, cylinder, difference, extrude, try_difference, try_union, validate, volume, BooleanPath,
-	BooleanStats, FaceInput, MeshBoolOp, Solid,
+	boolean_with_policy, cuboid, cylinder, difference, extrude, try_difference, try_union, validate, volume, BooleanPath, BooleanStats,
+	FaceInput, MeshBoolOp, Solid,
 };
 
 fn v(x: f64, y: f64, z: f64) -> DVec3 {
@@ -47,19 +47,11 @@ fn cracked(s: &Solid, lo: f64, hi: f64, seed: u64) -> Solid {
 		let poly = s.face_polygon(f);
 		let base = positions.len() as u32;
 		for p in &poly {
-			let dir = DVec3::new(
-				rng.next_f64() * 2.0 - 1.0,
-				rng.next_f64() * 2.0 - 1.0,
-				rng.next_f64() * 2.0 - 1.0,
-			)
-			.normalize_or_zero();
+			let dir = DVec3::new(rng.next_f64() * 2.0 - 1.0, rng.next_f64() * 2.0 - 1.0, rng.next_f64() * 2.0 - 1.0).normalize_or_zero();
 			let mag = lo + (hi - lo) * rng.next_f64();
 			positions.push(*p + dir * mag);
 		}
-		faces.push(FaceInput {
-			boundary: (base..base + poly.len() as u32).collect(),
-			surface: s.face(f).surface,
-		});
+		faces.push(FaceInput { boundary: (base..base + poly.len() as u32).collect(), surface: s.face(f).surface });
 	}
 	Solid::from_faces(positions, faces)
 }
@@ -68,31 +60,15 @@ fn cracked(s: &Solid, lo: f64, hi: f64, seed: u64) -> Solid {
 /// parallel-flank sliver strips — the documented arrangement degeneracy that
 /// mis-stitches and is refused (recovery_needle_weld.rs / FRICTION #23).
 fn notch_sliver_pair() -> (Solid, Solid) {
-	let plate_prof: Vec<DVec2> = [
-		(-20.0, 1.0),
-		(-3.0, 1.0),
-		(-4.5, 3.5),
-		(4.5, 3.5),
-		(3.0, 1.0),
-		(20.0, 1.0),
-		(20.0, 7.0),
-		(-20.0, 7.0),
-	]
-	.iter()
-	.map(|&(x, y)| DVec2::new(x, y))
-	.collect();
+	let plate_prof: Vec<DVec2> = [(-20.0, 1.0), (-3.0, 1.0), (-4.5, 3.5), (4.5, 3.5), (3.0, 1.0), (20.0, 1.0), (20.0, 7.0), (-20.0, 7.0)]
+		.iter()
+		.map(|&(x, y)| DVec2::new(x, y))
+		.collect();
 	let plate = extrude(&plate_prof, 25.0);
-	let bowtie: Vec<DVec2> = [
-		(-2.8, 0.0),
-		(-4.21, 2.35),
-		(4.21, 2.35),
-		(2.8, 0.0),
-		(4.21, -2.35),
-		(-4.21, -2.35),
-	]
-	.iter()
-	.map(|&(x, y)| DVec2::new(x, y))
-	.collect();
+	let bowtie: Vec<DVec2> = [(-2.8, 0.0), (-4.21, 2.35), (4.21, 2.35), (2.8, 0.0), (4.21, -2.35), (-4.21, -2.35)]
+		.iter()
+		.map(|&(x, y)| DVec2::new(x, y))
+		.collect();
 	let key = extrude(&bowtie, 27.0).transformed(DAffine3::from_translation(v(0.0, 0.0, -1.0)));
 	(plate, key)
 }
@@ -213,9 +189,9 @@ fn boolean_stats_aggregate_the_path_breakdown_over_a_mixed_batch() {
 
 	let mut stats = BooleanStats::default();
 	for out in [
-		boolean_with_policy(&plate, &bore, MeshBoolOp::Difference, 1e-6), // EXACT
-		boolean_with_policy(&box_a, &box_b, MeshBoolOp::Union, 1e-6),      // EXACT
-		boolean_with_policy(&cracked_a, &box_b, MeshBoolOp::Union, 1e-3),  // HEALED
+		boolean_with_policy(&plate, &bore, MeshBoolOp::Difference, 1e-6),    // EXACT
+		boolean_with_policy(&box_a, &box_b, MeshBoolOp::Union, 1e-6),        // EXACT
+		boolean_with_policy(&cracked_a, &box_b, MeshBoolOp::Union, 1e-3),    // HEALED
 		boolean_with_policy(&n_key, &n_plate, MeshBoolOp::Difference, 1e-3), // REFUSED
 	] {
 		stats.record(&out);

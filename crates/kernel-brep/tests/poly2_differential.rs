@@ -32,10 +32,7 @@ fn convex_polygon(state: &mut u64, n: usize, center: [f64; 2]) -> Vec<[f64; 2]> 
 	let mut angles: Vec<f64> = (0..n).map(|_| rng(state) * std::f64::consts::TAU).collect();
 	angles.sort_by(|a, b| a.partial_cmp(b).unwrap());
 	angles.dedup();
-	angles
-		.iter()
-		.map(|t| [center[0] + rx * t.cos(), center[1] + ry * t.sin()])
-		.collect()
+	angles.iter().map(|t| [center[0] + rx * t.cos(), center[1] + ry * t.sin()]).collect()
 }
 
 /// Random star-shaped (hence simple, generally non-convex) polygon: uniform
@@ -191,9 +188,7 @@ fn bench_poly2_is_at_least_20x_faster_than_3d_route_on_400_vertex_gears() {
 
 	let t1 = std::time::Instant::now();
 	for _ in 0..10 {
-		std::hint::black_box(
-			reference_overlap_area_3d(std::hint::black_box(&a), std::hint::black_box(&b)).expect("3D route"),
-		);
+		std::hint::black_box(reference_overlap_area_3d(std::hint::black_box(&a), std::hint::black_box(&b)).expect("3D route"));
 	}
 	let per_call_3d = t1.elapsed().as_secs_f64() / 10.0;
 

@@ -8,8 +8,8 @@ use std::collections::HashSet;
 
 use kernel_brep::math::{DVec3, Vec3};
 use kernel_brep::{
-	boundary_loops, drill_cylinder, intersect_sphere, seam_loops, sphere, subtract_cone, subtract_sphere,
-	tessellate_default, trim_mesh_by_surface, union_sphere, Keep, Surface,
+	boundary_loops, drill_cylinder, intersect_sphere, seam_loops, sphere, subtract_cone, subtract_sphere, tessellate_default,
+	trim_mesh_by_surface, union_sphere, Keep, Surface,
 };
 use kernel_core::mesh::Mesh;
 

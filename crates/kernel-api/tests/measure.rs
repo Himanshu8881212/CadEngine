@@ -22,17 +22,23 @@ fn support_report_clears_a_flat_box_and_flags_an_overhang() {
 	std::fs::create_dir_all(&dir).unwrap();
 
 	// A flat box: bottom on the bed, top flat, sides vertical → prints support-free.
-	let r = run(&dir, json!([
-		{"id":"box","op":"box","min":[0,0,0],"max":[10,10,10]},
-		{"id":"sr","op":"support_report","in":"box"}
-	]));
+	let r = run(
+		&dir,
+		json!([
+			{"id":"box","op":"box","min":[0,0,0],"max":[10,10,10]},
+			{"id":"sr","op":"support_report","in":"box"}
+		]),
+	);
 	assert_eq!(flag(&r, "sr", "support_free"), Some(true), "a flat box must be support_free:true — {r:#?}");
 
 	// A sphere: its lower hemisphere faces down past the overhang threshold → needs support.
-	let r = run(&dir, json!([
-		{"id":"s","op":"sphere","center":[0,0,10],"radius":10},
-		{"id":"sr","op":"support_report","in":"s"}
-	]));
+	let r = run(
+		&dir,
+		json!([
+			{"id":"s","op":"sphere","center":[0,0,10],"radius":10},
+			{"id":"sr","op":"support_report","in":"s"}
+		]),
+	);
 	assert!(num(&r, "sr", "steep_area").unwrap_or(0.0) > 0.0, "a sphere's underside must give steep_area>0 — {r:#?}");
 	assert_eq!(flag(&r, "sr", "support_free"), Some(false), "a sphere must be support_free:false — {r:#?}");
 
@@ -45,20 +51,26 @@ fn clearance_measures_gap_and_overlap_without_asserting() {
 	std::fs::create_dir_all(&dir).unwrap();
 
 	// Two boxes 5 mm apart → distance ≈ 5, not interfering (and it does NOT error on the query).
-	let r = run(&dir, json!([
-		{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
-		{"id":"b","op":"box","min":[15,0,0],"max":[25,10,10]},
-		{"id":"cl","op":"clearance","a":"a","b":"b"}
-	]));
+	let r = run(
+		&dir,
+		json!([
+			{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
+			{"id":"b","op":"box","min":[15,0,0],"max":[25,10,10]},
+			{"id":"cl","op":"clearance","a":"a","b":"b"}
+		]),
+	);
 	assert!((num(&r, "cl", "distance").unwrap_or(-1.0) - 5.0).abs() < 0.5, "5 mm gap → distance≈5 — {r:#?}");
 	assert_eq!(flag(&r, "cl", "interfering"), Some(false), "a gap is not interfering — {r:#?}");
 
 	// Two overlapping boxes → interfering, with a positive overlap volume.
-	let r = run(&dir, json!([
-		{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
-		{"id":"b","op":"box","min":[5,5,5],"max":[15,15,15]},
-		{"id":"cl","op":"clearance","a":"a","b":"b"}
-	]));
+	let r = run(
+		&dir,
+		json!([
+			{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
+			{"id":"b","op":"box","min":[5,5,5],"max":[15,15,15]},
+			{"id":"cl","op":"clearance","a":"a","b":"b"}
+		]),
+	);
 	assert_eq!(flag(&r, "cl", "interfering"), Some(true), "overlapping solids interfere — {r:#?}");
 	assert!(num(&r, "cl", "overlap_volume").unwrap_or(0.0) > 0.0, "overlap_volume must be >0 for interference — {r:#?}");
 
@@ -92,8 +104,16 @@ fn measure_dimension_exact_callouts_and_loud_refusals() {
 	let analytic = m("thick", "provenance") == serde_json::json!("analytic") && m("dia", "provenance") == serde_json::json!("analytic");
 
 	let refusals = [
-		("angle", serde_json::json!({"id": "bad", "op": "measure_dimension", "in": "plate", "kind": "face_face", "a": [30,20,0], "b": [60,20,4]}), "°"),
-		("plane_dia", serde_json::json!({"id": "bad", "op": "measure_dimension", "in": "plate", "kind": "diameter", "near": [30,20,8]}), "PLANE"),
+		(
+			"angle",
+			serde_json::json!({"id": "bad", "op": "measure_dimension", "in": "plate", "kind": "face_face", "a": [30,20,0], "b": [60,20,4]}),
+			"°",
+		),
+		(
+			"plane_dia",
+			serde_json::json!({"id": "bad", "op": "measure_dimension", "in": "plate", "kind": "diameter", "near": [30,20,8]}),
+			"PLANE",
+		),
 		("kind", serde_json::json!({"id": "bad", "op": "measure_dimension", "in": "plate", "kind": "girth"}), "point_point"),
 	];
 	let mut refusal_report = String::new();
@@ -101,8 +121,7 @@ fn measure_dimension_exact_callouts_and_loud_refusals() {
 	for (name, op, needle) in refusals {
 		let r = run(serde_json::json!({"ops": [{"id": "plate", "op": "box", "min": [0,0,0], "max": [60,40,8]}, op]}));
 		let e = r.ops.iter().find(|o| o.id == "bad").and_then(|o| o.error.as_ref());
-		let ok = !r.ok
-			&& e.map(|e| e.kind == kernel_api::ErrorKind::InvalidParam && e.message.contains(needle)).unwrap_or(false);
+		let ok = !r.ok && e.map(|e| e.kind == kernel_api::ErrorKind::InvalidParam && e.message.contains(needle)).unwrap_or(false);
 		refusals_ok &= ok;
 		refusal_report += &format!("\n  {name}: loud={ok} msg={:?}", e.map(|e| &e.message));
 	}
@@ -122,14 +141,17 @@ fn mesh_components_is_the_single_body_oracle_and_assert_components_gates_it() {
 	// One box = one body; a union of two DISJOINT boxes = one bound solid in two
 	// lumps — exactly the severed-part shape (FRICTION #24) that validity,
 	// watertightness and volume gates cannot catch.
-	let r = run(&dir, json!([
-		{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
-		{"id":"b","op":"box","min":[20,0,0],"max":[30,10,10]},
-		{"id":"u","op":"union","a":"a","b":"b"},
-		{"id":"mc1","op":"mesh_components","in":"a"},
-		{"id":"mc2","op":"mesh_components","in":"u"},
-		{"id":"gate","op":"assert","in":"a","components":1}
-	]));
+	let r = run(
+		&dir,
+		json!([
+			{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
+			{"id":"b","op":"box","min":[20,0,0],"max":[30,10,10]},
+			{"id":"u","op":"union","a":"a","b":"b"},
+			{"id":"mc1","op":"mesh_components","in":"a"},
+			{"id":"mc2","op":"mesh_components","in":"u"},
+			{"id":"gate","op":"assert","in":"a","components":1}
+		]),
+	);
 	assert!(r.ok, "program must pass — {r:#?}");
 	assert_eq!(num(&r, "mc1", "components"), Some(1.0), "one box is one body — {r:#?}");
 	assert_eq!(flag(&r, "mc1", "is_one_body"), Some(true));
@@ -138,22 +160,28 @@ fn mesh_components_is_the_single_body_oracle_and_assert_components_gates_it() {
 
 	// The assert form must FAIL loudly on the severed shape (a gate that cannot
 	// fail is not a gate), and its measures must carry the measured count.
-	let r = run(&dir, json!([
-		{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
-		{"id":"b","op":"box","min":[20,0,0],"max":[30,10,10]},
-		{"id":"u","op":"union","a":"a","b":"b"},
-		{"id":"gate","op":"assert","in":"u","components":1}
-	]));
+	let r = run(
+		&dir,
+		json!([
+			{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
+			{"id":"b","op":"box","min":[20,0,0],"max":[30,10,10]},
+			{"id":"u","op":"union","a":"a","b":"b"},
+			{"id":"gate","op":"assert","in":"u","components":1}
+		]),
+	);
 	assert!(!r.ok, "assert components:1 must fail on a two-lump solid — {r:#?}");
 	let e = r.ops.iter().find(|o| o.id == "gate").and_then(|o| o.error.as_ref()).expect("gate error");
 	assert_eq!(e.kind, kernel_api::ErrorKind::AssertFailed);
 	assert!(e.message.contains("components"), "failure names the check — {}", e.message);
 
 	// Bad params refuse loudly, never silently defaulting.
-	let r = run(&dir, json!([
-		{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
-		{"id":"mc","op":"mesh_components","in":"a","tol":0.0}
-	]));
+	let r = run(
+		&dir,
+		json!([
+			{"id":"a","op":"box","min":[0,0,0],"max":[10,10,10]},
+			{"id":"mc","op":"mesh_components","in":"a","tol":0.0}
+		]),
+	);
 	assert!(!r.ok, "tol=0 must refuse — {r:#?}");
 
 	let _ = std::fs::remove_dir_all(&dir);
@@ -166,20 +194,29 @@ fn unknown_params_fail_closed_and_comment_keys_stay_silent() {
 
 	// A typo'd optional parameter must be a hard validation error. Silently using
 	// a default can change a manufactured part while still returning success.
-	let r = run(&dir, json!([
-		{"id":"c","op":"cylinder","base":[0,0,0],"axis":[0,0,1],"radius":3.0,"height":8.0,"segmnets":64}
-	]));
+	let r = run(
+		&dir,
+		json!([
+			{"id":"c","op":"cylinder","base":[0,0,0],"axis":[0,0,1],"radius":3.0,"height":8.0,"segmnets":64}
+		]),
+	);
 	assert!(!r.ok, "unknown parameters must fail closed — {r:#?}");
 	let c = r.ops.iter().find(|o| o.id == "c").expect("cylinder entry");
 	let error = c.error.as_ref().expect("unknown-param error");
 	assert_eq!(error.kind, kernel_api::ErrorKind::InvalidParam);
-	assert!(error.message.contains("segmnets") && error.message.contains("cylinder") && error.message.contains("describe"),
-		"error names the key, op, and remedy — {}", error.message);
+	assert!(
+		error.message.contains("segmnets") && error.message.contains("cylinder") && error.message.contains("describe"),
+		"error names the key, op, and remedy — {}",
+		error.message
+	);
 
 	// `_`-prefixed keys remain the explicit in-op comment convention.
-	let clean = run(&dir, json!([
-		{"id":"ok","op":"box","min":[0,0,0],"max":[1,1,1],"_note":"documented comment convention"}
-	]));
+	let clean = run(
+		&dir,
+		json!([
+			{"id":"ok","op":"box","min":[0,0,0],"max":[1,1,1],"_note":"documented comment convention"}
+		]),
+	);
 	assert!(clean.ok, "comment keys remain accepted — {clean:#?}");
 	let okop = clean.ops.iter().find(|o| o.id == "ok").expect("box entry");
 	assert!(okop.warnings.is_empty(), "`_`-prefixed comment keys must stay silent — {clean:#?}");

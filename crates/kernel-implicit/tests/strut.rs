@@ -59,10 +59,7 @@ fn strut_kinds_one_lipschitz_mesh_closed_and_pinned_solid_fraction() {
 		let mesh = manifold_dual_contour(&solid, region, Resolution::VoxelSize(0.35));
 		let rep = check_mesh(&mesh);
 
-		let ok = (0.95..=1.005).contains(&lip)
-			&& (frac - want_frac).abs() <= 0.01
-			&& rep.boundary_edges == 0
-			&& mesh.triangle_count() > 0;
+		let ok = (0.95..=1.005).contains(&lip) && (frac - want_frac).abs() <= 0.01 && rep.boundary_edges == 0 && mesh.triangle_count() > 0;
 		all_ok &= ok;
 		report += &format!(
 			"\n  {kind:?}: secant_lipschitz={lip:.4} (want 0.95..=1.005) solid_frac={frac:.3} (pinned {want_frac:.3} ±0.01) boundary_edges={} tris={} images={}",

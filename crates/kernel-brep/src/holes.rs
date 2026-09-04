@@ -140,12 +140,54 @@ static METRIC_HOLE_TABLE: [MetricHoleSpec; 9] = [
 	MetricHoleSpec { m: 2.0, pitch: 0.4, clearance: [2.2, 2.4, 2.6], counterbore_d: 4.4, counterbore_depth: 2.2, countersink_d: None },
 	MetricHoleSpec { m: 2.5, pitch: 0.45, clearance: [2.7, 2.9, 3.1], counterbore_d: 5.5, counterbore_depth: 3.0, countersink_d: None },
 	MetricHoleSpec { m: 3.0, pitch: 0.5, clearance: [3.2, 3.4, 3.6], counterbore_d: 6.5, counterbore_depth: 3.5, countersink_d: Some(7.5) },
-	MetricHoleSpec { m: 4.0, pitch: 0.7, clearance: [4.3, 4.5, 4.8], counterbore_d: 8.0, counterbore_depth: 4.8, countersink_d: Some(10.0) },
-	MetricHoleSpec { m: 5.0, pitch: 0.8, clearance: [5.3, 5.5, 5.8], counterbore_d: 10.0, counterbore_depth: 5.8, countersink_d: Some(12.5) },
-	MetricHoleSpec { m: 6.0, pitch: 1.0, clearance: [6.4, 6.6, 7.0], counterbore_d: 11.0, counterbore_depth: 6.8, countersink_d: Some(14.5) },
-	MetricHoleSpec { m: 8.0, pitch: 1.25, clearance: [8.4, 9.0, 10.0], counterbore_d: 15.0, counterbore_depth: 8.8, countersink_d: Some(19.0) },
-	MetricHoleSpec { m: 10.0, pitch: 1.5, clearance: [10.5, 11.0, 12.0], counterbore_d: 18.0, counterbore_depth: 10.8, countersink_d: Some(23.5) },
-	MetricHoleSpec { m: 12.0, pitch: 1.75, clearance: [13.0, 13.5, 14.5], counterbore_d: 20.0, counterbore_depth: 12.8, countersink_d: Some(28.0) },
+	MetricHoleSpec {
+		m: 4.0,
+		pitch: 0.7,
+		clearance: [4.3, 4.5, 4.8],
+		counterbore_d: 8.0,
+		counterbore_depth: 4.8,
+		countersink_d: Some(10.0),
+	},
+	MetricHoleSpec {
+		m: 5.0,
+		pitch: 0.8,
+		clearance: [5.3, 5.5, 5.8],
+		counterbore_d: 10.0,
+		counterbore_depth: 5.8,
+		countersink_d: Some(12.5),
+	},
+	MetricHoleSpec {
+		m: 6.0,
+		pitch: 1.0,
+		clearance: [6.4, 6.6, 7.0],
+		counterbore_d: 11.0,
+		counterbore_depth: 6.8,
+		countersink_d: Some(14.5),
+	},
+	MetricHoleSpec {
+		m: 8.0,
+		pitch: 1.25,
+		clearance: [8.4, 9.0, 10.0],
+		counterbore_d: 15.0,
+		counterbore_depth: 8.8,
+		countersink_d: Some(19.0),
+	},
+	MetricHoleSpec {
+		m: 10.0,
+		pitch: 1.5,
+		clearance: [10.5, 11.0, 12.0],
+		counterbore_d: 18.0,
+		counterbore_depth: 10.8,
+		countersink_d: Some(23.5),
+	},
+	MetricHoleSpec {
+		m: 12.0,
+		pitch: 1.75,
+		clearance: [13.0, 13.5, 14.5],
+		counterbore_d: 20.0,
+		counterbore_depth: 12.8,
+		countersink_d: Some(28.0),
+	},
 ];
 
 /// All supported metric hole sizes, for table-driven callers and AIs listing
@@ -233,12 +275,7 @@ fn rod(at: DVec3, axis: DVec3, d: f64, t0: f64, t1: f64, segments: usize) -> Sol
 /// watertight by construction, then placed at `at`/`axis`.
 fn blind_drill_tool(at: DVec3, axis: DVec3, d: f64, depth: f64, segments: usize) -> Solid {
 	let r = d * 0.5;
-	let profile = [
-		DVec2::new(0.0, -PIERCE),
-		DVec2::new(r, -PIERCE),
-		DVec2::new(r, depth),
-		DVec2::new(0.0, depth + drill_tip_height(d)),
-	];
+	let profile = [DVec2::new(0.0, -PIERCE), DVec2::new(r, -PIERCE), DVec2::new(r, depth), DVec2::new(0.0, depth + drill_tip_height(d))];
 	let (e1, e2) = perp_basis(axis);
 	// Local frame: revolve() builds about +Z, so map Z onto the cutting axis.
 	revolve(&profile, segments).transformed(DAffine3::from_mat3_translation(DMat3::from_cols(e1, e2, axis), at))
@@ -250,11 +287,8 @@ fn axis_extent(solid: &Solid, at: DVec3, axis: DVec3) -> (f64, f64) {
 	let (lo, hi) = solid.aabb();
 	let (mut t_min, mut t_max) = (f64::INFINITY, f64::NEG_INFINITY);
 	for i in 0..8 {
-		let corner = DVec3::new(
-			if i & 1 == 0 { lo.x } else { hi.x },
-			if i & 2 == 0 { lo.y } else { hi.y },
-			if i & 4 == 0 { lo.z } else { hi.z },
-		);
+		let corner =
+			DVec3::new(if i & 1 == 0 { lo.x } else { hi.x }, if i & 2 == 0 { lo.y } else { hi.y }, if i & 4 == 0 { lo.z } else { hi.z });
 		let t = (corner - at).dot(axis);
 		t_min = t_min.min(t);
 		t_max = t_max.max(t);
@@ -359,7 +393,14 @@ pub fn countersink_hole(solid: &Solid, at: DVec3, axis: DVec3, m: f64, fit: Fit,
 /// only. Supported sizes: M2–M12 as in [`metric_hole_specs`].
 ///
 /// Example: `tap_drill_hole(&block, at, -DVec3::Z, 6.0, HoleDepth::Blind(12.0), None)?`.
-pub fn tap_drill_hole(solid: &Solid, at: DVec3, axis: DVec3, m: f64, depth: HoleDepth, segments: Option<usize>) -> Result<Solid, HoleError> {
+pub fn tap_drill_hole(
+	solid: &Solid,
+	at: DVec3,
+	axis: DVec3,
+	m: f64,
+	depth: HoleDepth,
+	segments: Option<usize>,
+) -> Result<Solid, HoleError> {
 	let spec = metric_hole_spec(m).ok_or(HoleError::UnsupportedSize { m })?;
 	drill(solid, at, axis, spec.m - spec.pitch, depth, segments)
 }

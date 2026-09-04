@@ -79,8 +79,8 @@ impl Mesh {
 		let touch = 1e-4 * (box_a.union(box_b).diagonal() as f64).max(1.0);
 
 		// Deepest sampled surface point of one mesh trapped inside the other.
-		let mut depth = max_depth_inside(&surface_samples(self), box_b, &bvh_b)
-			.max(max_depth_inside(&surface_samples(other), box_a, &bvh_a));
+		let mut depth =
+			max_depth_inside(&surface_samples(self), box_b, &bvh_b).max(max_depth_inside(&surface_samples(other), box_a, &bvh_a));
 
 		if sep > touch {
 			// Surfaces are separated: either truly disjoint (positive) or one

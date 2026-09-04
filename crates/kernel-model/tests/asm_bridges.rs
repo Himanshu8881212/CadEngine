@@ -24,12 +24,7 @@ fn washer_doc(bore_r: f64, outer_r: f64) -> Document {
 	doc.set_param("t", 4.0);
 	let lit = Dim::Literal;
 	let f = doc.add(Feature::Revolve {
-		profile: vec![
-			[lit(bore_r), lit(0.0)],
-			[lit(outer_r), lit(0.0)],
-			[lit(outer_r), Dim::param("t")],
-			[lit(bore_r), Dim::param("t")],
-		],
+		profile: vec![[lit(bore_r), lit(0.0)], [lit(outer_r), lit(0.0)], [lit(outer_r), Dim::param("t")], [lit(bore_r), Dim::param("t")]],
 		segments: 96,
 	});
 	doc.set_root(f);
@@ -131,14 +126,7 @@ fn epicyclic_instance_poses_place_touching_pitch_cylinders_in_an_assembly() {
 	// ANY input angle, a sun pitch cylinder and a planet pitch cylinder placed
 	// by `instance_poses` must TOUCH (pitch circles roll on each other), and
 	// the planet centre must sit at the orbit radius exactly.
-	let train = EpicyclicTrain {
-		sun_teeth: 12,
-		ring1_teeth: 36,
-		planet_a_teeth: 12,
-		planet_b_teeth: 11,
-		ring2_teeth: 39,
-		n_planets: 3,
-	};
+	let train = EpicyclicTrain { sun_teeth: 12, ring1_teeth: 36, planet_a_teeth: 12, planet_b_teeth: 11, ring2_teeth: 39, n_planets: 3 };
 	train.validate_assembly().expect("PLAN-26 is assemblable");
 	let module = 1.0;
 	let poses = train.instance_poses(0.7, module);

@@ -90,10 +90,7 @@ impl GridField {
 			.and_then(|v| v.checked_mul(nz))
 			.ok_or_else(|| format!("GridField: dims ({nx}, {ny}, {nz}) overflow usize"))?;
 		if data.len() != count {
-			return Err(format!(
-				"GridField: dims ({nx}, {ny}, {nz}) need {count} values, got {}",
-				data.len()
-			));
+			return Err(format!("GridField: dims ({nx}, {ny}, {nz}) need {count} values, got {}", data.len()));
 		}
 		if !cell.is_finite() || cell <= 0.0 {
 			return Err(format!("GridField: cell must be finite and > 0, got {cell}"));
@@ -151,18 +148,13 @@ impl GridField {
 			.checked_add(header_len)
 			.filter(|&e| e <= bytes.len())
 			.ok_or_else(|| format!("truncated NPY: header claims {header_len} bytes but the buffer ends first"))?;
-		let header = std::str::from_utf8(&bytes[header_start..header_end])
-			.map_err(|_| "NPY header is not valid UTF-8".to_string())?;
+		let header = std::str::from_utf8(&bytes[header_start..header_end]).map_err(|_| "NPY header is not valid UTF-8".to_string())?;
 
 		let descr = dict_quoted(header, "descr")?;
 		let elem: usize = match descr.as_str() {
 			"<f4" => 4,
 			"<f8" => 8,
-			other => {
-				return Err(format!(
-					"unsupported NPY dtype {other:?}: this parser reads little-endian scalar '<f4' or '<f8' only"
-				))
-			}
+			other => return Err(format!("unsupported NPY dtype {other:?}: this parser reads little-endian scalar '<f4' or '<f8' only")),
 		};
 		if dict_bool(header, "fortran_order")? {
 			return Err(
@@ -175,19 +167,12 @@ impl GridField {
 			return Err(format!("expected a 3-D (nx, ny, nz) grid, got {}-D shape {:?}", shape.len(), shape));
 		}
 		let (nx, ny, nz) = (shape[0], shape[1], shape[2]);
-		let count = nx
-			.checked_mul(ny)
-			.and_then(|v| v.checked_mul(nz))
-			.ok_or_else(|| format!("NPY shape ({nx}, {ny}, {nz}) overflows usize"))?;
-		let need = count
-			.checked_mul(elem)
-			.ok_or_else(|| format!("NPY payload size for shape ({nx}, {ny}, {nz}) overflows usize"))?;
+		let count =
+			nx.checked_mul(ny).and_then(|v| v.checked_mul(nz)).ok_or_else(|| format!("NPY shape ({nx}, {ny}, {nz}) overflows usize"))?;
+		let need = count.checked_mul(elem).ok_or_else(|| format!("NPY payload size for shape ({nx}, {ny}, {nz}) overflows usize"))?;
 		let payload = &bytes[header_end..];
 		if payload.len() != need {
-			return Err(format!(
-				"NPY payload is {} bytes but shape ({nx}, {ny}, {nz}) of '{descr}' needs exactly {need}",
-				payload.len()
-			));
+			return Err(format!("NPY payload is {} bytes but shape ({nx}, {ny}, {nz}) of '{descr}' needs exactly {need}", payload.len()));
 		}
 		let mut data = Vec::with_capacity(count);
 		if elem == 4 {
@@ -254,10 +239,7 @@ impl GridField {
 	/// [`GridField::into_grade_law`]. Panics (contract violation, matching
 	/// `Node::offset_by`'s style) if `lo`/`hi` are non-finite or `hi <= lo`.
 	pub fn normalized(&self, lo: f32, hi: f32) -> GridField {
-		assert!(
-			lo.is_finite() && hi.is_finite() && hi > lo,
-			"GridField::normalized: need finite lo < hi, got lo={lo} hi={hi}"
-		);
+		assert!(lo.is_finite() && hi.is_finite() && hi > lo, "GridField::normalized: need finite lo < hi, got lo={lo} hi={hi}");
 		let inv = 1.0 / (hi - lo);
 		GridField {
 			nx: self.nx,
@@ -338,9 +320,7 @@ fn dict_value<'a>(header: &'a str, key: &str) -> Result<&'a str, String> {
 		.or_else(|| header.find(&format!("\"{key}\"")))
 		.ok_or_else(|| format!("NPY header has no {key:?} key in {header:?}"))?;
 	let after = &header[pos + key.len() + 2..];
-	let colon = after
-		.find(':')
-		.ok_or_else(|| format!("NPY header {key:?} has no ':' after it in {header:?}"))?;
+	let colon = after.find(':').ok_or_else(|| format!("NPY header {key:?} has no ':' after it in {header:?}"))?;
 	Ok(after[colon + 1..].trim_start())
 }
 
@@ -350,14 +330,10 @@ fn dict_quoted(header: &str, key: &str) -> Result<String, String> {
 	let v = dict_value(header, key)?;
 	let quote = v.chars().next().ok_or_else(|| format!("NPY header {key:?} value is empty"))?;
 	if quote != '\'' && quote != '"' {
-		return Err(format!(
-			"NPY header {key:?} value is not a plain quoted string (structured dtypes are unsupported): {v:?}"
-		));
+		return Err(format!("NPY header {key:?} value is not a plain quoted string (structured dtypes are unsupported): {v:?}"));
 	}
 	let rest = &v[1..];
-	let end = rest
-		.find(quote)
-		.ok_or_else(|| format!("NPY header {key:?} string is unterminated: {v:?}"))?;
+	let end = rest.find(quote).ok_or_else(|| format!("NPY header {key:?} string is unterminated: {v:?}"))?;
 	Ok(rest[..end].to_string())
 }
 
@@ -377,19 +353,12 @@ fn dict_bool(header: &str, key: &str) -> Result<bool, String> {
 /// in 1-tuples).
 fn dict_shape(header: &str) -> Result<Vec<usize>, String> {
 	let v = dict_value(header, "shape")?;
-	let open = v
-		.strip_prefix('(')
-		.ok_or_else(|| format!("NPY header \"shape\" is not a tuple: {v:?}"))?;
-	let end = open
-		.find(')')
-		.ok_or_else(|| format!("NPY header \"shape\" tuple is unterminated: {v:?}"))?;
+	let open = v.strip_prefix('(').ok_or_else(|| format!("NPY header \"shape\" is not a tuple: {v:?}"))?;
+	let end = open.find(')').ok_or_else(|| format!("NPY header \"shape\" tuple is unterminated: {v:?}"))?;
 	open[..end]
 		.split(',')
 		.map(str::trim)
 		.filter(|s| !s.is_empty())
-		.map(|s| {
-			s.parse::<usize>()
-				.map_err(|_| format!("NPY header \"shape\" has a non-integer dimension {s:?}"))
-		})
+		.map(|s| s.parse::<usize>().map_err(|_| format!("NPY header \"shape\" has a non-integer dimension {s:?}")))
 		.collect()
 }

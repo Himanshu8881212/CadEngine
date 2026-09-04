@@ -15,18 +15,8 @@ use kernel_brep::{cylinder, difference, extrude_with_holes, tessellate_adaptive_
 
 /// 40x20x5 plate with two square 6x6 through-holes (the fix-phase t6b repro).
 fn holed_plate() -> kernel_brep::Solid {
-	let outer = vec![
-		DVec2::new(0.0, 0.0),
-		DVec2::new(40.0, 0.0),
-		DVec2::new(40.0, 20.0),
-		DVec2::new(0.0, 20.0),
-	];
-	let sq = |x0: f64| vec![
-		DVec2::new(x0, 8.0),
-		DVec2::new(x0 + 6.0, 8.0),
-		DVec2::new(x0 + 6.0, 14.0),
-		DVec2::new(x0, 14.0),
-	];
+	let outer = vec![DVec2::new(0.0, 0.0), DVec2::new(40.0, 0.0), DVec2::new(40.0, 20.0), DVec2::new(0.0, 20.0)];
+	let sq = |x0: f64| vec![DVec2::new(x0, 8.0), DVec2::new(x0 + 6.0, 8.0), DVec2::new(x0 + 6.0, 14.0), DVec2::new(x0, 14.0)];
 	extrude_with_holes(&outer, &[sq(8.0), sq(24.0)], 5.0)
 }
 
@@ -37,7 +27,11 @@ fn adaptive_mesh_of_holed_plate_is_closed_one_body_and_orientable() {
 
 	// The three independent oracles the campaigns gate on, all on the SAME mesh
 	// the exports ship: closed (no boundary edges), one body, consistently wound.
-	assert_eq!(m.boundary_edge_count(), 0, "holed plate's measurement mesh must be CLOSED — dropped inner loops leave the hole tubes unstitched");
+	assert_eq!(
+		m.boundary_edge_count(),
+		0,
+		"holed plate's measurement mesh must be CLOSED — dropped inner loops leave the hole tubes unstitched"
+	);
 	assert_eq!(m.component_count(1e-3), 1, "one body — the hole tubes must be connected to the caps");
 	assert_eq!(m.non_orientable_edge_count(), 0, "consistently wound — bridged hole caps must not double-cover");
 	assert!(m.is_watertight(), "watertight in the edge-closure sense");
@@ -51,10 +45,7 @@ fn adaptive_mesh_of_holed_plate_measures_the_true_volume_and_area() {
 	// Closed form: (40*20 - 2 * 6*6) * 5 = 3640 mm^3. All faces planar, so the
 	// tessellation must be exact to float tolerance — a sealed hole reads 4000.
 	let v = m.signed_volume().abs();
-	assert!(
-		(v - 3640.0).abs() < 1e-4 * 3640.0,
-		"faceted volume {v} must equal the closed form 3640 (sealed holes read 4000)"
-	);
+	assert!((v - 3640.0).abs() < 1e-4 * 3640.0, "faceted volume {v} must equal the closed form 3640 (sealed holes read 4000)");
 
 	// Total surface area, closed form: caps 2*(800-72) = 1456, outer walls
 	// 2*(40+20)*5 = 600, hole walls 2 * 4*6*5 = 240 -> 2296 mm^2.
@@ -62,11 +53,8 @@ fn adaptive_mesh_of_holed_plate_measures_the_true_volume_and_area() {
 		.indices
 		.chunks_exact(3)
 		.map(|t| {
-			let (a, b, c) = (
-				m.positions[t[0] as usize].as_dvec3(),
-				m.positions[t[1] as usize].as_dvec3(),
-				m.positions[t[2] as usize].as_dvec3(),
-			);
+			let (a, b, c) =
+				(m.positions[t[0] as usize].as_dvec3(), m.positions[t[1] as usize].as_dvec3(), m.positions[t[2] as usize].as_dvec3());
 			(b - a).cross(c - a).length() * 0.5
 		})
 		.sum();

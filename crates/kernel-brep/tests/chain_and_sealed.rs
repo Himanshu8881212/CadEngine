@@ -4,9 +4,7 @@
 
 use kernel_brep::math::DVec3;
 use kernel_brep::topo::{FaceInput, Solid};
-use kernel_brep::{
-	cuboid, cylinder, difference, try_difference_sealed, validate, volume, ChainLog, Surface,
-};
+use kernel_brep::{cuboid, cylinder, difference, try_difference_sealed, validate, volume, ChainLog, Surface};
 
 /// An intentionally OPEN solid (five faces of a box): validates as not-closed,
 /// the deterministic "bad op result" for exercising the chain's refusal path.
@@ -23,10 +21,7 @@ fn open_box() -> Solid {
 		DVec3::new(lo.x, hi.y, hi.z),
 		DVec3::new(hi.x, hi.y, hi.z),
 	];
-	let quad = |q: [u32; 4], origin: DVec3, normal: DVec3| FaceInput {
-		boundary: q.to_vec(),
-		surface: Surface::Plane { origin, normal },
-	};
+	let quad = |q: [u32; 4], origin: DVec3, normal: DVec3| FaceInput { boundary: q.to_vec(), surface: Surface::Plane { origin, normal } };
 	// no +Z cap — an open shoebox
 	let faces = vec![
 		quad([0, 2, 3, 1], DVec3::ZERO, -DVec3::Z),

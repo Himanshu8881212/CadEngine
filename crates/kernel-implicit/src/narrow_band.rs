@@ -107,7 +107,6 @@ impl Lattice {
 	}
 }
 
-
 /// Memoized corner-sample provider over a [`Lattice`].
 struct CornerCache<'a, S: Sdf + ?Sized> {
 	sdf: &'a S,
@@ -194,8 +193,7 @@ fn flood_fill<S: Sdf + ?Sized>(
 	}
 
 	// Face-adjacent (6-connected) neighbour offsets in the cell lattice.
-	const STEPS: [(isize, isize, isize); 6] =
-		[(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)];
+	const STEPS: [(isize, isize, isize); 6] = [(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)];
 
 	while let Some(c) = queue.pop_front() {
 		let (_, mask) = cache.cell(c[0], c[1], c[2]);
@@ -261,12 +259,7 @@ pub enum SeedMode {
 	Fast,
 }
 
-fn find_seeds<S: Sdf + ?Sized>(
-	cache: &mut CornerCache<'_, S>,
-	cdims: [usize; 3],
-	visited: &mut usize,
-	mode: SeedMode,
-) -> Vec<[usize; 3]> {
+fn find_seeds<S: Sdf + ?Sized>(cache: &mut CornerCache<'_, S>, cdims: [usize; 3], visited: &mut usize, mode: SeedMode) -> Vec<[usize; 3]> {
 	let mut seeds: Vec<[usize; 3]> = Vec::new();
 	if cdims.contains(&0) {
 		return seeds;
@@ -387,11 +380,7 @@ where
 }
 
 /// Like [`dual_contour_narrowband`] but also returns the number of evaluated cells.
-pub fn dual_contour_narrowband_with_visited<S>(
-	sdf: &S,
-	domain: Aabb,
-	resolution: impl Into<Resolution>,
-) -> (Mesh, usize)
+pub fn dual_contour_narrowband_with_visited<S>(sdf: &S, domain: Aabb, resolution: impl Into<Resolution>) -> (Mesh, usize)
 where
 	S: Sdf + ?Sized + Sync,
 {
@@ -401,11 +390,7 @@ where
 /// Like [`surface_nets_narrowband`] but also returns the number of cells whose
 /// corner masks were evaluated (seeding + flood fill). For an area-scaling
 /// surface this is far below `dims.x * dims.y * dims.z`.
-pub fn surface_nets_narrowband_with_visited<S>(
-	sdf: &S,
-	domain: Aabb,
-	resolution: impl Into<Resolution>,
-) -> (Mesh, usize)
+pub fn surface_nets_narrowband_with_visited<S>(sdf: &S, domain: Aabb, resolution: impl Into<Resolution>) -> (Mesh, usize)
 where
 	S: Sdf + ?Sized + Sync,
 {
@@ -462,8 +447,7 @@ where
 	// World position of a cell's corner `c`.
 	let corner_world = |cell: [usize; 3], c: usize| -> Vec3 {
 		let o = CORNER_OFFSET[c];
-		lattice.origin
-			+ Vec3::new((cell[0] + o[0]) as f32, (cell[1] + o[1]) as f32, (cell[2] + o[2]) as f32) * lattice.vs
+		lattice.origin + Vec3::new((cell[0] + o[0]) as f32, (cell[1] + o[1]) as f32, (cell[2] + o[2]) as f32) * lattice.vs
 	};
 
 	let mut mesh = Mesh::new();
@@ -625,18 +609,12 @@ mod tests {
 		let total_cells = dense_cell_count(domain, vs);
 
 		assert!(nb.is_watertight(), "narrow-band sphere must be watertight");
-		assert!(
-			(nb_v - dense_v).abs() / dense_v.abs() < 1e-3,
-			"narrow-band volume {nb_v} should match dense {dense_v}"
-		);
+		assert!((nb_v - dense_v).abs() / dense_v.abs() < 1e-3, "narrow-band volume {nb_v} should match dense {dense_v}");
 		// Surface-area scaling. `visited` now counts DISTINCT SDF evaluations
 		// (the honest cost — the old per-probe counter undercounted by reusing
 		// cached corners for free): the band evaluates well under half of what
 		// the dense mesher must.
-		assert!(
-			visited * 2 < total_cells,
-			"visited {visited} (true SDF evals) should be well below dense cell count {total_cells}"
-		);
+		assert!(visited * 2 < total_cells, "visited {visited} (true SDF evals) should be well below dense cell count {total_cells}");
 	}
 
 	#[test]
@@ -655,16 +633,10 @@ mod tests {
 
 		assert!(nb.is_watertight(), "narrow-band shell must be watertight");
 		assert!(!dense.is_empty() && dense_v.abs() > 0.0, "dense shell should be non-empty");
-		assert!(
-			(nb_v - dense_v).abs() / dense_v.abs() < 5e-3,
-			"narrow-band shell volume {nb_v} should match dense {dense_v}"
-		);
+		assert!((nb_v - dense_v).abs() / dense_v.abs() < 5e-3, "narrow-band shell volume {nb_v} should match dense {dense_v}");
 		// a THIN shell in a tight domain is nearly all band — the honest bar is
 		// simply beating dense, not a fixed multiple
-		assert!(
-			visited < total_cells,
-			"visited {visited} (true SDF evals) should beat the dense cell count {total_cells}"
-		);
+		assert!(visited < total_cells, "visited {visited} (true SDF evals) should beat the dense cell count {total_cells}");
 	}
 
 	#[test]
@@ -683,10 +655,7 @@ mod tests {
 		let dense_v = dense.signed_volume();
 		let nb_v = nb.signed_volume();
 		assert!(nb.is_watertight(), "two-component narrow-band mesh must be watertight");
-		assert!(
-			(nb_v - dense_v).abs() / dense_v.abs() < 1e-2,
-			"two-component volume {nb_v} should match dense {dense_v}"
-		);
+		assert!((nb_v - dense_v).abs() / dense_v.abs() < 1e-2, "two-component volume {nb_v} should match dense {dense_v}");
 	}
 
 	#[test]
@@ -699,10 +668,7 @@ mod tests {
 		let mut part: Option<Node> = None;
 		for gx in -1..=1 {
 			for gy in -1..=1 {
-				let s = Node::primitive(Sphere::new(
-					Vec3::new(gx as f32 * 18.0, gy as f32 * 18.0, 0.0),
-					1.5,
-				));
+				let s = Node::primitive(Sphere::new(Vec3::new(gx as f32 * 18.0, gy as f32 * 18.0, 0.0), 1.5));
 				part = Some(match part {
 					None => s,
 					Some(p) => p.union(s),
@@ -719,18 +685,12 @@ mod tests {
 		assert!(nb.is_watertight(), "narrow-band must be watertight");
 		let dv = dense.signed_volume();
 		let nv = nb.signed_volume();
-		assert!(
-			(nv - dv).abs() / dv.abs() < 1e-2,
-			"narrow-band volume {nv} should match dense {dv} (no dropped components)"
-		);
+		assert!((nv - dv).abs() / dv.abs() < 1e-2, "narrow-band volume {nv} should match dense {dv} (no dropped components)");
 		// Structural completeness: triangle counts must match closely, not merely
 		// produce *a* watertight mesh.
 		let dt = dense.triangle_count() as i64;
 		let nt = nb.triangle_count() as i64;
-		assert!(
-			(dt - nt).abs() <= dt / 50,
-			"narrow-band tri count {nt} should match dense {dt} (all 9 components present)"
-		);
+		assert!((dt - nt).abs() <= dt / 50, "narrow-band tri count {nt} should match dense {dt} (all 9 components present)");
 	}
 
 	#[test]
@@ -749,9 +709,7 @@ mod tests {
 		assert!((nv - dv).abs() / dv.abs() < 1e-2, "narrow-band DC vol {nv} vs dense {dv}");
 
 		// Sharp feature preserved: a vertex sits right at each true cube corner.
-		let nearest = |m: &kernel_core::Mesh, c: Vec3| {
-			m.positions.iter().map(|&p| (p - c).length()).fold(f32::INFINITY, f32::min)
-		};
+		let nearest = |m: &kernel_core::Mesh, c: Vec3| m.positions.iter().map(|&p| (p - c).length()).fold(f32::INFINITY, f32::min);
 		for corner in [Vec3::splat(8.0), Vec3::new(-8.0, 8.0, -8.0), Vec3::splat(-8.0)] {
 			assert!(nearest(&nb, corner) < 0.4 * vs, "sharp corner {corner:?} preserved");
 		}
@@ -783,9 +741,7 @@ mod seed_mode_tests {
 	/// pinch-free narrowband is tracked as open work in manifold_dc's docs.)
 	#[test]
 	fn gyroid_shell_multisheet_loses_no_sheet_under_exhaustive() {
-		let outer = |grow: f32| {
-			Node::primitive(Cone::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 40.0), 18.0 + grow, 26.0 + grow))
-		};
+		let outer = |grow: f32| Node::primitive(Cone::new(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 40.0), 18.0 + grow, 26.0 + grow));
 		let shell = outer(0.0).difference(outer(-6.0));
 		let region = Aabb::new(Vec3::new(-30.0, -30.0, -2.0), Vec3::new(30.0, 30.0, 42.0));
 		let gy = Node::primitive(Tpms::network(region, TpmsKind::Gyroid, 8.0, 0.0));

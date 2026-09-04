@@ -907,7 +907,10 @@ pub fn cylindrical_features(solid: &Solid) -> Vec<CylFeature> {
 			t_max = t_max.max(t);
 		}
 		let existing = groups.iter_mut().find(|g| {
-			g.kind == kind && (g.radius - radius).abs() < 1e-9 && (g.axis_dir - dir).length() < 1e-9 && (g.axis_point - axis_point).length() < 1e-9
+			g.kind == kind
+				&& (g.radius - radius).abs() < 1e-9
+				&& (g.axis_dir - dir).length() < 1e-9
+				&& (g.axis_point - axis_point).length() < 1e-9
 		});
 		match existing {
 			Some(g) => {
@@ -1100,10 +1103,10 @@ pub fn measure_dimension(solid: &Solid, req: &DimRequest) -> Result<Dimension, D
 	let feats = cylindrical_features(solid);
 	let bore_list: Vec<CylFeature> = feats.iter().copied().filter(|f| f.kind == CylKind::Bore).collect();
 	let get_bore = |index: usize| -> Result<CylFeature, DrawingError> {
-		bore_list.get(index).copied().ok_or_else(|| DrawingError::FeatureNotFound {
-			requested: format!("bore #{index}"),
-			available: inventory(solid),
-		})
+		bore_list
+			.get(index)
+			.copied()
+			.ok_or_else(|| DrawingError::FeatureNotFound { requested: format!("bore #{index}"), available: inventory(solid) })
 	};
 	match *req {
 		DimRequest::OverallExtent(axis) => {
@@ -1116,7 +1119,13 @@ pub fn measure_dimension(solid: &Solid, req: &DimRequest) -> Result<Dimension, D
 		}
 		DimRequest::BoreDepth(index) => {
 			let f = get_bore(index)?;
-			Ok(Dimension::measured(f.depth(), M_BORE_DEPTH, format!("{} axial depth", describe(&f, index)), DimKind::Linear, Some(f.axis_mid())))
+			Ok(Dimension::measured(
+				f.depth(),
+				M_BORE_DEPTH,
+				format!("{} axial depth", describe(&f, index)),
+				DimKind::Linear,
+				Some(f.axis_mid()),
+			))
 		}
 		DimRequest::BorePosition { index, axis } => {
 			let f = get_bore(index)?;
@@ -1258,7 +1267,13 @@ pub struct SectionView {
 /// - [`DrawingError::BadInput`] for a non-finite / non-positive `hatch_pitch` or
 ///   a degenerate normal.
 /// - [`DrawingError::EmptySection`] when the plane cuts no material.
-pub fn section_view(solid: &Solid, plane_point: DVec3, plane_normal: DVec3, hatch_pitch: f64, label: &str) -> Result<SectionView, DrawingError> {
+pub fn section_view(
+	solid: &Solid,
+	plane_point: DVec3,
+	plane_normal: DVec3,
+	hatch_pitch: f64,
+	label: &str,
+) -> Result<SectionView, DrawingError> {
 	if !hatch_pitch.is_finite() || hatch_pitch <= 0.0 {
 		return Err(DrawingError::BadInput { field: "hatch_pitch", got: hatch_pitch, why: "hatch pitch must be finite and > 0 mm" });
 	}
@@ -1330,7 +1345,18 @@ pub fn section_view(solid: &Solid, plane_point: DVec3, plane_normal: DVec3, hatc
 	}
 	let area_mm2 = section_properties(solid, plane_point, n).map(|p| p.area);
 	let (min, max) = entity_bounds(&boundary);
-	Ok(SectionView { plane_point, plane_normal: n, label: label.to_string(), boundary, hatch, exact_curves, polyline_curves, area_mm2, min, max })
+	Ok(SectionView {
+		plane_point,
+		plane_normal: n,
+		label: label.to_string(),
+		boundary,
+		hatch,
+		exact_curves,
+		polyline_curves,
+		area_mm2,
+		min,
+		max,
+	})
 }
 
 /// Chain 2-D segments into closed loops by endpoint proximity. Segments are
@@ -2168,15 +2194,8 @@ fn dxf_header(s: &mut String) {
 
 /// A DXF `LINE` entity.
 fn dxf_line(s: &mut String, layer: &str, a: DVec2, b: DVec2) {
-	let _ = writeln!(
-		s,
-		"0\nLINE\n8\n{}\n10\n{}\n20\n{}\n30\n0.0000\n11\n{}\n21\n{}\n31\n0.0000",
-		layer,
-		mm(a.x),
-		mm(a.y),
-		mm(b.x),
-		mm(b.y)
-	);
+	let _ =
+		writeln!(s, "0\nLINE\n8\n{}\n10\n{}\n20\n{}\n30\n0.0000\n11\n{}\n21\n{}\n31\n0.0000", layer, mm(a.x), mm(a.y), mm(b.x), mm(b.y));
 }
 
 /// A DXF `CIRCLE` entity.

@@ -45,8 +45,5 @@ fn inertia_is_analytic_for_quadrics_and_tessellation_level_for_torus() {
 	let tor = |r, t| torus(DVec3::ZERO, DVec3::Z, 12.0, 4.0, r, t);
 	let (tc, tf) = (inertia_trace(&tor(12, 8)), inertia_trace(&tor(200, 100)));
 	let trel = (tc - tf).abs() / tf.abs();
-	assert!(
-		trel < 1e-5,
-		"torus inertia must now be analytic (coarse==fine): coarse={tc} fine={tf} reldiff={trel:.2e}"
-	);
+	assert!(trel < 1e-5, "torus inertia must now be analytic (coarse==fine): coarse={tc} fine={tf} reldiff={trel:.2e}");
 }

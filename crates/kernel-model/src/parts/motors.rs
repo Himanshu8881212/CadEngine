@@ -42,8 +42,28 @@ pub struct NemaSpec {
 /// NEMA 23 — face 2.22″ ≈ 56.4, bolts 1.856″ = 47.14 square (#10-32 → M5
 /// de-facto), pilot 1.500″ = 38.1 × 1.6 proud, shaft Ø0.250″ = 6.35 × 21.
 const NEMA: [NemaSpec; 2] = [
-	NemaSpec { frame: 17, face_w: 42.3, corner: 5.0, bolt_spacing: 31.0, bolt_m: 3.0, pilot_d: 22.0, pilot_h: 2.0, shaft_d: 5.0, shaft_len: 24.0 },
-	NemaSpec { frame: 23, face_w: 56.4, corner: 6.0, bolt_spacing: 47.14, bolt_m: 5.0, pilot_d: 38.1, pilot_h: 1.6, shaft_d: 6.35, shaft_len: 21.0 },
+	NemaSpec {
+		frame: 17,
+		face_w: 42.3,
+		corner: 5.0,
+		bolt_spacing: 31.0,
+		bolt_m: 3.0,
+		pilot_d: 22.0,
+		pilot_h: 2.0,
+		shaft_d: 5.0,
+		shaft_len: 24.0,
+	},
+	NemaSpec {
+		frame: 23,
+		face_w: 56.4,
+		corner: 6.0,
+		bolt_spacing: 47.14,
+		bolt_m: 5.0,
+		pilot_d: 38.1,
+		pilot_h: 1.6,
+		shaft_d: 6.35,
+		shaft_len: 21.0,
+	},
 ];
 
 /// The NEMA frame row for `frame` ∈ {17, 23}, or `None`.
@@ -273,7 +293,10 @@ mod tests {
 				"NEMA {frame} plate ×{t}: want watertight×2 genus-5 ~{expected:.0}mm³; got {v:?} vol={vol:.0}"
 			);
 		}
-		assert!(nema_mount_plate(11, 5.0, 4.0).is_none() && nema_mount_plate(17, -1.0, 4.0).is_none(), "NEMA 11 and a negative thickness must be refused");
+		assert!(
+			nema_mount_plate(11, 5.0, 4.0).is_none() && nema_mount_plate(17, -1.0, 4.0).is_none(),
+			"NEMA 11 and a negative thickness must be refused"
+		);
 	}
 
 	#[test]
@@ -290,10 +313,8 @@ mod tests {
 			let expected = 80.0 * 40.0 * t - (s.body_l + 0.4) * (s.body_w + 0.4) * t - holes * PI * (s.pilot_d * 0.5).powi(2) * t;
 			let vol = volume(&cut).abs();
 			let wall_x = s.body_l * 0.5 + 0.2;
-			let wall_verts = (0..cut.vertex_count() as u32)
-				.map(|i| cut.position(VertexId(i)))
-				.filter(|p| (p.x.abs() - wall_x).abs() < 1e-9)
-				.count();
+			let wall_verts =
+				(0..cut.vertex_count() as u32).map(|i| cut.position(VertexId(i))).filter(|p| (p.x.abs() - wall_x).abs() < 1e-9).count();
 			assert!(
 				v.closed
 					&& v.manifold && v.genus == genus

@@ -116,11 +116,7 @@ impl Sdf for Cylinder {
 		let y = (paba - baba * 0.5).abs() - baba * 0.5;
 		let x2 = x * x;
 		let y2 = y * y * baba;
-		let d = if x.max(y) < 0.0 {
-			-(x2.min(y2))
-		} else {
-			(if x > 0.0 { x2 } else { 0.0 }) + (if y > 0.0 { y2 } else { 0.0 })
-		};
+		let d = if x.max(y) < 0.0 { -(x2.min(y2)) } else { (if x > 0.0 { x2 } else { 0.0 }) + (if y > 0.0 { y2 } else { 0.0 }) };
 		d.signum() * d.abs().sqrt() / baba
 	}
 	fn distance64(&self, p: DVec3) -> f64 {
@@ -134,11 +130,7 @@ impl Sdf for Cylinder {
 		let x = (pa * baba - ba * paba).length() - self.radius as f64 * baba;
 		let y = (paba - baba * 0.5).abs() - baba * 0.5;
 		let (x2, y2) = (x * x, y * y * baba);
-		let d = if x.max(y) < 0.0 {
-			-(x2.min(y2))
-		} else {
-			(if x > 0.0 { x2 } else { 0.0 }) + (if y > 0.0 { y2 } else { 0.0 })
-		};
+		let d = if x.max(y) < 0.0 { -(x2.min(y2)) } else { (if x > 0.0 { x2 } else { 0.0 }) + (if y > 0.0 { y2 } else { 0.0 }) };
 		d.signum() * d.abs().sqrt() / baba
 	}
 	fn bounds(&self) -> Aabb {
@@ -514,11 +506,7 @@ impl Sdf for Tpms {
 			return -self.level.abs();
 		}
 		let f = self.kind.field(p * self.scale);
-		let raw = if self.sheet {
-			f.abs() / self.scale - self.level
-		} else {
-			f / self.scale - self.level
-		};
+		let raw = if self.sheet { f.abs() / self.scale - self.level } else { f / self.scale - self.level };
 		raw / self.kind.lipschitz()
 	}
 
@@ -528,11 +516,7 @@ impl Sdf for Tpms {
 			return -(self.level.abs() as f64);
 		}
 		let f = self.kind.field64(p * s);
-		let raw = if self.sheet {
-			f.abs() / s - self.level as f64
-		} else {
-			f / s - self.level as f64
-		};
+		let raw = if self.sheet { f.abs() / s - self.level as f64 } else { f / s - self.level as f64 };
 		raw / self.kind.lipschitz() as f64
 	}
 

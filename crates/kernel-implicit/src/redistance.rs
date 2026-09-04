@@ -116,13 +116,7 @@ fn index(i: usize, j: usize, k: usize, dims: [usize; 3]) -> usize {
 /// crossing sits a fraction `t = |φ_c| / |φ_c − φ_n|` of a voxel away, so the
 /// true distance from the cell to the surface along that edge is `t·h`. We keep
 /// the smallest such estimate over all six neighbours and freeze the cell.
-fn seed_interface(
-	grid: &VoxelGrid,
-	h: f32,
-	sign: &[f32],
-	dist: &mut [f32],
-	frozen: &mut [bool],
-) {
+fn seed_interface(grid: &VoxelGrid, h: f32, sign: &[f32], dist: &mut [f32], frozen: &mut [bool]) {
 	let dims = grid.dims;
 	let [nx, ny, nz] = dims;
 	let phi = &grid.data;
@@ -193,15 +187,7 @@ fn sweep_all_directions(dist: &mut [f32], frozen: &[bool], dims: [usize; 3], h: 
 
 /// One directional Gauss-Seidel sweep applying the Godunov upwind eikonal
 /// update at every non-frozen cell, visiting axes in the chosen orientations.
-fn sweep(
-	dist: &mut [f32],
-	frozen: &[bool],
-	dims: [usize; 3],
-	h: f32,
-	desc_x: bool,
-	desc_y: bool,
-	desc_z: bool,
-) {
+fn sweep(dist: &mut [f32], frozen: &[bool], dims: [usize; 3], h: f32, desc_x: bool, desc_y: bool, desc_z: bool) {
 	let [nx, ny, nz] = dims;
 	for kk in 0..nz {
 		let k = if desc_z { nz - 1 - kk } else { kk };
@@ -298,12 +284,7 @@ fn rebuild(grid: &VoxelGrid, dist: &[f32], sign: &[f32], far: f32) -> VoxelGrid 
 		let mag = if dist[idx].is_finite() { dist[idx].min(far) } else { far };
 		data[idx] = sign[idx] * mag;
 	}
-	VoxelGrid {
-		origin: grid.origin,
-		voxel_size: grid.voxel_size,
-		dims: grid.dims,
-		data,
-	}
+	VoxelGrid { origin: grid.origin, voxel_size: grid.voxel_size, dims: grid.dims, data }
 }
 
 #[cfg(test)]
@@ -355,16 +336,9 @@ mod tests {
 		for &p in &probes {
 			let truth = p.length() - radius;
 			let got = result.distance(p);
-			assert!(
-				(got - truth).abs() <= tol,
-				"redistanced value {got} vs truth {truth} at {p:?} (tol {tol})"
-			);
+			assert!((got - truth).abs() <= tol, "redistanced value {got} vs truth {truth} at {p:?} (tol {tol})");
 			// Sign must match the original field (which equals sign of truth).
-			assert_eq!(
-				got < 0.0,
-				truth < 0.0,
-				"sign flipped at {p:?}: got {got}, truth {truth}"
-			);
+			assert_eq!(got < 0.0, truth < 0.0, "sign flipped at {p:?}: got {got}, truth {truth}");
 		}
 
 		// Gradient magnitude must be ~1 after redistancing (it was ~3 before).
@@ -372,17 +346,11 @@ mod tests {
 		// instead verify the field slope directly via finite differences.
 		let g = 0.5;
 		for &p in &[Vec3::new(6.5, 0.0, 0.0), Vec3::new(0.0, 7.0, 0.0)] {
-			let dx = result.distance(p + Vec3::new(g, 0.0, 0.0))
-				- result.distance(p - Vec3::new(g, 0.0, 0.0));
-			let dy = result.distance(p + Vec3::new(0.0, g, 0.0))
-				- result.distance(p - Vec3::new(0.0, g, 0.0));
-			let dz = result.distance(p + Vec3::new(0.0, 0.0, g))
-				- result.distance(p - Vec3::new(0.0, 0.0, g));
+			let dx = result.distance(p + Vec3::new(g, 0.0, 0.0)) - result.distance(p - Vec3::new(g, 0.0, 0.0));
+			let dy = result.distance(p + Vec3::new(0.0, g, 0.0)) - result.distance(p - Vec3::new(0.0, g, 0.0));
+			let dz = result.distance(p + Vec3::new(0.0, 0.0, g)) - result.distance(p - Vec3::new(0.0, 0.0, g));
 			let grad_mag = Vec3::new(dx, dy, dz).length() / (2.0 * g);
-			assert!(
-				(grad_mag - 1.0).abs() <= 0.2,
-				"gradient magnitude {grad_mag} not ~1 at {p:?}"
-			);
+			assert!((grad_mag - 1.0).abs() <= 0.2, "gradient magnitude {grad_mag} not ~1 at {p:?}");
 		}
 	}
 
@@ -395,9 +363,6 @@ mod tests {
 		let domain = Aabb::from_center_half_extent(Vec3::ZERO, Vec3::splat(4.0));
 		let grid = VoxelGrid::from_sdf(&field, domain, 0.5);
 		let result = redistance(&grid);
-		assert!(
-			result.data.iter().all(|&d| d > 0.0),
-			"single-signed field should stay positive"
-		);
+		assert!(result.data.iter().all(|&d| d > 0.0), "single-signed field should stay positive");
 	}
 }

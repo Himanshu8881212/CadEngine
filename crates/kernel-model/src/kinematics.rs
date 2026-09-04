@@ -230,13 +230,7 @@ impl EpicyclicTrain {
 				DAffine3::from_translation(centre) * rot_z(pl.spin)
 			})
 			.collect();
-		EpicyclicInstancePoses {
-			sun: rot_z(p.sun),
-			carrier: rot_z(p.carrier),
-			ring2: rot_z(p.ring2),
-			planets,
-			orbit_radius_mm: r_orbit,
-		}
+		EpicyclicInstancePoses { sun: rot_z(p.sun), carrier: rot_z(p.carrier), ring2: rot_z(p.ring2), planets, orbit_radius_mm: r_orbit }
 	}
 }
 

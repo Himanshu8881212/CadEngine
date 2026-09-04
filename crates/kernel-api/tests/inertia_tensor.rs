@@ -30,9 +30,7 @@ fn mass_props(r: &Report, id: &str) -> (f64, [f64; 3], [f64; 3], [[f64; 3]; 3]) 
 		let a = m[key].as_array().unwrap_or_else(|| panic!("'{key}' must be an array — {m:#}"));
 		[a[0].as_f64().unwrap(), a[1].as_f64().unwrap(), a[2].as_f64().unwrap()]
 	};
-	let t = m["inertia_tensor"]
-		.as_array()
-		.unwrap_or_else(|| panic!("'inertia_tensor' must be a 3×3 array — {m:#}"));
+	let t = m["inertia_tensor"].as_array().unwrap_or_else(|| panic!("'inertia_tensor' must be a 3×3 array — {m:#}"));
 	let row = |i: usize| -> [f64; 3] {
 		let a = t[i].as_array().unwrap();
 		[a[0].as_f64().unwrap(), a[1].as_f64().unwrap(), a[2].as_f64().unwrap()]
@@ -48,12 +46,15 @@ fn inertia_tensor_is_com_frame_and_parallel_axis_consistent() {
 	// A 10×6×4 box centered on the origin, and the SAME box translated by d = (5, 7, 9).
 	let (a, b, c) = (10.0_f64, 6.0_f64, 4.0_f64);
 	let d = [5.0_f64, 7.0, 9.0];
-	let r = run(&dir, json!([
-		{"id":"centered", "op":"box", "min":[-a/2.0,-b/2.0,-c/2.0], "max":[a/2.0,b/2.0,c/2.0]},
-		{"id":"moved", "op":"translate", "in":"centered", "offset": d},
-		{"id":"mp0", "op":"mass_properties", "in":"centered"},
-		{"id":"mp1", "op":"mass_properties", "in":"moved"},
-	]));
+	let r = run(
+		&dir,
+		json!([
+			{"id":"centered", "op":"box", "min":[-a/2.0,-b/2.0,-c/2.0], "max":[a/2.0,b/2.0,c/2.0]},
+			{"id":"moved", "op":"translate", "in":"centered", "offset": d},
+			{"id":"mp0", "op":"mass_properties", "in":"centered"},
+			{"id":"mp1", "op":"mass_properties", "in":"moved"},
+		]),
+	);
 	assert!(r.ok, "program must succeed — {r:#?}");
 	let (v0, com0, diag0, t0) = mass_props(&r, "mp0");
 	let (v1, com1, _diag1, t1) = mass_props(&r, "mp1");
@@ -75,7 +76,9 @@ fn inertia_tensor_is_com_frame_and_parallel_axis_consistent() {
 		}
 	}
 	assert!(
-		worst0 <= tol && (v0 - vol).abs() <= 1e-9 * vol && com0.iter().all(|x| x.abs() <= 1e-9)
+		worst0 <= tol
+			&& (v0 - vol).abs() <= 1e-9 * vol
+			&& com0.iter().all(|x| x.abs() <= 1e-9)
 			&& (0..3).all(|i| (t0[i][i] - diag0[i]).abs() <= tol),
 		"centered {a}×{b}×{c} box must report the analytic CoM-frame tensor \
 		 diag=({ixx:.6},{iyy:.6},{izz:.6}) with ~0 off-diagonals and a matching inertia_diag \

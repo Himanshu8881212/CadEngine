@@ -13,9 +13,8 @@ use std::f64::consts::TAU;
 
 use kernel_brep::math::DVec3;
 use kernel_brep::{
-	bearing_seat, bearing_spec, bearing_specs, bolt_circle, clearance_hole, counterbore_hole, countersink_hole,
-	cuboid, drill, metric_hole_spec, metric_hole_specs, tap_drill_hole, tessellate_default, validate, volume, Fit,
-	HoleDepth, HoleError, Solid,
+	bearing_seat, bearing_spec, bearing_specs, bolt_circle, clearance_hole, counterbore_hole, countersink_hole, cuboid, drill,
+	metric_hole_spec, metric_hole_specs, tap_drill_hole, tessellate_default, validate, volume, Fit, HoleDepth, HoleError, Solid,
 };
 
 /// Default tool faceting (mirrors `DEFAULT_HOLE_SEGMENTS`, recomputed here as an
@@ -175,10 +174,8 @@ fn tap_drill_pilot_is_m_minus_coarse_pitch() {
 fn bolt_circle_of_six_clearance_holes_is_genus_6() {
 	let plate = cuboid(DVec3::ZERO, DVec3::new(80.0, 80.0, 6.0));
 	let center = DVec3::new(40.0, 40.0, 6.0);
-	let cut = bolt_circle(&plate, center, -DVec3::Z, 50.0, 6, 0.0, |s, p| {
-		clearance_hole(&s, p, -DVec3::Z, 5.0, Fit::Medium, None)
-	})
-	.unwrap();
+	let cut =
+		bolt_circle(&plate, center, -DVec3::Z, 50.0, 6, 0.0, |s, p| clearance_hole(&s, p, -DVec3::Z, 5.0, Fit::Medium, None)).unwrap();
 	let v = validate(&cut);
 	let removed = volume(&plate) - volume(&cut);
 	let expected = 6.0 * ngon_area(5.5) * 6.0;

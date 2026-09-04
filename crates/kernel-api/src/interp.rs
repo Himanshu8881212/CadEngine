@@ -186,9 +186,9 @@ fn run_one(
 					let norm2 = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
 					if !v.iter().all(|n| n.is_finite()) || !norm2.is_finite() || norm2 <= 1e-24 {
 						return (
-							id.clone(), Vec::new(),
-							Err(err(ErrorKind::InvalidParam,
-								format!("op '{id}': {name} must be a non-zero finite 3-vector"))),
+							id.clone(),
+							Vec::new(),
+							Err(err(ErrorKind::InvalidParam, format!("op '{id}': {name} must be a non-zero finite 3-vector"))),
 						);
 					}
 				}
@@ -232,7 +232,10 @@ fn run_one(
 			let message = if crate::discover::CATALOG_OP_NAMES.contains(&op_name) {
 				format!("op '{id}': op '{op_name}' is behind the `catalog` cargo feature, which this build of kernel-api was compiled without — rebuild with default features (or `--features catalog`) to use it")
 			} else {
-				format!("op '{id}': unknown op '{op_name}' — not one of the {} supported ops; call the `describe` op to enumerate them", crate::discover::OP_COUNT)
+				format!(
+					"op '{id}': unknown op '{op_name}' — not one of the {} supported ops; call the `describe` op to enumerate them",
+					crate::discover::OP_COUNT
+				)
 			};
 			return (id.clone(), warnings, Err(err(ErrorKind::UnknownOp, message)));
 		}
@@ -287,10 +290,7 @@ fn fetch<'e>(
 ) -> Result<&'e EnvValue, OpError> {
 	env.get(name).ok_or_else(|| {
 		if all_ids.contains(name) {
-			err(
-				ErrorKind::MissingRef,
-				format!("op '{op_id}' param '{param}': '{name}' is a measure/export op and binds no geometry"),
-			)
+			err(ErrorKind::MissingRef, format!("op '{op_id}' param '{param}': '{name}' is a measure/export op and binds no geometry"))
 		} else {
 			err(
 				ErrorKind::MissingRef,
@@ -310,10 +310,9 @@ pub(crate) fn fetch_solid<'e>(
 ) -> Result<&'e Solid, OpError> {
 	match fetch(env, all_ids, op_id, param, name)? {
 		EnvValue::Solid(s) => Ok(s),
-		other => Err(err(
-			ErrorKind::WrongType,
-			format!("op '{op_id}' param '{param}': '{name}' is a {}, expected a solid", other.kind_name()),
-		)),
+		other => {
+			Err(err(ErrorKind::WrongType, format!("op '{op_id}' param '{param}': '{name}' is a {}, expected a solid", other.kind_name())))
+		}
 	}
 }
 
@@ -377,10 +376,9 @@ pub(crate) fn fetch_sketch<'e>(
 ) -> Result<&'e Sketch, OpError> {
 	match fetch(env, all_ids, op_id, param, name)? {
 		EnvValue::Sketch(s) => Ok(s),
-		other => Err(err(
-			ErrorKind::WrongType,
-			format!("op '{op_id}' param '{param}': '{name}' is a {}, expected a sketch", other.kind_name()),
-		)),
+		other => {
+			Err(err(ErrorKind::WrongType, format!("op '{op_id}' param '{param}': '{name}' is a {}, expected a sketch", other.kind_name())))
+		}
 	}
 }
 
@@ -461,116 +459,184 @@ fn exec_op(
 	match kind {
 		// --- Assemblies (in-program) — see asmops.rs -------------------------------
 		kind @ (OpKind::AsmInstance { .. }
-			| OpKind::AsmInstanceMesh { .. }
-			| OpKind::AsmMate { .. }
-			| OpKind::AsmMateAxis { .. }
-			| OpKind::AsmMateFace { .. }
-			| OpKind::AsmSolve { .. }
-			| OpKind::AsmContacts { .. }
-			| OpKind::AsmInterferenceVolume { .. }
-			| OpKind::AsmMassProperties { .. }
-			| OpKind::AsmExport { .. }
-			| OpKind::AsmExportStep { .. }
-			| OpKind::AsmSave { .. }
-			| OpKind::GearTrainPoses { .. }) => ops::assemblies::exec(op_id, env, all_ids, asm, out_dir, input_base, kind),
+		| OpKind::AsmInstanceMesh { .. }
+		| OpKind::AsmMate { .. }
+		| OpKind::AsmMateAxis { .. }
+		| OpKind::AsmMateFace { .. }
+		| OpKind::AsmSolve { .. }
+		| OpKind::AsmContacts { .. }
+		| OpKind::AsmInterferenceVolume { .. }
+		| OpKind::AsmMassProperties { .. }
+		| OpKind::AsmExport { .. }
+		| OpKind::AsmExportStep { .. }
+		| OpKind::AsmSave { .. }
+		| OpKind::GearTrainPoses { .. }) => ops::assemblies::exec(op_id, env, all_ids, asm, out_dir, input_base, kind),
 		// --- Solid primitives & sweeps ----------------------------------------
-		kind @ (OpKind::Box { .. } | OpKind::Cylinder { .. } | OpKind::Sphere { .. }
-			| OpKind::Cone { .. } | OpKind::Torus { .. } | OpKind::Extrude { .. }
-			| OpKind::ExtrudeWithHoles { .. } | OpKind::ExtrudeTapered { .. }
-			| OpKind::Revolve { .. } | OpKind::Loft { .. } | OpKind::Sweep { .. }) => ops::primitives::exec(op_id, kind),
+		kind @ (OpKind::Box { .. }
+		| OpKind::Cylinder { .. }
+		| OpKind::Sphere { .. }
+		| OpKind::Cone { .. }
+		| OpKind::Torus { .. }
+		| OpKind::Extrude { .. }
+		| OpKind::ExtrudeWithHoles { .. }
+		| OpKind::ExtrudeTapered { .. }
+		| OpKind::Revolve { .. }
+		| OpKind::Loft { .. }
+		| OpKind::Sweep { .. }) => ops::primitives::exec(op_id, kind),
 		// --- Sketch --------------------------------------------------------------
 		kind @ (OpKind::Sketch { .. } | OpKind::SketchRevolve { .. }) => ops::sketch::exec(op_id, env, all_ids, kind),
 		#[cfg(feature = "catalog")]
 		kind @ OpKind::SketchExtrude { .. } => ops::sketch::exec(op_id, env, all_ids, kind),
 		// --- Booleans ----------------------------------------------------------------
-		kind @ (OpKind::Union { .. } | OpKind::Difference { .. }
-			| OpKind::Intersection { .. } | OpKind::UnionAll { .. }) => ops::booleans::exec(op_id, env, all_ids, kind),
+		kind @ (OpKind::Union { .. } | OpKind::Difference { .. } | OpKind::Intersection { .. } | OpKind::UnionAll { .. }) => {
+			ops::booleans::exec(op_id, env, all_ids, kind)
+		}
 		// --- Features & transforms ------------------------------------------------------
-		kind @ (OpKind::FilletEdgeNear { .. } | OpKind::ChamferEdgeNear { .. }
-			| OpKind::FilletCircularRim { .. } | OpKind::Translate { .. }
-			| OpKind::RotateZ { .. } | OpKind::Pose { .. } | OpKind::RotateX { .. }
-			| OpKind::RotateY { .. } | OpKind::Mirror { .. }
-			| OpKind::LinearPattern { .. } | OpKind::PolarPattern { .. }) => ops::features::exec(op_id, env, all_ids, kind),
+		kind @ (OpKind::FilletEdgeNear { .. }
+		| OpKind::ChamferEdgeNear { .. }
+		| OpKind::FilletCircularRim { .. }
+		| OpKind::Translate { .. }
+		| OpKind::RotateZ { .. }
+		| OpKind::Pose { .. }
+		| OpKind::RotateX { .. }
+		| OpKind::RotateY { .. }
+		| OpKind::Mirror { .. }
+		| OpKind::LinearPattern { .. }
+		| OpKind::PolarPattern { .. }) => ops::features::exec(op_id, env, all_ids, kind),
 		// --- Measures ----------------------------------------------------------------------
-		kind @ (OpKind::Validate { .. } | OpKind::Volume { .. }
-			| OpKind::ExactVolume { .. } | OpKind::MassProperties { .. }
-			| OpKind::BoundingBox { .. } | OpKind::WallThickness { .. }
-			| OpKind::DraftAnalysis { .. } | OpKind::MeshComponents { .. }) => ops::measure::exec(op_id, env, all_ids, kind),
+		kind @ (OpKind::Validate { .. }
+		| OpKind::Volume { .. }
+		| OpKind::ExactVolume { .. }
+		| OpKind::MassProperties { .. }
+		| OpKind::BoundingBox { .. }
+		| OpKind::WallThickness { .. }
+		| OpKind::DraftAnalysis { .. }
+		| OpKind::MeshComponents { .. }) => ops::measure::exec(op_id, env, all_ids, kind),
 		// --- Assertions ----------------------------------------------------------------------
-		kind @ (OpKind::Assert { .. } | OpKind::AssertDisjoint { .. }
-			| OpKind::CoincidentFit { .. } | OpKind::SupportReport { .. }
-			| OpKind::Clearance { .. } | OpKind::Describe { .. }
-			| OpKind::ListFaces { .. } | OpKind::ListEdges { .. }) => ops::measure::exec(op_id, env, all_ids, kind),
+		kind @ (OpKind::Assert { .. }
+		| OpKind::AssertDisjoint { .. }
+		| OpKind::CoincidentFit { .. }
+		| OpKind::SupportReport { .. }
+		| OpKind::Clearance { .. }
+		| OpKind::Describe { .. }
+		| OpKind::ListFaces { .. }
+		| OpKind::ListEdges { .. }) => ops::measure::exec(op_id, env, all_ids, kind),
 		// --- Exports -------------------------------------------------------------------------
-		kind @ (OpKind::ExportStl { .. } | OpKind::Export3mf { .. }
-			| OpKind::ExportStep { .. }) => ops::io::exec(op_id, env, all_ids, asm, out_dir, input_base, kind),
+		kind @ (OpKind::ExportStl { .. } | OpKind::Export3mf { .. } | OpKind::ExportStep { .. }) => {
+			ops::io::exec(op_id, env, all_ids, asm, out_dir, input_base, kind)
+		}
 		// --- Native formats ----------------------------------------------------------------------
 		kind @ OpKind::LoadPart { .. } => ops::io::exec(op_id, env, all_ids, asm, out_dir, input_base, kind),
 		// --- Imports -----------------------------------------------------------------------------
 		kind @ (OpKind::ImportStep { .. }
-			| OpKind::ImportMesh { .. } | OpKind::MeshCarve { .. }
-			| OpKind::MeasureDimension { .. }
-			| OpKind::HybridBoolean { .. }) => ops::io::exec(op_id, env, all_ids, asm, out_dir, input_base, kind),
+		| OpKind::ImportMesh { .. }
+		| OpKind::MeshCarve { .. }
+		| OpKind::MeasureDimension { .. }
+		| OpKind::HybridBoolean { .. }) => ops::io::exec(op_id, env, all_ids, asm, out_dir, input_base, kind),
 		#[cfg(feature = "catalog")]
 		kind @ OpKind::Tpms { .. } => ops::io::exec(op_id, env, all_ids, asm, out_dir, input_base, kind),
 		// --- Implicit / hybrid ------------------------------------------------------------------
-		kind @ (OpKind::SampleDensityGrid { .. }
-			| OpKind::MeshDensityGrid { .. }
-			| OpKind::Implicit { .. } | OpKind::Shell { .. }) => ops::hybrid::exec(op_id, env, all_ids, out_dir, input_base, kind),
+		kind @ (OpKind::SampleDensityGrid { .. } | OpKind::MeshDensityGrid { .. } | OpKind::Implicit { .. } | OpKind::Shell { .. }) => {
+			ops::hybrid::exec(op_id, env, all_ids, out_dir, input_base, kind)
+		}
 		#[cfg(feature = "catalog")]
 		kind @ OpKind::GyroidBlock { .. } => ops::hybrid::exec(op_id, env, all_ids, out_dir, input_base, kind),
 		// --- Voxel-route solid ops & interrogation probes (2026-07-29 implicit wave) -------------
 		kind @ (OpKind::OffsetSolid { .. }
-			| OpKind::ShellSolid { .. }
-			| OpKind::SolidFromImplicit { .. }
-			| OpKind::ThinWall { .. } | OpKind::MinLigament { .. }) => ops::hybrid::exec(op_id, env, all_ids, out_dir, input_base, kind),
+		| OpKind::ShellSolid { .. }
+		| OpKind::SolidFromImplicit { .. }
+		| OpKind::ThinWall { .. }
+		| OpKind::MinLigament { .. }) => ops::hybrid::exec(op_id, env, all_ids, out_dir, input_base, kind),
 		// --- Parts library (curated, admission-gated; BAR.md I7) -------------------------------
 		#[cfg(feature = "catalog")]
-		kind @ (OpKind::LibraryAdd { .. } | OpKind::LibrarySearch { .. }
-			| OpKind::LibraryInstantiate { .. } | OpKind::LibraryDeprecate { .. }
-			| OpKind::LibraryRemove { .. }) => ops::library::exec(op_id, out_dir, kind),
+		kind @ (OpKind::LibraryAdd { .. }
+		| OpKind::LibrarySearch { .. }
+		| OpKind::LibraryInstantiate { .. }
+		| OpKind::LibraryDeprecate { .. }
+		| OpKind::LibraryRemove { .. }) => ops::library::exec(op_id, out_dir, kind),
 		// --- Standard parts catalog ---------------------------------------------------------------
-		kind @ (OpKind::SpurGear { .. } | OpKind::HexNut { .. } | OpKind::Washer { .. }
-			| OpKind::SocketHeadCapScrew { .. } | OpKind::DowelPin { .. }
-			| OpKind::CirclipExternal { .. } | OpKind::FlatHeadScrew { .. }
-			| OpKind::ButtonHeadScrew { .. } | OpKind::SetScrew { .. } | OpKind::LockNut { .. }
-			| OpKind::CompressionSpring { .. } | OpKind::ORing { .. } | OpKind::ORingCord { .. }
-			| OpKind::DeepGrooveBearing { .. } | OpKind::FlangedBearing { .. }) => ops::catalog::exec(op_id, kind),
+		kind @ (OpKind::SpurGear { .. }
+		| OpKind::HexNut { .. }
+		| OpKind::Washer { .. }
+		| OpKind::SocketHeadCapScrew { .. }
+		| OpKind::DowelPin { .. }
+		| OpKind::CirclipExternal { .. }
+		| OpKind::FlatHeadScrew { .. }
+		| OpKind::ButtonHeadScrew { .. }
+		| OpKind::SetScrew { .. }
+		| OpKind::LockNut { .. }
+		| OpKind::CompressionSpring { .. }
+		| OpKind::ORing { .. }
+		| OpKind::ORingCord { .. }
+		| OpKind::DeepGrooveBearing { .. }
+		| OpKind::FlangedBearing { .. }) => ops::catalog::exec(op_id, kind),
 		#[cfg(feature = "catalog")]
-		kind @ (OpKind::HexBolt { .. } | OpKind::Gt2Pulley { .. } | OpKind::ChainSprocket { .. }
-			| OpKind::Shaft { .. } | OpKind::ParallelKey { .. } | OpKind::CirclipInternal { .. }
-			| OpKind::ThreadedRod { .. } | OpKind::Standoff { .. } | OpKind::Extrusion2020 { .. }
-			| OpKind::Extrusion3030 { .. } | OpKind::Tnut2020 { .. } | OpKind::JawCouplingHub { .. }
-			| OpKind::JawCouplingSpider { .. } | OpKind::SetScrewCoupling { .. }
-			| OpKind::ClampCoupling { .. } | OpKind::LinearBearingLmuu { .. }
-			| OpKind::Sc8uuBlock { .. } | OpKind::ShaftSupportSk8 { .. }
-			| OpKind::ShaftSupportShf8 { .. } | OpKind::Mgn12Rail { .. } | OpKind::Mgn12Carriage { .. }
-			| OpKind::ThrustBearing { .. } | OpKind::Kp08PillowBlock { .. } | OpKind::PipeBossG { .. }
-			| OpKind::HoseBarb { .. } | OpKind::ShoulderBolt { .. } | OpKind::SpringWasher { .. }
-			| OpKind::LeadScrewTr8 { .. } | OpKind::LeadScrewNutTr8 { .. } | OpKind::NemaMotor { .. }
-			| OpKind::NemaMountPlate { .. } | OpKind::GearRack { .. } | OpKind::InternalGear { .. }) => ops::catalog::exec(op_id, kind),
+		kind @ (OpKind::HexBolt { .. }
+		| OpKind::Gt2Pulley { .. }
+		| OpKind::ChainSprocket { .. }
+		| OpKind::Shaft { .. }
+		| OpKind::ParallelKey { .. }
+		| OpKind::CirclipInternal { .. }
+		| OpKind::ThreadedRod { .. }
+		| OpKind::Standoff { .. }
+		| OpKind::Extrusion2020 { .. }
+		| OpKind::Extrusion3030 { .. }
+		| OpKind::Tnut2020 { .. }
+		| OpKind::JawCouplingHub { .. }
+		| OpKind::JawCouplingSpider { .. }
+		| OpKind::SetScrewCoupling { .. }
+		| OpKind::ClampCoupling { .. }
+		| OpKind::LinearBearingLmuu { .. }
+		| OpKind::Sc8uuBlock { .. }
+		| OpKind::ShaftSupportSk8 { .. }
+		| OpKind::ShaftSupportShf8 { .. }
+		| OpKind::Mgn12Rail { .. }
+		| OpKind::Mgn12Carriage { .. }
+		| OpKind::ThrustBearing { .. }
+		| OpKind::Kp08PillowBlock { .. }
+		| OpKind::PipeBossG { .. }
+		| OpKind::HoseBarb { .. }
+		| OpKind::ShoulderBolt { .. }
+		| OpKind::SpringWasher { .. }
+		| OpKind::LeadScrewTr8 { .. }
+		| OpKind::LeadScrewNutTr8 { .. }
+		| OpKind::NemaMotor { .. }
+		| OpKind::NemaMountPlate { .. }
+		| OpKind::GearRack { .. }
+		| OpKind::InternalGear { .. }) => ops::catalog::exec(op_id, kind),
 		// --- Standard feature cuts ------------------------------------------------------------------
-		kind @ (OpKind::HeatsetInsertBoss { .. } | OpKind::ORingFaceGland { .. }
-			| OpKind::TeardropHole { .. } | OpKind::BridgedCounterbore { .. }
-			| OpKind::BoardMount { .. }) => ops::cuts::exec(op_id, env, all_ids, kind),
+		kind @ (OpKind::HeatsetInsertBoss { .. }
+		| OpKind::ORingFaceGland { .. }
+		| OpKind::TeardropHole { .. }
+		| OpKind::BridgedCounterbore { .. }
+		| OpKind::BoardMount { .. }) => ops::cuts::exec(op_id, env, all_ids, kind),
 		#[cfg(feature = "catalog")]
-		kind @ (OpKind::CirclipGrooveExternal { .. } | OpKind::CirclipGrooveInternal { .. }
-			| OpKind::ORingGroove { .. } | OpKind::ORingFaceGlandRacetrack { .. }
-			| OpKind::Pc4Port { .. } | OpKind::Tr8NutTrap { .. }
-			| OpKind::NemaMountCut { .. } | OpKind::ServoPocket { .. }) => ops::cuts::exec(op_id, env, all_ids, kind),
+		kind @ (OpKind::CirclipGrooveExternal { .. }
+		| OpKind::CirclipGrooveInternal { .. }
+		| OpKind::ORingGroove { .. }
+		| OpKind::ORingFaceGlandRacetrack { .. }
+		| OpKind::Pc4Port { .. }
+		| OpKind::Tr8NutTrap { .. }
+		| OpKind::NemaMountCut { .. }
+		| OpKind::ServoPocket { .. }) => ops::cuts::exec(op_id, env, all_ids, kind),
 		// --- Design-math lookups ----------------------------------------------------------------------
-		kind @ (OpKind::Iso286Fit { .. } | OpKind::HeatsetSpec { .. }
-			| OpKind::MetricCordGland { .. } | OpKind::RacetrackCordLength { .. }) => ops::designmath::exec(op_id, kind),
+		kind @ (OpKind::Iso286Fit { .. }
+		| OpKind::HeatsetSpec { .. }
+		| OpKind::MetricCordGland { .. }
+		| OpKind::RacetrackCordLength { .. }) => ops::designmath::exec(op_id, kind),
 		#[cfg(feature = "catalog")]
-		kind @ (OpKind::Gt2Belt { .. } | OpKind::Gt2CenterDistance { .. }
-			| OpKind::PipeThreadG { .. }) => ops::designmath::exec(op_id, kind),
+		kind @ (OpKind::Gt2Belt { .. } | OpKind::Gt2CenterDistance { .. } | OpKind::PipeThreadG { .. }) => ops::designmath::exec(op_id, kind),
 		// --- Hole wizard ----------------------------------------------------------------------------
-		kind @ (OpKind::Drill { .. } | OpKind::ClearanceHole { .. }
-			| OpKind::CounterboreHole { .. } | OpKind::CountersinkHole { .. }
-			| OpKind::TapDrillHole { .. } | OpKind::BoltCircle { .. }
-			| OpKind::BearingSeat { .. }) => ops::holes::exec(op_id, env, all_ids, kind),
+		kind @ (OpKind::Drill { .. }
+		| OpKind::ClearanceHole { .. }
+		| OpKind::CounterboreHole { .. }
+		| OpKind::CountersinkHole { .. }
+		| OpKind::TapDrillHole { .. }
+		| OpKind::BoltCircle { .. }
+		| OpKind::BearingSeat { .. }) => ops::holes::exec(op_id, env, all_ids, kind),
 		// --- Modelled ISO threads -------------------------------------------------------------------
-		kind @ (OpKind::ThreadSpec { .. } | OpKind::ThreadRidge { .. }
-			| OpKind::ExportThreaded { .. }) => ops::threads::exec(op_id, env, all_ids, out_dir, kind),
+		kind @ (OpKind::ThreadSpec { .. } | OpKind::ThreadRidge { .. } | OpKind::ExportThreaded { .. }) => {
+			ops::threads::exec(op_id, env, all_ids, out_dir, kind)
+		}
 	}
 }

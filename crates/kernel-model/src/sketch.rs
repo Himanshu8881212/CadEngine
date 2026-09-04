@@ -659,10 +659,7 @@ impl Sketch {
 		} else {
 			let outer_idx = (0..loops.len())
 				.max_by(|&a, &b| {
-					signed_area(&loops[a])
-						.abs()
-						.partial_cmp(&signed_area(&loops[b]).abs())
-						.unwrap_or(std::cmp::Ordering::Equal)
+					signed_area(&loops[a]).abs().partial_cmp(&signed_area(&loops[b]).abs()).unwrap_or(std::cmp::Ordering::Equal)
 				})
 				.unwrap();
 			let outer = loops[outer_idx].clone();
@@ -687,12 +684,7 @@ impl Sketch {
 		}
 		let loops = self.all_loops()?;
 		let outer_idx = (0..loops.len())
-			.max_by(|&a, &b| {
-				signed_area(&loops[a])
-					.abs()
-					.partial_cmp(&signed_area(&loops[b]).abs())
-					.unwrap_or(std::cmp::Ordering::Equal)
-			})
+			.max_by(|&a, &b| signed_area(&loops[a]).abs().partial_cmp(&signed_area(&loops[b]).abs()).unwrap_or(std::cmp::Ordering::Equal))
 			.unwrap();
 		let solid = brep_extrude_tapered(&loops[outer_idx], height, draft);
 		if solid.face_count() == 0 {
@@ -1069,11 +1061,7 @@ mod tests {
 
 		let report = s.solve();
 
-		let rounded: Vec<(f64, f64)> = s
-			.points()
-			.iter()
-			.map(|p| ((p.x * 1e6).round() / 1e6, (p.y * 1e6).round() / 1e6))
-			.collect();
+		let rounded: Vec<(f64, f64)> = s.points().iter().map(|p| ((p.x * 1e6).round() / 1e6, (p.y * 1e6).round() / 1e6)).collect();
 		assert_eq!(
 			(report.converged, rounded),
 			(true, vec![(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)]),
@@ -1111,17 +1099,13 @@ mod tests {
 		// loops, treats the larger as the outer boundary and the smaller as a hole, and
 		// extrudes a WASHER: a closed manifold genus-1 solid of volume (36−4)·2 = 64.
 		let mut s = Sketch::new();
-		let o: Vec<usize> = [(-3.0, -3.0), (3.0, -3.0), (3.0, 3.0), (-3.0, 3.0)]
-			.into_iter()
-			.map(|(x, y)| s.add_point(DVec2::new(x, y)))
-			.collect();
+		let o: Vec<usize> =
+			[(-3.0, -3.0), (3.0, -3.0), (3.0, 3.0), (-3.0, 3.0)].into_iter().map(|(x, y)| s.add_point(DVec2::new(x, y))).collect();
 		for i in 0..4 {
 			s.add_segment(o[i], o[(i + 1) % 4]);
 		}
-		let h: Vec<usize> = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
-			.into_iter()
-			.map(|(x, y)| s.add_point(DVec2::new(x, y)))
-			.collect();
+		let h: Vec<usize> =
+			[(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)].into_iter().map(|(x, y)| s.add_point(DVec2::new(x, y))).collect();
 		for i in 0..4 {
 			s.add_segment(h[i], h[(i + 1) % 4]);
 		}
@@ -1245,11 +1229,7 @@ mod tests {
 
 		assert_eq!(
 			(well.analyze().state, under.analyze().state, over.analyze().state),
-			(
-				ConstraintState::WellConstrained,
-				ConstraintState::UnderConstrained,
-				ConstraintState::OverConstrained
-			),
+			(ConstraintState::WellConstrained, ConstraintState::UnderConstrained, ConstraintState::OverConstrained),
 			"well={:?} under={:?} over={:?}",
 			well.analyze(),
 			under.analyze(),
@@ -1302,11 +1282,7 @@ mod tests {
 		// unit circle (radius 1) and produce a many-sided polygon.
 		let prof = unit_circle().profile().expect("two arcs close into a circle");
 		let max_radius_error = prof.iter().map(|p| (p.length() - 1.0).abs()).fold(0.0_f64, f64::max);
-		assert!(
-			prof.len() >= 8 && max_radius_error < 1e-9,
-			"circle profile: {} points, max radius error {max_radius_error}",
-			prof.len()
-		);
+		assert!(prof.len() >= 8 && max_radius_error < 1e-9, "circle profile: {} points, max radius error {max_radius_error}", prof.len());
 	}
 
 	#[test]
@@ -1360,10 +1336,7 @@ mod tests {
 		s.add_circle(c, rp);
 
 		let prof = s.profile().expect("a standalone circle is a closed profile");
-		let max_radius_error = prof
-			.iter()
-			.map(|p| ((*p - DVec2::new(3.0, 1.0)).length() - 2.0).abs())
-			.fold(0.0_f64, f64::max);
+		let max_radius_error = prof.iter().map(|p| ((*p - DVec2::new(3.0, 1.0)).length() - 2.0).abs()).fold(0.0_f64, f64::max);
 		let solid = s.extrude(4.0).expect("circle extrudes");
 		let v = validate::validate(&solid);
 		let vol = validate::volume(&solid);

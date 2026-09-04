@@ -29,8 +29,7 @@ fn sgn(x: f64) -> i32 {
 
 /// Independent exact reference for integer coordinates, computed in `i128`.
 fn orient2d_i128(a: [i64; 2], b: [i64; 2], c: [i64; 2]) -> i32 {
-	let det = (a[0] as i128 - c[0] as i128) * (b[1] as i128 - c[1] as i128)
-		- (a[1] as i128 - c[1] as i128) * (b[0] as i128 - c[0] as i128);
+	let det = (a[0] as i128 - c[0] as i128) * (b[1] as i128 - c[1] as i128) - (a[1] as i128 - c[1] as i128) * (b[0] as i128 - c[0] as i128);
 	det.signum() as i32
 }
 

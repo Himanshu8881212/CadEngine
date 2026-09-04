@@ -72,8 +72,8 @@ pub fn heatset_insert_boss(solid: &Solid, at: DVec3, axis: DVec3, m: f64) -> Opt
 	let boss = cylinder(DVec3::ZERO, DVec3::Z, spec.pilot_d, boss_h, 48).transformed(frame(at));
 	let with_boss = union(solid, &boss);
 	// The pocket plunges from 0.5 mm above the boss top down to the melt-pool floor.
-	let pocket = cylinder(DVec3::new(0.0, 0.0, boss_h - pocket_depth), DVec3::Z, spec.pilot_d * 0.5, pocket_depth + 0.5, 48)
-		.transformed(frame(at));
+	let pocket =
+		cylinder(DVec3::new(0.0, 0.0, boss_h - pocket_depth), DVec3::Z, spec.pilot_d * 0.5, pocket_depth + 0.5, 48).transformed(frame(at));
 	Some(difference(&with_boss, &pocket))
 }
 
@@ -125,14 +125,7 @@ mod tests {
 		let rows: Vec<(f64, f64, f64)> = heatset_specs().iter().map(|s| (s.m, s.length, s.pilot_d)).collect();
 		assert_eq!(
 			rows,
-			vec![
-				(2.0, 4.0, 3.2),
-				(2.5, 5.7, 4.0),
-				(3.0, 5.7, 4.0),
-				(4.0, 8.1, 5.6),
-				(5.0, 9.5, 6.4),
-				(6.0, 12.7, 8.0),
-			],
+			vec![(2.0, 4.0, 3.2), (2.5, 5.7, 4.0), (3.0, 5.7, 4.0), (4.0, 8.1, 5.6), (5.0, 9.5, 6.4), (6.0, 12.7, 8.0),],
 			"heat-set insert table must match the Ruthex RX-Mx and drill-set data"
 		);
 	}

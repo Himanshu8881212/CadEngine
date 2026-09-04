@@ -4,9 +4,9 @@
 //! and confirm the sparse grid agrees with the dense one near the surface while
 //! storing far fewer samples (memory scales with surface area).
 
-use kernel_implicit::{surface_nets, Resolution, Sphere, SparseGrid, VoxelGrid};
 use kernel_core::math::{Aabb, Vec3};
 use kernel_core::sdf::Sdf;
+use kernel_implicit::{surface_nets, Resolution, SparseGrid, Sphere, VoxelGrid};
 
 fn sphere() -> Sphere {
 	Sphere::new(Vec3::new(1.0, 0.0, -2.0), 10.0)

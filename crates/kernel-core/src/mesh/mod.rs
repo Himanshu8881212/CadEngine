@@ -4,7 +4,6 @@
 //! correctness oracles (signed volume, surface area, manifold check) and
 //! exporters (STL, OBJ, 3MF).
 
-
 mod formats;
 mod measure;
 pub mod thickness;
@@ -214,11 +213,7 @@ impl MassProperties {
 	pub fn principal_axes(&self) -> PrincipalAxes {
 		let m = self.inertia;
 		let c = [m.x_axis, m.y_axis, m.z_axis]; // columns; a[i][j] = c[j][i]
-		let a = [
-			[c[0].x, c[1].x, c[2].x],
-			[c[0].y, c[1].y, c[2].y],
-			[c[0].z, c[1].z, c[2].z],
-		];
+		let a = [[c[0].x, c[1].x, c[2].x], [c[0].y, c[1].y, c[2].y], [c[0].z, c[1].z, c[2].z]];
 		let (vals, vecs) = jacobi_eigen_symmetric(a);
 		// Sort the three eigenpairs by ascending moment.
 		let mut order = [0usize, 1, 2];
@@ -227,10 +222,7 @@ impl MassProperties {
 		let (e0, e1) = (col(order[0]), col(order[1]));
 		// Force a right-handed frame: the third axis follows from the first two.
 		let e2 = e0.cross(e1).normalize_or_zero();
-		PrincipalAxes {
-			moments: DVec3::new(vals[order[0]], vals[order[1]], vals[order[2]]),
-			axes: DMat3::from_cols(e0, e1, e2),
-		}
+		PrincipalAxes { moments: DVec3::new(vals[order[0]], vals[order[1]], vals[order[2]]), axes: DMat3::from_cols(e0, e1, e2) }
 	}
 
 	/// Exact closed-form properties of a **solid axis-aligned box** of full extents
@@ -242,9 +234,7 @@ impl MassProperties {
 		MassProperties {
 			volume: m,
 			center_of_mass: DVec3::ZERO,
-			inertia: DMat3::from_diagonal(
-				DVec3::new(dy * dy + dz * dz, dx * dx + dz * dz, dx * dx + dy * dy) * (m / 12.0),
-			),
+			inertia: DMat3::from_diagonal(DVec3::new(dy * dy + dz * dz, dx * dx + dz * dz, dx * dx + dy * dy) * (m / 12.0)),
 		}
 	}
 
@@ -256,22 +246,14 @@ impl MassProperties {
 		let m = core::f64::consts::PI * radius * radius * height;
 		let axial = 0.5 * m * radius * radius;
 		let radial = m * (3.0 * radius * radius + height * height) / 12.0;
-		MassProperties {
-			volume: m,
-			center_of_mass: DVec3::ZERO,
-			inertia: DMat3::from_diagonal(DVec3::new(radial, radial, axial)),
-		}
+		MassProperties { volume: m, center_of_mass: DVec3::ZERO, inertia: DMat3::from_diagonal(DVec3::new(radial, radial, axial)) }
 	}
 
 	/// Exact closed-form properties of a **solid sphere** of `radius`, centered at the
 	/// origin, at unit density. Isotropic: `I = ⅖ m r²` about every axis through the center.
 	pub fn solid_sphere(radius: f64) -> MassProperties {
 		let m = 4.0 / 3.0 * core::f64::consts::PI * radius * radius * radius;
-		MassProperties {
-			volume: m,
-			center_of_mass: DVec3::ZERO,
-			inertia: DMat3::from_diagonal(DVec3::splat(0.4 * m * radius * radius)),
-		}
+		MassProperties { volume: m, center_of_mass: DVec3::ZERO, inertia: DMat3::from_diagonal(DVec3::splat(0.4 * m * radius * radius)) }
 	}
 
 	/// Translate the whole rigid body by `offset`: the center of mass shifts by `offset`
@@ -338,11 +320,7 @@ fn jacobi_eigen_symmetric(mut a: [[f64; 3]; 3]) -> ([f64; 3], [[f64; 3]; 3]) {
 			}
 			// Rotation that zeros a[p][q] (Numerical Recipes formulation).
 			let theta = (a[q][q] - a[p][p]) / (2.0 * apq);
-			let t = if theta == 0.0 {
-				1.0
-			} else {
-				theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt())
-			};
+			let t = if theta == 0.0 { 1.0 } else { theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt()) };
 			let cos = 1.0 / (t * t + 1.0).sqrt();
 			let sin = t * cos;
 			let r = 3 - p - q; // the index that is neither p nor q
@@ -488,7 +466,6 @@ pub(crate) fn ray_triangle(ray: Ray, a: Vec3, b: Vec3, c: Vec3) -> Option<(f32, 
 	}
 	Some((t, o + d * t, e1.cross(e2).normalize_or_zero()))
 }
-
 
 /// What a mesh-level heal ([`Mesh::fill_holes`] / [`Mesh::weld`]) actually did to
 /// the geometry — the core-mesh analogue of the B-rep [`heal::HealReport`]. A bare
@@ -844,11 +821,7 @@ impl Mesh {
 		// Second moment of the canonical tetrahedron {u ≥ 0, Σu ≤ 1}:
 		// ∫ uᵢuⱼ du is 1/60 on the diagonal and 1/120 off it, i.e.
 		// (1/120)·[[2,1,1],[1,2,1],[1,1,2]].
-		let canon = DMat3::from_cols(
-			DVec3::new(2.0, 1.0, 1.0),
-			DVec3::new(1.0, 2.0, 1.0),
-			DVec3::new(1.0, 1.0, 2.0),
-		) * (1.0 / 120.0);
+		let canon = DMat3::from_cols(DVec3::new(2.0, 1.0, 1.0), DVec3::new(1.0, 2.0, 1.0), DVec3::new(1.0, 1.0, 2.0)) * (1.0 / 120.0);
 		let mut vol6 = 0.0f64; // Σ det  =  6·volume
 		let mut moment = DVec3::ZERO; // Σ det·(a+b+c)  =  24·∫ p dV
 		let mut covar = DMat3::ZERO; // Σ det·J·canon·Jᵀ  =  ∫ p·pᵀ dV
@@ -898,16 +871,8 @@ impl Mesh {
 		// 1) One crossing segment per transversal triangle.
 		let mut segs: Vec<[Vec3; 2]> = Vec::new();
 		for t in self.indices.chunks_exact(3) {
-			let p = [
-				self.positions[t[0] as usize],
-				self.positions[t[1] as usize],
-				self.positions[t[2] as usize],
-			];
-			let d = [
-				(p[0] - point).dot(n) as f64,
-				(p[1] - point).dot(n) as f64,
-				(p[2] - point).dot(n) as f64,
-			];
+			let p = [self.positions[t[0] as usize], self.positions[t[1] as usize], self.positions[t[2] as usize]];
+			let d = [(p[0] - point).dot(n) as f64, (p[1] - point).dot(n) as f64, (p[2] - point).dot(n) as f64];
 			let above = [d[0] >= 0.0, d[1] >= 0.0, d[2] >= 0.0];
 			if above[0] == above[1] && above[1] == above[2] {
 				continue; // wholly on one side, or coplanar
@@ -1070,11 +1035,7 @@ impl Mesh {
 		const SLACK_COS: f64 = 1e-4;
 		let threshold = -((support_overhang_deg as f64).to_radians().sin()) - SLACK_COS;
 		let flat = -(1.0f64.to_radians().cos()); // n·up below this ⇒ within 1° of a flat ceiling
-		let zmin = self
-			.positions
-			.iter()
-			.map(|p| p.as_dvec3().dot(up))
-			.fold(f64::INFINITY, f64::min);
+		let zmin = self.positions.iter().map(|p| p.as_dvec3().dot(up)).fold(f64::INFINITY, f64::min);
 		let bed_z = zmin + bed_tol.max(0.0) as f64;
 
 		// Union-find over vertex ids, joined only across bridge triangles, so each
@@ -1156,11 +1117,8 @@ impl Mesh {
 					*edge_use.entry(if a < b { (a, b) } else { (b, a) }).or_insert(0) += 1;
 				}
 			}
-			let boundary: Vec<((f64, f64), (f64, f64))> = edge_use
-				.iter()
-				.filter(|(_, &n)| n == 1)
-				.map(|(&(a, b), _)| (uv(a), uv(b)))
-				.collect();
+			let boundary: Vec<((f64, f64), (f64, f64))> =
+				edge_use.iter().filter(|(_, &n)| n == 1).map(|(&(a, b), _)| (uv(a), uv(b))).collect();
 			if boundary.is_empty() {
 				continue;
 			}
@@ -1205,16 +1163,7 @@ impl Mesh {
 		bridge_patches.sort_by(|x, y| y.0.partial_cmp(&x.0).unwrap_or(std::cmp::Ordering::Equal));
 		bridge_patches.truncate(8);
 
-		SupportFreeReport {
-			bed_area,
-			bridge_area,
-			steep_area,
-			total_area,
-			max_bridge_span,
-			steep,
-			steep_exemplars,
-			bridge_patches,
-		}
+		SupportFreeReport { bed_area, bridge_area, steep_area, total_area, max_bridge_span, steep, steep_exemplars, bridge_patches }
 	}
 
 	/// Moldability analysis against the mold `pull_dir` (the direction the mold
@@ -1282,10 +1231,7 @@ impl Mesh {
 			return None;
 		}
 		// Project each loop into the (u, v) plane.
-		let polys: Vec<Vec<Vec2>> = loops
-			.iter()
-			.map(|ring| ring.iter().map(|&p| Vec2::new(p.dot(u), p.dot(v))).collect())
-			.collect();
+		let polys: Vec<Vec<Vec2>> = loops.iter().map(|ring| ring.iter().map(|&p| Vec2::new(p.dot(u), p.dot(v))).collect()).collect();
 		// Even–odd nesting: a loop contained in an odd number of others is a hole.
 		let sign = |i: usize| -> f64 {
 			let probe = polys[i][0];
@@ -1314,11 +1260,8 @@ impl Mesh {
 			return None;
 		}
 		let (cu, cv) = (mx / a, my / a);
-		let c_max = polys
-			.iter()
-			.flatten()
-			.map(|p| (((p.x as f64) - cu).powi(2) + ((p.y as f64) - cv).powi(2)).sqrt())
-			.fold(0.0f64, f64::max);
+		let c_max =
+			polys.iter().flatten().map(|p| (((p.x as f64) - cu).powi(2) + ((p.y as f64) - cv).powi(2)).sqrt()).fold(0.0f64, f64::max);
 		let d = point.dot(n) as f64;
 		Some(SectionProperties {
 			area: a,
@@ -1359,11 +1302,7 @@ impl Mesh {
 			return Obb { center: DVec3::ZERO, axes, half_extents: DVec3::ZERO };
 		}
 		let mid = (hi + lo) * 0.5; // box center in the axis frame
-		Obb {
-			center: e0 * mid.x + e1 * mid.y + e2 * mid.z,
-			axes,
-			half_extents: (hi - lo) * 0.5,
-		}
+		Obb { center: e0 * mid.x + e1 * mid.y + e2 * mid.z, axes, half_extents: (hi - lo) * 0.5 }
 	}
 
 	/// Nearest forward intersection of `ray` with the surface (Möller–Trumbore per
@@ -1533,11 +1472,7 @@ impl Mesh {
 		let tol = if weld_tol > 0.0 { weld_tol as f64 } else { 1e-3 };
 		let q = 1.0 / tol;
 		let key = |p: &Vec3| -> (i64, i64, i64) {
-			(
-				(p.x as f64 * q).round() as i64,
-				(p.y as f64 * q).round() as i64,
-				(p.z as f64 * q).round() as i64,
-			)
+			((p.x as f64 * q).round() as i64, (p.y as f64 * q).round() as i64, (p.z as f64 * q).round() as i64)
 		};
 		let mut cells: std::collections::HashMap<(i64, i64, i64), Vec<u32>> = std::collections::HashMap::new();
 		for (i, p) in self.positions.iter().enumerate() {
@@ -1663,8 +1598,7 @@ impl Mesh {
 		// a THIRD triangle to an edge that already had two — turning a winding defect
 		// into a non-manifold one. Same rule as [`Mesh::boundary_edge_count`], which
 		// is the measure this repair is supposed to drive to zero.
-		let boundary: Vec<(u32, u32)> =
-			ordered.into_iter().filter(|&(a, b)| Self::is_boundary_edge(&dir, a, b)).collect();
+		let boundary: Vec<(u32, u32)> = ordered.into_iter().filter(|&(a, b)| Self::is_boundary_edge(&dir, a, b)).collect();
 		if boundary.is_empty() {
 			return 0;
 		}
@@ -1745,11 +1679,7 @@ impl Mesh {
 		let tol2 = tol * tol;
 		let inv = 1.0_f64 / tol as f64;
 		let key = |p: Vec3| -> (i64, i64, i64) {
-			(
-				(p.x as f64 * inv).round() as i64,
-				(p.y as f64 * inv).round() as i64,
-				(p.z as f64 * inv).round() as i64,
-			)
+			((p.x as f64 * inv).round() as i64, (p.y as f64 * inv).round() as i64, (p.z as f64 * inv).round() as i64)
 		};
 		let has_normals = self.normals.len() == self.positions.len();
 		// Each cell holds the new-vertex ids that were created there.
@@ -1887,7 +1817,6 @@ impl Mesh {
 	}
 
 	// --- Importers -----------------------------------------------------------
-
 }
 #[cfg(test)]
 mod tests {
@@ -1902,8 +1831,14 @@ mod tests {
 		// jumps from the open surface's ~0 toward the sealed cube), names the
 		// largest opening (4 edges), and clears the boundary.
 		let v = [
-			Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 1.0, 0.0), Vec3::new(0.0, 1.0, 0.0),
-			Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 1.0), Vec3::new(1.0, 1.0, 1.0), Vec3::new(0.0, 1.0, 1.0),
+			Vec3::new(0.0, 0.0, 0.0),
+			Vec3::new(1.0, 0.0, 0.0),
+			Vec3::new(1.0, 1.0, 0.0),
+			Vec3::new(0.0, 1.0, 0.0),
+			Vec3::new(0.0, 0.0, 1.0),
+			Vec3::new(1.0, 0.0, 1.0),
+			Vec3::new(1.0, 1.0, 1.0),
+			Vec3::new(0.0, 1.0, 1.0),
 		];
 		let mut m = Mesh::new();
 		for p in v {
@@ -1911,11 +1846,16 @@ mod tests {
 		}
 		// five faces (bottom + four sides), TOP (4,5,6,7) left open, outward-wound
 		for t in [
-			[0, 2, 1], [0, 3, 2],           // bottom (-z)
-			[0, 1, 5], [0, 5, 4],           // front (-y)
-			[1, 2, 6], [1, 6, 5],           // right (+x)
-			[2, 3, 7], [2, 7, 6],           // back (+y)
-			[3, 0, 4], [3, 4, 7],           // left (-x)
+			[0, 2, 1],
+			[0, 3, 2], // bottom (-z)
+			[0, 1, 5],
+			[0, 5, 4], // front (-y)
+			[1, 2, 6],
+			[1, 6, 5], // right (+x)
+			[2, 3, 7],
+			[2, 7, 6], // back (+y)
+			[3, 0, 4],
+			[3, 4, 7], // left (-x)
 		] {
 			m.push_triangle(t[0], t[1], t[2]);
 		}
@@ -1926,7 +1866,8 @@ mod tests {
 			d.op == "fill_holes"
 				&& d.holes_filled == 1
 				&& d.largest_opening_edges == 4
-				&& d.open_edges_before == open_edges && open_edges == 4
+				&& d.open_edges_before == open_edges
+				&& open_edges == 4
 				&& d.open_edges_after == 0
 				&& d.changed_geometry()
 				&& d.volume_delta().abs() > 0.1
@@ -2108,4 +2049,3 @@ mod tests {
 		);
 	}
 }
-

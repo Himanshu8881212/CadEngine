@@ -150,11 +150,7 @@ pub(super) fn snap_seam_vertices(verts: &mut [DVec3], faces: &[FaceInput]) {
 			let (pv, pa, pb) = (verts[v as usize], verts[prev as usize], verts[next as usize]);
 			min_edge[v as usize] = min_edge[v as usize].min((pb - pv).length()).min((pa - pv).length());
 			let dir = pb - pa;
-			let margin = if dir.length_squared() > 1e-24 {
-				(pv - pa).cross(dir).length() / dir.length()
-			} else {
-				(pv - pa).length()
-			};
+			let margin = if dir.length_squared() > 1e-24 { (pv - pa).cross(dir).length() / dir.length() } else { (pv - pa).length() };
 			wedge_margin[v as usize] = wedge_margin[v as usize].min(margin);
 			if prev != next && dist_point_segment(pv, pa, pb) <= TJUNCTION_EPS {
 				mid_edge_sample[v as usize] = true;
@@ -187,14 +183,9 @@ pub(super) fn snap_seam_vertices(verts: &mut [DVec3], faces: &[FaceInput]) {
 		// warped facets a plane-less snap leaves behind are exactly what the
 		// chart triangulator exists to clip.
 		let n_planes = list.iter().filter(|&&i| matches!(surfs[i], Surface::Plane { .. })).count();
-		let kinds_ok = list
-			.iter()
-			.all(|&i| matches!(surfs[i], Surface::Plane { .. } | Surface::Cylinder { .. }) || snap_chart_surface(&surfs[i]));
-		if !(list.len() == 2 || list.len() == 3)
-			|| (n_planes == 0 && !SNAP_ALLOW_PLANELESS)
-			|| n_planes == list.len()
-			|| !kinds_ok
-		{
+		let kinds_ok =
+			list.iter().all(|&i| matches!(surfs[i], Surface::Plane { .. } | Surface::Cylinder { .. }) || snap_chart_surface(&surfs[i]));
+		if !(list.len() == 2 || list.len() == 3) || (n_planes == 0 && !SNAP_ALLOW_PLANELESS) || n_planes == list.len() || !kinds_ok {
 			continue;
 		}
 		// Vertices whose surfaces are all planes/CYLINDERS take the FULL W5
@@ -207,9 +198,7 @@ pub(super) fn snap_seam_vertices(verts: &mut [DVec3], faces: &[FaceInput]) {
 		// fuzz-measured at that scale the freed moves interleave neighbouring
 		// faces faster than weld/T-junction healing can absorb (deep N=2000:
 		// budget-free spheres 99.9%, this split 100.0% — see ROBUSTNESS.md W5).
-		let full_relax = list
-			.iter()
-			.all(|&i| matches!(surfs[i], Surface::Plane { .. } | Surface::Cylinder { .. }));
+		let full_relax = list.iter().all(|&i| matches!(surfs[i], Surface::Plane { .. } | Surface::Cylinder { .. }));
 		// Chord samples merely subdivide a straight facet-boundary stretch and stay
 		// put where a PLANE anchors the seam: the chord rim is what the
 		// θ-rectangular bulge corrections of `exact_volume` integrate over (see the
@@ -263,11 +252,7 @@ pub(super) fn snap_seam_vertices(verts: &mut [DVec3], faces: &[FaceInput]) {
 			let budget = if full_relax {
 				(2.0 * curved_band).min(SNAP_MOVE_CAP)
 			} else {
-				(2.0 * curved_band).min(if list.len() == 3 {
-					edge_budget.max(0.5 * wedge_margin[vi])
-				} else {
-					edge_budget
-				})
+				(2.0 * curved_band).min(if list.len() == 3 { edge_budget.max(0.5 * wedge_margin[vi]) } else { edge_budget })
 			};
 			// Also skip MICRO-moves below the weld/heal scale: a vertex < ~1e-6 off
 			// the exact intersection is co-refinement/heal noise, and nudging it
@@ -341,28 +326,18 @@ pub(super) fn snap_seam_vertices(verts: &mut [DVec3], faces: &[FaceInput]) {
 		// must veto.
 		let stretch_stays = |vi: usize| -> bool {
 			!stretch_hosts[vi].is_empty()
-				&& stretch_hosts[vi]
-					.iter()
-					.all(|&(a, b)| dist_point_segment(verts[vi], pos(a), pos(b)) <= TJUNCTION_EPS)
+				&& stretch_hosts[vi].iter().all(|&(a, b)| dist_point_segment(verts[vi], pos(a), pos(b)) <= TJUNCTION_EPS)
 		};
 		let mut reject: Vec<u32> = Vec::new();
 		for ((a, b), members) in &pair_groups {
-			if members
-				.iter()
-				.all(|&vi| target[vi].is_some() || near_pair(vi, *a, *b, verts) || stretch_stays(vi))
-			{
+			if members.iter().all(|&vi| target[vi].is_some() || near_pair(vi, *a, *b, verts) || stretch_stays(vi)) {
 				continue;
 			}
 			reject.extend(members.iter().copied().filter(|&vi| target[vi].is_some()).map(|vi| vi as u32));
 		}
 		for f in faces.iter() {
 			let n = f.boundary.len();
-			let f_moved: Vec<u32> = f
-				.boundary
-				.iter()
-				.copied()
-				.filter(|&m| target[m as usize].is_some())
-				.collect();
+			let f_moved: Vec<u32> = f.boundary.iter().copied().filter(|&m| target[m as usize].is_some()).collect();
 			if f_moved.is_empty() {
 				continue;
 			}
@@ -409,10 +384,7 @@ pub(super) fn snap_seam_vertices(verts: &mut [DVec3], faces: &[FaceInput]) {
 			for (i, &v) in f.boundary.iter().enumerate() {
 				let prev = f.boundary[(i + n - 1) % n];
 				let next = f.boundary[(i + 1) % n];
-				let moved: Vec<u32> = [prev, v, next]
-					.into_iter()
-					.filter(|&m| target[m as usize].is_some())
-					.collect();
+				let moved: Vec<u32> = [prev, v, next].into_iter().filter(|&m| target[m as usize].is_some()).collect();
 				if moved.is_empty() {
 					continue;
 				}
@@ -455,10 +427,7 @@ fn snap_chart_surface(s: &Surface) -> bool {
 	// additionally rests on the chart unit tests and the in-tree torus/fillet
 	// suites). `false` for a kind would restore W3's planarity guard for its
 	// faces — the honest fallback if a kind ever fails to hold the rate.
-	matches!(
-		s,
-		Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Cone { .. } | Surface::Torus { .. }
-	)
+	matches!(s, Surface::Cylinder { .. } | Surface::Sphere { .. } | Surface::Cone { .. } | Surface::Torus { .. })
 }
 
 /// Whether seam vertices with NO plane among their surfaces (quadric∩quadric —

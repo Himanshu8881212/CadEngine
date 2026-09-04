@@ -10,9 +10,7 @@
 //! tolerance: divergence between two runs of the SAME input is, by definition, a
 //! determinism bug, not a tolerance to relax.
 
-use kernel_implicit::{
-	dual_contour_narrowband, manifold_dual_contour, Aabb, Mesh, Resolution, Sdf, Vec3,
-};
+use kernel_implicit::{dual_contour_narrowband, manifold_dual_contour, Aabb, Mesh, Resolution, Sdf, Vec3};
 use kernel_implicit::{Cuboid, Cylinder, Gyroid, Node, Sphere};
 
 /// Order-sensitive fingerprint: triangle count, an FNV-1a hash folding every
@@ -38,11 +36,7 @@ fn fingerprint(m: &Mesh) -> (usize, u64, u64) {
 /// transitions, a sign flip, and a multi-primitive blend.
 fn csg() -> Node {
 	Node::primitive(Sphere::new(Vec3::ZERO, 10.0))
-		.intersection(Node::primitive(Cylinder::new(
-			Vec3::new(-8.0, 0.0, 0.0),
-			Vec3::new(8.0, 0.0, 0.0),
-			5.0,
-		)))
+		.intersection(Node::primitive(Cylinder::new(Vec3::new(-8.0, 0.0, 0.0), Vec3::new(8.0, 0.0, 0.0), 5.0)))
 		.union(Node::primitive(Cuboid::new(Vec3::ZERO, Vec3::splat(6.0))))
 }
 
@@ -52,11 +46,7 @@ fn manifold_dual_contour_is_deterministic_across_runs() {
 	let domain = tree.bounds().pad(1.0);
 
 	let base = fingerprint(&manifold_dual_contour(&tree, domain, Resolution::VoxelSize(0.2)));
-	assert!(
-		base.0 > 0,
-		"MDC of the fixed CSG must produce a non-empty mesh (got {} tris)",
-		base.0
-	);
+	assert!(base.0 > 0, "MDC of the fixed CSG must produce a non-empty mesh (got {} tris)", base.0);
 
 	for run in 1..10 {
 		let snap = fingerprint(&manifold_dual_contour(&tree, domain, Resolution::VoxelSize(0.2)));
@@ -76,11 +66,7 @@ fn dual_contour_narrowband_is_deterministic_across_runs() {
 	let domain = tree.bounds().pad(1.0);
 
 	let base = fingerprint(&dual_contour_narrowband(&tree, domain, Resolution::VoxelSize(0.2)));
-	assert!(
-		base.0 > 0,
-		"narrow-band DC of the fixed CSG must produce a non-empty mesh (got {} tris)",
-		base.0
-	);
+	assert!(base.0 > 0, "narrow-band DC of the fixed CSG must produce a non-empty mesh (got {} tris)", base.0);
 
 	for run in 1..10 {
 		let snap = fingerprint(&dual_contour_narrowband(&tree, domain, Resolution::VoxelSize(0.2)));
@@ -110,18 +96,11 @@ fn narrowband_gyroid_is_deterministic_across_runs() {
 	let domain = gyroid.bounds().pad(1.0);
 
 	let base = fingerprint(&dual_contour_narrowband(&gyroid, domain, Resolution::VoxelSize(0.3)));
-	assert!(
-		base.0 > 0,
-		"narrow-band gyroid must produce a non-empty mesh (got {} tris)",
-		base.0
-	);
+	assert!(base.0 > 0, "narrow-band gyroid must produce a non-empty mesh (got {} tris)", base.0);
 
 	for run in 1..5 {
 		let snap = fingerprint(&dual_contour_narrowband(&gyroid, domain, Resolution::VoxelSize(0.3)));
-		assert_eq!(
-			snap, base,
-			"narrow-band gyroid run {run} diverged from run 0 — non-deterministic gyroid meshing",
-		);
+		assert_eq!(snap, base, "narrow-band gyroid run {run} diverged from run 0 — non-deterministic gyroid meshing",);
 	}
 }
 

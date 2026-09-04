@@ -204,15 +204,10 @@ pub fn kp08_pillow_block() -> Solid {
 	let xj = (rb * rb - (cy - KP08_BASE_H) * (cy - KP08_BASE_H)).sqrt();
 	let a0 = (KP08_BASE_H - cy).atan2(xj); // angle of the right junction, < 0
 	let a1 = std::f64::consts::PI - a0; // left junction, CCW past the top
-	// Even sample count: the arc is symmetric about 90°, so the midpoint sample
-	// lands exactly on the boss apex (overall height = centre + boss radius).
+									 // Even sample count: the arc is symmetric about 90°, so the midpoint sample
+									 // lands exactly on the boss apex (overall height = centre + boss radius).
 	let n = ((((a1 - a0) / 4.0_f64.to_radians()).ceil() as usize).max(2) + 1) & !1;
-	let mut profile = vec![
-		DVec2::new(-bw, 0.0),
-		DVec2::new(bw, 0.0),
-		DVec2::new(bw, KP08_BASE_H),
-		DVec2::new(xj, KP08_BASE_H),
-	];
+	let mut profile = vec![DVec2::new(-bw, 0.0), DVec2::new(bw, 0.0), DVec2::new(bw, KP08_BASE_H), DVec2::new(xj, KP08_BASE_H)];
 	for i in 0..=n {
 		let a = a0 + (a1 - a0) * i as f64 / n as f64;
 		profile.push(DVec2::new(rb * a.cos(), cy + rb * a.sin()));
@@ -224,15 +219,9 @@ pub fn kp08_pillow_block() -> Solid {
 		DVec3::new(0.0, -1.0, 0.0),
 		DVec3::new(0.0, KP08_DEPTH * 0.5, 0.0),
 	));
-	let mut s = drill(
-		&body,
-		DVec3::new(0.0, KP08_DEPTH * 0.5, KP08_CENTER_H),
-		-DVec3::Y,
-		KP08_BORE,
-		HoleDepth::Through(KP08_DEPTH),
-		Some(48),
-	)
-	.expect("constant geometry: the shaft bore is valid");
+	let mut s =
+		drill(&body, DVec3::new(0.0, KP08_DEPTH * 0.5, KP08_CENTER_H), -DVec3::Y, KP08_BORE, HoleDepth::Through(KP08_DEPTH), Some(48))
+			.expect("constant geometry: the shaft bore is valid");
 	for sx in [1.0, -1.0] {
 		let at = DVec3::new(sx * KP08_HOLES * 0.5, 0.0, KP08_BASE_H);
 		s = drill(&s, at, -DVec3::Z, KP08_HOLE_D, HoleDepth::Through(KP08_BASE_H), None)
@@ -251,7 +240,8 @@ mod tests {
 	fn check(s: &Solid, want_genus: i64) -> (bool, String) {
 		let v = validate(s);
 		let ok = v.closed
-			&& v.manifold && v.genus == want_genus
+			&& v.manifold
+			&& v.genus == want_genus
 			&& tessellate_default(s).is_watertight()
 			&& tessellate_adaptive_tol(s, 0.01).is_watertight();
 		(ok, format!("{v:?} wt={} adaptive_wt={}", tessellate_default(s).is_watertight(), tessellate_adaptive_tol(s, 0.01).is_watertight()))
@@ -286,8 +276,10 @@ mod tests {
 				zmax = zmax.max(p.z);
 			}
 			let row_ok = ok
-				&& (rmin - rb).abs() < 1e-9 && (rmax - ro).abs() < 1e-9
-				&& (zmax - spec.width).abs() < 1e-9 && (vol - expected).abs() / expected < 1e-6;
+				&& (rmin - rb).abs() < 1e-9
+				&& (rmax - ro).abs() < 1e-9
+				&& (zmax - spec.width).abs() < 1e-9
+				&& (vol - expected).abs() / expected < 1e-6;
 			if !row_ok {
 				diag += &format!("{}: {v} r={rmin}..{rmax} z={zmax} vol={vol:.3} want={expected:.3}; ", spec.designation);
 			}

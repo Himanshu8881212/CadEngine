@@ -65,7 +65,13 @@ fn full_torus_inertia_is_analytic_and_matches_the_closed_form() {
 	// below the 18.6% coarse-vs-closed-form gap this correction closes (asserted as
 	// the negative control below) and ~500× below the 0.5% acceptance bar.
 	assert!(
-		axis_rel < 1e-5 && perp_rel < 1e-5 && trace_rel < 1e-5 && coarse_vs_fine < 1e-5 && vol_rel < 1e-12 && com_off < 1e-6 && raw_rel > 0.01,
+		axis_rel < 1e-5
+			&& perp_rel < 1e-5
+			&& trace_rel < 1e-5
+			&& coarse_vs_fine < 1e-5
+			&& vol_rel < 1e-12
+			&& com_off < 1e-6
+			&& raw_rel > 0.01,
 		"full-torus inertia must be analytic (coarse == fine == closed form):\n\
 		 I_axis rel err {axis_rel:.3e}, I_perp rel err {perp_rel:.3e}, trace rel err {trace_rel:.3e},\n\
 		 coarse-vs-fine trace {coarse_vs_fine:.3e}, volume rel err {vol_rel:.3e}, CoM offset {com_off:.3e},\n\

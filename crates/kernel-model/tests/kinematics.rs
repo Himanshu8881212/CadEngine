@@ -11,14 +11,7 @@ use std::f64::consts::{PI, TAU};
 /// The PLAN-26 Wolfrom train (12/36 stage 1, 12→11 stepped planets, 39T
 /// output ring, 3 planets).
 fn plan26() -> EpicyclicTrain {
-	EpicyclicTrain {
-		sun_teeth: 12,
-		ring1_teeth: 36,
-		planet_a_teeth: 12,
-		planet_b_teeth: 11,
-		ring2_teeth: 39,
-		n_planets: 3,
-	}
+	EpicyclicTrain { sun_teeth: 12, ring1_teeth: 36, planet_a_teeth: 12, planet_b_teeth: 11, ring2_teeth: 39, n_planets: 3 }
 }
 
 #[test]

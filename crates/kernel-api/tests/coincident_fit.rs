@@ -9,12 +9,7 @@ use std::path::Path;
 use std::time::Instant;
 
 fn fit_flag(r: &Report, id: &str) -> Option<bool> {
-	r.ops
-		.iter()
-		.find(|o| o.id == id)
-		.and_then(|o| o.measures.as_ref())
-		.and_then(|m| m.get("coincident_fit"))
-		.and_then(|v| v.as_bool())
+	r.ops.iter().find(|o| o.id == id).and_then(|o| o.measures.as_ref()).and_then(|m| m.get("coincident_fit")).and_then(|v| v.as_bool())
 }
 fn run(dir: &Path, ops: serde_json::Value) -> Report {
 	run_program(&serde_json::to_string(&json!({ "ops": ops })).unwrap(), dir)
@@ -39,11 +34,7 @@ fn coincident_fit_flags_press_fit_fast_and_clears_separated() {
 		]),
 	);
 	let elapsed = t0.elapsed();
-	assert_eq!(
-		fit_flag(&r, "fit"),
-		Some(true),
-		"a Ø2 pin vs a Ø1.95 bore must flag coincident_fit:true — {r:#?}"
-	);
+	assert_eq!(fit_flag(&r, "fit"), Some(true), "a Ø2 pin vs a Ø1.95 bore must flag coincident_fit:true — {r:#?}");
 	// The whole point of V4: the pre-check is a scan, NOT a boolean across the coincident
 	// pair, so it returns in milliseconds instead of the ~53 minutes the union would take.
 	assert!(elapsed.as_secs() < 10, "the coincident_fit pre-check must be fast — took {elapsed:?}");

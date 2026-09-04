@@ -213,11 +213,7 @@ impl SparseGrid {
 				}
 				// Coarse sign from the block centre (used only if unallocated).
 				let center = origin
-					+ Vec3::new(
-						(bx * BLOCK + BLOCK / 2) as f32,
-						(by * BLOCK + BLOCK / 2) as f32,
-						(bz * BLOCK + BLOCK / 2) as f32,
-					) * vs;
+					+ Vec3::new((bx * BLOCK + BLOCK / 2) as f32, (by * BLOCK + BLOCK / 2) as f32, (bz * BLOCK + BLOCK / 2) as f32) * vs;
 				let sign: i8 = if sdf.distance(center) < 0.0 { -1 } else { 1 };
 				if near {
 					(Some(buf), sign)

@@ -386,8 +386,7 @@ fn process_seam_derives_bands_from_the_fdm_profile() {
 /// from pose 0 to pose 3.
 #[test]
 fn pose_chain_reads_nominals_from_geometry_and_refuses_a_degenerate_link() {
-	let poses: Vec<Affine3A> =
-		[0.0f32, 30.0, 75.0, 60.0].iter().map(|&x| Affine3A::from_translation(Vec3::new(x, 0.0, 0.0))).collect();
+	let poses: Vec<Affine3A> = [0.0f32, 30.0, 75.0, 60.0].iter().map(|&x| Affine3A::from_translation(Vec3::new(x, 0.0, 0.0))).collect();
 	let links = vec![
 		ChainLink::symmetric("base_to_a", 0, 1, 0.05),
 		ChainLink::symmetric("a_to_b", 1, 2, 0.05),

@@ -145,8 +145,7 @@ pub(crate) fn exec(
 					// `manifold`, so `valid` (closed AND manifold) is unchanged.
 					let r = check_mesh(m);
 					let closed = r.boundary_edges == 0 && m.triangle_count() > 0;
-					let manifold =
-						r.non_manifold_edges == 0 && r.non_orientable_edges == 0 && r.non_manifold_vertices == 0;
+					let manifold = r.non_manifold_edges == 0 && r.non_orientable_edges == 0 && r.non_manifold_vertices == 0;
 					let witness = m.self_intersection_witness();
 					let mut out = json!({
 						"closed": closed,
@@ -367,8 +366,12 @@ pub(crate) fn exec(
 			let target = fetch_measurable(env, all_ids, op_id, "in", &input)?;
 			let any_check = volume_within.is_some()
 				|| exact_volume_within.is_some()
-				|| genus.is_some() || shells.is_some() || components.is_some()
-				|| closed.is_some() || manifold.is_some() || valid.is_some();
+				|| genus.is_some()
+				|| shells.is_some()
+				|| components.is_some()
+				|| closed.is_some()
+				|| manifold.is_some()
+				|| valid.is_some();
 			if !any_check {
 				return Err(err(
 					ErrorKind::InvalidParam,
@@ -661,10 +664,16 @@ pub(crate) fn exec(
 				.map(|(i, fid)| {
 					let (kind, descriptor) = match s.face(fid).surface {
 						kernel_brep::Surface::Plane { origin, normal } => ("plane", json!({ "normal": v3a(normal), "point": v3a(origin) })),
-						kernel_brep::Surface::Cylinder { origin, axis, radius } => ("cylinder", json!({ "axis": v3a(axis), "point": v3a(origin), "radius": radius })),
+						kernel_brep::Surface::Cylinder { origin, axis, radius } => {
+							("cylinder", json!({ "axis": v3a(axis), "point": v3a(origin), "radius": radius }))
+						}
 						kernel_brep::Surface::Sphere { center, radius } => ("sphere", json!({ "center": v3a(center), "radius": radius })),
-						kernel_brep::Surface::Cone { apex, axis, half_angle } => ("cone", json!({ "apex": v3a(apex), "axis": v3a(axis), "half_angle": half_angle })),
-						kernel_brep::Surface::Torus { center, axis, major, minor } => ("torus", json!({ "center": v3a(center), "axis": v3a(axis), "major": major, "minor": minor })),
+						kernel_brep::Surface::Cone { apex, axis, half_angle } => {
+							("cone", json!({ "apex": v3a(apex), "axis": v3a(axis), "half_angle": half_angle }))
+						}
+						kernel_brep::Surface::Torus { center, axis, major, minor } => {
+							("torus", json!({ "center": v3a(center), "axis": v3a(axis), "major": major, "minor": minor }))
+						}
 					};
 					let poly = s.face_polygon(fid);
 					let area = if kind == "plane" { Some(polygon_area(&poly)) } else { None };

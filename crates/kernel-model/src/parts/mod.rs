@@ -43,13 +43,13 @@ mod printing;
 mod pulleys;
 mod screws;
 mod shafts;
-mod sprockets;
 mod springs;
+mod sprockets;
 mod threads;
 
 pub use bearings::{
-	deep_groove_bearing, flanged_bearing, flanged_bearing_spec, kp08_pillow_block, thrust_bearing, thrust_bearing_spec,
-	FlangedBearingSpec, ThrustBearingSpec, SPLIT_GROOVE_DEPTH,
+	deep_groove_bearing, flanged_bearing, flanged_bearing_spec, kp08_pillow_block, thrust_bearing, thrust_bearing_spec, FlangedBearingSpec,
+	ThrustBearingSpec, SPLIT_GROOVE_DEPTH,
 };
 pub use boards::{board_mount_cut, board_pattern, BoardPattern};
 pub use couplings::{
@@ -58,20 +58,19 @@ pub use couplings::{
 };
 pub use extrusions::{extrusion_2020, extrusion_3030, tnut_2020};
 pub use fasteners::{
-	din127_dims, din912_dims, hex_bolt, hex_bolt_iso4017, hex_nut, hex_nut_iso4032, iso4017_head, socket_head_cap_screw,
-	spring_washer, washer, washer_iso7089,
+	din127_dims, din912_dims, hex_bolt, hex_bolt_iso4017, hex_nut, hex_nut_iso4032, iso4017_head, socket_head_cap_screw, spring_washer,
+	washer, washer_iso7089,
 };
 pub use fits::{iso286_fit, FitLimits};
 pub use fluid::{g_thread_spec, hose_barb, pc4_port_cut, pipe_boss_g, GThreadSpec};
 pub use gears::{
-	cycloid_disc_profile, gear_rack, internal_gear, involute_ring_outline, involute_ring_outline_shifted, involute_ring_outline_shifted_filleted,
-	involute_ring_outline_thinned, spur_gear, spur_gear_filleted, trapezoid_tooth_offsets,
+	cycloid_disc_profile, gear_rack, internal_gear, involute_ring_outline, involute_ring_outline_shifted,
+	involute_ring_outline_shifted_filleted, involute_ring_outline_thinned, spur_gear, spur_gear_filleted, trapezoid_tooth_offsets,
 };
 pub use inserts::{heatset_insert_boss, heatset_spec, heatset_specs, HeatsetSpec};
 pub use leadscrews::{lead_screw_nut_tr8, lead_screw_tr8, tr8_nut_trap, tr8_spec, tr8_thread_ridge, TrapezoidalSpec};
 pub use linear::{
-	linear_bearing_lmuu, lmuu_spec, mgn12_carriage, mgn12_rail, sc8uu_block, shaft_support_shf8, shaft_support_sk8,
-	LmuuSpec,
+	linear_bearing_lmuu, lmuu_spec, mgn12_carriage, mgn12_rail, sc8uu_block, shaft_support_shf8, shaft_support_sk8, LmuuSpec,
 };
 pub use motors::{nema_motor, nema_mount_cut, nema_mount_plate, nema_spec, servo_pocket, servo_spec, NemaSpec, ServoSpec};
 pub use orings::{
@@ -79,18 +78,17 @@ pub use orings::{
 	racetrack_cord_length, As568Spec, MetricCordGland,
 };
 pub use pins::{
-	circlip_external, circlip_groove_external, circlip_groove_internal, circlip_internal, din471_spec, din472_spec,
-	dowel_pin, CirclipSpec,
+	circlip_external, circlip_groove_external, circlip_groove_internal, circlip_internal, din471_spec, din472_spec, dowel_pin, CirclipSpec,
 };
 pub use printing::{bridged_counterbore, teardrop_hole};
 pub use pulleys::{gt2_belt, gt2_center_distance, gt2_pulley};
 pub use screws::{
-	button_head_screw, din916_dims, din985_dims, flat_head_screw, iso10642_dims, iso7379_dims, iso7380_dims, lock_nut,
-	set_screw, shoulder_bolt, standoff, threaded_rod,
+	button_head_screw, din916_dims, din985_dims, flat_head_screw, iso10642_dims, iso7379_dims, iso7380_dims, lock_nut, set_screw,
+	shoulder_bolt, standoff, threaded_rod,
 };
 pub use shafts::{din6885_key_size, parallel_key, shaft, KeySize, ShaftKeyway};
-pub use sprockets::chain_sprocket;
 pub use springs::compression_spring;
+pub use sprockets::chain_sprocket;
 pub use threads::{iso_coarse_pitch, iso_thread_solid, threaded_hex_bolt};
 
 use kernel_brep::geom::perp_basis;
@@ -206,11 +204,7 @@ pub(crate) fn countersunk_hole_faceted(solid: &Solid, at: DVec3, axis: DVec3, m:
 	// to the cone-bore junction, then the clearance cylinder overshooting 1 mm out
 	// the far side — so each countersunk hole is a single boolean (per-hole cutter
 	// pairs proved fray-prone on many-hole faces).
-	let cutter = kernel_brep::loft_solid(&[
-		ring(csk_d * 0.5 + 1.0, -1.0),
-		ring(clearance_r, junction),
-		ring(clearance_r, through + 1.0),
-	])?;
+	let cutter = kernel_brep::loft_solid(&[ring(csk_d * 0.5 + 1.0, -1.0), ring(clearance_r, junction), ring(clearance_r, through + 1.0)])?;
 	Some(kernel_brep::difference(solid, &cutter))
 }
 

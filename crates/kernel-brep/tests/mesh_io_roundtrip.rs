@@ -42,20 +42,28 @@ fn mesh_io_round_trips_preserve_geometry_and_stl_needs_weld_for_watertight() {
 	assert!(
 		vol_ok(&stl) && vol_ok(&obj) && vol_ok(&mf),
 		"all formats must preserve tri count {tris} and volume {vol:.3}: stl[{},{:.3}] obj[{},{:.3}] mf[{},{:.3}]",
-		stl.triangle_count(), stl.signed_volume(), obj.triangle_count(), obj.signed_volume(), mf.triangle_count(), mf.signed_volume()
+		stl.triangle_count(),
+		stl.signed_volume(),
+		obj.triangle_count(),
+		obj.signed_volume(),
+		mf.triangle_count(),
+		mf.signed_volume()
 	);
 
 	// Indexed formats keep the closed topology; raw STL does not until welded.
 	assert!(
 		obj.is_watertight() && mf.is_watertight() && !stl.is_watertight(),
 		"OBJ/3MF must round-trip watertight and raw STL must not (unwelded): obj={} mf={} stl={}",
-		obj.is_watertight(), mf.is_watertight(), stl.is_watertight()
+		obj.is_watertight(),
+		mf.is_watertight(),
+		stl.is_watertight()
 	);
 	let mut welded = stl.clone();
 	welded.weld(1e-4);
 	assert!(
 		welded.is_watertight() && (welded.signed_volume() - vol).abs() / vol.abs() < 1e-4,
 		"weld() must restore watertightness (and preserve volume) after STL import: wt={} vol={:.3}",
-		welded.is_watertight(), welded.signed_volume()
+		welded.is_watertight(),
+		welded.signed_volume()
 	);
 }

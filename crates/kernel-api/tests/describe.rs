@@ -38,9 +38,17 @@ fn describe_enumerates_the_whole_api_and_every_advertised_op_is_real() {
 
 	// Filtered form → the exists flag (basis of did-you-mean): a real op true, a bogus one false.
 	let r = run(&dir, json!([{"id":"y","op":"describe","name":"fillet_edge_near"}]));
-	assert_eq!(measures(&r, "y").and_then(|m| m.get("exists")).and_then(|v| v.as_bool()), Some(true), "a real op must report exists:true — {r:#?}");
+	assert_eq!(
+		measures(&r, "y").and_then(|m| m.get("exists")).and_then(|v| v.as_bool()),
+		Some(true),
+		"a real op must report exists:true — {r:#?}"
+	);
 	let r = run(&dir, json!([{"id":"z","op":"describe","name":"filet_edge"}]));
-	assert_eq!(measures(&r, "z").and_then(|m| m.get("exists")).and_then(|v| v.as_bool()), Some(false), "a bogus op must report exists:false — {r:#?}");
+	assert_eq!(
+		measures(&r, "z").and_then(|m| m.get("exists")).and_then(|v| v.as_bool()),
+		Some(false),
+		"a bogus op must report exists:false — {r:#?}"
+	);
 
 	let _ = std::fs::remove_dir_all(&dir);
 }
@@ -73,9 +81,8 @@ fn op_params_covers_every_op_and_describe_serves_the_specs() {
 	// Per-op form serves the specs over the wire: box must list required min/max as [x,y,z].
 	let r = run(&dir, json!([{"id":"p","op":"describe","name":"box"}]));
 	let params = measures(&r, "p").and_then(|m| m.get("params")).and_then(|v| v.as_array()).cloned().unwrap_or_default();
-	let spec = |n: &str| {
-		params.iter().find(|p| p.get("name").and_then(|v| v.as_str()) == Some(n)).cloned().unwrap_or(serde_json::Value::Null)
-	};
+	let spec =
+		|n: &str| params.iter().find(|p| p.get("name").and_then(|v| v.as_str()) == Some(n)).cloned().unwrap_or(serde_json::Value::Null);
 	let ok = ["min", "max"].iter().all(|n| {
 		let s = spec(n);
 		s.get("type").and_then(|v| v.as_str()) == Some("[x,y,z]")

@@ -127,10 +127,7 @@ pub fn boundary_loops(mesh: &Mesh) -> Vec<Vec<u32>> {
 /// The cut seam of a [`trim_mesh_by_surface`] result as ordered 3-D polylines —
 /// the exact analytic intersection curve(s) where the surface met the mesh.
 pub fn seam_loops(mesh: &Mesh) -> Vec<Vec<DVec3>> {
-	boundary_loops(mesh)
-		.into_iter()
-		.map(|loop_v| loop_v.into_iter().map(|i| mesh.positions[i as usize].as_dvec3()).collect())
-		.collect()
+	boundary_loops(mesh).into_iter().map(|loop_v| loop_v.into_iter().map(|i| mesh.positions[i as usize].as_dvec3()).collect()).collect()
 }
 
 /// Close the open boundary loops of `mesh` with surface-following caps. Each loop is
@@ -251,7 +248,7 @@ pub fn drill_cylinder(mesh: &Mesh, origin: DVec3, axis: DVec3, radius: f64) -> M
 		let a = loops[0].clone();
 		let mut b = loops[1].clone();
 		b.reverse(); // the two rims wind oppositely about the axis
-		// Rotate `b` so its start is angularly closest to `a[0]`.
+			   // Rotate `b` so its start is angularly closest to `a[0]`.
 		let a0 = ang_of(a[0]);
 		let circ_dist = |x: f64| {
 			let d = (x - a0).abs();

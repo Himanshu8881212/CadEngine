@@ -151,7 +151,6 @@ impl Mesh {
 		}
 		best
 	}
-
 }
 
 /// WHERE a mesh crosses itself — the actionable half of the self-intersection
@@ -245,10 +244,8 @@ impl Mesh {
 			return None;
 		}
 		let tris: Vec<[u32; 3]> = self.triangles().collect();
-		let verts: Vec<[Vec3; 3]> = tris
-			.iter()
-			.map(|t| [self.positions[t[0] as usize], self.positions[t[1] as usize], self.positions[t[2] as usize]])
-			.collect();
+		let verts: Vec<[Vec3; 3]> =
+			tris.iter().map(|t| [self.positions[t[0] as usize], self.positions[t[1] as usize], self.positions[t[2] as usize]]).collect();
 		let bounds: Vec<Aabb> = verts.iter().map(|t| Aabb::from_points(t)).collect();
 
 		// Sweep along the widest axis so the active interval stays short.

@@ -18,7 +18,12 @@ fn pipe_tee_curved_union_is_exact_and_hollows_to_a_valid_fitting() {
 	let tv = validate(&tee);
 	let tm = tessellate_default(&tee);
 	assert!(
-		tv.closed && tv.manifold && tv.genus == 0 && tm.is_watertight() && !tm.has_self_intersection() && (14_000.0..17_000.0).contains(&volume(&tee).abs()),
+		tv.closed
+			&& tv.manifold
+			&& tv.genus == 0
+			&& tm.is_watertight()
+			&& !tm.has_self_intersection()
+			&& (14_000.0..17_000.0).contains(&volume(&tee).abs()),
 		"solid pipe tee must be a watertight genus-0 union with no self-intersection: {tv:?} watertight={} self_int={} vol={:.0}",
 		tm.is_watertight(),
 		tm.has_self_intersection(),
@@ -28,9 +33,8 @@ fn pipe_tee_curved_union_is_exact_and_hollows_to_a_valid_fitting() {
 	// Hollow both runs (r=6) -> a real fitting with a T-shaped bore (3 mouths).
 	let bore_run = cylinder(DVec3::new(-35.0, 0.0, 0.0), DVec3::X, 6.0, 70.0, 48);
 	let bore_branch = cylinder(DVec3::new(0.0, 0.0, -1.0), DVec3::Z, 6.0, 30.0, 48);
-	let hollow = try_difference(&tee, &bore_run)
-		.and_then(|t| try_difference(&t, &bore_branch))
-		.expect("hollowing the tee bores must succeed");
+	let hollow =
+		try_difference(&tee, &bore_run).and_then(|t| try_difference(&t, &bore_branch)).expect("hollowing the tee bores must succeed");
 	let hv = validate(&hollow);
 	let hm = tessellate_default(&hollow);
 	assert!(

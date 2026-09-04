@@ -44,11 +44,7 @@ fn adaptive_tol_bounds_the_chord_deviation() {
 
 	let mut max_dev = 0.0f64;
 	for t in m.indices.chunks_exact(3) {
-		let p = [
-			m.positions[t[0] as usize].as_dvec3(),
-			m.positions[t[1] as usize].as_dvec3(),
-			m.positions[t[2] as usize].as_dvec3(),
-		];
+		let p = [m.positions[t[0] as usize].as_dvec3(), m.positions[t[1] as usize].as_dvec3(), m.positions[t[2] as usize].as_dvec3()];
 		let on_cyl = p.iter().all(|&v| surf.signed_value(v).abs() < 1e-3);
 		let cap = p.iter().all(|v| v.z.abs() < 1e-3) || p.iter().all(|v| (v.z - height).abs() < 1e-3);
 		if on_cyl && !cap {
@@ -74,11 +70,7 @@ fn adaptive_tol_reaches_micron_smoothness() {
 
 	let mut max_dev = 0.0f64;
 	for t in m.indices.chunks_exact(3) {
-		let p = [
-			m.positions[t[0] as usize].as_dvec3(),
-			m.positions[t[1] as usize].as_dvec3(),
-			m.positions[t[2] as usize].as_dvec3(),
-		];
+		let p = [m.positions[t[0] as usize].as_dvec3(), m.positions[t[1] as usize].as_dvec3(), m.positions[t[2] as usize].as_dvec3()];
 		let on_cyl = p.iter().all(|&v| surf.signed_value(v).abs() < 1e-3);
 		let cap = p.iter().all(|v| v.z.abs() < 1e-3) || p.iter().all(|v| (v.z - height).abs() < 1e-3);
 		if on_cyl && !cap {

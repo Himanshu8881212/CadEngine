@@ -31,8 +31,8 @@
 //! rings keep the old paths byte-identically.
 
 use kernel_core::math::{DVec2, DVec3};
-use kernel_core::orient2d;
 use kernel_core::mesh::Mesh;
+use kernel_core::orient2d;
 
 use crate::geom::{perp_basis, Surface, SurfaceChart};
 use crate::topo::Solid;
@@ -497,7 +497,8 @@ pub(crate) fn tessellate_planar_with_holes(mesh: &mut Mesh, outer3d: &[DVec3], h
 		// self-intersection sweep ignores them; they hug the rim, so the
 		// hole-centroid test never sees them) — but any such sliver either
 		// duplicates a directed edge or invents a rim the ring never had.
-		let clean = !scratch.has_self_intersection() && !cap_covers_hole(&scratch, &p2, &holes, normal) && cap_rim_true(&scratch, &poly, &ring);
+		let clean =
+			!scratch.has_self_intersection() && !cap_covers_hole(&scratch, &p2, &holes, normal) && cap_rim_true(&scratch, &poly, &ring);
 		if kept.is_none() || clean {
 			kept = Some(scratch);
 		}
@@ -578,9 +579,7 @@ fn cap_covers_hole(cap: &Mesh, p2: &[DVec2], holes: &[Vec<usize>], normal: DVec3
 		hit
 	};
 	for tri in cap.indices.chunks_exact(3) {
-		let c = project(cap.positions[tri[0] as usize])
-			+ project(cap.positions[tri[1] as usize])
-			+ project(cap.positions[tri[2] as usize]);
+		let c = project(cap.positions[tri[0] as usize]) + project(cap.positions[tri[1] as usize]) + project(cap.positions[tri[2] as usize]);
 		let c = c / 3.0;
 		if holes.iter().any(|h| inside(c, h)) {
 			return true;
@@ -603,8 +602,7 @@ fn annulus_strip(poly: &[DVec3], p2: &[DVec2], outer: &[usize], hole: &[usize], 
 	// Angle-sort both rings about the hole centroid; star-shapedness = the
 	// sorted order is a rotation of ring order (no fold-backs).
 	let sorted_ring = |ring: &[usize]| -> Option<Vec<usize>> {
-		let mut with_angle: Vec<(f64, usize)> =
-			ring.iter().map(|&i| ((p2[i] - centroid).y.atan2((p2[i] - centroid).x), i)).collect();
+		let mut with_angle: Vec<(f64, usize)> = ring.iter().map(|&i| ((p2[i] - centroid).y.atan2((p2[i] - centroid).x), i)).collect();
 		let n = with_angle.len();
 		// Strict monotonicity in ring order (up to one wrap) proves star shape.
 		let mut wraps = 0;
@@ -717,19 +715,11 @@ pub(crate) fn bridge_hole_into(p2: &[DVec2], outer: &mut Vec<usize>, hole: &[usi
 /// the nearest: the retry ladder for caps whose nearest-anchor bridge produces
 /// a self-overlapping triangulation (large concave outers — a 60-tooth gear
 /// annulus was the shipped case). `skip: 0` is exactly the historical choice.
-pub(crate) fn bridge_hole_into_ranked(
-	p2: &[DVec2],
-	outer: &mut Vec<usize>,
-	hole: &[usize],
-	all_holes: &[Vec<usize>],
-	skip: usize,
-) {
+pub(crate) fn bridge_hole_into_ranked(p2: &[DVec2], outer: &mut Vec<usize>, hole: &[usize], all_holes: &[Vec<usize>], skip: usize) {
 	if hole.is_empty() {
 		return;
 	}
-	let m_local = (0..hole.len())
-		.max_by(|&i, &j| p2[hole[i]].x.total_cmp(&p2[hole[j]].x))
-		.unwrap();
+	let m_local = (0..hole.len()).max_by(|&i, &j| p2[hole[i]].x.total_cmp(&p2[hole[j]].x)).unwrap();
 	let m = hole[m_local];
 	let mut candidates: Vec<(f64, usize)> = Vec::new();
 	for (pos, &pv) in outer.iter().enumerate() {
@@ -985,9 +975,7 @@ fn refine_tolerance(ring: &[DVec3], surface: &Surface) -> f64 {
 			.fold(0.0, f64::max),
 		Surface::Torus { major, minor, .. } => major + minor,
 	};
-	(REFINE_REL_SAG * r_char)
-		.max(REFINE_BOUNDARY_MARGIN * max_ring_edge_sag(ring, surface))
-		.max(1e-9)
+	(REFINE_REL_SAG * r_char).max(REFINE_BOUNDARY_MARGIN * max_ring_edge_sag(ring, surface)).max(1e-9)
 }
 
 /// A face-local **invertible** parameter chart of a curved analytic surface —

@@ -32,7 +32,7 @@ const ISO2338_DIAMETERS: [f64; 11] = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.
 pub fn dowel_pin(d: f64, length: f64) -> Option<Solid> {
 	ISO2338_DIAMETERS.iter().find(|&&n| (n - d).abs() < 1e-9)?;
 	let c = 0.2 * d; // chamfer axial length per the published C ≈ 0.2·d
-	// NaN-safe rejection: `!(x > y)` via the conjunction so NaN lengths are refused too.
+				  // NaN-safe rejection: `!(x > y)` via the conjunction so NaN lengths are refused too.
 	if !(length > 2.0 * c && length.is_finite()) {
 		return None;
 	}
@@ -250,7 +250,10 @@ mod tests {
 			let frustum = PI * c / 3.0 * (r * r + r * (r - dr) + (r - dr) * (r - dr));
 			let expected = PI * r * r * (len - 2.0 * c) + 2.0 * frustum;
 			assert!(
-				v.closed && v.manifold && v.genus == 0 && tessellate_default(&p).is_watertight() && (volume(&p).abs() - expected).abs() / expected < 0.01,
+				v.closed
+					&& v.manifold && v.genus == 0
+					&& tessellate_default(&p).is_watertight()
+					&& (volume(&p).abs() - expected).abs() / expected < 0.01,
 				"Ø{d}×{len} dowel pin: want watertight genus-0 ~{expected:.2}mm³; got {v:?} vol={:.2}",
 				volume(&p).abs()
 			);

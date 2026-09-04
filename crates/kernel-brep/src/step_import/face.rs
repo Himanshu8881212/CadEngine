@@ -171,7 +171,8 @@ pub(crate) fn read_face_loops(imp: &Importer, fid: u32, flip: bool, acc: &mut Fa
 		return Err(StepError::Reference(format!("#{fid} is {}, expected ADVANCED_FACE", e.name)));
 	}
 	// ADVANCED_FACE('', (#bound, …), #surface, same_sense)
-	let bounds = e.args.iter().find_map(Value::as_list).ok_or_else(|| StepError::Parse(format!("ADVANCED_FACE #{fid} has no bound list")))?;
+	let bounds =
+		e.args.iter().find_map(Value::as_list).ok_or_else(|| StepError::Parse(format!("ADVANCED_FACE #{fid} has no bound list")))?;
 	// The surface is the last bare reference after the bound list.
 	let surface_ref = e
 		.args

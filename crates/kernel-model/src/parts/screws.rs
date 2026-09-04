@@ -92,8 +92,7 @@ pub fn iso10642_dims(m: f64) -> Option<(f64, f64, f64, f64)> {
 /// Cut the hexagonal drive socket (across-flats `s`, depth `t`) into the planar top
 /// face of `body` at height `z_top`; the prism overshoots upward so the cut is clean.
 fn cut_hex_socket(body: &Solid, s: f64, t: f64, z_top: f64) -> Solid {
-	let socket =
-		extrude(&hexagon_across_flats(s), t + 1.0).transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, z_top - t)));
+	let socket = extrude(&hexagon_across_flats(s), t + 1.0).transformed(DAffine3::from_translation(DVec3::new(0.0, 0.0, z_top - t)));
 	difference(body, &socket)
 }
 
@@ -107,7 +106,7 @@ fn cut_hex_socket(body: &Solid, s: f64, t: f64, z_top: f64) -> Solid {
 pub fn flat_head_screw(m: f64, length: f64) -> Option<Solid> {
 	let (dk, _k, s, t) = iso10642_dims(m)?;
 	let hc = (dk - m) * 0.5; // exact 90° cone rise
-	// NaN-safe: the conjunction refuses non-finite lengths too.
+						  // NaN-safe: the conjunction refuses non-finite lengths too.
 	if !(length > hc + t && length.is_finite()) {
 		return None;
 	}
@@ -171,13 +170,8 @@ pub fn set_screw(m: f64, length: f64) -> Option<Solid> {
 	if !(length > cup + t + 0.5 && length.is_finite()) {
 		return None;
 	}
-	let profile = [
-		DVec2::new(0.0, cup),
-		DVec2::new(dv * 0.5, 0.0),
-		DVec2::new(m * 0.5, 0.0),
-		DVec2::new(m * 0.5, length),
-		DVec2::new(0.0, length),
-	];
+	let profile =
+		[DVec2::new(0.0, cup), DVec2::new(dv * 0.5, 0.0), DVec2::new(m * 0.5, 0.0), DVec2::new(m * 0.5, length), DVec2::new(0.0, length)];
 	Some(cut_hex_socket(&revolve(&profile, 48), s, t, length))
 }
 
@@ -201,13 +195,8 @@ pub fn lock_nut(m: f64) -> Option<Solid> {
 	let (s, h, mh, dw) = din985_dims(m)?;
 	let c = 0.3 * (h - mh); // crown chamfer, well under the collar wall (dw − m)/2
 	let hex = extrude(&hexagon_across_flats(s), mh);
-	let collar = [
-		DVec2::new(0.0, mh),
-		DVec2::new(dw * 0.5, mh),
-		DVec2::new(dw * 0.5, h - c),
-		DVec2::new(dw * 0.5 - c, h),
-		DVec2::new(0.0, h),
-	];
+	let collar =
+		[DVec2::new(0.0, mh), DVec2::new(dw * 0.5, mh), DVec2::new(dw * 0.5, h - c), DVec2::new(dw * 0.5 - c, h), DVec2::new(0.0, h)];
 	let body = union(&hex, &revolve(&collar, 48));
 	let bore = cylinder(DVec3::new(0.0, 0.0, -1.0), DVec3::Z, m * 0.5, h + 2.0, 48);
 	Some(difference(&body, &bore))

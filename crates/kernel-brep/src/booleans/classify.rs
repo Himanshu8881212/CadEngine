@@ -21,7 +21,9 @@ enum Side {
 	Outside,
 	/// The fragment is coplanar with (and overlapping) a face of the other solid.
 	/// `aligned` is true when the two surface normals point the same way.
-	On { aligned: bool },
+	On {
+		aligned: bool,
+	},
 }
 
 /// Classify each fragment of one operand against the `other` solid's triangles

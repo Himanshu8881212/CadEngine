@@ -104,9 +104,7 @@ fn patch_separate(mesh: &Mesh) -> Mesh {
 	let src = |h: usize| tris[h / 3][h % 3];
 	let dst = |h: usize| tris[h / 3][(h % 3 + 1) % 3];
 	// Corner of triangle `t` located at vertex `x` (its half-edge id).
-	let corner_at = |t: usize, x: u32| -> usize {
-		3 * t + tris[t].iter().position(|&v| v == x).expect("vertex belongs to triangle")
-	};
+	let corner_at = |t: usize, x: u32| -> usize { 3 * t + tris[t].iter().position(|&v| v == x).expect("vertex belongs to triangle") };
 
 	// 1. Group half-edges by undirected edge.
 	let mut edge_map: HashMap<(u32, u32), Vec<usize>> = HashMap::new();
@@ -211,13 +209,13 @@ mod tests {
 		// Shared edge along +z.
 		m.push_vertex(Vec3::new(0.0, 0.0, 0.0)); // 0
 		m.push_vertex(Vec3::new(0.0, 0.0, 2.0)); // 1
-		// Tetra A apexes interleaved with B's around the axis.
+										   // Tetra A apexes interleaved with B's around the axis.
 		let polar = |deg: f32, z: f32| Vec3::new(deg.to_radians().cos(), deg.to_radians().sin(), z);
 		m.push_vertex(polar(30.0, 0.5)); // 2  (A)
 		m.push_vertex(polar(90.0, 1.5)); // 3  (A)
 		m.push_vertex(polar(150.0, 0.5)); // 4 (B)
 		m.push_vertex(polar(330.0, 1.5)); // 5 (B)
-		// Tetra A on {0,1,2,3}, tetra B on {0,1,4,5}.
+									// Tetra A on {0,1,2,3}, tetra B on {0,1,4,5}.
 		for tet in [[0u32, 1, 2, 3], [0, 1, 4, 5]] {
 			for f in [[tet[0], tet[2], tet[1]], [tet[0], tet[1], tet[3]], [tet[0], tet[3], tet[2]], [tet[1], tet[2], tet[3]]] {
 				m.push_triangle(f[0], f[1], f[2]);
@@ -236,15 +234,7 @@ mod tests {
 	#[test]
 	fn idempotent_on_manifold_mesh() {
 		let mut m = Mesh::new();
-		push_tetra(
-			&mut m,
-			[
-				Vec3::new(0.0, 0.0, 0.0),
-				Vec3::new(1.0, 0.0, 0.0),
-				Vec3::new(0.0, 1.0, 0.0),
-				Vec3::new(0.0, 0.0, 1.0),
-			],
-		);
+		push_tetra(&mut m, [Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0)]);
 		let v0 = m.signed_volume();
 		let fixed = make_manifold(&m);
 		assert_eq!(check_mesh(&fixed).non_manifold_edges, 0);

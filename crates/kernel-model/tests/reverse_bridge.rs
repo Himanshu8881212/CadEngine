@@ -24,9 +24,7 @@ use kernel_brep::{cuboid, export_step, import_step, tessellate_default, validate
 use kernel_core::math::Vec3;
 use kernel_core::sdf::Sdf;
 use kernel_implicit::{Cone, Cuboid, Cylinder, Node, Sphere, Torus};
-use kernel_model::reverse::{
-	implicit_to_solid, implicit_to_solid_recovered, mesh_to_solid, thin_wall_report,
-};
+use kernel_model::reverse::{implicit_to_solid, implicit_to_solid_recovered, mesh_to_solid, thin_wall_report};
 
 #[test]
 fn implicit_blend_bridges_to_step_and_back_within_volume_drift() {
@@ -73,8 +71,8 @@ fn tessellated_cuboid_wraps_and_coalesces_back_to_six_faces() {
 #[test]
 fn thin_wall_report_reads_the_2mm_hollow_box_wall() {
 	// 2 mm wall everywhere: 20 mm outer box minus 16 mm concentric inner box.
-	let hollow = Node::primitive(Cuboid::new(Vec3::ZERO, Vec3::splat(10.0)))
-		.difference(Node::primitive(Cuboid::new(Vec3::ZERO, Vec3::splat(8.0))));
+	let hollow =
+		Node::primitive(Cuboid::new(Vec3::ZERO, Vec3::splat(10.0))).difference(Node::primitive(Cuboid::new(Vec3::ZERO, Vec3::splat(8.0))));
 	let report = thin_wall_report(&hollow, hollow.bounds(), 96, 1.0);
 	// The medial shell of a flat 2 mm wall sits 9 mm from centre; the sampled
 	// estimate under-reports by up to ~one lattice cell (20/95 ≈ 0.21 mm), so

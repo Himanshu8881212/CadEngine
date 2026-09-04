@@ -57,8 +57,8 @@ fn box_section_is_a_square_of_known_area() {
 fn two_disjoint_spheres_section_to_two_loops() {
 	// A plane through both centers of two separated spheres yields two contours —
 	// exercises multi-loop stitching.
-	let two = Node::primitive(Sphere::new(Vec3::new(-15.0, 0.0, 0.0), 8.0))
-		.union(Node::primitive(Sphere::new(Vec3::new(15.0, 0.0, 0.0), 8.0)));
+	let two =
+		Node::primitive(Sphere::new(Vec3::new(-15.0, 0.0, 0.0), 8.0)).union(Node::primitive(Sphere::new(Vec3::new(15.0, 0.0, 0.0), 8.0)));
 	let m = surface_nets(&two, two.bounds(), Resolution::VoxelSize(0.4));
 	let loops = m.cross_section(Vec3::ZERO, Vec3::Z);
 	assert_eq!(loops.len(), 2, "two disjoint spheres section to two loops");
