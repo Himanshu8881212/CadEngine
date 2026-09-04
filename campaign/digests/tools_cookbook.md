@@ -7,8 +7,11 @@ source and the marked (VERIFIED) examples were actually executed on 2026-08-06.
 - Engine CLI: `"/Users/himanshu/Work/New-LMCAD/cad engine/target/release/kernel-api" run <program.json> --out-dir <dir>`
   (note the `run` subcommand; there is also `asm` for assemblies).
 - All Python tools: `python3 "/Users/himanshu/Work/New-LMCAD/cad engine/tools/<tool>.py" <job.json>`
-  — plain `python3` works; the runners put `~/Work/ACE` on `sys.path` themselves (`ACE_ROOT` env
-  overrides) and default `LMCAD_KERNEL_API` to the repo's `target/release/kernel-api`.
+  — plain `python3` works (numpy + scipy are the only third-party needs, pinned in
+  `tools/requirements-analysis.lock`); the FEA/modal/buckling/optimize solvers live IN THIS
+  REPO at `tools/analyzers/physics/`, which the runners put on `sys.path` themselves, and
+  they default `LMCAD_KERNEL_API` to the repo's `target/release/kernel-api`. There is no
+  external checkout and no `ACE_ROOT` — that was retired on 2026-09-04.
 - **Where the tools live (re-organised 2026-09-02, map in `tools/_layout.py`):**
   `tools/analyzers/` (every registered analysis surface: the `ace_*_runner.py` solvers,
   `graded_infill_runner.py`, `param_optimize.py`, the checkers `tolerance_stack` /

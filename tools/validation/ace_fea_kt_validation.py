@@ -62,7 +62,8 @@ REPO = os.path.abspath(os.path.join(ROOT, "..", ".."))  # tools/validation/<this
 sys.path.insert(0, os.path.join(REPO, "tools"))
 import _layout  # noqa: E402
 ENGINE = os.path.join(REPO, "target", "release", "kernel-api")
-PY = os.environ.get("ACE_PYTHON", os.path.expanduser("~/miniconda3/bin/python"))
+PY = os.environ.get("LMCAD_ANALYSIS_PYTHON", sys.executable)  # the solver is in-tree; any
+# interpreter with the locked numpy/scipy runs it. (Was ACE_PYTHON + a miniconda path.)
 OUT = os.path.join(REPO, "engine_out", "kt_validation")
 os.makedirs(OUT, exist_ok=True)
 

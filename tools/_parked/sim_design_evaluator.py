@@ -4,7 +4,7 @@ design loop (a `command` evaluator for tools/param_optimize.py).
 
 The closed loop is: param_optimize proposes design PARAMETERS -> this script
 builds the candidate part, meshes it BODY-FITTED, runs the trustworthy tet10
-FEA (engine.verify.fea_tet, validated convergent at stress concentrations) ->
+FEA (physics.fea_tet, validated convergent at stress concentrations) ->
 returns a flat receipt -> param_optimize scores the objective/constraints and
 proposes the next candidate, until the physics objective converges.
 
@@ -18,7 +18,7 @@ Candidate part (the acceptance specimen): a stepped round shaft (shouldered
 bar) — the classic stress-concentration part. Human-fixed conditions come in
 the job; the design variables are substituted by param_optimize ($d, $r).
 
-Usage:  <ACE_PYTHON> sim_design_evaluator.py <job.json>
+Usage:  python3 sim_design_evaluator.py <job.json>
 Job JSON (all lengths mm, physics SI; $-substituted fields already resolved):
     d, r              design vars: small dia + shoulder fillet radius (mm)
     D                 large dia (mm, fixed)
@@ -41,8 +41,8 @@ import math
 import os
 import sys
 
-ACE_ROOT = os.environ.get("ACE_ROOT", os.path.expanduser("~/Work/ACE"))
-sys.path.insert(0, ACE_ROOT)
+sys.path.insert(0, os.path.join(  # tools/analyzers: the in-tree solver package
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, "analyzers"))
 
 
 def log(*a):
@@ -61,8 +61,8 @@ def main():
         return 0
     try:
         import numpy as np
-        from engine.verify.mesh_ir import mesh_shouldered_bar
-        from engine.verify.fea_tet import reference_fea_tet
+        from physics.mesh_ir import mesh_shouldered_bar
+        from physics.fea_tet import reference_fea_tet
 
         d = float(job["d"])
         r = float(job["r"])

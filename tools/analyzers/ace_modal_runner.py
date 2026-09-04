@@ -7,7 +7,7 @@ free-vibration eigenproblem  K·phi = omega^2·M·phi  on LMCAD geometry.
 
 STIFFNESS MACHINERY IS REUSED, NOT REPLICATED: the mesh, the hex8 element
 stiffness, the lumped mass, and the fixture/selector handling are imported
-from ACE's benchmark-validated solver (``engine.verify.fea``: ``_assemble_mesh``,
+from ACE's benchmark-validated solver (``physics.fea``: ``_assemble_mesh``,
 ``_hex8_Ke``, ``_hex8_lumped_mass_diag``, ``_collect_fixed_dofs``) — the exact
 matrices ``reference_fea``/``reference_modal`` assemble. Only the EIGENSOLVE
 layer is local to this runner, for two stated reasons ACE cannot cover:
@@ -40,7 +40,7 @@ Eigensolve (stated method):
 			 shift-invert magnitudes. Eigenvalues <= 1e-6 * max(returned) are
 			 classified rigid-body and reported separately.
 
-Usage:  <ACE_PYTHON> ace_modal_runner.py <job.json>
+Usage:  python3 ace_modal_runner.py <job.json>
 
 Job JSON (all geometry in mm, physics in SI):
 	out_dir            REQUIRED  directory for artifacts (mode_shape_*.npy, ...)
@@ -48,7 +48,7 @@ Job JSON (all geometry in mm, physics in SI):
 	origin_mm          optional  world coord of grid node (0,0,0); default [0,0,0]
 	GEOMETRY, one of:
 	  ops + solid + shape [+ supersample=2]   LMCAD JSON ops via
-											  engine.lmcad.sample_part
+											  physics.sampling.sample_part
 	  npy                                     absolute path of an existing
 											  (nx,ny,nz) float density .npy
 	  stl + shape                             watertight STL, parity-filled onto
@@ -131,8 +131,8 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/: the shared contracts + the layout map
 import _layout  # noqa: E402
 _layout.add_import_paths()  # tools/, tools/analyzers, tools/publish — sibling-style imports keep working after the 2026-09-02 move
-from _ace import (  # noqa: E402  — importing runs the boot side effects (ACE on path, kernel-api env)
-	ACE_INSTALL_HINT,
+from _ace import (  # noqa: E402  — importing runs the boot side effects (physics package on path, kernel-api env)
+	PHYSICS_INSTALL_HINT,
 	Refusal,
 	apply_warnings,
 	build_region_kind,
@@ -153,7 +153,7 @@ from _ace import (  # noqa: E402  — importing runs the boot side effects (ACE 
 	validated_range_warning,
 )
 
-ANALYZER_VERSION = "lmcad_modal/hex8-lumped-eigsh/v2 (K,M via ACE engine.verify.fea)"
+ANALYZER_VERSION = "lmcad_modal/hex8-lumped-eigsh/v2 (K,M via physics.fea)"
 METHOD = "lmcad_hex8_modal_lumped_eigsh"
 RIGID_REL_TOL = 1e-6  # lambda <= RIGID_REL_TOL * max(lambda) => rigid-body
 MODE_SHAPE_LAYOUT = (
@@ -239,7 +239,7 @@ def run_modal_job(job: dict) -> dict:
 	"""
 	import numpy as np
 	import scipy.sparse as sp
-	from engine.verify.fea import (
+	from physics.fea import (
 		_assemble_mesh,
 		_collect_fixed_dofs,
 		_hex8_Ke,
@@ -279,7 +279,7 @@ def run_modal_job(job: dict) -> dict:
 	kind = build_region_kind(job, rho.shape, voxel, origin)
 
 	# --- ADMISSIBILITY, BEFORE the eigensolve (T13) -------------------------
-	from engine.verify.fea import _occupancy
+	from physics.fea import _occupancy
 	occ = _occupancy(rho, kind, simp_floor=None)
 	catch = selector_catch_audit(job, occ, voxel, origin)
 	refuse_empty_selectors(catch)
@@ -468,8 +468,8 @@ def fixture_receipts(job: dict, rho, kind, voxel: float, origin, notes: list) ->
 	"""Per-fixture node-count receipts (same recipe as ace_fea_runner's,
 	loads omitted — modal analysis takes none). Never sinks a good solve."""
 	try:
-		from engine.verify.fea import _occupancy
-		from engine.verify.selectors import element_mask_to_node_ids, resolve_selector
+		from physics.fea import _occupancy
+		from physics.selectors import element_mask_to_node_ids, resolve_selector
 
 		occ = _occupancy(rho, kind, simp_floor=None)
 		fixtures = []
@@ -490,4 +490,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-	run_cli("ace_modal", main, install_hint=ACE_INSTALL_HINT)
+	run_cli("ace_modal", main, install_hint=PHYSICS_INSTALL_HINT)

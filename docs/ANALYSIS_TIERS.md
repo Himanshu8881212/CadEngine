@@ -51,17 +51,21 @@ Every analyzer result that surfaces to a human should be wrapped by
 `validation_status` — the contract is enforced at construction, not by
 convention.
 
-ACE-backed runners additionally record the clean/dirty state and commit of both
-LMCAD and ACE, Python/platform and numerical-package versions, a SHA-256 for the
+The physics runners additionally record the clean/dirty state and commit of the
+LMCAD checkout, Python/platform and numerical-package versions, a SHA-256 for the
 hash-locked dependency file, hashes of the exact runner/solver source files, and
 the exact sampled grid or Tet10 node/connectivity hash. The supported environment
-is Python 3.11 plus `tools/requirements-analysis.lock`; ACE is pinned by
-`tools/ACE_REVISION`. A dirty checkout, missing lock, non-empty `PYTHONPATH`,
-package imported outside the selected Python prefix, or validation-range miss
-automatically downgrades a requested `validated` claim to `demonstrated`.
-`LMCAD_REQUIRE_REPRODUCIBLE_ANALYSIS=1` makes those same conditions a refusal
-before meshing or solver artifacts are produced. A mismatched ACE commit always
-refuses.
+is Python 3.11 plus `tools/requirements-analysis.lock`. A dirty checkout, missing
+lock, non-empty `PYTHONPATH`, package imported outside the selected Python prefix,
+or validation-range miss automatically downgrades a requested `validated` claim to
+`demonstrated`. `LMCAD_REQUIRE_REPRODUCIBLE_ANALYSIS=1` makes those same conditions
+a refusal before meshing or solver artifacts are produced.
+
+Until 2026-09-04 the solvers lived in a separate ACE checkout and a second commit
+pin (`tools/ACE_REVISION`) had to match, which no hosted runner could satisfy. The
+solver source now lives in this repository at `tools/analyzers/physics/` (still
+Apache-2.0 — see its `NOTICE`), so **`lmcad.commit` IS the solver's revision** and
+one clean checkout is the whole reproducibility claim.
 
 ### Geometry content-hash (determinism)
 

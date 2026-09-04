@@ -447,7 +447,7 @@ def run_cli(tool: str, main, *, install_hint: str | None = None,
 		disarm_wall_budget()
 		error = f"{type(exc).__name__}: {exc}"
 		if install_hint and isinstance(exc, (ImportError, ModuleNotFoundError)) \
-				and "engine" in str(exc):
+				and "physics" in str(exc):
 			error += f" | hint: {install_hint}"
 		finish(_failure_payload(error, "internal"), tool=tool, kind="internal",
 		       internal=True)

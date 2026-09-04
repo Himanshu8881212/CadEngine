@@ -3,13 +3,13 @@
 
 Standalone job runner (``python3 tools/ace_fea_tet_runner.py job.json``, i.e.
 ``ace_fea`` with ``mesh:"body_fitted"``) running ACE's validated body-fitted tet10
-linear-elastic solver (``engine.verify.fea_tet.reference_fea_tet``) on a
-conforming tet10 mesh (``engine.verify.mesh_ir.MeshIR``). This is the
+linear-elastic solver (``physics.fea_tet.reference_fea_tet``) on a
+conforming tet10 mesh (``physics.mesh_ir.MeshIR``). This is the
 CURVED-GEOMETRY twin of ``ace_fea_runner.py`` (hex8 voxel grid): a true conic
 fillet is a real surface here, not a voxel staircase, so it resolves stress
 concentrations the voxel path under-reads.
 
-Usage:  <ACE_PYTHON> ace_fea_tet_runner.py <job.json>
+Usage:  python3 ace_fea_tet_runner.py <job.json>
 
 Job JSON (geometry in mm, physics in SI). Same material/fixtures/loads/selector
 schema as ace_fea_runner.py; the ONLY differences are the GEOMETRY block and
@@ -94,8 +94,8 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/: the shared contracts + the layout map
 import _layout  # noqa: E402
 _layout.add_import_paths()  # tools/, tools/analyzers, tools/publish — sibling-style imports keep working after the 2026-09-02 move
-from _ace import (  # noqa: E402  — importing runs the boot side effects (ACE on path, kernel-api env)
-    ACE_INSTALL_HINT,
+from _ace import (  # noqa: E402  — importing runs the boot side effects (physics package on path, kernel-api env)
+    PHYSICS_INSTALL_HINT,
     apply_warnings,
     determinism_block,
     emit,
@@ -115,7 +115,7 @@ ANALYZER_VERSION = "reference_fea_tet/tet10-body-fitted/v1"
 
 def build_mesh(job: dict):
     """Resolve the job's geometry block to a MeshIR. Returns (mesh, seconds)."""
-    from engine.verify import mesh_ir as M
+    from physics import mesh_ir as M
 
     elem = float(job["elem_size_mm"])
     specimen = job.get("specimen")
@@ -144,7 +144,7 @@ def selector_receipts(job: dict, mesh):
     ``nodes_in_selector`` so the counts match exactly what the solve pinned or
     loaded. Mirrors the voxel runner's receipt shape (selector_count_unit
     "nodes")."""
-    from engine.verify.fea_tet import nodes_in_selector
+    from physics.fea_tet import nodes_in_selector
 
     def count(entry):
         return int(nodes_in_selector(mesh.nodes_mm, entry["region_selector"]).sum())
@@ -165,7 +165,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     import numpy as np
-    from engine.verify.fea_tet import reference_fea_tet
+    from physics.fea_tet import reference_fea_tet
 
     mesh, mesh_s = build_mesh(job)
     # MeshIR.check() raises on an inverted element — a real mesh-quality gate;
@@ -262,4 +262,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    run_cli("ace_fea_tet", main, install_hint=ACE_INSTALL_HINT)
+    run_cli("ace_fea_tet", main, install_hint=PHYSICS_INSTALL_HINT)

@@ -8,7 +8,7 @@ HONEST final check — one binary-occupancy re-analysis of the thresholded
 design (the as-built part, not the homogenized proxy) — and a watertight-or-
 fail STL through LMCAD's gated meshing pipeline.
 
-Usage:  <ACE_PYTHON> ace_optimize_runner.py <job.json>
+Usage:  python3 ace_optimize_runner.py <job.json>
 
 Job JSON = the same geometry/grid/regions/material/fixtures/loads block as
 ace_fea_runner.py (see its header), plus:
@@ -68,18 +68,13 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True  # keep tools/ free of __pycache__ litter
 REPO_ROOT = Path(__file__).resolve().parents[2]  # tools/analyzers/<this> -> repo root
-ACE_ROOT = os.environ.get("ACE_ROOT", os.path.expanduser("~/Work/ACE"))
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/: the shared contracts + the layout map
 import _layout  # noqa: E402
 _layout.add_import_paths()  # tools/, tools/analyzers, tools/publish — sibling-style imports keep working after the 2026-09-02 move
-sys.path.insert(0, ACE_ROOT)
+# `import physics` resolves from tools/analyzers, which add_import_paths() just
+# put on sys.path — the solver is in-tree (physics/NOTICE) and needs no ACE_ROOT.
 os.environ.setdefault(
     "LMCAD_KERNEL_API", str(REPO_ROOT / "target" / "release" / "kernel-api")
-)
-
-ACE_INSTALL_HINT = (
-    "ACE package not importable — install it into the interpreter named by "
-    "ACE_PYTHON: `pip install -e ~/Work/ACE` (or set ACE_ROOT)."
 )
 
 
@@ -96,6 +91,7 @@ from _receipt import (  # noqa: E402  — the shared receipt + exit-code contrac
     run_cli,
 )
 from _ace import (  # noqa: E402
+    PHYSICS_INSTALL_HINT,
     apply_warnings,
     provenance_fields,
     validated_range_check,
@@ -110,8 +106,8 @@ def main() -> None:  # noqa: PLR0915 — one linear, documented pipeline
 
     import numpy as np
     from scipy.ndimage import convolve
-    from engine.lmcad import emit_stl_gated
-    from engine.verify.fea import reference_fea
+    from physics.sampling import emit_stl_gated
+    from physics.fea import reference_fea
 
     # Shared job plumbing (geometry sampling + region kinds) lives in the FEA
     # runner; import it as a sibling module.
@@ -342,4 +338,4 @@ def main() -> None:  # noqa: PLR0915 — one linear, documented pipeline
 
 
 if __name__ == "__main__":
-    run_cli("ace_optimize", main, install_hint=ACE_INSTALL_HINT)
+    run_cli("ace_optimize", main, install_hint=PHYSICS_INSTALL_HINT)

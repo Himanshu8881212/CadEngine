@@ -53,10 +53,11 @@ import math
 import os
 import sys
 
-sys.path.insert(0, os.environ.get("ACE_ROOT", os.path.expanduser("~/Work/ACE")))
+sys.path.insert(0, os.path.join(  # tools/analyzers: the in-tree solver package
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, "analyzers"))
 import numpy as np  # noqa: E402
-from engine.verify.mesh_ir import mesh_shouldered_bar  # noqa: E402
-from engine.verify.fea_tet import reference_fea_tet  # noqa: E402
+from physics.mesh_ir import mesh_shouldered_bar  # noqa: E402
+from physics.fea_tet import reference_fea_tet  # noqa: E402
 
 # ---------------- specimen (mm) ----------------
 d, D, r = 16.0, 24.0, 2.4          # small dia, large dia, shoulder fillet radius

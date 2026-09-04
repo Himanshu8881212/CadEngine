@@ -2,7 +2,7 @@
   "schema": "lmcad.manifest.v1",
   "analyzer": "ace_buckling",
   "analyzer_version": "1.0.0",
-  "title": "hex8 linear (eigenvalue) buckling analysis (engine.verify.reference_buckling)",
+  "title": "hex8 linear (eigenvalue) buckling analysis (physics.reference_buckling)",
   "governing_equations": [
     {
       "name": "pre-stress static solve",

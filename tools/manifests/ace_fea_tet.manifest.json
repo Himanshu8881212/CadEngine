@@ -2,7 +2,7 @@
   "schema": "lmcad.manifest.v1",
   "analyzer": "ace_fea_tet",
   "analyzer_version": "1.0.0",
-  "title": "body-fitted tet10 linear-elastic reference FEA (engine.verify.reference_fea_tet)",
+  "title": "body-fitted tet10 linear-elastic reference FEA (physics.reference_fea_tet)",
   "governing_equations": [
     {
       "name": "linear static equilibrium",

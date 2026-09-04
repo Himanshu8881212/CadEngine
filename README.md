@@ -139,4 +139,25 @@ Also [`SECURITY.md`](SECURITY.md).
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT — see [`LICENSE`](LICENSE) — **with one exception, and it is a real one.**
+
+The structural solvers in
+[`tools/analyzers/physics/`](tools/analyzers/physics/) (hex8 and tet10 FEA,
+modal, buckling, convergence, DfAM, printability, and the voxel sampling
+bridge) did not originate in LMCAD. They were moved here on 2026-09-04 from
+ACE — Autonomous Computational Engineer, Copyright 2026 The ACE Authors — and
+they remain under the **Apache License, Version 2.0**. They were not
+relicensed, and MIT does not apply to them.
+
+That directory therefore carries its own
+[`LICENSE-APACHE-2.0`](tools/analyzers/physics/LICENSE-APACHE-2.0) and
+[`NOTICE`](tools/analyzers/physics/NOTICE), which record the origin, the exact
+source commit, and everything the move changed. If you redistribute LMCAD, both
+files must travel with the code. Everything else in this repository — the Rust
+crates, the rest of `tools/`, the campaigns and the docs — is MIT.
+
+They live in-tree because the alternative was worse: while the physics sat in a
+private repository, hosted CI could not run the analyzers at all and the
+revision the receipts pinned existed on one laptop, so nobody could reproduce a
+shipped FEA number. See
+[`docs/ACE_INTEGRATION.md`](docs/ACE_INTEGRATION.md).

@@ -1,6 +1,6 @@
 # ace_fea — hex8 linear-elastic voxel FEA (the registry precedent)
 
-- **Runner**: `tools/analyzers/ace_fea_runner.py` (bridge to ACE `engine.verify.reference_fea`; needs the ACE package, `ACE_ROOT`/`ACE_PYTHON`) · **Pins**: `tools/validation/ace_fea_validation.py`, `tools/validation/ace_fea_kt_validation.py` · registry manifest: `tools/manifests/ace_fea.manifest.json`
+- **Runner**: `tools/analyzers/ace_fea_runner.py` (bridge to the in-tree `physics.reference_fea`, `tools/analyzers/physics/` — numpy + scipy only) · **Pins**: `tools/validation/ace_fea_validation.py`, `tools/validation/ace_fea_kt_validation.py` · registry manifest: `tools/manifests/ace_fea.manifest.json`
 - **Physics**: linear static elasticity — small strain, small displacement, isotropic homogeneous; no plasticity, contact, or geometric nonlinearity (dynamics live in ace_modal/ace_buckling, cards owned by mission 2).
 - **Governing equations**: `K u = F`; `sigma = D(E,nu) : sym(grad u)` reduced to von Mises; optional SIMP `E_eff = rho_eff^p * E0` (then reported stress is homogenized, NOT solid-material stress).
 - **Discretization**: trilinear hex8 elements on the regular voxel grid; binary as-built occupancy rho >= 0.5 (or SIMP density mode). Jacobi-preconditioned CG rtol 1e-8, raises on non-convergence; direct SuperLU below opt-in DOF cap.
@@ -33,4 +33,4 @@ Failure = `{ok:false, error}` + **exit 0** — the JSON line is the contract, no
 ## When to use
 Sharpening a campaign's closed-form load case (DESIGN_GUIDE §25.7): stiffness/deflection checks, load paths through brackets/hubs/lattices (voxelize_stl bridges fused hybrid meshes), SIMP topology passes via ace_optimize. Not a substitute for the closed-form gate — it sharpens, never replaces.
 
-Run: `ACE_PYTHON tools/analyzers/ace_fea_runner.py job.json` · prove: `ACE_PYTHON tools/validation/ace_fea_validation.py && ACE_PYTHON tools/validation/ace_fea_kt_validation.py`
+Run: `python3 tools/analyzers/ace_fea_runner.py job.json` · prove: `python3 tools/validation/ace_fea_validation.py && python3 tools/validation/ace_fea_kt_validation.py`

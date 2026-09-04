@@ -17,15 +17,16 @@ would LOWER the exact answer a few percent, so the true discretization
 stiffness is a little larger than the raw deltas below — the pinned band is on
 the EB reference because that is the formula the tool description quotes.
 
-Run:  ACE_PYTHON (default ~/miniconda3/bin/python3) this file.
+Run:  python3 this file (numpy + scipy only; the solver is in-tree).
 Exit: 0 iff all assertions hold; nonzero with a message otherwise.
 """
 import math
 import os, sys
 import numpy as np
 
-sys.path.insert(0, os.environ.get("ACE_ROOT", os.path.expanduser("~/Work/ACE")))
-from engine.verify import reference_modal  # noqa: E402
+sys.path.insert(0, os.path.join(  # tools/analyzers: the in-tree solver package
+	os.path.dirname(os.path.abspath(__file__)), os.pardir, "analyzers"))
+from physics import reference_modal  # noqa: E402
 
 L, b, h = 40.0, 8.0, 8.0
 E, RHO, NU = 2.2e9, 1270.0, 0.37

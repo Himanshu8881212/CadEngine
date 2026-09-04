@@ -23,7 +23,7 @@ constrained optimizer must:
       the production fix is an in-loop mesh-convergence margin (design to
       cap/(1+delta)); this pin does not hide that, it quantifies it.
 
-Each is falsifiable. Run:  ACE_PYTHON tools/sim_design_validation.py
+Each is falsifiable. Run:  python3 tools/sim_design_validation.py
 Exit 0 iff all hold; nonzero + message otherwise. Runtime ~8-11 min (it runs
 the real loop, then one finer re-check).
 """
@@ -42,9 +42,7 @@ ALLOWABLE_PA = 20_000_000.0
 
 def run_loop():
     out = subprocess.run([PY, os.path.join(TOOLS, "param_optimize.py"), JOB],
-                         capture_output=True, text=True, cwd=REPO,
-                         env={**os.environ, "ACE_ROOT": os.environ.get(
-                             "ACE_ROOT", os.path.expanduser("~/Work/ACE"))})
+                         capture_output=True, text=True, cwd=REPO)
     last = [ln for ln in out.stdout.splitlines() if ln.strip()][-1]
     return json.loads(last)
 
@@ -60,9 +58,7 @@ def fine_recheck(d, r):
         json.dump(job, f)
         path = f.name
     out = subprocess.run([PY, os.path.join(TOOLS, "sim_design_evaluator.py"), path],
-                         capture_output=True, text=True,
-                         env={**os.environ, "ACE_ROOT": os.environ.get(
-                             "ACE_ROOT", os.path.expanduser("~/Work/ACE"))})
+                         capture_output=True, text=True)
     os.unlink(path)
     return json.loads([ln for ln in out.stdout.splitlines() if ln.strip()][-1])
 

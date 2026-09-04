@@ -56,7 +56,7 @@ HONEST CAVEATS (documented, not hidden)
   * A SIMP as-built part is not manufacturable as-is (voxel staircase, thin
     members); the STL is a MESH ONLY.
 
-Run:  ACE_PYTHON (default ~/miniconda3/bin/python3) this file.
+Run:  python3 this file (numpy + scipy only; the solver is in-tree).
 Exit: 0 iff the chain ran and an honest receipt was produced (a body-fitted
       integration limit is a REPORTED finding, not a tool failure); nonzero
       only if the SIMP half or the solver control itself is broken.
@@ -70,8 +70,8 @@ import tempfile
 import numpy as np
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
-ACE_ROOT = os.environ.get("ACE_ROOT", os.path.expanduser("~/Work/ACE"))
-os.environ.setdefault("ACE_ROOT", ACE_ROOT)
+sys.path.insert(0, os.path.join(  # tools/analyzers: the in-tree solver package
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, "analyzers"))
 PY_EXE = sys.executable
 
 # --- the generative problem: a short cantilever, min compliance @ fixed volume.

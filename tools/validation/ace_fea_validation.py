@@ -11,14 +11,15 @@ quote in the ace_fea tool description) against Euler-Bernoulli + shear:
 Measured 2026-07-08 (pinned here): voxel 1.0 → −11.2%, voxel 0.5 → −5.9%,
 both UNDER-predicting (hex8 is stiff — the documented, conservative direction).
 
-Run:  ACE_PYTHON (default ~/miniconda3/bin/python3) this file.
+Run:  python3 this file (numpy + scipy only; the solver is in-tree).
 Exit: 0 iff all assertions hold; nonzero with a message otherwise.
 """
 import os, sys
 import numpy as np
 
-sys.path.insert(0, os.environ.get("ACE_ROOT", os.path.expanduser("~/Work/ACE")))
-from engine.verify import reference_fea  # noqa: E402
+sys.path.insert(0, os.path.join(  # tools/analyzers: the in-tree solver package
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, "analyzers"))
+from physics import reference_fea  # noqa: E402
 
 L, b, h = 40.0, 8.0, 8.0
 P, E, NU = 10.0, 2.2e9, 0.37

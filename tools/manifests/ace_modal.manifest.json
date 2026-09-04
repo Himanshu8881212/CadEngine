@@ -2,7 +2,7 @@
   "schema": "lmcad.manifest.v1",
   "analyzer": "ace_modal",
   "analyzer_version": "1.0.0",
-  "title": "hex8 free-vibration modal analysis (engine.verify.reference_modal)",
+  "title": "hex8 free-vibration modal analysis (physics.reference_modal)",
   "governing_equations": [
     {
       "name": "generalised eigenproblem",

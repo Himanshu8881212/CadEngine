@@ -47,7 +47,8 @@ after a fix is available. Never include real credentials or proprietary models.
 A release must come from a clean protected commit with green release gates,
 including Rust tests/Clippy/formatting, analyzer contracts and pinned validation,
 web build/audit, dependency audits, strict gallery artifact checks, install smoke
-tests, SBOMs, checksums, and GitHub artifact provenance attestations. ACE and the
-Python environment must match `tools/ACE_REVISION` and
-`tools/requirements-analysis.lock`; dirty or mismatched solver checkouts cannot
-produce a `validated` receipt.
+tests, SBOMs, checksums, and GitHub artifact provenance attestations. The Python
+environment must match `tools/requirements-analysis.lock`; a dirty checkout cannot
+produce a `validated` receipt. The FEA/modal/buckling solvers are in-tree at
+`tools/analyzers/physics/` (Apache-2.0, see its `NOTICE`), so the commit being
+released pins them — the separate `tools/ACE_REVISION` pin was retired 2026-09-04.
