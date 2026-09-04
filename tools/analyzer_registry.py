@@ -424,6 +424,13 @@ def run_pin(pin_file: str) -> dict:
         return {"pin": pin_file, "ran": True, "passed": False, "exit_code": 124,
                 "tail": "TIMEOUT (>900s)"}
     tail = (proc.stdout.strip().splitlines() or ["<no stdout>"])[-1]
+    # A pin that fails with "<no stdout>" tells the reader nothing — the traceback
+    # went to stderr. That opacity cost three CI cycles on 2026-09-04 guessing at
+    # failures that reproduce nowhere locally. On failure, carry the stderr tail.
+    if proc.returncode != 0:
+        err = " | ".join(proc.stderr.strip().splitlines()[-3:])
+        if err:
+            tail = f"{tail}  [stderr] {err[:400]}"
     return {"pin": pin_file, "ran": True, "passed": proc.returncode == 0,
             "exit_code": proc.returncode, "tail": tail}
 
