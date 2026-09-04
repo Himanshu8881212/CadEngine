@@ -303,7 +303,20 @@ def main() -> None:  # noqa: PLR0915 — one linear, documented pipeline
     payload["validated_range"] = vrange
     warnings = [validated_range_warning(vrange)]
     if stop_reason != "converged":
-        warnings.append(f"optimizer stopped at {stop_reason}, not its change convergence criterion")
+        # A warning is a machine-matchable OBJECT, not prose: apply_warnings reads
+        # w["kind"] to build `warning_kinds`, so a bare string crashed the runner
+        # with "string indices must be integers" on every non-converged stop —
+        # exactly the runs a reader most needs warned about.
+        warnings.append({
+            "kind": "optimize.stopped_before_convergence",
+            "message": (
+                f"the optimizer stopped at {stop_reason}, NOT its change-convergence "
+                "criterion, so the density field is where the loop ran out of budget "
+                "rather than where it settled. Treat the result as a snapshot, not a "
+                "converged optimum: re-run with a larger iteration or time budget "
+                "before quoting it."),
+            "stop_reason": stop_reason,
+        })
     apply_warnings(payload, job, warnings)
     mesh_digest = hashlib.sha256()
     exact_grid = np.ascontiguousarray(x_phys.astype(np.float32))

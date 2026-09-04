@@ -122,7 +122,11 @@ def build_specimen():
 	program = {"ops": [
 		{"id": "shaft", "op": "revolve", "profile": prof, "segments": 360},
 		{"id": "v", "op": "validate", "in": "shaft"},
-		{"id": "m", "op": "mass_properties", "in": "shaft", "density": 1.0},
+		# No `density`: mass_properties does not take one, and this pin never reads
+		# the mass anyway (it returns the validate + export measures). The engine
+		# now REFUSES unknown params instead of ignoring them, which is what turned
+		# this dead argument into a hard failure — correctly.
+		{"id": "m", "op": "mass_properties", "in": "shaft"},
 		{"id": "x", "op": "export_stl", "in": "shaft", "file": "shaft.stl"}]}
 	json.dump(program, open(os.path.join(OUT, "kt_program.json"), "w"), indent=1)
 	rr = subprocess.run([ENGINE, "run", os.path.join(OUT, "kt_program.json"), "--out-dir", OUT],
