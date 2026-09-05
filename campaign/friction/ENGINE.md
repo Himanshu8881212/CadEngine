@@ -813,8 +813,12 @@ that something does NOT fit belongs on the exact oracle.
 
 ## #28 — `clearance.overlap_volume` was `null` on the ORDINARY interference case — FIXED 2026-09-04
 
-**Severity: was major (a verdict the op could not compute). Fixed in-engine at
-the maintainer's request; campaign rules lifted for that work.**
+- severity: major
+- surface: `clearance`
+- status: fixed
+
+**Was major (a verdict the op could not compute). Fixed in-engine at the
+maintainer's request; campaign rules lifted for that work.**
 
 Across 22 campaigns `clearance` is named 28 times in this corpus and
 `overlap_volume` 20 — more than any op but `validate` — and nearly every entry
