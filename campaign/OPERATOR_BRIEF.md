@@ -32,7 +32,8 @@ contracts you cite for a number: `docs/ANALYSIS_TIERS.md` (what a tier means),
    expectation FAILS the run with `assert_failed` and exits 1; a met one
    echoes a `required` block into the measures. Expectation = scalar
    (equality), array (element-wise), or `{equals|min|max|within|not_null}`;
-   keys may be dotted paths. Four mandatory SPEC §2 gates that used to be
+   `within` is an inclusive band written `[lo, hi]` (or `{target, abs|percent}`)
+   — verified 2026-09-05, uphill F1; keys may be dotted paths. Four mandatory SPEC §2 gates that used to be
    unexpressible in-program are now expressible — use them.
 4. Units are mm; JSON-surface angles are degrees; bores are diameters.
 5. Every measure carries `provenance` (`analytic` vs `faceted`); every export
@@ -219,9 +220,9 @@ intersect-and-hope.
 | `ace_fea_tet` | body-fitted tet10 | resolves concentrations; fields UNSTRUCTURED (not grid-compatible); point loads only | Validated |
 | `ace_modal` | frequencies + shapes | +1–3% high; refuses no-fixtures without `free_free:true`; YOU identify modes via participation receipts | Validated |
 | `ace_buckling` | linear eigenvalue | λ is an UPPER bound; **mandatory 0.5 knockdown** → gate on `design_critical_load_n`; pair with a strength gate | Validated |
-| `ace_thermal` | voxel conduction, steady+transient | conduction + user-supplied Robin film ONLY — no convection network/radiation/CFD; refuses unanchored components | in-house gated, NOT registered |
-| `ace_contact` | planar corotational beam + rigid contact | snap-fits/latches; PLANAR only; friction untested; snap-through refuses | in-house gated, NOT registered |
-| `ace_fatigue` | S-N screening | **PLA only**; refuses PETG/ABS/ASA/PA/PC/TPU and across-layer for ANY material; life scatter 3.7×–90×, quote it every time; ≤2e6 cycles | in-house gated, NOT registered |
+| `ace_thermal` | voxel conduction, steady+transient | conduction + user-supplied Robin film ONLY — no convection network/radiation/CFD; refuses unanchored components | **Demonstrated** (registry tier: gate suite, no validation pin — `tools/analyzer_registry.py`) |
+| `ace_contact` | planar corotational beam + rigid contact | snap-fits/latches; PLANAR only; friction untested; snap-through refuses | **Demonstrated** (registry tier, same rule as thermal) |
+| `ace_fatigue` | S-N screening | **PLA only**; refuses PETG/ABS/ASA/PA/PC/TPU and across-layer for ANY material; life scatter 3.7×–90×, quote it every time; ≤2e6 cycles | **Cataloged** (registry tier: a rules engine over published tables) |
 
 ### 5.1 READ THIS BEFORE YOU PLAN AN ANALYSIS: the body-fitted (tet) route is not a fallback
 
@@ -372,6 +373,10 @@ Stock reality: 0.4 mm nozzle, **256 mm bed** (gate `bounding_box` with
 
 ## 8. Failure playbook, condensed
 
+- **Never edit a shell script while it is running.** `sh` reads `run_all.sh`
+  incrementally by byte offset, so an edit under a live run makes the
+  interpreter resume at a garbage offset — a lost run (screw_on F12). Copy the
+  script or wait for it to finish.
 - Error kinds are machine-matchable: `parse, unknown_op, duplicate_id,
   missing_ref, wrong_type, invalid_param, feature_failed, sketch_failed,
   invalid_geometry, admission_rejected, dependents_exist, assert_failed, io,
@@ -382,8 +387,10 @@ Stock reality: 0.4 mm nozzle, **256 mm bed** (gate `bounding_box` with
 - **`clearance` on NESTED pairs was fixed 2026-08-08 — and it UNDER-reads.**
   It used to return `distance: 0.0` for nested/coaxial/enclosed pairs with a
   real gap. It now returns a number, but a `faceted` one: a Ø11.4 pin coaxial
-  in a Ø12 bore (true 0.300 mm radial gap) reads **0.2711 mm**, a −9.6 %
-  under-read from inscribed polygonal facets (≈ `r·(1−cos π/n)`).
+  in a Ø12 bore (true 0.300 mm radial gap) reads **0.2968 mm** at the default
+  `tol` 0.01 (0.2994 at `tol` 0.001), a −1.1 % under-read from inscribed
+  polygonal facets (≈ `r·(1−cos π/n)`; it read 0.2711 / −9.6 % before the
+  2026-09-05 adaptive-tessellation change).
   `assert_disjoint` passes the same pair now. Publish the faceted number with
   its provenance tag for "does it clear"; when a few percent decides the fit,
   use the **grown-gauge bracket** — grow a copy of the moving body by δ and
@@ -457,4 +464,4 @@ Stock reality: 0.4 mm nozzle, **256 mm bed** (gate `bounding_box` with
 | what determinism actually guarantees (`determinism.core_digest`) | `DELIVERABLE_SPEC` §3; `digests/analysis_honesty.md` |
 | **are these docs still true?** | `python3 docs/test_doc_contracts.py` — 22 executable doc contracts run against the live binary and tools; if one fails it names the doc section that has gone stale |
 | numerics, determinism, f32/f64, Lipschitz contract | docs/NUMERICS.md |
-| op param truth at runtime | `{"op":"describe","name":"<op>"}` |
+| op param truth at runtime | `{"op":"describe","name":"<op>"}` — no `id` needed (describe is exempt since 2026-09-05; rotor F1) |

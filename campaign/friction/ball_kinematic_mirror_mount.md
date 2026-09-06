@@ -3,7 +3,7 @@
 ## F1 — `validate.geometric_ok:false` on a solid every other gate calls clean (2026-08-07)
 - severity: major
 - surface: validate
-- status: open
+- status: fixed — `validate.geometric_ok` runs the crossing sweep on the constrained-Delaunay exact tessellation; the platform program runs clean (`ball_platform` ok, exports exact) and the polar-pattern false positive is pinned by the turgo `repro_geometric_ok` program
 
 - symptom: the shipped platform reports
   `{"closed":true,"euler_characteristic":-8,"genus":5,"geometric_ok":false,"manifold":true,"shells":1,"valid":true}`
@@ -40,7 +40,7 @@
 ## F2 — `import_step` cannot read the file `export_step` just wrote (2026-08-07)
 - severity: major
 - surface: import_step
-- status: open
+- status: fixed — export_step→import_step round-trips (`step_rt` repro: valid, one component)
 
 - symptom: `{"op":"export_step","in":X,"file":"cad/frame.step"}` with `--out-dir .` writes
   `./cad/frame.step` (report `file` confirms), but the round-trip gate
@@ -62,7 +62,7 @@
 ## F3 — cookbook says ace_fea body-load magnitude is N.m-3; the code reads it as N/kg (2026-08-07)
 - severity: major
 - surface: campaign/digests/tools_cookbook.md
-- status: open
+- status: fixed — tools_cookbook.md states the body-load unit as N/kg (an acceleration) with the 2 g example
 - symptom: `{"kind":"body","magnitude": 24328.8, "direction":[0,0,-1]}` (= 2 g x PLA density
   1240 kg/m3, i.e. N.m-3 per the digest) on a 9.27e-6 m3 platform produced
   `max_von_mises_pa = 92941359.7` (92.9 MPa) and `max_displacement_m = 1.4847e-3` — a 2 g
@@ -85,7 +85,7 @@
 ## F4 — tolerance_stack.py double-counts an ASYMMETRIC tolerance in the WORST-CASE band (2026-08-08)
 - severity: major
 - surface: tools/analyzers/tolerance_stack.py
-- status: open
+- status: fixed — tolerance_stack.py worst-case band uses each contributor's own asymmetric limits once (verified in-tree, 2026-09-05)
 - symptom: a chain of A = 10.0 with `{"plus":0.0,"minus":0.10}` (dir +1) minus B = 9.0 with
   `"tol":0.0` (dir -1) returns `nominal_gap 0.95, worst_min 0.85, worst_max 0.95`.
   The true band is nominal 1.00, worst_min 0.90, worst_max 1.00.
@@ -109,7 +109,7 @@
 ## F5 — joint_check.py inverts its exit code: an internal KeyError exits 1, a real FAIL verdict exits 0 (2026-08-08)
 - severity: major
 - surface: tools/analyzers/joint_check.py
-- status: open
+- status: fixed — joint_check.py follows the 0/1/2 exit contract (internal error → exit 2 with `error_kind`, gate failure → exit 1)
 - symptom: an out-of-table fastener size leaks a raw Python exception as the receipt
   and exits **1**, while a genuine `ok:false` engineering verdict exits **0**.
   Verbatim, size M6:
@@ -135,7 +135,7 @@
 ## F6 — assembly_doc `explode.axis` must be a VECTOR; the digest omits that and the error is unhelpful (2026-08-08)
 - severity: minor
 - surface: campaign/digests/tools_cookbook.md
-- status: open
+- status: fixed — assembly_doc `explode.axis` accepts both the vector and the named-axis form; the cookbook says so
 - symptom: a job with `"explode": {"axis": "z", "auto": true, "gap_mm": 30}` dies with
   `{"ok": false, "error": "ValueError: could not convert string to float: 'z'"}` (exit 1).
   The message never names the offending key, so it reads like a bad number somewhere.
@@ -157,7 +157,7 @@
 ## F7 — `run_stage3.py`'s `archive_pre_opt()` is not idempotent: a second run overwrites the stage-2 audit trail (2026-08-08, hostile verifier)
 - severity: major
 - surface: campaign scripts
-- status: open
+- status: fixed — campaign-side: `run_stage3.py::archive_pre_opt()` is write-once (verified reading the script 2026-09-05); no engine action
 - symptom: running the README "Reproducing" step 3 (`python3 programs/run_stage3.py --date 2026-08-08`)
   `shutil.move`s the CURRENT `receipts/{fea_*,production_check_*,modal_frame_*,tol_*,contact_snap_insertion,preload_window,creep_gates,bounce_bound,fea_tet_*}.json`
   into `receipts/pre_opt/`, unconditionally, and rewrites `receipts/pre_opt/README.txt` with the
@@ -182,7 +182,7 @@
 ## F8 — `run_stage3.py` blocks up to 90 min on an `ace_fea_tet` run the campaign already documents as un-completable (2026-08-08, hostile verifier)
 - severity: minor
 - surface: campaign scripts
-- status: open
+- status: fixed — tool side: `ace_fea_tet` publishes a `cost_estimate` and refuses above `dof_budget` before meshing, so a campaign can bound the run; `physlib.run_tool` now returns a timeout receipt instead of raising (F11 patch)
 - symptom: `gen_tet.py` calls `L.run_tool("ace_fea_tet_runner.py", ..., timeout=5400)`. The campaign's own
   `receipts/fea_tet_platform_ATTEMPTED.json` records both attempts as resource-killed, so the documented
   Reproducing path spends 90 minutes producing a receipt that is thrown away.
@@ -196,7 +196,7 @@
 ## F9 — the shared session scratchpad is concurrently written by other agents (2026-08-08, hostile verifier)
 - severity: minor
 - surface: session scratchpad
-- status: open
+- status: fixed — environment: scratchpads are per-session since the 2026-09 tooling (`…/<session>/scratchpad`), so no other agent writes into them
 - symptom: an out-of-tree snapshot taken at `<scratchpad>/baseline/` was partially overwritten by a
   different campaign's files (`iso9409_wedge_flexure_gripper` README/DESIGN/ANALYSIS, plus a whole
   `energy_system/turgo_runner` tree that briefly appeared INSIDE
@@ -209,7 +209,7 @@
 ## F10 — `ace_modal` eigenfrequencies are not bit-reproducible: identical input, ~1e-13 relative drift (2026-08-08, repair pass)
 - severity: minor
 - surface: tools/analyzers/ace_modal_runner.py
-- status: open
+- status: fixed — every ACE receipt carries `determinism.core_digest` (12 significant figures, timings stripped); two modal runs of one job give identical digests (verified 2026-09-05)
 - symptom: re-running `python3 programs/gen_modal.py --voxel 1.6` on BYTE-IDENTICAL `parts/frame.stl`
   (cmp clean) and an unchanged job file produces a receipt that differs from the shipped one:
   `first_mode_hz` 541.6485954092889 -> 541.6485954092916, `1301.4020601137215` -> `1301.4020601136858`,
@@ -235,7 +235,7 @@
 ## F11 — `physlib.run_tool`'s `timeout=` raises `TimeoutExpired`, so a timed-out analysis leaves NO receipt (2026-08-08, repair pass)
 - severity: major
 - surface: campaign scripts
-- status: partial — gen_tet.py guards its own call; physlib.run_tool still raises for every other caller
+- status: fixed — `programs/physlib.py::run_tool` catches `subprocess.TimeoutExpired` and returns `{ok:false, error_kind:"timeout", _campaign.killed_at_wall_budget:true}` as the receipt row (patched 2026-09-05); `gen_tet.py` already guarded
 - symptom: `physlib.run_tool` calls `subprocess.run(..., timeout=timeout)`. On timeout Python raises
   `subprocess.TimeoutExpired`, which propagates out of the calling generator: the program dies with a
   traceback and `L.save()` is never reached, so the failed row leaves no receipt at all — it VANISHES
@@ -249,3 +249,19 @@
   guard belongs in `physlib.run_tool` itself for every caller, but the fix is campaign-local by design
   (§4: tools/ is untouchable, and physlib is shared by nine generators — changing its contract mid-repair
   would have been the larger risk).
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F1** — F1: no false `geometric_ok:false` on the platform; witness block reported when it is genuinely false.
+- **F2** — F2: STEP round trip.
+- **F3** — F3: cookbook unit corrected.
+- **F4** — F4: no double count of an asymmetric tolerance.
+- **F5** — F5: exit code no longer inverted.
+- **F6** — F6: explode.axis both forms.
+- **F7** — F7: campaign script already idempotent.
+- **F8** — F8: bounded by the runner's cost model + the campaign's wall budget.
+- **F9** — F9: environment, no engine action.
+- **F10** — F10: reproducibility is claimed on `core_digest`, which reproduces.
+- **F11** — F11: a timed-out analysis leaves a receipt row, not a traceback.

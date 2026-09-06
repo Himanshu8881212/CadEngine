@@ -262,7 +262,7 @@ pub(crate) fn exec(op_id: &str, kind: OpKind) -> Result<Outcome, OpError> {
 			let solid = parts::deep_groove_bearing(&designation).ok_or_else(|| {
 				err(
 					ErrorKind::InvalidParam,
-					format!("op '{op_id}': deep_groove_bearing: '{designation}' is not in the seat table (603, 608, 625, 688, 6000, 6001, 6804)"),
+					format!("op '{op_id}': deep_groove_bearing: '{designation}' is not in the seat table (603, 608, 623, 625, 688, 6000, 6001, 6804)"),
 				)
 			})?;
 			bind_solid(op_id, "deep_groove_bearing", solid)

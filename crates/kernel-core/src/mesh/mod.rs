@@ -118,7 +118,21 @@ pub struct SupportFreeReport {
 	/// Per connected bridge patch: `(span, interior exemplar point)`, sorted
 	/// widest first (up to 8). `max_bridge_span` is `bridge_patches[0].0`.
 	pub bridge_patches: Vec<(f64, Vec3)>,
+	/// Downward-facing area (above the bed) whose overhang angle lies within
+	/// [`NEAR_THRESHOLD_DEG`] of the threshold — faces the threshold cannot
+	/// RESOLVE: a roof modelled at exactly the limit angle (a 45° teardrop at
+	/// `overhang_deg` 45) sits on the knife-edge, and whether it lands in
+	/// `steep_area` or not is float noise plus the 0.008° slack, not design
+	/// intent. A non-zero value means "re-run at `overhang_deg` ± 1° before
+	/// quoting this orientation as support-free / not".
+	pub near_threshold_area: f64,
+	/// Centroids of the largest near-threshold triangles (up to 8).
+	pub near_threshold_exemplars: Vec<Vec3>,
 }
+
+/// Half-width, in degrees, of the band around `support_overhang_deg` that
+/// [`SupportFreeReport::near_threshold_area`] reports as unresolved.
+pub const NEAR_THRESHOLD_DEG: f64 = 1.0;
 
 /// Structural properties of a planar cross-section: its (net, holes-subtracted)
 /// area and perimeter, centroid, and the second moments of area about the
@@ -1053,6 +1067,13 @@ impl Mesh {
 		let (mut bed_area, mut bridge_area, mut steep_area, mut total_area) = (0.0f64, 0.0, 0.0, 0.0);
 		let mut bridge_tris: Vec<[u32; 3]> = Vec::new();
 		let mut steep_cands: Vec<(f64, crate::math::DVec3)> = Vec::new();
+		// The unresolved band: overhang angles within NEAR_THRESHOLD_DEG of the
+		// limit. `n_up = −sin(angle from vertical)` for a downward face, so the
+		// band is [−sin(deg+1°), −sin(deg−1°)] in cosine space.
+		let band_lo = -((support_overhang_deg as f64 + NEAR_THRESHOLD_DEG).min(90.0).to_radians().sin());
+		let band_hi = -((support_overhang_deg as f64 - NEAR_THRESHOLD_DEG).max(0.0).to_radians().sin());
+		let mut near_threshold_area = 0.0f64;
+		let mut near_cands: Vec<(f64, crate::math::DVec3)> = Vec::new();
 		for t in self.indices.chunks_exact(3) {
 			let (a, b, c) = (
 				self.positions[t[0] as usize].as_dvec3(),
@@ -1064,6 +1085,11 @@ impl Mesh {
 			total_area += area;
 			let n_up = area_vec.normalize_or_zero().dot(up);
 			let mut is_steep = false;
+			let on_bed = a.dot(up) <= bed_z && b.dot(up) <= bed_z && c.dot(up) <= bed_z;
+			if area > 0.0 && !on_bed && (band_lo..=band_hi).contains(&n_up) {
+				near_threshold_area += area;
+				near_cands.push((area, (a + b + c) / 3.0));
+			}
 			if n_up < threshold {
 				if a.dot(up) <= bed_z && b.dot(up) <= bed_z && c.dot(up) <= bed_z {
 					bed_area += area;
@@ -1085,6 +1111,8 @@ impl Mesh {
 		}
 		steep_cands.sort_by(|x, y| y.0.partial_cmp(&x.0).unwrap_or(std::cmp::Ordering::Equal));
 		let steep_exemplars: Vec<Vec3> = steep_cands.iter().take(8).map(|(_, c)| c.as_vec3()).collect();
+		near_cands.sort_by(|x, y| y.0.partial_cmp(&x.0).unwrap_or(std::cmp::Ordering::Equal));
+		let near_threshold_exemplars: Vec<Vec3> = near_cands.iter().take(8).map(|(_, c)| c.as_vec3()).collect();
 
 		// True span per connected bridge patch: 2 × the deepest interior point's
 		// distance to the patch BOUNDARY (patch edges used by only one patch
@@ -1163,7 +1191,18 @@ impl Mesh {
 		bridge_patches.sort_by(|x, y| y.0.partial_cmp(&x.0).unwrap_or(std::cmp::Ordering::Equal));
 		bridge_patches.truncate(8);
 
-		SupportFreeReport { bed_area, bridge_area, steep_area, total_area, max_bridge_span, steep, steep_exemplars, bridge_patches }
+		SupportFreeReport {
+			bed_area,
+			bridge_area,
+			steep_area,
+			total_area,
+			max_bridge_span,
+			steep,
+			steep_exemplars,
+			bridge_patches,
+			near_threshold_area,
+			near_threshold_exemplars,
+		}
 	}
 
 	/// Moldability analysis against the mold `pull_dir` (the direction the mold

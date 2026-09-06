@@ -218,8 +218,10 @@ pub struct BearingSpec {
 /// Common small deep-groove ball bearings (d × D × B per the standard boundary
 /// dimension charts, e.g. `bearingworks.com/bearing-sizes`,
 /// `bearingsdirect.com` — 608: 8×22×7, 688: 8×16×5, 6804: 20×32×7, …).
-static BEARING_TABLE: [BearingSpec; 8] = [
+static BEARING_TABLE: [BearingSpec; 9] = [
 	BearingSpec { designation: "603", bore: 3.0, outer: 9.0, width: 5.0 },
+	// 623 (3 × 10 × 4, ISO 15 general plan; the unflanged twin of the F623 catalog body) — added 2026-09-05, graham_deadbeat_escapement F1.
+	BearingSpec { designation: "623", bore: 3.0, outer: 10.0, width: 4.0 },
 	BearingSpec { designation: "693", bore: 3.0, outer: 8.0, width: 4.0 },
 	BearingSpec { designation: "608", bore: 8.0, outer: 22.0, width: 7.0 },
 	BearingSpec { designation: "625", bore: 5.0, outer: 16.0, width: 5.0 },
@@ -331,6 +333,33 @@ pub fn drill(solid: &Solid, at: DVec3, axis: DVec3, d: f64, depth: HoleDepth, se
 				return Err(HoleError::BadDepth);
 			}
 			blind_drill_tool(at, axis, d, depth, segments)
+		}
+	};
+	Ok(difference(solid, &tool))
+}
+
+/// [`drill`]'s flat-bottomed sibling: a Ø`d` pocket exactly `depth` deep with no
+/// drill-point cone — an end-milled or printed recess (gripper F6: the 118° point
+/// of a wide shallow `drill` pocket broke through a 6 mm floor by 2.7 mm). A
+/// through depth behaves exactly like [`drill`].
+pub fn drill_flat(solid: &Solid, at: DVec3, axis: DVec3, d: f64, depth: HoleDepth, segments: Option<usize>) -> Result<Solid, HoleError> {
+	let axis = unit_axis(at, axis)?;
+	if !positive(d) {
+		return Err(HoleError::BadDiameter);
+	}
+	let segments = segments.unwrap_or(DEFAULT_HOLE_SEGMENTS);
+	let tool = match depth {
+		HoleDepth::Through(len) => {
+			if !positive(len) {
+				return Err(HoleError::BadDepth);
+			}
+			rod(at, axis, d, -PIERCE, len + PIERCE, segments)
+		}
+		HoleDepth::Blind(depth) => {
+			if !positive(depth) {
+				return Err(HoleError::BadDepth);
+			}
+			rod(at, axis, d, -PIERCE, depth, segments)
 		}
 	};
 	Ok(difference(solid, &tool))
@@ -521,7 +550,7 @@ pub fn teardrop_hole(
 /// the material for shaft passage and inner-ring relief. The shoulder bore takes
 /// the mean `(d + D)/2` — a generic relief that still seats the outer ring on a
 /// `(D − d)/4` ledge; consult the maker's da/Da abutment tables for critical
-/// designs. Supported designations: see [`bearing_specs`] (603, 608, 625, 688,
+/// designs. Supported designations: see [`bearing_specs`] (603, 608, 623, 625, 688,
 /// 6000, 6001, 6804).
 ///
 /// Example: `bearing_seat(&housing, at, -DVec3::Z, "608", None)?` → Ø22 × 7 pocket + Ø15 bore.

@@ -458,7 +458,8 @@ fn roundtrip_strut_lattice_to_solid_to_step() {
 	assert!(r.ok, "lattice → solid → STEP must run green end to end: {r:#?}");
 	let vol = num(&r, "vol", "volume");
 	let bridged_vol = num(&r, "bridged", "volume");
-	let step_written = entry(&r, "step").file.as_deref().map(|f| std::fs::metadata(f).map(|m| m.len()).unwrap_or(0)).unwrap_or(0);
+	// The report echoes `file` RELATIVE to --out-dir (din_rail F5), so join it.
+	let step_written = entry(&r, "step").file.as_deref().map(|f| std::fs::metadata(dir.join(f)).map(|m| m.len()).unwrap_or(0)).unwrap_or(0);
 	assert!(
 		measure(&r, "val", "closed") == &json!(true)
 			&& measure(&r, "val", "manifold") == &json!(true)
@@ -498,7 +499,8 @@ fn solid_from_mesh_round_trips_a_box_through_a_file_into_step() {
 	);
 	assert!(r.ok, "box → STL → mesh → solid → cut → STEP must run green end to end: {r:#?}");
 	let vol = num(&r, "solid", "volume");
-	let step_written = entry(&r, "step").file.as_deref().map(|f| std::fs::metadata(f).map(|m| m.len()).unwrap_or(0)).unwrap_or(0);
+	// The report echoes `file` RELATIVE to --out-dir (din_rail F5), so join it.
+	let step_written = entry(&r, "step").file.as_deref().map(|f| std::fs::metadata(dir.join(f)).map(|m| m.len()).unwrap_or(0)).unwrap_or(0);
 	assert!(
 		(vol - 19_200.0).abs() < 1e-6
 			&& measure(&r, "solid", "faces") == &json!(6)

@@ -133,8 +133,21 @@ pub(super) fn chain_redundant_in_rings(rings: &[Vec<u32>], pos: &[DVec3]) -> Vec
 /// parallelism section), so it keeps the plain loop.
 pub(super) fn triangulate_solid(s: &Solid, operand: FaceSource) -> Vec<Tri> {
 	let drop_v = chain_redundant_vertices(s);
-	let live_positions =
-		|ids: &[crate::topo::VertexId]| -> Vec<DVec3> { ids.iter().filter(|v| !drop_v[v.0 as usize]).map(|&v| s.position(v)).collect() };
+	// SNAP ROUNDING at the arrangement's entry: every operand coordinate is
+	// rounded to a 1e-12 mm grid. Two planes that differ by a few ulps — a
+	// stacked prism whose top landed at 4.399999999999999 against a
+	// neighbour's 4.4 because the two numbers came from different
+	// subtractions (stacking_tray_lid F4) — become bit-equal and take the
+	// exact-coincidence path instead of the sub-tolerance sliver that
+	// mis-stitches. The grid is 1000× finer than EPS on purpose: rounding to
+	// the EPS grid itself perturbed oblique faces by ~EPS and broke the
+	// 64-feature housing_base document (measured 2026-09-05), whereas a
+	// 1e-12 perturbation is far inside every coincidence band.
+	const SNAP: f64 = 1e-12;
+	let snap = |p: DVec3| DVec3::new((p.x / SNAP).round() * SNAP, (p.y / SNAP).round() * SNAP, (p.z / SNAP).round() * SNAP);
+	let live_positions = |ids: &[crate::topo::VertexId]| -> Vec<DVec3> {
+		ids.iter().filter(|v| !drop_v[v.0 as usize]).map(|&v| snap(s.position(v))).collect()
+	};
 	let mut out = Vec::new();
 	for f in s.faces() {
 		let poly = live_positions(&s.face_vertices(f));
@@ -198,6 +211,19 @@ fn ear_clip_with_holes(outer3d: &[DVec3], holes3d: &[Vec<DVec3>], normal: DVec3,
 		holes.push(ring);
 		start += h.len();
 	}
+	// The constrained Delaunay triangulation of outer + holes first: holes
+	// are constraints, never keyhole corridors, so a boolean-recovered annulus
+	// (one face, one inner loop — see `coalesce_result`) enters the next
+	// arrangement as clean triangles instead of the corridor fans that jammed
+	// the 60-tooth gear cap. The keyhole clip below is the fallback.
+	{
+		let mut rings: Vec<Vec<usize>> = Vec::with_capacity(holes.len() + 1);
+		rings.push(outer.clone());
+		rings.extend(holes.iter().cloned());
+		if cdt_tris(&all, &p2, &rings, normal, source, surface, chart, out) {
+			return;
+		}
+	}
 	// Bridge the right-most holes first so their bridges don't cross later ones.
 	holes.sort_by(|a, b| {
 		crate::tessellate::ring_max_x(&p2, b).partial_cmp(&crate::tessellate::ring_max_x(&p2, a)).unwrap_or(std::cmp::Ordering::Equal)
@@ -209,6 +235,49 @@ fn ear_clip_with_holes(outer3d: &[DVec3], holes3d: &[Vec<DVec3>], normal: DVec3,
 	// Ear-clip the merged INDEX ring (bridge vertices repeat as the same index, so
 	// they never block each other's ears — see `ear_clip_ring_tris`).
 	ear_clip_ring_tris(&all, &p2, outer, normal, source, surface, chart, out);
+}
+
+/// Emit the constrained Delaunay triangulation of `rings` (index rings into
+/// `poly`/`p2`) as [`Tri`]s wound to `normal`. `false` — nothing emitted —
+/// when the CDT refuses the rings, or (chart mode) when any CDT triangle is
+/// 3-D-degenerate: dropping such a triangle would delete a boundary step the
+/// neighbour face still carries (the hazard `ear_clip_ring_tris` guards
+/// against), so the caller falls back to the ear clip instead.
+#[allow(clippy::too_many_arguments)]
+fn cdt_tris(
+	poly: &[DVec3],
+	p2: &[glam::DVec2],
+	rings: &[Vec<usize>],
+	normal: DVec3,
+	source: FaceName,
+	surface: Surface,
+	chart: bool,
+	out: &mut Vec<Tri>,
+) -> bool {
+	let pts: Vec<[f64; 2]> = p2.iter().map(|p| [p.x, p.y]).collect();
+	let Some(tris) = kernel_core::constrained_delaunay(&pts, rings) else {
+		return false;
+	};
+	let mut emitted: Vec<Tri> = Vec::with_capacity(tris.len());
+	for [a, b, c] in tris {
+		let mut t = Tri { v: [poly[a], poly[b], poly[c]], normal, source, surface };
+		if t.is_degenerate() {
+			if chart {
+				return false;
+			}
+			continue;
+		}
+		let gn = t.area_vec().normalize_or_zero();
+		if gn.dot(normal) < 0.0 {
+			t.v.swap(1, 2);
+		}
+		if gn.length_squared() > 0.5 {
+			t.normal = if gn.dot(normal) < 0.0 { -gn } else { gn };
+		}
+		emitted.push(t);
+	}
+	out.extend(emitted);
+	true
 }
 
 /// Area-weighted polygon normal following the winding (Newell's method).
@@ -230,7 +299,11 @@ pub(super) fn newell_normal(poly: &[DVec3]) -> DVec3 {
 /// polygon clips in its surface's parameter space (see [`face_clip_p2`]).
 pub(super) fn ear_clip(poly: &[DVec3], normal: DVec3, source: FaceName, surface: Surface, out: &mut Vec<Tri>) {
 	let (p2, chart) = face_clip_p2(poly, poly, normal, &surface);
-	ear_clip_ring_tris(poly, &p2, (0..poly.len()).collect(), normal, source, surface, chart, out);
+	let ring: Vec<usize> = (0..poly.len()).collect();
+	if cdt_tris(poly, &p2, std::slice::from_ref(&ring), normal, source, surface, chart, out) {
+		return;
+	}
+	ear_clip_ring_tris(poly, &p2, ring, normal, source, surface, chart, out);
 }
 
 /// 2-D clip coordinates for the `pts` of one face (outer boundary first, then any

@@ -103,11 +103,39 @@ impl Mesh {
 	/// [`f64::INFINITY`] if either mesh is empty.
 	///
 	/// Computed exactly from triangle–triangle feature distances (vertex–face and
-	/// edge–edge), seeded by vertex sampling and pruned by per-triangle bounding
-	/// boxes against the running best. The pruning makes typical part pairs fast,
-	/// but the worst case is quadratic in the triangle counts — for very large
-	/// meshes, decimate first or section to the region of interest.
+	/// edge–edge): both meshes are put under a [`MeshBvh`](crate::MeshBvh), the
+	/// bound is seeded by sampling each mesh's vertices against the other's
+	/// hierarchy, and the two trees are descended together with box pruning
+	/// (`O((n + m) log)` typical — a 150 k-triangle part pair scans in well under
+	/// a second where the old per-triangle sweep took hours; see
+	/// `campaign/friction/jar_top_seed_singulator.md` #F13). The answer is the
+	/// same as [`min_distance_brute`](Self::min_distance_brute), which
+	/// `tests/bvh_min_distance.rs` pins.
 	pub fn min_distance(&self, other: &Mesh) -> f64 {
+		if self.indices.is_empty() || other.indices.is_empty() {
+			return f64::INFINITY;
+		}
+		let (ba, bb) = (self.build_bvh(), other.build_bvh());
+		// Seed an upper bound by sampling each mesh's vertices against the other's tree.
+		let mut best = f64::INFINITY;
+		for (src, dst) in [(self, &bb), (other, &ba)] {
+			let stride = (src.positions.len() / 256).max(1);
+			let mut i = 0;
+			while i < src.positions.len() {
+				if let Some(cp) = dst.closest_point(src.positions[i]) {
+					best = best.min(cp.distance as f64);
+				}
+				i += stride;
+			}
+		}
+		ba.min_distance_bounded(&bb, best)
+	}
+
+	/// The O(n·m) reference for [`min_distance`](Self::min_distance): every
+	/// triangle pair, pruned only by per-triangle bounding boxes against the
+	/// running best. Kept as the oracle the hierarchy is pinned against; do not
+	/// call it on large meshes.
+	pub fn min_distance_brute(&self, other: &Mesh) -> f64 {
 		if self.indices.is_empty() || other.indices.is_empty() {
 			return f64::INFINITY;
 		}

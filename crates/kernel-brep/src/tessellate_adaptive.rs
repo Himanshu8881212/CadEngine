@@ -199,6 +199,23 @@ fn subdivide_edge(start: DVec3, end: DVec3, surface: Option<Surface>, segs: usiz
 	match surface {
 		None => vec![start, end],
 		Some(s) => {
+			// Project only when BOTH endpoints lie on the surface. An endpoint
+			// off it — a T-junction vertex the boolean healer inserted on a
+			// chord facet's edge, a stitch vertex that sits on the chord —
+			// marks a CHORD edge: projecting its interior samples onto the
+			// true surface while that endpoint stays put dents the shared
+			// boundary, the planar neighbour then covers a sliver INSIDE the
+			// refined curved wall, and the welded mesh folds at the rim
+			// (measured: a plain Ø110/Ø70 tube difference kept 24
+			// non-orientable edges at its inner rim, demoting `export_stl`).
+			// Such an edge stays a straight chord with `segs` evenly spaced
+			// samples, so the sample count per side — and the shared-edge
+			// identity with the neighbour — is unchanged.
+			const ON_SURFACE: f64 = 1e-5;
+			let on = |p: DVec3| s.signed_value(p).abs() <= ON_SURFACE;
+			if !(on(start) && on(end)) {
+				return (0..=segs).map(|k| start.lerp(end, k as f64 / segs as f64)).collect();
+			}
 			let mut out = Vec::with_capacity(segs + 1);
 			out.push(start);
 			for k in 1..segs {
@@ -287,7 +304,7 @@ fn tessellate_planar(mesh: &mut Mesh, poly: &[DVec3], normal: DVec3) {
 	}
 	let (u, v) = perp_basis(normal);
 	let p2: Vec<DVec2> = poly.iter().map(|p| DVec2::new(p.dot(u), p.dot(v))).collect();
-	crate::tessellate::ear_clip_ring(mesh, poly, &p2, (0..poly.len()).collect(), normal);
+	crate::tessellate::planar_ring(mesh, poly, &p2, (0..poly.len()).collect(), normal);
 }
 
 // --- Curved faces: surface-snapped grid --------------------------------------
@@ -339,6 +356,21 @@ fn tessellate_curved(mesh: &mut Mesh, boundary: &[DVec3], surface: Surface, segs
 		// `tessellate_default` (see the tessellate.rs module doc).
 		if crate::tessellate::merged_curved_ring(boundary, &surface, face_outward) && push_refined(mesh, boundary, &surface, face_outward) {
 			return;
+		}
+		// Every other ring — a chord facet carrying T-junction vertices along
+		// its sides (5+ topological corners, the shape a boolean leaves on the
+		// wall facets next to a fragmented cap), a mixed straight/curved ring,
+		// a folded grid — is triangulated by the constrained Delaunay
+		// triangulation of its samples in the surface's own chart: no interior
+		// points (every sample already lies on the surface and is shared with
+		// the neighbour), no fan, no slivers. Measured before this path: the
+		// inner wall of a Ø110/Ø70 tube difference carried 5–8-gon facets whose
+		// centroid fan emitted 34 collinear slivers and 48 flipped edges, and
+		// `export_stl` demoted the plainest annulus to the voxel heal.
+		if let Some(p2) = SurfaceChart::new(&surface, boundary).and_then(|c| c.uv_ring(boundary)) {
+			if crate::tessellate::cdt_ring_wound(mesh, boundary, &p2, &nrm, &wind) {
+				return;
+			}
 		}
 		// A ring WARPED off its plane (seam-snapped vertices on the true
 		// intersection curve) ear-clips in the surface's PARAMETER SPACE: a

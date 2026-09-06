@@ -3,7 +3,7 @@
 ## F1 — `difference` refuses a solid that carries BOTH end chamfers and a vertical-edge fillet (2026-08-07)
 - severity: major
 - surface: difference
-- status: open
+- status: fixed — the fillet/chamfer corner rebuild caps each end on the face(s) that really terminate it: an INCLINED cap (a chamfer strip) gets the profile slid onto its plane, two caps meeting at the end (the mitre) split the profile at the crease. The F1 program (8 end chamfers + R1.0 vertical fillet + corner cutter) now binds valid, `geometric_ok`, exports `exact` before and after the cut; a radius wider than the neighbouring chamfer is REFUSED (`CapRunout`, with the fillet-first ordering as the way out) instead of binding a leaky solid
 - symptom: `{"kind":"invalid_geometry","message":"op 'n': difference failed validate():
   closed=false manifold=false genus=2 euler_characteristic=-1 shells=2 — refusing to
   bind an invalid solid"}`.  The cutter is a plain box removing a corner prism from a
@@ -47,7 +47,7 @@
 ## F2 — `chamfer_edge_near` refuses the two top edges incident to a reflex corner (2026-08-07)
 - severity: blocker
 - surface: chamfer_edge_near
-- status: open
+- status: fixed — the end-cap arc is oriented by face membership, so a reflex (L-section) corner caps correctly; `chamfer_reflex` repro binds valid and exports exact
 - symptom: `{"kind":"invalid_geometry","message":"op 'tc2': chamfer_edge_near failed
   validate(): closed=false manifold=false genus=1 ..."}` when chamfering the top-face
   edges of an extruded L-section at the edges that meet the concave (reflex) vertex.
@@ -69,7 +69,7 @@
 enter the exact solid environment (2026-08-07)
 - severity: major
 - surface: solid_from_implicit
-- status: open
+- status: fixed — `solid_from_implicit` takes a `mesher` spec and reports `healed` (true when the contour needed the manifold heal); the gyroid + `hybrid_boolean` fuse repro (`tpms_hybrid`) runs watertight
 - symptom: `{"kind":"invalid_geometry","message":"op 'g0': mesh_to_solid: mesh is not
   watertight even after weld(0.00001): 91 non-manifold/boundary edges remain (was 91
   before weld, 309200 triangles)"}` for a gyroid sheet at cell 5.0 mm / voxel 0.4, and
@@ -94,7 +94,7 @@ enter the exact solid environment (2026-08-07)
 ## F4 — parity-fill voxelizers report a phantom 9-voxel "sealed void" inside solid material (2026-08-07)
 - severity: major
 - surface: tools/analyzers/voxelize_stl.py
-- status: open
+- status: fixed — voxelize_stl / air_topology parity fill no longer reports the phantom sealed void (verified in-tree)
 - symptom: `air_topology_audit.py` on the shipped, exact-route, watertight STL returns
   `{"ok": true, "components": 2, "sizes_cm3": [1058.79, 0.01], ...}` — a second internal-air
   component. The same phantom appears in `voxelize_stl.py`'s independent 3-D parity grid:
@@ -125,7 +125,7 @@ enter the exact solid environment (2026-08-07)
 ## F5 — ace_fea's default Jacobi-CG cannot solve a 3e5-DOF frame, and a hung solve is indistinguishable from a slow one (2026-08-07)
 - severity: major
 - surface: tools/analyzers/ace_fea_runner.py
-- status: open
+- status: fixed — ace_fea's CG prints a heartbeat (iteration/residual) on stderr and the runners carry a `cost_estimate` + `dof_budget` refusal, so a 3e5-DOF frame is either bounded or refused before it hangs
 - symptom: `ace_fea_runner.py` on the shipped frame at the campaign's declared 1.0 mm grid
   (shape [100,100,114], 81198 active elements, 346938 DOF, `direct_solver_max_dof: 0` = the
   documented default "always Jacobi-CG") produced **no output and no receipt after 30 minutes**
@@ -155,7 +155,7 @@ enter the exact solid environment (2026-08-07)
 ## F6 — doc drift: ace_fatigue's stress block must be NESTED under "stress", and param_optimize's command timeout is undocumented (2026-08-07)
 - severity: minor
 - surface: campaign/digests/tools_cookbook.md
-- status: open
+- status: fixed — tools_cookbook.md shows the nested `"stress": {...}` block for ace_fatigue
 - symptom (a): a fatigue job written exactly as the cookbook's schema line reads
   (`"sigma_ref_mpa": 4.15` at the top level) is refused with
   `{"ok": false, "error": "JobError: stress block required: {npy,...} or {sigma_ref_mpa} or {sigma_ref_pa}"}`.
@@ -180,7 +180,7 @@ enter the exact solid environment (2026-08-07)
 ## F7 — analysis_sheet.py view panels crash with a bare KeyError when a load has no `label` (2026-08-07)
 - severity: major
 - surface: tools/publish/analysis_sheet.py
-- status: open
+- status: fixed — analysis_sheet.py view panels refuse a load without a selector with a named error instead of a KeyError
 - symptom: `python3 tools/analysis_sheet.py job.json` died with
   `File ".../tools/analysis_sheet.py", line 155, in view_panel: lw_px = rs.text_w_px(ld["label"], ...)`
   → `KeyError: 'label'`. No job-validation message, no hint which panel or which load; the tool
@@ -200,7 +200,7 @@ enter the exact solid environment (2026-08-07)
 ## F8 — analysis_sheet field panels have no unit conversion of their own (2026-08-07)
 - severity: major
 - surface: campaign/digests/tools_cookbook.md
-- status: open
+- status: fixed — analysis_sheet field panels take `field_unit` (what the .npy holds) beside `unit` (what the colour bar shows) and refuse a `scale` that disagrees with the computed factor
 - symptom: the A3 stress panel's colour bar read `1.92e+07 MPa` while the panel's declared
   `"unit": "MPa"` was taken verbatim — the ace_fea `stress_field.npy` is in **Pa**, and `unit` is a
   label only, not a conversion. A sheet published without noticing would have overstated every
@@ -217,7 +217,7 @@ enter the exact solid environment (2026-08-07)
 ## F9 — `ace_buckling` load_factors are not bit-reproducible, so a receipt-generated document cannot be byte-stable (2026-08-08, independent verification pass)
 - severity: minor
 - surface: tools/analyzers/ace_buckling_runner.py
-- status: open
+- status: fixed — `determinism.core_digest` reproduces across buckling runs (verified: two runs identical)
 - symptom: two runs of the identical job on identical geometry return
   `load_factors[0] = 0.5378860166137663` and `0.5378860166135455` (rel 4e-13).
   Every derived headline number (`critical_load_N`, `design_critical_load_n`)
@@ -241,7 +241,7 @@ enter the exact solid environment (2026-08-07)
 ## F10 — `rerun_physics.py` progress is invisible when stdout is redirected (2026-08-08, verification pass)
 - severity: papercut
 - surface: campaign scripts
-- status: open
+- status: fixed — campaign-side: `programs/rerun_physics.py` reconfigures stdout line-buffered (patched 2026-09-05) so progress reaches a redirected log
 - symptom: `python3 programs/rerun_physics.py > log 2>&1` writes nothing to `log`
   until the whole ~25-minute run ends (Python block-buffers a pipe), so a
   long run is indistinguishable from a hung one — the same failure mode the
@@ -255,7 +255,7 @@ enter the exact solid environment (2026-08-07)
 ## F11 — `air_topology_audit.py` ignores the job's `receipt` key (2026-08-08, repair pass)
 - severity: major
 - surface: tools/analyzers/air_topology_audit.py
-- status: open
+- status: fixed — air_topology_audit.py honours the job `receipt` key through the shared `_receipt` destination order (`--out` > job key), refusing a disagreement
 - symptom: `programs/physics/a10_airtopo_nc6_plugged.json` carries a top-level
   `"receipt": "<abs path>"` key, exactly like the `tolerance_stack` /
   `joint_check` / `production_check` jobs in this campaign do. Those tools honour
@@ -286,7 +286,7 @@ enter the exact solid environment (2026-08-07)
 ## F12 — `field_triage.creep_allowable()` takes a material DICT, not a material NAME (2026-08-08, repair pass)
 - severity: minor
 - surface: tools/field_triage.py
-- status: open
+- status: fixed — `field_triage.creep_allowable()` accepts a material NAME (looked up) or a dict
 - symptom: the obvious call from the campaign side,
   `field_triage.creep_allowable("pla", 23.0, 720.0)`, raises
   `AttributeError: 'str' object has no attribute 'get'` at
@@ -305,3 +305,20 @@ enter the exact solid environment (2026-08-07)
   `tools/materials/pla.json` itself and passes the dict, so ANALYSIS.md §4 can
   print the creep cell's `basis` and verbatim `confidence` string next to the
   allowable it derives (DELIVERABLE_SPEC §3 validity limits). No tool source touched.
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F1** — F1: verified matrix 2026-09-05 — 8×0.5 chamfers + fillet r1/r0.3, 8×2.0 chamfers + fillet r1, vertical chamfer 1.0/0.3, fillet-first ordering: all valid and exact; single 0.5 chamfer + r1 fillet refused with `CapRunout` (kernel-brep fillet.rs `cap_end`).
+- **F2** — F2: reflex-corner chamfer.
+- **F3** — F3: TPMS fields bind through a selectable mesher with an honest `healed` flag.
+- **F4** — F4: phantom void gone.
+- **F5** — F5: no silent hang; cost is estimated and budgeted.
+- **F6** — F6: cookbook drift corrected.
+- **F7** — F7: typed refusal.
+- **F8** — F8: unit conversion is explicit (`field_unit`).
+- **F9** — F9: buckling reproducibility on the digest.
+- **F10** — F10: progress visible under redirection.
+- **F11** — F11: receipt key honoured.
+- **F12** — F12: name or dict.

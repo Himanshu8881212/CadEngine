@@ -653,6 +653,15 @@ def build_bcs(job, X0):
 		for name, value in dd.items():
 			if name not in DOF_NAMES:
 				raise JobError(f"supports[{si}].dofs key {name!r} invalid; use ux|uy|rz")
+			# A boolean is NOT a prescribed displacement. `{"ux": true}` used
+			# to be coerced to 1.0 mm (and 1.0 RADIAN for rz), ramped with
+			# lambda — a 20 mm cantilever "clamped" that way jumped 17.9 mm at
+			# lambda 0.025 with a green receipt (ratcheting F6). Refuse the
+			# type; a clamp is `0.0`.
+			if isinstance(value, bool) or not isinstance(value, (int, float)):
+				raise JobError(f"supports[{si}].dofs.{name} must be a NUMBER (the prescribed "
+				               f"displacement in mm / rotation in rad; a clamp is 0.0), got "
+				               f"{value!r} — booleans are refused because `true` is not a displacement")
 			v = float(value)
 			if not np.isfinite(v):
 				raise JobError(f"supports[{si}].dofs.{name} must be finite, got {value!r}")

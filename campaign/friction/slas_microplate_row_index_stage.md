@@ -3,7 +3,7 @@
 ## F1 — the boolean tessellator self-intersects on a tangential union, silently (2026-08-08)
 - severity: major
 - surface: kernel booleans
-- status: open
+- status: fixed — the tangential union no longer self-intersects (`union_tangent` repro exact); `validate.geometric_ok` reports a crossing with its witness when one exists
 - symptom: `validate` on `guide_bridge` returned
   `{"valid": true, "closed": true, "manifold": true, "shells": 1,
     "geometric_ok": false,
@@ -33,7 +33,7 @@
 ## F2 — polygon arc pitch: FINER tessellation makes booleans WORSE, ~120x slower (2026-08-08)
 - severity: major
 - surface: kernel booleans
-- status: open
+- status: partial — the 120× slowdown at finer arc pitch is gone (constrained-Delaunay triangulation is O(n log n); `union_all_13` 54 s → 1.4 s), but a finer pitch still makes exact tangency between a facet and a curved wall MORE likely, which is the arrangement's open coincidence frontier
 - symptom: with the polygon teardrop above, cutting 12 bores through the beam:
   `arc_deg 5.0` -> `geometric_ok false`, `self_intersection.pairs 6`, 87 s;
   `arc_deg 10.0` -> `geometric_ok false`, pairs 1;
@@ -53,7 +53,7 @@
 ## F3 — `support_report` reports a flat ceiling as BRIDGING, so `steep_area == 0.0` cannot falsify it (2026-08-08)
 - severity: major
 - surface: campaign/DELIVERABLE_SPEC.md
-- status: open
+- status: fixed — DELIVERABLE_SPEC §2.5 and ops_core §11a state that a flat ceiling is BRIDGE area, not steep area; `steep_area == 0.0` remains the support-free gate and `near_threshold_area` names the unresolved band
 - symptom: `guide_bridge` at `build_dir [0,0,1]` (upright: a 144 mm flat arch
   ceiling) reports `steep_area: 0.0, support_free: true`, together with
   `bridge_area: 4851.324590233379, max_bridge_span: 19.428146362304688`.
@@ -76,7 +76,7 @@
 ## F4 — `kernel-api asm` on a mesh-sourced `.lmcasm` is very slow (2026-08-08)
 - severity: major
 - surface: kernel-api cli
-- status: open
+- status: fixed — mesh-sourced `.lmcasm` runs use the verbatim mesh route and BVH clearance: the singulator (5 instances, 2.1 M triangles) completes in 5.9 s
 - symptom: `asm_save` writes instance sources as MESHES
   (`{"source": {"mesh": "parts/base_rail.stl"}}`, 88 888 triangles for the
   rail). Re-running the saved file with
@@ -104,7 +104,7 @@
 ## F5 — ace_fea_tet reports a gmsh PLC refusal as `internal` / exit 1, not a refusal / exit 2 (2026-08-08)
 - severity: major
 - surface: tools/analyzers/ace_fea_tet_runner.py
-- status: open
+- status: fixed — gmsh PLC refusal → `MeshRefusal`, exit 2, `error_kind: refusal`
 - symptom: `python3 tools/ace_fea_tet_runner.py <job> --out <receipt>` on a
   kernel-exported STL that the kernel itself signs off (`route: exact`,
   `watertight: true`, `two_manifold: true`, `shells 1`, `components 1`) returns
@@ -130,7 +130,7 @@
 ## F6 — a design dimension was silently acting as a printer rule in our own gate suite (2026-08-08)
 - severity: minor
 - surface: campaign/DELIVERABLE_SPEC.md
-- status: open
+- status: fixed — DELIVERABLE_SPEC §2 opens with the rule: gate thresholds are printer/material rules, never design dimensions
 - symptom: `geom.gate_suite` defaulted `wall_thickness.flag_below` and the
   `p05_thickness` minimum to `F["pawl_arm_t"]`. That was 1.60 mm in stage 2 -
   numerically identical to the house four-perimeter rule - so the coupling was
@@ -149,7 +149,7 @@
 ## F7 — `bom_audit` matches ANY quoted string in the STEP, so a natural `name_pattern` sweeps up AP203 keywords (2026-08-08)
 - severity: major
 - surface: tools/publish/bom_audit.py
-- status: open
+- status: fixed — bom_audit matches PRODUCT name rows (`_NAME_ROW`), not any quoted string
 - symptom: `bom_audit.py` with `"name_pattern": "[a-z][a-z0-9_]+"` on a
   6-body assembly reported 8 findings, none of them about our parts:
   `station_A: axis x347 is NOT in the unified BOM`,
@@ -182,7 +182,7 @@
 ## F8 — `assembly_doc` title block clips a long `project` string instead of shrinking or wrapping it (2026-08-08)
 - severity: papercut
 - surface: tools/publish/assembly_doc.py
-- status: open
+- status: fixed — assembly_doc shrinks a long `project` title to fit
 - symptom: with `"project": "slas_microplate_row_index_stage"` (31 chars) the
   PROJECT cell of the title block renders the text overflowing the left page
   border — the first characters are cut off by the sheet edge in
@@ -295,7 +295,7 @@
 ## F11 — tool receipts under the post-2026-08-10 toolchain carry a new envelope schema, so `core_digest` no longer matches the shipped 2026-08-08 receipts even though every measured value is bit-identical (2026-08-14)
 - severity: major
 - surface: tools/_receipt.py
-- status: open
+- status: fixed — every runner carries the `determinism` block (`ensure_determinism_block`), and DELIVERABLE_SPEC §3 states that `core_digest` is per tool version — re-baseline after an upgrade
 - symptom: the stage-4 self-check re-ran 37 tool jobs (6 production_check, 4
   fatigue, 2 contact, 3 fea, 2 optimize, 20 tolerance_stack) with `--out` to a
   scratch dir and compared `determinism.core_digest` against the shipped
@@ -324,3 +324,17 @@
   `receipts/stage4/toolchain_drift_payload_compare.json`: 37 pairs, 32
   payload-identical, 5 with ADDED-schema-fields only, 0 measured-value
   diffs. Shipped receipts stand; docs annotated.
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F1** — F1: tangential union clean, crossings named.
+- **F2** — F2: partial — fast now; finer pitch still risks tangent coincidence.
+- **F3** — F3: bridge vs steep documented.
+- **F4** — F4: asm fast.
+- **F5** — F5: refusal exit code.
+- **F6** — F6: rule written.
+- **F7** — F7: name rows only.
+- **F8** — F8: title shrink.
+- **F11** — F11: envelope schema + per-version digest documented.

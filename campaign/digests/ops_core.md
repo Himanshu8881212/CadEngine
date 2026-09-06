@@ -57,9 +57,9 @@ digest preparation.
   (`degrees`, `*_deg`). Bores/shanks are **diameters**; hex sizes across flats.
   (The `.lmcpart` Document grammar is the exception: `CircularPattern.angle`
   and `ExtrudeSketch.draft` are RADIANS.)
-- `extrude` profiles must be **CCW** simple polygons (CW fails
-  `invalid_geometry` loudly). `extrude_with_holes`, `extrude_tapered`,
-  `revolve` and sketch sweeps re-wind automatically.
+- `extrude` profiles are simple polygons in EITHER winding since 2026-09-05
+  (a CW profile is re-wound, no failure — prosthetic F4); `extrude_with_holes`,
+  `extrude_tapered`, `revolve` and sketch sweeps re-wind as before.
 - **THE trap: unknown/misspelled fields are silently ignored.** A misspelled
   *optional* param leaves the default in force with exit 0 (verified in the
   guide: `"segemnts": 64` on a cylinder → 32-segment volume, no error).
@@ -172,7 +172,9 @@ Constructor notes:
 - `revolve`: profile is `[radius, z]` pairs about **world Z**, r ≥ 0; isolated
   on-axis apex refused. Each profile edge carries exact cylinder/cone/plane tag.
 - `loft` (op form): 3D sections, ≥ 2 sections, **same point count** (≥ 3),
-  consistent winding, ordered along the loft; result is honestly faceted.
+  consistent winding; sections may be listed in either order along the loft
+  (a reversed/inside-out skin is re-skinned so `exact_volume` is positive —
+  stacking F5, 2026-09-05); result is honestly faceted.
   `sweep` (op form): closed 3D profile ≥ 3 pts along open path ≥ 2 pts,
   rotation-minimizing frame; for helical pitch use implicit `helix_pipe`/`pipe`.
   VERIFIED live: loft frustum volume 28000.0, sweep bend 2464.5.
@@ -292,13 +294,13 @@ table M2–M12 (countersink starts M3; off-table → loud `invalid_param`).
 
 | op | key params | echo (the table row actually cut) |
 |---|---|---|
-| `drill` | `d`, exactly one of `depth` (blind, 118° point) / `through` | `kind`, `depth`+`point_depth` (point reaches DEEPER — plan walls on `point_depth`) or `through` |
+| `drill` | `d`, exactly one of `depth` (blind, 118° point) / `through`; `flat?: true` = flat-bottomed pocket (no drill point — iso9409 F6, ENGINE #11) | `kind`, `depth`+`point_depth` (point reaches DEEPER — plan walls on `point_depth`; `= depth` when `flat`) or `through` |
 | `clearance_hole` | `m`, `fit?` close/medium(default)/coarse — always cut through entire extent | `clearance_d` (ISO 273: M5 → 5.3/5.5/5.8) |
 | `counterbore_hole` | `m`, `fit?` | `counterbore_d`, `counterbore_depth` (DIN 974-1; M5 → Ø10×5.8) |
 | `countersink_hole` | `m` ≥ 3, `fit?` | `countersink_d` (DIN 74-1 form F 90°; M5 → Ø12.5) |
-| `tap_drill_hole` | `m`, `depth`/`through` | `pilot_d` = m − pitch, `pitch`. Thread NOT modelled (real threads: `thread_ridge`+`export_threaded`, voxel route) |
+| `tap_drill_hole` | `m`, `depth`/`through` | `pilot_d` = m − pitch, `pitch`. Thread NOT modelled (real threads: `thread_ridge`+`export_threaded`, voxel route; `thread_ridge` echoes `z_min`/`z_max`/`axial_overshoot` and `clip_to_span: true` trims the helix run-out to the declared span — prosthetic F3) |
 | `bolt_circle` | `center`, `axis`, `circle_d` (BCD), `n`, `start_deg?=0`, `hole: {kind: "drill"\|"clearance"\|"counterbore"\|"countersink"\|"tap_drill", ...}` | `hole` echo with full table dims |
-| `bearing_seat` | `bearing`: "603","608","625","688","6000","6001","6804" | `bore_d`, `outer_d`, `width`, `pocket_d`, `pocket_depth`, `shoulder_d` (608 → Ø22×7 pocket, Ø15 shoulder) |
+| `bearing_seat` | `bearing`: "603","608","623","625","688","6000","6001","6804" (623 added 2026-09-05; same list drives `deep_groove_bearing`) | `bore_d`, `outer_d`, `width`, `pocket_d`, `pocket_depth`, `shoulder_d` (608 → Ø22×7 pocket, Ø15 shoulder) |
 
 Genus arithmetic: each THROUGH cut adds 1 genus; blind holes add none.
 **Wizard has zero edge-proximity awareness** — a countersink tangent to a wall
@@ -337,17 +339,17 @@ Provenance fields are carried per receipt (VERIFIED live).
 
 | op | params | measures (provenance) |
 |---|---|---|
-| `validate` | `in` | `closed`, `manifold`, `euler_characteristic`, `genus`, `shells`, `valid` — RECORDS topology (every solid op already gates on it). Genus = through-tunnels: strongest one-number shape check |
+| `validate` | `in` | `closed`, `manifold`, `euler_characteristic`, `genus`, `shells`, `valid` — RECORDS topology (every solid op already gates on it) — plus `geometric_ok` (the exact tessellation has no self-crossing; `witness` block with the pierce point and triangle pair when false). Genus = through-tunnels: strongest one-number shape check. `valid` can be true while `geometric_ok` is false: topology closes, geometry crosses itself — gate both |
 | `volume` | `in` | `volume` (`provenance: "faceted"`) — exact for planar solids, segment-dependent on curved |
 | `exact_volume` | `in` | `exact_volume` (`provenance: "analytic"`) — π-exact from surface tags; falls back to facets on untagged faces. The default volume gate; band, not equality, after booleans |
 | `mass_properties` | `in` | `volume`, `center_of_mass`, `inertia_diag` [Ixx,Iyy,Izz], full `inertia_tensor` — UNIT density, about CoM in model axes; analytic 2nd moments for cyl/sphere/cone faces (torus: tessellation-level) |
 | `bounding_box` | `in`, `envelope?: [x,y,z]` | `min`, `max`, `size`, `center`, `diagonal`, + `fits_within`, `fits_within_rotated` with envelope — the "fits the printer bed" check |
-| `measure_dimension` | `in`, `kind: "point_point"\|"face_face"\|"diameter"`, `a`/`b` (points or face witnesses), `near` (diameter witness) | `value`, `provenance` (`analytic` for face_face/diameter from plane eqns / surface tags; `coordinates` for point_point), face descriptors. Non-parallel/non-planar face_face and cone/torus diameter are LOUD `invalid_param`, never a wrong number |
+| `measure_dimension` | `in`, `kind: "point_point"\|"face_face"\|"diameter"`, `a`/`b` (points or face witnesses), `near` (diameter witness) | `value`, `provenance` (`analytic` for face_face/diameter from plane eqns / surface tags; `coordinates` for point_point), face descriptors with `witness_gap` (mm from the witness to the face it picked). **A witness selects the face whose SURFACE is nearest it** (true point-to-face distance over the face's own triangles, 2026-09-05 — not the nearest polygon centroid, which let a bore beat the plane the witness lay on): a witness placed in a counterbore mouth picks that bore wall, so put it ON the face you mean and read `witness_gap` (should be ≈ 0). Non-parallel/non-planar face_face and cone/torus diameter are LOUD `invalid_param`, never a wrong number |
 | `wall_thickness` | `in`, `flag_below` (required), `exclude_wedge_deg?` | `min_thickness`, `p05_thickness`, `median_thickness`, `thin_area`, `sampled_triangles`, `samples`, `thin_witness` (≤8 thinnest flagged samples, `{"at":[x,y,z],"thickness":t}`); with `exclude_wedge_deg` also `thin_area_wedge`, `thin_area_total`, `thin_wedge_witness`. Area-uniform deterministic sampling (mirror images agree to ≈1 %). Judge by `thin_area` + percentiles, locate with `thin_witness`; a dovetail lip / cone rim is a knife-edge wedge — `exclude_wedge_deg: 75` moves readings whose ray exits through an edge-adjacent face at a convex dihedral < 75° to `thin_area_wedge` (parallel walls never qualify); `min_thickness` is edge noise |
 | `draft_analysis` | `in`, `pull`, `min_deg` | `min_draft_deg`, `low_draft_area`, `undercut_area`; walls parallel to pull = 0° |
 | `coincident_fit` | `a`, `b` | `coincident_fit` (bool) — near-coincident-face hazard CLASS pre-scan (1e-3 rad / 0.05 mm), O(faces²), safe on pairs that would hang a boolean |
 | `clearance` | `a`, `b`, `tol?` | `distance`, `interfering` (bool), `contact` (bool), `overlap_volume` (mm³), `overlap_volume_provenance` (`analytic`\|`faceted`\|`unavailable`), `overlap_volume_reason`, `coincident_fit_hazard`, `provenance: "faceted"` — the interference measure that does NOT fail on overlap. **`overlap_volume` is never a bare null** (VERIFIED 2026-09-04: cubes overlapping 1×10×10 → 100.0 exactly; Ø10 cylinders on 8 mm centres → 81.23 faceted vs the closed-form 81.75; abutting cubes → 0.0 with `contact: true, interfering: false`). `interfering` is `overlap_volume > 0` whenever a number exists, so the flag and the number cannot disagree. **`distance` is faceted and under-reads curved gaps — see §11b** |
-| `support_report` | `in`, `build_dir? = [0,0,1]`, `overhang_deg? = 45` | `support_free`, `bed_area`, `bridge_area`, `steep_area`, `total_area`, `max_bridge_span`, `provenance: "faceted"`. One orientation per call; areas only, no locations. **`describe` ships EMPTY `doc` strings for both params — the semantics below are measured, not documented by the binary.** See §11a |
+| `support_report` | `in`, `build_dir? = [0,0,1]`, `overhang_deg? = 45` | `support_free`, `bed_area`, `bridge_area`, `steep_area`, `total_area`, `max_bridge_span`, `near_threshold_area` + `threshold_margin_deg` (faces within 1° of the limit — the knife-edge; `near_threshold_witness`/`near_threshold_note` when > 0: re-run at ±1° before quoting, digest F10), `provenance: "faceted"`. One orientation per call. `describe` documents both params since 2026-09-05; the measured semantics are in §11a |
 
 Discovery (bind nothing, VERIFIED):
 - `describe` → no-arg: `count: 160` + all op names; `{name}`: `params:
@@ -364,7 +366,9 @@ Discovery (bind nothing, VERIFIED):
 ### Assertions (enforce; `assert_failed`, exit 1)
 - `assert {in, ...}` — at least one check (empty = `invalid_param`). Checks:
   `volume_within` / `exact_volume_within` (each `{"target", "abs"|"percent"}`
-  — exactly one tolerance form), `genus` (int), `shells` (int), `closed` /
+  — exactly one tolerance form; the measured value is ALSO published as
+  `measures.exact_volume` / `measures.volume` beside the check echo, rotor F7),
+  `genus` (int), `shells` (int), `closed` /
   `manifold` / `valid` (bool). All present checks evaluated; every failure
   listed in one message; on pass the measured values are echoed.
 - `assert_disjoint {a, b, min_clearance?=0, tol?=0.01}` — passes iff measured
@@ -408,7 +412,7 @@ directories, which is the direct cause of "reproducing does not reproduce":
 | **out** | `export_stl`, `export_3mf`, `export_step`, `export_threaded`, `mesh_carve.out`, `library_*` `dir` | **`--out-dir`** |
 | **in** | `import_step`, `import_mesh`, `load_part`, `mesh_carve.file` | **the PROGRAM file's own directory FIRST, then `--out-dir`** (fallback added 2026-08 — the T4 heal; a total miss names BOTH tried roots) |
 
-Parents are created on the out side; report `file` = the path actually written.
+Parents are created on the out side; report `file` = the written path **relative to `--out-dir`** (2026-09-05, din_rail F5 — so a report is byte-identical whether `--out-dir` was spelled `.` or absolute; join it to the out-dir you passed to open the file).
 Verified 2026-08-08: a program in `prog/` run with `--out-dir out/` writes
 `out/b.step`, and a second program in `prog/` doing
 `import_step {"file":"b.step"}` fails
@@ -431,7 +435,7 @@ across two different `--out-dir`s.
 | `export_stl` | `in`, `file`, `tol?=0.01`, `voxel?=0.3` | `route`, `triangles`, `watertight`, `demotion` (healed route only) | binary STL. **Route is honest**: exact adaptive tessellation at `tol`; watertight → `"route": "exact"`; leaky → winding-number-SDF heal remesh at `voxel` → `"route": "voxel_healed"`; STILL leaky → op FAILS `invalid_geometry` (a program never writes garbage). **A demotion is explained**: `demotion: {reason, boundary_edges, non_manifold_edges, non_orientable_edges, non_manifold_vertices, degenerate_triangles, self_intersections, exact_triangles, witness: [[x,y,z]…≤8]}` names the first failing check of the exact tessellation (`boundary_edges` \| `non_manifold_edges` \| `non_orientable_edges` \| `non_manifold_vertices` \| `degenerate_triangles` \| `self_intersection` \| `tessellation_failed`) and locates it in the body's frame — read it BEFORE bisecting geometry; `mesh_components` (tol 0.05, topology only) can read clean while the export demotes on a sliver crossing |
 | `export_3mf` | same | same | same mesh routing, 3MF (mm units explicit) |
 | `export_step` | `in`, `file` | — | STEP **AP203** with EXACT analytic surfaces (plane/cylinder/sphere/cone/torus, circular edges as CIRCLE) — not a mesh; no tessellation, no routing. Product name = file stem. Untagged faces export as planar patches |
-| `export_threaded` | `in`, `m`, `length`, `z0?`, `internal?`, `voxel?=pitch/8`, `file` | `route`, `volume_delta_vs_body`, ... | the ONLY way to fuse/cut a real ISO thread (exact union would self-intersect). Thread axis is world +Z through origin. `voxel` > pitch/6 refused. Internal is a print-practical male-form+0.4mm-crest-clearance approximation, NOT ISO female form |
+| `export_threaded` | `in`, `m` OR `major_d` + `pitch` (a custom/fine pitch such as M8×0.75 — graham F3), `length`, `z0?`, `internal?`, `voxel?=pitch/8`, `file` | `route`, `volume_delta_vs_body`, ... | the ONLY way to fuse/cut a real ISO thread (exact union would self-intersect). Thread axis is world +Z through origin. `voxel` > pitch/6 refused. Internal is a print-practical male-form+0.4mm-crest-clearance approximation, NOT ISO female form |
 | `import_step` | `file`, `mode?="strict"` | `shells`, `genus`, `faces`, `volume`, `freeform_faces`; tolerant adds `mode`, `uncertainty_mm`, `solids_total/imported/skipped`, `faces_skipped/repaired`, `solids[]`, `skipped[]`, `repaired[]` | BINDS an exact B-rep (tags kept). **strict**: first unreadable face fails the op; every brep in its LOCAL frame, one multi-shell solid. **`"mode":"tolerant"`** (vendor files): per-face failures are flat-repaired or skipped and REPORTED; EVERY solid instance of the file is listed in `solids[]` as `{name, path, entity, status: imported\|skipped, bbox_min, bbox_max, bbox_source: brep\|edges, faces, faces_repaired, faces_skipped, reason?}` with its PRODUCT name and assembly-PLACED envelope (from entity geometry even when the B-rep failed); `skipped[]`/`repaired[]` are `{entity, kind, solid, reason}`; the body is the compound of the imported instances; zero imported → `invalid_geometry` with the counts in the message. Trim vertices snap to their B-spline patch within the file's own uncertainty (10× in tolerant); holes on curved analytic faces and off-phase/partial sphere-torus regions import on the exact surface |
 | `import_mesh` | `file` (.stl/.obj/.3mf/.ply), `heal?`, `out?` | full check_mesh receipt; `volume` only iff watertight | binds a **mesh value** (not a solid): gateable by `validate`/`volume`/`bounding_box`/`mesh_components`/`support_report`/`clearance`/`assert*`, all stamping `source: "mesh"`. To make it a SOLID you must name `solid_from_mesh` (§10a) — nothing promotes it silently |
 | `mesh_carve` | `in`, `file`, `bool`, `voxel?=0.3`, `out` | `route: "voxel_implicit"`, ... | boolean a solid vs a mesh FILE through the voxel half; writes `out` AND binds the result as a **mesh value** (chain `solid_from_mesh`, §10a, to get back to exact) |
@@ -451,9 +455,9 @@ any of them.
 | op | params | binds | route |
 |---|---|---|---|
 | `hybrid_boolean` | `in` (solid), `bool`, `field`? XOR `file`?, `voxel?=0.3`, `out` (required) | **mesh** + writes `out` | `"exact_stitch"` \| `"voxel_healed"` |
-| `offset_solid` | `in`, `delta`, `voxel?=0.3` | **solid** (faceted) | `"voxel"` |
+| `offset_solid` | `in`, `delta`, `voxel?=0.3` | **solid** (faceted); measures echo the grid and its work — the op REFUSES (`invalid_param`, cost in the message) above a 2e9-cell·band budget instead of running for hours: coarsen `voxel` (cleat F9) | `"voxel"` |
 | `shell_solid` | `in`, `thickness`, `voxel?=0.3` | **solid** (faceted) | `"voxel"` |
-| `solid_from_implicit` | `expr`, `voxel`, `domain?` | **solid** (faceted) | `"voxel"` |
+| `solid_from_implicit` | `expr`, `voxel`, `domain?` | **solid** (faceted); `healed: true` in the measures when the raw contour needed the manifold heal (a TPMS at a coarse voxel — cubesat F3) | `"voxel"` |
 | `solid_from_mesh` | `in` (a **mesh** value) | **solid** (faceted) | `"mesh_wrap"` |
 
 `hybrid_boolean` binds its result as a MESH (it did not always — old friction
@@ -545,10 +549,10 @@ Note `Box` is CENTER+SIZE here (op-surface `box` is min/max) — one of the
 Document grammar's three shape asymmetries (with radians in `CircularPattern.
 angle` and `ExtrudeSketch.draft`).
 
-## 11a. `support_report` — the measured semantics (`describe` ships empty docs)
+## 11a. `support_report` — the measured semantics
 
-`describe {"name":"support_report"}` returns `build_dir` and `overhang_deg`
-with `"doc": ""`. Everything below was measured on
+`describe {"name":"support_report"}` documents `build_dir` and `overhang_deg`
+since 2026-09-05 (jar F16). Everything below was measured on
 `target/release/kernel-api`, 2026-08-08. Orientation prose was wrong in four
 campaigns — one shipped a render of the wrong bed — so read this before you
 write any "prints support-free in orientation X" sentence.
@@ -614,19 +618,20 @@ case that broke it — a Ø11.4 pin coaxial inside a Ø12 bore, a true 0.300 mm
 radial gap:
 
 ```
-clearance(tube, pin)       -> {"distance": 0.2711080312728882, "interfering": false,
+clearance(tube, pin)       -> {"distance": 0.2967686057090759, "interfering": false,
                                "overlap_volume": 0.0, "coincident_fit_hazard": false,
                                "provenance": "faceted"}
 assert_disjoint(tube, pin) -> PASSES   (it used to fail this pair)
 clearance(tube, far_box)   -> {"distance": 147.83, ...}
 ```
 
-**Quote it with its provenance.** 0.2711 against a true 0.300 mm is a
-**−9.6 %** under-read, because the measure runs on inscribed polygonal facets;
-the error scales as `r·(1 − cos(π/n))` ≈ 0.029 mm here. That is the
-*conservative* direction for a clearance claim, so publish it as-is for
-"does it clear at all" — but it is not the analytic gap, and `tol` does not
-materially move it (0.271108 at default vs 0.271108 at `tol` 0.001).
+**Quote it with its provenance.** 0.2968 against a true 0.300 mm is a
+**−1.1 %** under-read, because the measure runs on inscribed polygonal facets;
+the error scales as `r·(1 − cos(π/n))` (the 2026-09-05 adaptive tessellation
+samples the bore finer — the 2026-08-08 reading was 0.2711, −9.6 %). That is
+the *conservative* direction for a clearance claim, so publish it as-is for
+"does it clear at all" — but it is not the analytic gap, and `tol` moves it a
+little (0.2968 at default 0.01 vs 0.2994 at `tol` 0.001).
 
 **When the number must be ANALYTIC — the grown-gauge bracket.** Still the
 strongest available measure, and the only one with `analytic` provenance.
@@ -644,7 +649,7 @@ binds. Verified on the same pin/bore:
 
 Ship both programs and both reports; the refusing one exits 1 and its report
 is the evidence, not a failure to hide. The result is `[0.29, 0.31]` mm with
-**analytic** provenance — tighter than the faceted 0.2711 and on the right
+**analytic** provenance — tighter than the faceted 0.2968 and on the right
 side of the truth. Use the faceted `distance` for "does it clear"; use the
 bracket whenever a few percent decides the fit.
 
@@ -694,10 +699,12 @@ bracket in §11b or an explicit `intersection` + `exact_volume`.
 
 ## 12. Design-math lookups (bind nothing; numbers in `measures`)
 
-`iso286_fit {d ≤ 120, fit: "H7/g6"|"H7/h6"|"H7/k6"|"H7/n6"|"H7/p6"|"H7/s6"|"H8/f7"}`
+`iso286_fit {d ≤ 120, fit: "H7/g6"|"H7/h6"|"H7/k6"|"H7/n6"|"H7/p6"|"H7/s6"|"H8/f7"|"H11/c11"|"H9/d9"|"C11/h11"|"D9/h9"|"F8/h7"|"G7/h6"}`
+(the loose running fits H11/c11, H9/d9 and the shaft-basis clearance fits
+landed 2026-09-05 — ratcheting F2; bearing-class k5/j5/N7/P7 still refused)
 → `hole`/`shaft`/`clearance` `[lower, upper]` mm (negative clearance =
-interference) · `thread_spec {m: 3..16 coarse}` → `pitch`, `minor_d`,
-`tap_drill_d` · `heatset_spec {m: 2..6}` → `pilot_d`, `pocket_depth`, `boss_d`
+interference) · `thread_spec {m: 3..16 coarse}` or `{major_d, tpi}` (inch UN
+threads, screw_on F2) → `pitch`, `minor_d`, `tap_drill_d` · `heatset_spec {m: 2..6}` → `pilot_d`, `pocket_depth`, `boss_d`
 (Ruthex) · `gt2_belt {center_distance, t1, t2}` → `pitch_length`, `belt_teeth`
 · `gt2_center_distance {belt_teeth, t1, t2}` · `metric_cord_gland {cord_d}` ·
 `racetrack_cord_length {x_len, y_len, corner_r}` · `pipe_thread_g

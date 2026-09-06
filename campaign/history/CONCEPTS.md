@@ -675,3 +675,31 @@ A card must meet at least four criteria including (a) and (b), be a genuinely co
 - **Implicit-only helical threads** carry (c) in four cards (biomedical UNF, optics M6×1.0, agriculture 70-450, acoustics ×2) — flagged by the judge as samey-as-a-set but individually sound; accepted and recorded.
 - **Residual rhymes, consciously accepted**: biomedical slider vs electronics latch bolt (differentiated in mechanism, load path, and analysis route — see §4 risk); three compliant-detent members at the judge's accepted count.
 - **Shared repair patterns, applied consistently**: λ_c ≈ 24 buckling line (aerospace/robotics run, marine/biomedical skip); posed-station proofs for non-expressible coupled motion (acoustics threads, agriculture Geneva); pressure-region loads on hex8 only (marine, agriculture); cataloged wedge-statics + catalog-spring arithmetic for rigid sliders (biomedical, electronics); structure-only modal + lumped-mass bound (robotics, optics); can-fail replacements for both formerly can't-fail gates (energy balance, optics contact).
+
+---
+
+## ERRATA (appended 2026-09-05 — the cards above are frozen and are not edited)
+
+Two campaigns found that a frozen card promised something the engine or the
+world does not have. The cards stand as the historical record; these entries
+are the corrections, so the next reader does not rebuild the same plan.
+
+- **§6 marine (folding_deck_cleat), criterion (c) hardware list.** The card
+  names catalog `clevis_pin` and `split_pin` envelopes. No such ops exist in
+  the binary (`describe` lists no clevis or split pin); the fastener family is
+  `dowel_pin`, `shoulder_bolt`, the screw/nut/washer set and the DIN 471/472
+  circlips. The campaign kept the purchased ISO 2341 pin and ISO 1234 split pin
+  as real BOM hardware and modelled their envelopes with `dowel_pin {d: 6}`
+  plus explicit head/wire cylinders — the honest substitute
+  (campaign/friction/folding_deck_cleat.md F1).
+- **§10 acoustics (screw_on_exponential_horn), throat interface.** The card
+  specifies a "1-3/8"-27 TPI" screw-on compression-driver thread and builds
+  its wrong-pitch gauge on 1-3/8"-18. The industry screw-on standard is
+  **1-3/8"-18 UNEF** (Eminence PSD:2002 sheet: "1 3/8" 18 NEF ext."; Parts
+  Express 290-446 "1-3/8"-18 TPI"); 27 tpi is the 5/8"-27 mic-stand pitch,
+  conflated. The driver mass on the card (~1.55 kg) is also low against the
+  published 2.1–2.27 kg, and "GRS PT2522-8" is a planar tweeter, not a
+  compression driver. The campaign designed at 18 tpi with the gauges inverted
+  (campaign/friction/screw_on_exponential_horn.md F1). `thread_spec` now takes
+  the inch form (`major_d` + `tpi`) and `export_threaded` a custom
+  `major_d` + `pitch`, so this thread has a sanctioned engine route.

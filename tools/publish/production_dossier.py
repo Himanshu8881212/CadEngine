@@ -85,6 +85,7 @@ MATERIAL_DB = os.path.join(os.path.dirname(TOOLS_DIR), "material_db.json")  # to
 sys.path.insert(0, os.path.dirname(TOOLS_DIR))  # tools/: _stl + the layout map
 import _layout  # noqa: E402
 _layout.add_import_paths()
+import _receipt  # noqa: E402 — the shared `--out` / `receipt` / dry-run contract
 from _stl import load_stl  # noqa: E402 — the shared binary-STL loader
 
 GRAMS_PER_HOUR = 12.0   # 0.2 mm layers heuristic denominator (printed grams)
@@ -466,23 +467,17 @@ def build_dossier(job):
 	return receipt
 
 
+def _build(job, _job_dir):
+	if "out_dir" not in job:
+		raise ValueError("job needs 'out_dir'")
+	return build_dossier(job)
+
+
 def main():
-	if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
-		print(__doc__)          # digest F9: --help was read as a job path and traced back
-		return 0
-	if len(sys.argv) != 2:
-		print(json.dumps({"ok": False, "error": "usage: production_dossier.py job.json"}))
-		return 1
-	try:
-		job = json.load(open(sys.argv[1]))
-		if "out_dir" not in job:
-			raise ValueError("job needs 'out_dir'")
-		receipt = build_dossier(job)
-	except Exception as e:  # noqa: BLE001 — the receipt IS the error channel
-		print(json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"}))
-		return 1
-	print(json.dumps(receipt))
-	return 0
+	# `<job.json> [--out PATH]` — the shared runner shape; a job `receipt` key
+	# is honoured too (it used to be ignored in silence — graham F8; --help is
+	# digest F9; --out is stacking_tray_lid F6 / ratcheting F8).
+	return _receipt.doc_cli("production_dossier", _build, help_text=__doc__)
 
 
 if __name__ == "__main__":

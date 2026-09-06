@@ -29,7 +29,7 @@ use kernel_model::{Constraint, ConstraintSystem};
 use serde_json::{json, Value};
 
 use crate::interp::{err, fetch_solid, EnvValue, Outcome};
-use crate::ops::meshio::{read_mesh_file, resolve_path, solid_mesh, solid_mesh_routed, write_mesh_auto, write_mesh_scene};
+use crate::ops::meshio::{read_mesh_file, report_path, resolve_path, solid_mesh, solid_mesh_routed, write_mesh_auto, write_mesh_scene};
 use crate::ops::support::{polygon_centroid, v3a};
 use crate::program::{MaterialSpec, RotateSpec};
 use crate::report::{ErrorKind, OpError};
@@ -296,18 +296,11 @@ fn instance_solid<'e>(
 	}
 }
 
-/// The face of `solid` whose polygon centroid is nearest `witness` (the same
-/// anchor `list_faces` reports), plus that distance.
+/// The face of `solid` nearest `witness` by true surface distance (the shared
+/// `support::nearest_face` rule), plus the witness gap in mm.
 fn nearest_face(solid: &Solid, witness: DVec3) -> (kernel_brep::topo::FaceId, f64) {
-	let mut best: Option<(kernel_brep::topo::FaceId, f64)> = None;
-	for fid in solid.faces() {
-		let c = polygon_centroid(&solid.face_polygon(fid));
-		let d = (c - witness).length();
-		if best.map(|(_, bd)| d < bd).unwrap_or(true) {
-			best = Some((fid, d));
-		}
-	}
-	best.expect("a bound solid has faces")
+	let (_, fid, _, gap) = crate::ops::support::nearest_face(solid, witness);
+	(fid, gap)
 }
 
 /// Derived axis mate (`asm_mate_axis`).
@@ -805,7 +798,7 @@ pub(crate) fn export_step(
 			"bytes": text.len(),
 			"solved": state.solved,
 		})),
-		file: Some(path.display().to_string()),
+		file: Some(report_path(out_dir, &path)),
 	})
 }
 
@@ -902,7 +895,7 @@ pub(crate) fn save(
 			"solved": state.solved,
 			"note": "re-executable via `kernel-api asm` / MCP run_assembly — mates re-solve on every load",
 		})),
-		file: Some(asm_path.display().to_string()),
+		file: Some(report_path(out_dir, &asm_path)),
 	})
 }
 

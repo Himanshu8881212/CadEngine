@@ -1318,7 +1318,7 @@ fn load_assembly_nested(json: &str, base_dir: &Path, loading: &mut Vec<PathBuf>)
 				let mut members = Vec::with_capacity(member_count);
 				for (j, member) in sub.assembly.instances.into_iter().enumerate() {
 					let local = member.pose;
-					let leaf = assembly.add(Instance { source: member.source, pose: pose * local });
+					let leaf = assembly.add(Instance { source: member.source, pose: pose * local, mesh_verbatim: member.mesh_verbatim });
 					let member_suppressed = member_suppressed_flags[j];
 					if member_suppressed {
 						nested_suppressed.push(leaf);

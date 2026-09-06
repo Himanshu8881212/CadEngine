@@ -127,7 +127,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F4 — `union_all` over many mutually-disjoint cutter bodies does not complete (2026-08-07)
 - severity: major
 - surface: union_all
-- status: open
+- status: fixed — `union_all` takes an AABB-disjoint fast path; 13 mutually disjoint cutters union in 1.4 s (was 54 s / not completing)
 - symptom: a program folding 13 mutually-disjoint cylinders into one cutter with
   `{"op":"union_all","in":[13 ids]}` produced no output in >120 s (killed twice;
   no error, no progress). The 13 bodies are pairwise disjoint except the 3
@@ -150,7 +150,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F5 — export_step and import_step resolve `file` against DIFFERENT roots (2026-08-07)
 - severity: major
 - surface: import_step
-- status: open
+- status: fixed — one path rule (OUT → `--out-dir`, IN → program dir then `--out-dir`); `step_rt` repro
 - symptom: `{"op":"export_step","in":X,"file":"cad/p.step"}` with
   `--out-dir .` writes `<partdir>/cad/p.step`, but the very next
   `{"op":"import_step","file":"cad/p.step"}` fails
@@ -175,7 +175,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F6 — `clearance` returns `overlap_volume: null` on high-face-count STEP-imported operands (2026-08-07)
 - severity: blocker
 - surface: clearance
-- status: open
+- status: fixed — `overlap_volume` is a number or a named refusal, never null (ENGINE #28; `clr_*` repros)
 - symptom: `{"op":"clearance","a":<wheel from import_step>,"b":<driver from
   import_step>,"tol":0.01}` returned
   `{"coincident_fit_hazard": true, "distance": 0.0, "interfering": true,
@@ -231,7 +231,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F8 — export/import path asymmetry also bites `import_mesh` (2026-08-07)
 - severity: major
 - surface: import_mesh
-- status: open
+- status: fixed — `import_mesh` follows the same IN rule (`import_mesh_path` repro)
 - symptom: `{"op":"hybrid_boolean", ..., "out":"parts/housing_top_threaded.stl"}`
   wrote the file correctly, and the next op
   `{"op":"import_mesh","file":"../parts/housing_top_threaded.stl"}` failed
@@ -250,7 +250,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F9 — `ace_fea_tet_runner` refuses a kernel-exported watertight STL with an opaque gmsh error (2026-08-07)
 - severity: blocker
 - surface: tools/analyzers/ace_fea_tet_runner.py
-- status: open
+- status: fixed — ace_fea_tet isolates gmsh and types its refusals (`MeshRefusal`, exit 2) with a cost model and `dof_budget`
 - symptom: `python3 tools/ace_fea_tet_runner.py programs/fea_tet_pin.json` prints
   exactly `{"ok": false, "error": "Exception: Singular matrix 3x3"}` and nothing on
   stderr. The STL is the campaign's own shipped `parts/driver_crank.stl`, which the
@@ -279,7 +279,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F10 — a 0.04 mm change to one cutter makes a LATER, 27 mm-distant boolean fail validate (2026-08-07)
 - severity: major
 - surface: difference
-- status: open
+- status: fixed — `part_geneva_wheel.json` regenerated at WINDOW_D 10.70 / 10.74 / 10.78 all bind and export exact (re-run 2026-09-05): boolean-entry snap rounding (1e-12 grid) + constrained-Delaunay triangulation + coalesced caps removed the facet-luck sensitivity
 - symptom: `part_geneva_wheel.json` builds (exit 0) with drop-window cutters of Ø10.70 and
   FAILS at op `s47` with `invalid_geometry: op 's47': difference failed validate():
   closed=false manifold=false genus=9 euler_characteristic=-17 shells=1 — refusing to bind
@@ -300,7 +300,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F11 — STEP round trip refuses a body the kernel itself calls valid, and the threshold is a 0.1 mm geometry change (2026-08-07)
 - severity: major
 - surface: step io
-- status: open
+- status: fixed — `part_housing_bottom.json` regenerated at CHUTE_R_TOP 6.04 / 6.10 / 6.20 binds, exports exact and round-trips (2026-09-05); 6.00 fails the GENERATOR's own sanity assert (`chute must swallow a whole pocket`), which is the design rule, not the engine
 - symptom: `part_housing_bottom.json` — the body passes `validate` (`valid:true,
   closed:true, manifold:true, genus:6, shells:1`), `export_stl` gives
   `route:"exact", watertight:true`, `export_step` succeeds — and then `import_step` on that
@@ -326,7 +326,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F12 — `assembly_doc.py` refuses a legal job outright when the step prose is long, and the digest's `explode.axis` example is a string the tool cannot parse (2026-08-08)
 - severity: major
 - surface: tools/publish/assembly_doc.py
-- status: open
+- status: fixed — assembly_doc.py wraps long step prose and shrinks the title instead of refusing
 - symptom: two separate stops in one tool.
   (a) `campaign/digests/tools_cookbook.md` §"assembly_doc.py" documents
   `explode` as `{axis, auto:true, gap_mm:8}` / `{axis, spacing_mm}` /
@@ -364,7 +364,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F13 — `kernel-api asm` re-tessellates `mesh` instances ~18× denser on export, which makes `asm_contacts` intractable on a 5-part assembly (2026-08-08)
 - severity: blocker
 - surface: kernel-api cli
-- status: open
+- status: fixed — a `mesh` instance is exported VERBATIM (`route: mesh_verbatim`, byte-for-byte the source triangle count) and measured as itself, and mesh↔mesh clearance runs through the BVH pair descent (`Mesh::min_distance`; pinned equal to the brute-force oracle on curved/rotated/engulfed pairs). `kernel-api asm assembly/singulator.lmcasm --window 2.0` now completes in **5.9 s** (was stopped at 55 min) with all five instances exported at source density and 7 contact pairs reported
 - symptom: `kernel-api asm assembly/singulator.lmcasm --out-dir assembly/ --window 2.0`
   ran for **55 minutes wall / 33 minutes CPU** without producing its report, and
   was stopped. It got as far as writing every instance export and the merged
@@ -441,7 +441,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F15 — ACE solver receipts embed a wall-clock timing field, so they can never be byte-reproducible (2026-08-08)
 - severity: minor
 - surface: tools/analyzers/_ace.py
-- status: open
+- status: fixed — timing fields are excluded from `core_digest`
 - symptom: `receipts/fea_*.json` and `receipts/buckling_neck.json` differ on every run.
   Two back-to-back identical runs of `programs/fea_wheel_lc4.json` diff by exactly one
   line: `"fea_s": 28.662` vs `"fea_s": 41.358`. Every physics number (`max_von_mises_pa`
@@ -457,7 +457,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F16 — `describe {"name":"support_report"}` ships empty `doc` strings, so the `build_dir` sign convention is undocumented (2026-08-08)
 - severity: minor
 - surface: support_report
-- status: open
+- status: fixed — `describe {"name":"support_report"}` documents `build_dir` (layer-growth direction, away from the bed) and `overhang_deg` (from vertical); ops_core §11a keeps the measured table
 - symptom: `describe` returns `{"name":"build_dir","type":"[x,y,z]","required":false,"doc":""}`.
   Nothing states whether `build_dir` is the print-up direction or the bed-normal
   direction, and the campaign's own files disagree (`analysis/DESIGN.md` §10 declares
@@ -522,7 +522,7 @@ untouched; every workaround lives inside the campaign directory.
 ## F18 — `clearance` on coarse inscribed cylinders reports an exact-contact 0.0 that is a faceting artefact (2026-08-08)
 - severity: major
 - surface: clearance
-- status: open
+- status: fixed — `clearance` separates `contact` (surfaces meeting within the faceting) from `interfering` (`overlap_volume > 0`); a coarse inscribed pair reports `contact: true, interfering: false` (`clr_coarse` repro)
 - symptom: NC3's legal twin (`nc3_pass`, lock column r 16.00 inside a concave scallop
   cut at r 16.5999 — a 0.5999 mm design clearance) measured
   `{"distance": 0.0, "interfering": false, "overlap_volume": 0.0}`.
@@ -683,3 +683,22 @@ digests are not the surface. When the digest is silent about something, that is
 evidence about the digest, not about the engine —
 `{"op":"describe","name":"<op>"}` is compile-forced complete and cannot drift.
 Check there before recording a capability as missing.
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F4** — F4: disjoint union_all.
+- **F5** — F5: export/import roots.
+- **F6** — F6: overlap on high-face-count imports.
+- **F8** — F8: import_mesh path.
+- **F9** — F9: tet refusal typed.
+- **F10** — F10: the 0.04 mm sensitivity is gone across the bracket.
+- **F11** — F11: STEP round trip stable across the bracket.
+- **F12** — F12: long prose accepted.
+- **F13** — F13: verbatim mesh route + BVH clearance — the run that never finished takes six seconds.
+- **F15** — F15: digest excludes timings.
+- **F16** — F16: describe docs present.
+- **F18** — F18: contact vs interference.
+
+RE-BASELINE: `assembly/singulator.lmcasm` can now be run as documented (5.9 s) — `receipts/asm_singulator.report.json` can ship. Report `file` fields are out-dir-relative (F5 rule).

@@ -9,7 +9,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F1 — `wall_thickness` reports a facet-dependent `thin_area` at a convex feature crossing (2026-08-07)
 - severity: blocker
 - surface: wall_thickness
-- status: open
+- status: fixed — `wall_thickness {exclude_wedge_deg}` moves knife-edge (convex rim/lip) readings to `thin_area_wedge`; the bare-rim repro reads `thin_area 0.0` with the wedge area reported separately (`wt_rim`)
 
 - symptom: on the receptacle, the detent nose (a small cylinder unioned onto the
   counterbore wall so that it protrudes into the bore) makes `wall_thickness
@@ -47,7 +47,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F2 — `clearance` / `assert_disjoint` return `distance: 0.0` for INTERLOCKED but non-overlapping bodies (2026-08-07)
 - severity: major
 - surface: clearance
-- status: open
+- status: fixed — interlocked non-overlapping pairs read their true gap (`clr_pin_hole`, `clr_nested`)
 
 - symptom: with the slider pressed to full travel, the insert stud (O16.50) passes
   through the slider's large lobe (O17.20) with a true 0.35 mm radial gap everywhere.
@@ -80,7 +80,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F3 — `thread_ridge` overshoots its declared axial span by ~0.48 mm at EACH end (2026-08-07)
 - severity: major
 - surface: thread_ridge
-- status: open
+- status: fixed — `thread_ridge` echoes `z_min`/`z_max`/`axial_overshoot`; `clip_to_span: true` trims the helix run-out to the declared span (`ridge_clip` repro: bbox z 1.0 … 12.999 for z0 1, length 12)
 
 - symptom: `{"op": "thread_ridge", "major_d": 13.15, "pitch": 1.27, "z0": 1.0,
   "length": 12.0}` produces a solid whose `bounding_box` is z = 0.524 .. 13.475 — i.e.
@@ -108,7 +108,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F4 — `revolve`/`extrude` polygon helpers: `extrude` refuses CW profiles with a topology error, not a winding error (2026-08-07)
 - severity: papercut
 - surface: extrude
-- status: open
+- status: fixed — `extrude` re-winds a CW profile (`extrude_cw` repro)
 
 - symptom: an annular-sector cutter polygon generated inner-arc-then-outer-arc-reversed
   is clockwise. `extrude` refused it with
@@ -127,7 +127,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F5 — ace_fea `cylinder` region_selector needs a 3-vector `center_mm` + `length_mm`, not `center_mm`+`z_min/z_max` (2026-08-07)
 - severity: minor
 - surface: campaign/digests/tools_cookbook.md
-- status: open
+- status: fixed — cookbook documents `cylinder {axis, center_mm:[x,y,z], radius_mm, length_mm?}`
 - symptom: `{"ok": false, "error": "ValueError: cylinder 'center_mm' must be a 3-vector"}` from
   `tools/ace_fea_runner.py`; the job had `{"type":"cylinder","axis":"z","center_mm":[0.0,0.0],
   "radius_mm":7.025,"z_min_mm":1.0,"z_max_mm":13.4}`.
@@ -146,7 +146,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F6 — ace_fatigue requires a nested `"stress": {...}` block; the cookbook line reads as top-level keys (2026-08-07)
 - severity: minor
 - surface: campaign/digests/tools_cookbook.md
-- status: open
+- status: fixed — cookbook shows the nested `stress` block
 - symptom: `JobError: stress block required: {npy,...} or {sigma_ref_mpa} or {sigma_ref_pa}`
   from a job that had a top-level `"sigma_ref_mpa": 24.68`.
 - minimal repro: `{"out_dir":..., "material":"PLA", "sigma_ref_mpa": 24.68,
@@ -160,7 +160,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F7 — ace_contact curve row 0 is the UN-EQUILIBRATED initial state and reports a fabricated-looking force when the start configuration penetrates the obstacle (2026-08-07)
 - severity: major
 - surface: tools/analyzers/ace_contact_runner.py
-- status: open
+- status: fixed — ace_contact marks curve row 0 as the un-equilibrated start state and reports the first equilibrated row (`contact_prepenetrated` repro notes)
 - symptom: a detent-finger job whose beam tip starts 0.3385 mm inside the rigid profile (the
   physically correct SEATED state of a preloaded detent) returned, verbatim, row 0 of
   `curve.npy`: `lambda 0.0, insertion_force_n -674.8568, total_normal_force_n 982.1124,
@@ -181,7 +181,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F8 — ace_fea is killed with no receipt at all under concurrent-agent memory pressure (2026-08-07)
 - severity: blocker
 - surface: tools/analyzers/ace_fea_runner.py
-- status: open
+- status: fixed — every runner writes a `<receipt>.attempt` sidecar at launch and removes it on a normal exit; a SIGKILL (verified 2026-09-05: `kill -9` mid-solve) leaves `receipt.json.attempt` with `error_kind: killed.unfinished`, the pid and start time
 - symptom: `tools/ace_fea_runner.py` on a 177,714-element / 590,556-DOF job produced stderr
   `loaded density grid (64, 64, 76) from ...` and then NOTHING -- no stdout line, no traceback,
   no non-zero-exit JSON. The identical job re-run solo finished in 292.9 s with
@@ -198,7 +198,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F9 — `translate` takes `offset`, not `delta` (the warnings fence worked) (2026-08-07)
 - severity: note
 - surface: translate
-- status: open
+- status: fixed — note: `translate {offset}` documented; the unknown-param fence names the accepted params
 - symptom: `{"kind":"invalid_param","message":"op 's_00' ('translate'): bad params: missing
   field `offset`"}` plus the warning `unknown param 'delta' - 'translate' does not accept it`.
 - expected vs actual: no doc claimed `delta`; this is logged only as EVIDENCE THAT THE 2026-08-06
@@ -209,7 +209,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F10 — ace_fea_tet (gmsh) refuses a watertight, exact-route STL that carries a `thread_ridge` union (2026-08-07)
 - severity: blocker
 - surface: kernel tessellation
-- status: open
+- status: partial — the tet mesher's refusal on a thread-ridge STL is now typed (`MeshRefusal`, exit 2, sliver witness, gmsh isolated so nothing aborts); gmsh still cannot mesh the helical slivers at the element sizes the part needs, so the body-fitted route for threaded bodies stays a refusal — analyze the un-threaded blank (thread minor diameter) as the campaign did
 - symptom: `{"ok": false, "error": "Exception: Invalid boundary mesh (overlapping facets) on
   surface 45 surface 116"}` from `tools/ace_fea_tet_runner.py` at `elem_size_mm: 0.9` on
   `parts/insert.stl`.
@@ -230,7 +230,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F11 — `mesh_components` reports a one-body part as 9 bodies after a STEP round-trip, while `validate` still says shells 1 / closed / manifold (2026-08-08)
 - severity: major
 - surface: mesh_components
-- status: open
+- status: fixed — `mesh_components` welds STEP-imported bodies before counting (`step_rt` repro: 1)
 - symptom: the shipped receptacle measures `components: 1, is_one_body: true, triangles: 11434`
   natively. Re-imported from its own exact AP203 export it measures
   `{"components": 9, "is_one_body": false, "triangles": 4690, "tol": 0.05, "weld_tol": 0.001}`
@@ -264,7 +264,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F12 — `export_stl` `tol` has no observable effect on a STEP-reimported body (2026-08-08, low severity)
 - severity: minor
 - surface: export_stl
-- status: open
+- status: fixed — a STEP-imported body keeps its surface tags, so `export_stl.tol` drives the adaptive tessellation on it
 - symptom: `{"op":"export_stl","in":<import_step body>,"file":...}` writes a 15,166,484-byte
   (303,329-triangle) STL for the receptacle whose NATIVE export is 18,382 triangles. Adding
   `"tol": 0.05` — a parameter `describe {"name":"export_stl"}` lists as a real optional number,
@@ -284,7 +284,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F13 — `export_stl` silently downgrades to `route: voxel_healed` with ZERO warnings, so the zero-warnings gate is blind to it (2026-08-08, found by independent verification)
 - severity: major
 - surface: export_stl
-- status: open
+- status: fixed — a demoted export carries the `demotion` receipt (reason, counters, witness) and `require {route: "exact"}` turns a downgrade into a failing gate
 - symptom: `{"op":"export_stl","in":"c3","file":"optional/c3_thread_ring.stl"}` returns
   `{"route": "voxel_healed", "triangles": 38120, "watertight": true}` and `warnings: []`, while the
   structurally identical `thread_ridge` union in `part_insert.json` returns `route: "exact"`. The
@@ -307,7 +307,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F14 — `export_stl`'s route flips between `exact` and `voxel_healed` on the FACET DENSITY of the operands, not on anything the program declares (2026-08-08, found while repairing F13)
 - severity: major
 - surface: export_stl
-- status: open
+- status: fixed — the exact route is stable against facet density (snap rounding + CDT); the campaign's parts export exact (`prosthetic_insert`/`receptacle`/`coupons` re-run 2026-09-05)
 - symptom: repairing F13 by making the C3 coupon blind-bored (topologically identical to the
   shipped insert) was necessary but NOT sufficient. The same union of a `cylinder`-difference shell
   with a `thread_ridge`, at the same diameters and the same 0.15 mm embedment, exports
@@ -335,7 +335,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F15 — `production_check.py` has no time-dependent creep mode, so its creep verdict is derived from the STATIC yield it is supposed to replace (2026-08-08)
 - severity: major
 - surface: tools/analyzers/production_check.py
-- status: open
+- status: fixed — production_check reports the temperature-dependent creep cell with its governing rule and time basis instead of a single-row lookup
 - symptom: `{"load_character": {"sustained": true}}` produces
   `"allowable = yield 55.00 x creep_sustained_fraction 0.20 = 11.00 MPa"` — a scalar fraction of the
   static number, with no duration input and no reference to `tools/materials/pla.json#creep`. The
@@ -361,3 +361,23 @@ Engine and tools source were NOT touched — every workaround lives inside
   `selfcheck.py` item 6f fails if a sustained row has no design duration. Suggested engine fix:
   accept `service.duration_h` in the production_check job and route it through the same
   `creep_allowable()` the triage tool already has.
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F1** — F1: facet-dependent rim thin_area separated.
+- **F2** — F2: interlocked clearance.
+- **F3** — F3: overshoot named and clippable.
+- **F4** — F4: CW accepted.
+- **F5** — F5: selector keys documented.
+- **F6** — F6: cookbook.
+- **F7** — F7: row 0 labelled.
+- **F8** — F8: a killed run leaves a marker receipt.
+- **F9** — F9: note closed.
+- **F10** — F10: partial — honest typed refusal; helical slivers remain beyond gmsh.
+- **F11** — F11: one body after round trip.
+- **F12** — F12: tol honoured on imports.
+- **F13** — F13: no silent downgrade.
+- **F14** — F14: route no longer flips.
+- **F15** — F15: creep mode.

@@ -85,6 +85,13 @@ values so a re-run can be diffed against the shipped claim.
 Each gate is an in-program `assert`/measure or a tool receipt saved under
 `receipts/`. A recorded-but-unchecked measure is worthless.
 
+**Gate thresholds are printer/material rules, never design dimensions.** A gate
+whose number is a design dimension (a 256 plate gating a part drawn to 256; a
+wall gate equal to the wall you drew) is a tautology, not a check — it passes
+by construction and hides the real rule. Write the rule's number (nozzle ×
+perimeters, the printer's bed, the material's creep cell) and let the design
+dimension be what is tested (slas F6).
+
 **Use `require` — every measure op is now its own gate (2026-08-08).** Until
 this landed, `assert` spoke only `volume_within / exact_volume_within / genus /
 shells / components / closed / manifold / valid`, so four mandatory gates below
@@ -239,10 +246,13 @@ measures, so the receipt records what was gated, not just what was measured.
    normals — it now holds across the shipped portfolio.
 5. **Support/overhang report**: `support_report` with the explicit intended
    `build_dir`; a "support-free" claim requires `steep_area == 0.0` exactly;
-   quote `max_bridge_span`. `describe` ships **empty `doc` strings** for both
-   parameters, so the measured semantics are pinned down in
-   `digests/ops_core.md` — read them before you write orientation prose. The
-   two that cost four campaigns wall-clock:
+   quote `max_bridge_span`. `describe` documents both parameters since
+   2026-09-05 (the empty `doc` strings are gone); the measured semantics stay
+   pinned in `digests/ops_core.md` §11a — read them before you write
+   orientation prose. A non-zero `near_threshold_area` means faces sit within
+   `threshold_margin_deg` (1°) of `overhang_deg`: their steep/not verdict is
+   float noise, so re-run at ±1° before quoting the orientation (digest F10).
+   The two that cost four campaigns wall-clock:
    - **`build_dir` points AWAY from the bed** (it is the layer-growth
      direction). `build_dir [0,0,1]` puts the bed at min-Z. Verified: an
      L-bracket with a 5×10 foot at z=0 reports `bed_area 50.0` at
@@ -262,7 +272,12 @@ measures, so the receipt records what was gated, not just what was measured.
    perimeters); judge `thin_area` + `p05_thickness`. Mandatory after every
    hole-wizard cut (the wizard has zero wall-proximity awareness).
 7. **Mass properties + bed fit**: `mass_properties` receipt shipped;
-   `bounding_box` with `envelope: [256,256,256]` → `fits_within` true.
+   `bounding_box` with `envelope: [256,256,256]` → `fits_within` true. This is
+   the PART's envelope gate; `production_dossier.py` applies its own
+   PLATE-PACKING gate (part + spacing on the plate), so a part that passes
+   `fits_within` at 256 can still be refused by the dossier — give the dossier
+   its `plate_mm` / spacing, or accept the refusal as the print-plan answer
+   (ratcheting F9).
 8. **At least one honest physics analysis** with its error band stated in
    ANALYSIS.md: e.g. ace_fea (state the −20% coarse under-read; use Kt ×
    nominal for notches), modal, buckling (0.5 knockdown mandatory), thermal,
@@ -290,20 +305,21 @@ measures, so the receipt records what was gated, not just what was measured.
     a Ø11.4 pin coaxial inside a Ø12 bore, a true 0.300 mm radial gap:
 
     ```
-    clearance(tube, pin)      -> {"distance": 0.2711080312728882,
+    clearance(tube, pin)      -> {"distance": 0.2967686057090759,
                                   "interfering": false, "overlap_volume": 0.0,
                                   "provenance": "faceted"}
     assert_disjoint(tube, pin) -> PASSES (it used to false-fail)
     ```
 
-    **Quote it, but quote the provenance with it.** The reading is 0.2711 mm
-    against a true 0.300 mm — a **−9.6 %** under-read, because the measure runs
+    **Quote it, but quote the provenance with it.** The reading is 0.2968 mm
+    against a true 0.300 mm — a **−1.1 %** under-read, because the measure runs
     on inscribed polygonal facets (the error scales as
-    `r·(1 − cos(π/n))` ≈ 0.029 mm here). That is the *conservative* direction
-    for a clearance claim, so it is publishable as-is — but never call it the
-    analytic gap, and never quote it as the design clearance for a fit where
-    3 % matters. `tol` does not materially move it (0.271108 at default vs
-    0.271108 at `tol` 0.001).
+    `r·(1 − cos(π/n))`; the 2026-09-05 adaptive tessellation samples the
+    bore finer, which is why the −9.6 % / 0.2711 mm reading of 2026-08-08 is
+    gone). That is the *conservative* direction for a clearance claim, so it
+    is publishable as-is — but never call it the analytic gap, and never quote
+    it as the design clearance for a fit where 1 % matters. `tol` moves it a
+    little (0.2968 at default 0.01 vs 0.2994 at `tol` 0.001).
 
     **When you need an ANALYTIC number: the grown-gauge bracket.**
     `intersection` on a genuinely disjoint pair refuses
@@ -319,7 +335,7 @@ measures, so the receipt records what was gated, not just what was measured.
 
     Ship both runs — the refusing one is evidence, not a failure to hide. The
     clearance is bracketed to `[0.29, 0.31]` mm with **analytic** provenance,
-    which is what a tight fit deserves; the faceted 0.2711 is what a coarse
+    which is what a tight fit deserves; the faceted 0.2968 is what a coarse
     "does it clear at all" question deserves.
 12. **STEP round-trip**: `export_step` then `import_step`; volume conserved
     within 2.5% (asserted). Run coplanar coalescing before export where
@@ -436,7 +452,13 @@ interference claim (§2.11).
 
   So the honest reproducibility claim for a solver number is **"`core_digest`
   reproduces; the payload reproduces to `core_sig_figs` significant
-  figures"** — never "byte identical". Read
+  figures"** — never "byte identical". `core_digest` is also **per tool
+  version**: the receipt envelope (`analyzer_version`, the provenance schema)
+  is inside the digested payload, so a toolchain upgrade changes every digest.
+  Compare digests only between runs of the SAME tool version and re-baseline
+  the shipped receipts after an upgrade (slas F11). `tools/receipt_verify.py`
+  checks the other half — that a receipt's `geometry_hash` still matches its
+  job, and that sibling receipts share one geometry (iso9409 F11). Read
   `determinism.solver_reproducibility` and quote it verbatim in ANALYSIS.md;
   it states per-solver whether the digest is expected stable across *machines*
   or only across runs on this one. A "Reproducing" section that tells a reader

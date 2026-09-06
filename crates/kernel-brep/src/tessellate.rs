@@ -35,7 +35,7 @@ use kernel_core::mesh::Mesh;
 use kernel_core::orient2d;
 
 use crate::geom::{perp_basis, Surface, SurfaceChart};
-use crate::topo::Solid;
+use crate::topo::{FaceId, Solid};
 
 /// Tessellation controls.
 #[derive(Clone, Copy, Debug)]
@@ -69,27 +69,49 @@ pub fn tessellate_default(solid: &Solid) -> Mesh {
 pub fn tessellate(solid: &Solid, opts: &TessOptions) -> Mesh {
 	let mut mesh = Mesh::new();
 	for f in solid.faces() {
-		let surface = solid.face(f).surface;
-		let poly = solid.face_polygon(f);
-		// Orientation is taken from the topological winding (the loop is already
-		// outward-oriented), never from the surface-tag normal — so a planar tag
-		// whose stored normal sign is incidental still tessellates correctly.
-		let outward = newell_normal(&poly);
-		match surface {
-			Surface::Plane { .. } => {
-				let inner = &solid.face(f).inner;
-				if inner.is_empty() {
-					tessellate_planar(&mut mesh, &poly, outward);
-				} else {
-					let holes: Vec<Vec<DVec3>> = inner.iter().map(|&lid| solid.loop_polygon(lid)).collect();
-					tessellate_planar_with_holes(&mut mesh, &poly, &holes, outward);
-				}
-			}
-			curved => tessellate_curved(&mut mesh, &poly, curved, opts.curved_subdivisions.max(1), outward),
-		}
+		tessellate_face_into(&mut mesh, solid, f, opts);
 	}
 	mesh.weld(opts.weld_tolerance);
 	mesh
+}
+
+/// Tessellate every face of `solid` SEPARATELY: one (unwelded) triangle mesh per
+/// face, in [`Solid::faces`] order. This is the geometry behind witness-to-face
+/// selection (`measure_dimension`, `asm_mate_face`): the distance from a point
+/// to a face is the distance to the face's own triangles — not to its polygon
+/// centroid, which sits far from a witness on any large or ring-shaped face and
+/// used to let a neighbouring bore win the pick (`campaign/friction/turgo_runner.md`).
+pub fn tessellate_faces(solid: &Solid, opts: &TessOptions) -> Vec<(FaceId, Mesh)> {
+	solid
+		.faces()
+		.map(|f| {
+			let mut mesh = Mesh::new();
+			tessellate_face_into(&mut mesh, solid, f, opts);
+			(f, mesh)
+		})
+		.collect()
+}
+
+/// Append the triangles of face `f` to `mesh`.
+fn tessellate_face_into(mesh: &mut Mesh, solid: &Solid, f: FaceId, opts: &TessOptions) {
+	let surface = solid.face(f).surface;
+	let poly = solid.face_polygon(f);
+	// Orientation is taken from the topological winding (the loop is already
+	// outward-oriented), never from the surface-tag normal — so a planar tag
+	// whose stored normal sign is incidental still tessellates correctly.
+	let outward = newell_normal(&poly);
+	match surface {
+		Surface::Plane { .. } => {
+			let inner = &solid.face(f).inner;
+			if inner.is_empty() {
+				tessellate_planar(mesh, &poly, outward);
+			} else {
+				let holes: Vec<Vec<DVec3>> = inner.iter().map(|&lid| solid.loop_polygon(lid)).collect();
+				tessellate_planar_with_holes(mesh, &poly, &holes, outward);
+			}
+		}
+		curved => tessellate_curved(mesh, &poly, curved, opts.curved_subdivisions.max(1), outward),
+	}
 }
 
 /// Newell's area-weighted polygon normal (winding-following).
@@ -188,7 +210,73 @@ fn tessellate_planar(mesh: &mut Mesh, poly: &[DVec3], normal: DVec3) {
 	}
 	let (u, v) = perp_basis(normal);
 	let p2: Vec<DVec2> = poly.iter().map(|p| DVec2::new(p.dot(u), p.dot(v))).collect();
-	ear_clip_ring(mesh, poly, &p2, (0..poly.len()).collect(), normal);
+	planar_ring(mesh, poly, &p2, (0..poly.len()).collect(), normal);
+}
+
+/// Triangulate one planar ring: the constrained Delaunay triangulation of its
+/// vertex set first ([`kernel_core::constrained_delaunay`] — no slivers, no
+/// stall, every ring edge kept), and only when the CDT refuses the ring (it is
+/// not a simple region) the legacy ear clip. Same signature as
+/// [`ear_clip_ring`]; shared by the default and adaptive tessellators.
+pub(crate) fn planar_ring(mesh: &mut Mesh, poly: &[DVec3], p2: &[DVec2], idx: Vec<usize>, normal: DVec3) {
+	if cdt_rings(mesh, poly, p2, std::slice::from_ref(&idx), normal) {
+		return;
+	}
+	ear_clip_ring(mesh, poly, p2, idx, normal);
+}
+
+/// [`planar_ring`]'s curved twin: the constrained Delaunay triangulation of
+/// one ring in a surface chart (`p2` = chart coordinates of `poly`), with
+/// per-vertex normals and a per-triangle winding reference exactly like
+/// [`ear_clip_ring_wound`]. `false` (nothing pushed) when the CDT refuses the
+/// ring, so the caller keeps its fallbacks.
+pub(crate) fn cdt_ring_wound(
+	mesh: &mut Mesh,
+	poly: &[DVec3],
+	p2: &[DVec2],
+	nrm: &dyn Fn(DVec3) -> DVec3,
+	wind: &dyn Fn(DVec3, DVec3, DVec3) -> DVec3,
+) -> bool {
+	let pts: Vec<[f64; 2]> = p2.iter().map(|p| [p.x, p.y]).collect();
+	let ring: Vec<usize> = (0..poly.len()).collect();
+	let Ok(tris) = kernel_core::cdt::constrained_delaunay_checked(&pts, std::slice::from_ref(&ring)) else {
+		return false;
+	};
+	for [a, b, c] in tris {
+		let (a3, b3, c3) = (poly[a], poly[b], poly[c]);
+		push_tri(mesh, a3, b3, c3, nrm(a3), nrm(b3), nrm(c3), wind(a3, b3, c3));
+	}
+	true
+}
+
+/// Push the constrained Delaunay triangulation of `rings` (index rings into
+/// `poly`/`p2`; the first is the outer boundary, the rest holes) wound about
+/// `normal`. Returns `false` — pushing nothing — when the CDT refuses the
+/// rings, so the caller can fall back. Triangles are emitted through
+/// [`push_tri`], which enforces the outward winding, so the chart's handedness
+/// never matters.
+fn cdt_rings(mesh: &mut Mesh, poly: &[DVec3], p2: &[DVec2], rings: &[Vec<usize>], normal: DVec3) -> bool {
+	let pts: Vec<[f64; 2]> = p2.iter().map(|p| [p.x, p.y]).collect();
+	let tris = match kernel_core::cdt::constrained_delaunay_checked(&pts, rings) {
+		Ok(t) => t,
+		Err(why) => {
+			if let Some(level) = std::env::var_os("LMCAD_CDT_DEBUG") {
+				eprintln!("cdt refused ({} rings, {:?} pts): {why}", rings.len(), rings.iter().map(|r| r.len()).collect::<Vec<_>>());
+				if level == "2" {
+					let ring_txt: Vec<String> = rings
+						.iter()
+						.map(|r| format!("[{}]", r.iter().map(|&i| format!("[{},{}]", pts[i][0], pts[i][1])).collect::<Vec<_>>().join(",")))
+						.collect();
+					eprintln!("CDTRING [{}]", ring_txt.join(","));
+				}
+			}
+			return false;
+		}
+	};
+	for [a, b, c] in tris {
+		push_tri(mesh, poly[a], poly[b], poly[c], normal, normal, normal, normal);
+	}
+	true
 }
 
 /// Detect and undo `bridge_hole_into`-style keyhole splices in a face polygon:
@@ -466,6 +554,20 @@ pub(crate) fn tessellate_planar_with_holes(mesh: &mut Mesh, outer3d: &[DVec3], h
 		}
 		holes.push(ring);
 		start += h.len();
+	}
+	// The constrained Delaunay triangulation of outer + holes is the primary
+	// route: holes are constraints, not corridors, so the dense annular caps
+	// and multi-rim plates that stalled the keyhole clip (measured: a plain
+	// Ø110/Ø70 tube demoted to the voxel heal with 47 non-orientable edges)
+	// triangulate exactly. The keyhole ladder below remains the fallback for a
+	// ring set the CDT refuses.
+	{
+		let mut rings: Vec<Vec<usize>> = Vec::with_capacity(holes.len() + 1);
+		rings.push(outer.clone());
+		rings.extend(holes.iter().cloned());
+		if cdt_rings(mesh, &poly, &p2, &rings, normal) {
+			return;
+		}
 	}
 	// Bridge the right-most holes first so their bridges don't cross later ones.
 	holes.sort_by(|a, b| ring_max_x(&p2, b).partial_cmp(&ring_max_x(&p2, a)).unwrap_or(std::cmp::Ordering::Equal));

@@ -42,7 +42,7 @@ pub(crate) fn exec(op_id: &str, kind: OpKind) -> Result<Outcome, OpError> {
 			let f = parts::iso286_fit(d, &fit).ok_or_else(|| {
 				err(
 					ErrorKind::InvalidParam,
-					format!("op '{op_id}': iso286_fit: '{fit}' at Ø{d} — supported fits are H7/g6, H7/h6, H7/k6, H7/n6, H7/p6, H7/s6, H8/f7 for 0 < d ≤ 120 mm"),
+					format!("op '{op_id}': iso286_fit: '{fit}' at Ø{d} — supported fits are H11/c11, H9/d9, H8/f7, H7/g6, H7/h6, H7/k6, H7/n6, H7/p6, H7/s6 (hole-basis) and C11/h11, D9/h9, F8/h7, G7/h6 (shaft-basis) for 0 < d ≤ 120 mm"),
 				)
 			})?;
 			Ok(Outcome::measures(json!({

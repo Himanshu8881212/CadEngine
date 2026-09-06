@@ -365,8 +365,13 @@ fn a_mesh_is_never_promoted_to_a_solid() {
 /// solids every other gate calls clean, with NOTHING to act on — so three
 /// campaigns learned to ignore it, the worst outcome for a validity signal.
 ///
-/// It is a TRUE positive here: the exported STL of this polar pattern really does
-/// contain crossing triangles. The fix is therefore to say WHERE.
+/// Two halves. (1) The polar pattern of three DISJOINT tubes that turgo F1
+/// logged was a FALSE positive: the crossing triangles lived in the keyhole
+/// slivers of the old annular-cap triangulation, not in the geometry; since
+/// the constrained-Delaunay tessellator (2026-09-05) it is clean and carries no
+/// witness. (2) A body whose skin really crosses itself — a loft whose top
+/// hexagon is turned 135°, so the lateral quads pass through one another — is a
+/// TRUE positive, and the fix is to say WHERE, deterministically.
 #[test]
 fn a_failing_validity_flag_carries_a_witness() {
 	let d = dir("t15");
@@ -382,29 +387,39 @@ fn a_failing_validity_flag_carries_a_witness() {
 		]),
 	);
 	assert!(r.ok, "{r:#?}");
-	// One tube is clean and carries no witness.
+	// One tube is clean and carries no witness — and so is the pattern of three
+	// disjoint tubes (the turgo F1 false positive is gone).
 	assert_eq!(measure(&r, "vd", "geometric_ok"), json!(true), "{r:#?}");
 	assert_eq!(measure(&r, "vd", "self_intersection"), Value::Null, "a clean solid must carry no witness — {r:#?}");
-	// The pattern is not, and now says where.
-	assert_eq!(measure(&r, "v3", "geometric_ok"), json!(false), "{r:#?}");
-	let w = measure(&r, "v3", "self_intersection");
+	assert_eq!(measure(&r, "v3", "geometric_ok"), json!(true), "disjoint tubes do not cross — {r:#?}");
+	assert_eq!(measure(&r, "v3", "self_intersection"), Value::Null, "no witness on a clean pattern — {r:#?}");
+
+	// A genuinely self-crossing skin says where.
+	let ring = |z: f64, turn_deg: f64| -> Vec<[f64; 3]> {
+		(0..6)
+			.map(|k| {
+				let a = (turn_deg + 60.0 * k as f64).to_radians();
+				[10.0 * a.cos(), 10.0 * a.sin(), z]
+			})
+			.collect()
+	};
+	let twisted = json!([
+		{"id":"t","op":"loft","sections":[ring(0.0, 0.0), ring(10.0, 135.0)]},
+		{"id":"vt","op":"validate","in":"t"}
+	]);
+	let r = run(&d, twisted.clone());
+	assert!(r.ok, "{r:#?}");
+	assert_eq!(measure(&r, "vt", "valid"), json!(true), "topology closes — {r:#?}");
+	assert_eq!(measure(&r, "vt", "geometric_ok"), json!(false), "{r:#?}");
+	let w = measure(&r, "vt", "self_intersection");
 	assert!(w["triangles"].as_array().map(|a| a.len()) == Some(2), "witness must name two triangles — {w}");
 	assert!(w["point"].as_array().map(|a| a.len()) == Some(3), "witness must give a point — {w}");
 	assert!(w["pairs"].as_u64().unwrap_or(0) > 0, "witness must count the pairs — {w}");
 
 	// Determinism: the witness is the lexicographically lowest pair, so a rebuild
 	// reproduces it byte for byte.
-	let again = run(
-		&d,
-		json!([
-			{"id":"o","op":"cylinder","base":[24,0,7],"axis":[1,0,0],"radius":14.2,"height":24,"segments":64},
-			{"id":"i","op":"cylinder","base":[23,0,7],"axis":[1,0,0],"radius":12.0,"height":26,"segments":64},
-			{"id":"d","op":"difference","a":"o","b":"i"},
-			{"id":"p3","op":"polar_pattern","in":"d","count":3,"center":[0,0,0],"axis":[0,0,1]},
-			{"id":"v3","op":"validate","in":"p3"}
-		]),
-	);
-	assert_eq!(w, measure(&again, "v3", "self_intersection"), "the witness must be deterministic");
+	let again = run(&d, twisted);
+	assert_eq!(w, measure(&again, "vt", "self_intersection"), "the witness must be deterministic");
 	let _ = std::fs::remove_dir_all(&d);
 }
 

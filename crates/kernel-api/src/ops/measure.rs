@@ -665,16 +665,33 @@ pub(crate) fn exec(
 			let mesh = target.mesh(0.05);
 			let up = Vec3::new(build_dir[0] as f32, build_dir[1] as f32, build_dir[2] as f32);
 			let r = mesh.support_free_report(up, overhang_deg as f32, 0.2);
-			Ok(Outcome::measures(json!({
+			let mut m = json!({
 				"support_free": r.steep_area < 1e-6,
 				"bed_area": r.bed_area,
 				"bridge_area": r.bridge_area,
 				"steep_area": r.steep_area,
 				"total_area": r.total_area,
 				"max_bridge_span": r.max_bridge_span,
+				// The knife-edge receipt (digest F10): area whose overhang angle
+				// sits within ±threshold_margin_deg of `overhang_deg`. Its
+				// steep/not classification is float noise, not design intent.
+				"near_threshold_area": r.near_threshold_area,
+				"threshold_margin_deg": kernel_core::mesh::NEAR_THRESHOLD_DEG,
 				"provenance": "faceted",
 				"source": target.source(),
-			})))
+			});
+			if r.near_threshold_area > 0.0 {
+				m["near_threshold_witness"] = json!(r.near_threshold_exemplars.iter().map(|p| [p.x, p.y, p.z]).collect::<Vec<_>>());
+				m["near_threshold_note"] = json!(format!(
+					"{:.3} mm² of surface lies within {}° of the {}° threshold — unresolved at this threshold; re-run support_report at overhang_deg {} and {} before quoting the orientation",
+					r.near_threshold_area,
+					kernel_core::mesh::NEAR_THRESHOLD_DEG,
+					overhang_deg,
+					overhang_deg - kernel_core::mesh::NEAR_THRESHOLD_DEG,
+					overhang_deg + kernel_core::mesh::NEAR_THRESHOLD_DEG
+				));
+			}
+			Ok(Outcome::measures(m))
 		}
 		OpKind::Clearance { a, b, tol } => {
 			// M5: non-asserting clearance/interference — the measuring twin of assert_disjoint.

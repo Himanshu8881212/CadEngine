@@ -146,6 +146,19 @@ pub fn mesh_to_solid(mesh: &Mesh) -> Result<Solid, String> {
 ///
 /// Example: `implicit_to_solid(&node, node.bounds(), 0.8)?` → STEP-exportable solid.
 pub fn implicit_to_solid<S: Sdf + ?Sized>(sdf: &S, bounds: Aabb, voxel: f32) -> Result<Solid, String> {
+	implicit_to_solid_reported(sdf, bounds, voxel).map(|(s, _)| s)
+}
+
+/// [`implicit_to_solid`] that also says whether the extraction had to be
+/// HEALED (`kernel_core::make_manifold`: boundary loops capped, non-manifold
+/// junctions split) before it could be wrapped. Manifold Dual Contouring of a
+/// junction-rich field (a gyroid sheet, an `offset_by`-graded lattice) can
+/// leave a few non-manifold edges that the `implicit` op heals routinely but
+/// the bridge used to refuse outright (cubesat F3: "91 non-manifold/boundary
+/// edges remain") — so the one op that binds a solid from a field was locked
+/// out of exactly the fields the docs send it. The heal is the same
+/// deterministic repair the `implicit` op applies, reported, never silent.
+pub fn implicit_to_solid_reported<S: Sdf + ?Sized>(sdf: &S, bounds: Aabb, voxel: f32) -> Result<(Solid, bool), String> {
 	if !(voxel.is_finite() && voxel > 0.0) {
 		return Err(format!("implicit_to_solid: voxel size must be positive and finite, got {voxel}"));
 	}
@@ -153,13 +166,18 @@ pub fn implicit_to_solid<S: Sdf + ?Sized>(sdf: &S, bounds: Aabb, voxel: f32) -> 
 		return Err(format!("implicit_to_solid: bounds must be finite and non-degenerate, got {bounds:?}"));
 	}
 	let domain = bounds.pad(voxel * 2.0);
-	let mesh = manifold_dual_contour(sdf, domain, Resolution::VoxelSize(voxel));
+	let mut mesh = manifold_dual_contour(sdf, domain, Resolution::VoxelSize(voxel));
 	if mesh.triangle_count() == 0 {
 		return Err(format!(
 			"implicit_to_solid: the field has no surface inside {bounds:?} at voxel {voxel} (or the lattice exceeded the mesher's cell cap) — nothing to bridge"
 		));
 	}
-	mesh_to_solid(&mesh)
+	let mut healed = false;
+	if !mesh.is_watertight() || kernel_core::check_mesh(&mesh).non_manifold_edges > 0 {
+		mesh = kernel_core::make_manifold(&mesh);
+		healed = true;
+	}
+	mesh_to_solid(&mesh).map(|s| (s, healed))
 }
 
 /// Reverse bridge **v2**: [`mesh_to_solid`] followed by analytic quadric

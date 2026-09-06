@@ -6,7 +6,7 @@ campaign directory. Engine and tools source untouched.
 ## F1 — tolerance_stack.py CHAIN mode leaks a raw KeyError instead of refusing (2026-08-07)
 - severity: minor
 - surface: tools/analyzers/tolerance_stack.py
-- status: open
+- status: fixed — tolerance_stack CHAIN mode refuses a malformed chain with a named error (exit 2, `error_kind: refusal`) instead of a KeyError
 - symptom: a CHAIN job with `"closes": {"min_required": 1.0}` (no
   `max_allowed`) returns, as its whole receipt,
   `{"ok": false, "error": "KeyError: 'max_allowed'"}` — and the persisted
@@ -30,7 +30,7 @@ campaign directory. Engine and tools source untouched.
 ## F2 — production_check.py reports a temperature RATIO in the same `SF` field as stress rules (2026-08-07)
 - severity: major
 - surface: tools/analyzers/production_check.py
-- status: open
+- status: fixed — production_check.py reports the temperature check on its own row (`temperature` with `governing_rule`), never as an `SF` ratio
 - symptom: for every job in this campaign the `temp` rule reports
   `"SF": 1.375` (= 55 C softening / 40 C service) with `"allowable_mpa": 0.0`.
   Selecting "the governing rule" as `min(rules, key=SF)` — the obvious reading —
@@ -62,7 +62,7 @@ campaign directory. Engine and tools source untouched.
 ## F3 — sweep_check.py reports `failed_stations: null` on a FAILING sweep (2026-08-07)
 - severity: minor
 - surface: tools/analyzers/sweep_check.py
-- status: open
+- status: fixed — sweep_check.py lists `failed_stations` on a failing sweep (and names an all-stations-interfering watch, ENGINE #27)
 - symptom: a sweep that genuinely interferes returns a receipt whose top-level
   fields read `{"ok": false, ... }` with `failed_stations` **null**, e.g.
   verbatim from `receipts/sweep_lid_slide.json` (pre-fix run):
@@ -91,7 +91,7 @@ campaign directory. Engine and tools source untouched.
 ## F4 — render_sheet.py header: overlay legend collides with the meta line (2026-08-07)
 - severity: papercut
 - surface: tools/publish/render_sheet.py
-- status: open
+- status: fixed — render_sheet.py header lays the overlay legend out below the meta line
 - symptom: on a 5-STL overlay with a long combined title the swatch legend
   drawn INSIDE the header band runs underneath the right-aligned meta string,
   so `base_shell`, `lid` and `th35_gauge` overprint
@@ -113,7 +113,7 @@ campaign directory. Engine and tools source untouched.
 ## F5 — kernel-api report echoes the `--out-dir`-resolved file path, so program reports are not byte-reproducible across equivalent out-dir spellings (2026-08-08, found by independent verification)
 - severity: major
 - surface: kernel-api cli
-- status: partial — campaign pinned its CWD (F5 addendum); the report still echoes the caller's out-dir spelling
+- status: fixed — every report `file` (and the asm `bom` csv/json paths) is echoed RELATIVE to `--out-dir` (`ops/meshio.rs::report_path`); verified 2026-09-05: `--out-dir .` and the absolute spelling produce byte-identical reports
 - symptom: re-running the README "Reproducing" step 1 exactly as documented
   (`"$K" run "$PART/programs/part_program.json" --out-dir "$PART"`) produces a
   `receipts/part_program_report.json` that differs from the committed one on
@@ -174,7 +174,7 @@ campaign directory. Engine and tools source untouched.
 ## F7 — ace_buckling_runner.py accepts a purely TENSILE load case and returns a positive buckling factor instead of refusing (2026-08-08)
 - severity: major
 - surface: tools/analyzers/ace_buckling_runner.py
-- status: open
+- status: fixed — ace_buckling refuses a load case with no compressive component (`buck_tension` repro refuses; compression solves)
 - symptom: `programs/refusal_buckling_tension.json` clamps a 12 x 12 x 16 mm
   prism at `z <= 0.5` and applies 40 N along `[0,0,1]` at `z >= 15.5` — pure
   tension, no compressive stress anywhere in the applied direction. The runner
@@ -208,7 +208,7 @@ campaign directory. Engine and tools source untouched.
 ## F8 — DELIVERABLE_SPEC §2's connectivity-oracle example is not constructible with this kernel (2026-08-08)
 - severity: major
 - surface: campaign/DELIVERABLE_SPEC.md
-- status: open
+- status: fixed — DELIVERABLE_SPEC §2's connectivity oracle example is constructible (`mesh_components` + `require components`)
 - symptom: §2 asks for "a split-body variant that the connectivity gate catches
   while `shells` still reads 1". Every route tried reports `shells: 2` as well:
   - boolean-severing the shipped foot (`programs/oracle_severed_program.json`)
@@ -235,7 +235,7 @@ campaign directory. Engine and tools source untouched.
 ## F9 — tools/param_optimize.py writes `evals` as an int while the surrounding roll-ups treat it as a list (2026-08-08, reported by independent verification)
 - severity: papercut
 - surface: tools/analyzers/param_optimize.py
-- status: open
+- status: fixed — param_optimize writes `evals` as an int consistently with the surrounding receipt schema
 - symptom: `receipts/optimize_latch_receipt.json` carries `"evals": 72` — a
   count. An auditor's roll-up script that did `len(receipt["evals"])`, which is
   the natural reading for a key named `evals` and the shape other receipt
@@ -248,3 +248,18 @@ campaign directory. Engine and tools source untouched.
 - workaround used: the campaign reads it as a scalar
   (`gen_stage3_summary.py` -> `"evals": opt["evals"]`). No campaign-side
   problem; filed so the maintainer can pick one convention.
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F1** — F1: typed refusal.
+- **F2** — F2: temperature row separated from SF.
+- **F3** — F3: failed stations listed.
+- **F4** — F4: no collision.
+- **F5** — F5: reports are byte-reproducible across out-dir spellings (join `file` to the out-dir you passed to open it; ops_core.md path table updated).
+- **F7** — F7: tensile-only case refused.
+- **F8** — F8: spec example runs.
+- **F9** — F9: schema consistent.
+
+RE-BASELINE: committed `receipts/*_report.json` echo `"file": "./parts/…"`; regenerated reports echo `parts/…` (out-dir-relative). Regenerate once from the documented command line.

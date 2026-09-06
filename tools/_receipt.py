@@ -73,6 +73,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 import math
 import os
 import signal
@@ -191,6 +192,7 @@ def emit(receipt: dict, job: dict | None = None, tool: str | None = None, *,
 	and is skipped entirely under `LMCAD_RECEIPT_DRY_RUN=1`."""
 	print(json.dumps(receipt), flush=True)
 	_CTX["emitted"] = True
+	_clear_attempt()
 	if job is None:
 		job = _CTX.get("job")
 	if tool is None:
@@ -231,7 +233,15 @@ def stamp_exit(payload: dict, code: int, *, kind: str | None = None,
 	effective = code if strict else EXIT_OK
 	payload["exit_code"] = effective
 	if not payload.get("ok"):
-		payload.setdefault("error_kind", kind or "internal")
+		# A receipt with `ok:false` and NO `error` is an analysis that RAN and
+		# returned a failing verdict (a fit that interferes, a joint below its
+		# SF, a sweep that touches). That is `gate_failed`, the same slug
+		# production_check stamps explicitly — never `internal`, which the
+		# documented exit table reserves for "the tool broke" (reservoir F2:
+		# a designed-interference fit exited 2 with error_kind "internal", so
+		# branch-on-kind automation misfiled a real verdict as a tool bug).
+		default_kind = "gate_failed" if (code == EXIT_REFUSED and "error" not in payload) else "internal"
+		payload.setdefault("error_kind", kind or default_kind)
 		payload["exit_contract"] = {
 			"mode": "strict" if strict else "legacy",
 			"code": effective,
@@ -261,8 +271,25 @@ def finish(payload: dict, *, job: dict | None = None, tool: str | None = None,
 		out = _CTX.get("out")
 	code = exit_code_for(payload, internal=internal)
 	stamp_exit(payload, code, kind=kind, job=job)
+	ensure_determinism_block(payload)
 	emit(payload, job, tool, out=out, use_out_dir_default=use_out_dir_default)
 	sys.exit(payload["exit_code"])
+
+
+def ensure_determinism_block(payload: dict) -> None:
+	"""Every receipt that leaves through `finish` / `doc_cli` carries a
+	`determinism` block. The physics runners build theirs (naming their solver's
+	reproducibility); a pure-arithmetic checker or a document tool gets the
+	generic one here — so DELIVERABLE_SPEC §3's "every runner receipt carries a
+	determinism block" is true of every tool, not only the ACE runners
+	(stacking_tray_lid F7: five of a campaign's six receipts had no sanctioned
+	way to be compared between runs)."""
+	if not isinstance(payload, dict) or "determinism" in payload:
+		return
+	payload["determinism"] = determinism_block(
+		payload, nondeterministic_paths=["timings_s", "elapsed_s", "wall_s"],
+		solver_note=("no iterative solver: the receipt is a pure function of the job and its "
+		             "inputs; core_digest is reproducible to core_sig_figs, and usually to the bit"))
 
 
 # --- failure receipts a signal handler can still produce --------------------
@@ -403,7 +430,51 @@ def load_job(argv: list[str] | None = None) -> tuple[dict, str | None]:
 	_CTX["out"] = out
 	receipt_path(job, _CTX.get("tool") or "tool", out=out, use_out_dir_default=False)
 	arm_wall_budget(job)
+	_mark_attempt(job, out)
 	return job, out
+
+
+# --- the attempt sidecar: a SIGKILL cannot be turned into a receipt ---------
+def _attempt_path(job: dict | None, out: str | None) -> str | None:
+	try:
+		path = receipt_path(job if isinstance(job, dict) else {}, _CTX.get("tool") or "tool",
+		                    out=out, use_out_dir_default=False)
+	except ReceiptPathConflict:
+		return None
+	return f"{path}.attempt" if path else None
+
+
+def _mark_attempt(job: dict | None, out: str | None) -> None:
+	"""Write `<receipt>.attempt` beside the receipt destination at launch and
+	remove it when a receipt is emitted. A run the OS kills outright (SIGKILL /
+	OOM on a shared box — prosthetic F8) leaves neither stdout nor a signal
+	handler to produce a receipt; the sidecar is the one durable trace that a
+	run was started and never finished, and the previous good receipt at the
+	destination is left untouched. Skipped under the dry-run env."""
+	path = _attempt_path(job, out)
+	if not path or dry_run():
+		return
+	try:
+		_write_atomic(path, {
+			"ok": False, "error_kind": "killed.unfinished",
+			"error": "the run that created this marker never emitted a receipt: it was "
+			         "killed by the OS (SIGKILL / OOM) or is still running. A finished "
+			         "run removes this file.",
+			"tool": _CTX.get("tool"), "pid": os.getpid(), "started_at": time.time(),
+			"started_at_iso": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + "Z",
+		})
+		_CTX["attempt"] = path
+	except OSError:
+		pass
+
+
+def _clear_attempt() -> None:
+	path = _CTX.pop("attempt", None)
+	if path:
+		try:
+			os.unlink(path)
+		except OSError:
+			pass
 
 
 def run_cli(tool: str, main, *, install_hint: str | None = None,
@@ -453,8 +524,69 @@ def run_cli(tool: str, main, *, install_hint: str | None = None,
 		       internal=True)
 
 
+# --- the document tools' CLI (render_sheet / assembly_doc / production_dossier /
+#     bom_audit): the same `<job.json> [--out PATH]` shape as every runner ----
+def doc_cli(tool: str, build, *, help_text: str | None = None,
+            argv: list[str] | None = None, extra_flags: dict | None = None) -> int:
+	"""Front door for the document tools. `build(job, job_dir) -> receipt`.
+
+	These tools used to accept EXACTLY `job.json` and print their receipt on
+	stdout only, so the one way to persist it was the stdout redirect the
+	brief forbids (ratcheting F8, stacking_tray_lid F6), and a job `receipt`
+	key was silently ignored (graham F8). They now take `--out PATH`, honour
+	the job's `receipt` key, refuse a conflict between the two, and respect
+	`LMCAD_RECEIPT_DRY_RUN` — through :func:`emit`, like every runner. Exit
+	stays 0 ok / 1 failed (their documented contract).
+
+	`extra_flags` maps a leading flag (e.g. `--example`) to a zero-argument
+	callable returning an exit code."""
+	argv = list(sys.argv[1:] if argv is None else argv)
+	_CTX["tool"] = tool
+	if not argv or argv[0] in ("-h", "--help"):
+		print(help_text or "")
+		return 0
+	if extra_flags and argv[0] in extra_flags:
+		return int(extra_flags[argv[0]]())
+	try:
+		job_path, out = parse_argv(argv)
+	except Refusal as exc:
+		print(json.dumps({"ok": False, "error": str(exc), "error_kind": exc.kind}))
+		return 1
+	_CTX["out"] = out
+	job: dict = {}
+	try:
+		with open(job_path, "r", encoding="utf-8") as f:
+			job = json.load(f)
+		if not isinstance(job, dict):
+			raise ValueError(f"job {job_path!r} must be a JSON object")
+		_CTX["job"] = job
+		receipt_path(job, tool, out=out, use_out_dir_default=False)  # conflict check up front
+	except ReceiptPathConflict as exc:
+		print(json.dumps({"ok": False, "error": str(exc), "error_kind": "receipt_path_conflict"}))
+		return 1
+	except Exception as e:  # noqa: BLE001 — the receipt IS the error channel
+		print(json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"}))
+		return 1
+	try:
+		rec = build(job, os.path.dirname(os.path.abspath(job_path)))
+	except Exception as e:  # noqa: BLE001
+		emit({"ok": False, "error": f"{type(e).__name__}: {e}"}, job, tool, out=out,
+		     use_out_dir_default=False)
+		return 1
+	if isinstance(rec, dict):
+		ensure_determinism_block(rec)
+	emit(rec, job, tool, out=out, use_out_dir_default=False)
+	return 0 if rec.get("ok") else 1
+
+
 # --- determinism (T7): a byte-comparable core inside a receipt --------------
 DETERMINISM_SCHEMA = "lmcad.determinism.v1"
+
+
+# |x| below this is numerical noise about zero (an effective-mass fraction of
+# 1e-27, a participation of 3e-29): quantizing it to significant figures keeps
+# the noise, so two runs differ in a number that is physically zero.
+DIGEST_ZERO_FLOOR = 1e-18
 
 
 def _quantize(obj, sig: int):
@@ -463,7 +595,14 @@ def _quantize(obj, sig: int):
 	if isinstance(obj, float):
 		if obj == 0.0 or not math.isfinite(obj):
 			return obj
+		if abs(obj) < DIGEST_ZERO_FLOOR:
+			return 0.0
 		return float(f"%.{max(sig - 1, 0)}e" % obj)
+	if isinstance(obj, str) and os.path.isabs(obj) and len(obj) > 1:
+		# An absolute artifact path (mode_shape_00.npy, curve.npy, a PNG) names
+		# WHERE a run wrote, not WHAT it computed: two identical runs in two
+		# out_dirs must digest alike. The basename stays in the core.
+		return os.path.basename(obj)
 	if isinstance(obj, dict):
 		return {k: _quantize(v, sig) for k, v in obj.items()}
 	if isinstance(obj, (list, tuple)):

@@ -38,6 +38,44 @@ pub(crate) fn v3a(v: DVec3) -> [f64; 3] {
 	[v.x, v.y, v.z]
 }
 
+/// The face of `solid` nearest `witness` by TRUE surface distance — the
+/// point-to-triangle distance over the face's own tessellation
+/// ([`kernel_brep::tessellate_faces`]) — with a near-tie (the witness sits on a
+/// shared edge) broken by the nearer polygon centroid. Returns the face ordinal
+/// (the index `list_faces` reports), the face, its polygon centroid and the
+/// witness gap in mm. Shared by every witness-driven selector
+/// (`measure_dimension` face_face / diameter, `asm_mate_face`) so they cannot
+/// drift: the old centroid-only rule let a bore win over the plane the witness
+/// actually lay on once booleans stopped fragmenting faces
+/// (`campaign/friction/turgo_runner.md`, probe_front_face).
+pub(crate) fn nearest_face(solid: &Solid, witness: DVec3) -> (usize, kernel_brep::FaceId, DVec3, f64) {
+	let w = witness.as_vec3();
+	let tie = 1e-4 * (1.0 + witness.length() / 100.0);
+	let mut best: Option<(usize, kernel_brep::FaceId, DVec3, f64, f64)> = None; // (.., gap, centroid dist)
+	for (i, (fid, mesh)) in kernel_brep::tessellate_faces(solid, &kernel_brep::TessOptions::default()).into_iter().enumerate() {
+		let centroid = polygon_centroid(&solid.face_polygon(fid));
+		let cd = (centroid - witness).length();
+		let mut gap = f64::INFINITY;
+		for t in mesh.indices.chunks_exact(3) {
+			let (a, b, c) = (mesh.positions[t[0] as usize], mesh.positions[t[1] as usize], mesh.positions[t[2] as usize]);
+			let cp = kernel_core::closest_point_on_triangle(w, a, b, c);
+			gap = gap.min(f64::from((cp - w).length()));
+		}
+		if gap.is_infinite() {
+			gap = cd; // a face that tessellated to nothing: fall back to its centroid
+		}
+		let better = match best {
+			None => true,
+			Some((_, _, _, bg, bcd)) => gap < bg - tie || ((gap - bg).abs() <= tie && cd < bcd),
+		};
+		if better {
+			best = Some((i, fid, centroid, gap, cd));
+		}
+	}
+	let (i, fid, centroid, gap, _) = best.expect("a bound solid has faces");
+	(i, fid, centroid, gap)
+}
+
 /// Centroid of a boundary polygon (a witness point on/near the face).
 pub(crate) fn polygon_centroid(pts: &[DVec3]) -> DVec3 {
 	if pts.is_empty() {
@@ -244,6 +282,12 @@ pub(crate) fn map_fillet_error(op_id: &str, what: &str, e: FilletError) -> OpErr
 		// straight/perpendicular" when it was both — the real reason was
 		// convexity. Verified: chamfer_edge_near shares the convexity check, so
 		// it is NOT offered as the concave alternative.
+		FilletError::CapRunout => err(
+			ErrorKind::FeatureFailed,
+			format!(
+				"op '{op_id}': {what}: the edge ends at a corner whose neighbouring chamfer/fillet is NARROWER than this radius, so the profile would run past that cap onto another face — round this edge BEFORE the corner's other edges (fillet-first ordering exports exact), or keep the radius within the neighbouring feature's size (cubesat F1)"
+			),
+		),
 		FilletError::Unsupported => err(
 			ErrorKind::FeatureFailed,
 			format!(
@@ -334,7 +378,7 @@ pub(crate) const SCREW_SIZES_M3_M12: &str = "M3, M4, M5, M6, M8, M10, M12";
 pub(crate) const SMALL_SIZES_M2_M6: &str = "M2, M2.5, M3, M4, M5, M6";
 
 /// DIN 471 external circlip shaft diameters.
-pub(crate) const DIN471_SIZES: &str = "Ø8, 10, 12, 15, 20, 25, 30";
+pub(crate) const DIN471_SIZES: &str = "Ø3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 30";
 
 /// DIN 472 internal circlip bore diameters.
 #[cfg(feature = "catalog")]

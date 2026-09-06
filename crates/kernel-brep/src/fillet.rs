@@ -19,7 +19,7 @@
 use kernel_core::math::{DAffine3, DQuat, DVec3};
 
 use crate::geom::Surface;
-use crate::topo::{EdgeId, EdgeName, Face, FaceId, FaceInput, FaceLoops, FaceName, FaceSource, HalfEdgeId, Solid, VertexId};
+use crate::topo::{EdgeId, EdgeName, Face, FaceId, FaceLoops, FaceName, FaceSource, HalfEdgeId, Solid, VertexId};
 
 /// Why a fillet could not be applied. A typed channel so an AI (or feature tree)
 /// gets a precise, actionable reason instead of a panic or a silently-wrong solid.
@@ -36,6 +36,11 @@ pub enum FilletError {
 	/// The edge is not a straight edge between two perpendicular planar faces — the
 	/// only case v1 handles (e.g. a curved face, or a non-box dihedral).
 	Unsupported,
+	/// The edge ends at a corner whose neighbouring chamfer/fillet is NARROWER than
+	/// this radius: the profile would run past that cap face onto another face,
+	/// which the corner rebuild cannot terminate. Round this edge before the
+	/// corner's other edges, or keep the radius within the neighbouring feature.
+	CapRunout,
 }
 
 /// Whether to round a named edge with a cylindrical arc or a single flat bevel.
@@ -113,6 +118,182 @@ fn vertex_valence(solid: &Solid, v: VertexId) -> usize {
 		.len()
 }
 
+/// The distinct faces meeting at vertex `v`, in half-edge order.
+fn vertex_faces(solid: &Solid, v: VertexId) -> Vec<FaceId> {
+	let mut out = Vec::new();
+	for h in 0..solid.half_edge_count() as u32 {
+		let he = solid.half_edge(HalfEdgeId(h));
+		if he.origin == v && !out.contains(&he.face) {
+			out.push(he.face);
+		}
+	}
+	out
+}
+
+/// One capped end of a rounded edge: the profile points slid along the edge axis
+/// onto the cap face(s) that actually terminate the edge there, and — when TWO
+/// cap faces meet at the end (a corner whose other two edges were chamfered
+/// first: the mitre case, `campaign/friction/cubesat_1u_dev_frame.md` #F1) — the
+/// crease where the profile crosses from one cap plane to the other.
+///
+/// The old construction kept the profile in the cross-section plane through the
+/// end vertex, which is only right when the cap face is perpendicular to the
+/// edge; an inclined cap (a chamfer strip) got points off its plane, `validate`
+/// still passed (topology is fine) and the export / next boolean found a
+/// non-orientable cap.
+struct EndCap {
+	/// Profile points (`segments + 1`), each on its active cap plane.
+	pts: Vec<DVec3>,
+	/// Cap faces in profile order: `caps[0]` is active at the face-A tangent.
+	caps: Vec<FaceId>,
+	/// `Some((k, p))`: the crease `p` lies on strip segment `k` (between `pts[k]`
+	/// and `pts[k + 1]`); `caps[0]` owns `pts[..=k]`, `caps[1]` owns `pts[k + 1..]`.
+	crease: Option<(usize, DVec3)>,
+}
+
+/// Cap one end of the edge. `v` / `vid` is the end vertex, `circ` the profile
+/// samples in the cross-section plane through `v`, `profile(u)` the profile
+/// between samples (`u` ∈ [0, 1] on segment `k` — the chord for a chamfer, the
+/// arc for a fillet), and `sign` is `+1` at the edge's start (material lies
+/// along `+axis`) or `−1` at its end.
+#[allow(clippy::too_many_arguments)]
+fn cap_end(
+	solid: &Solid,
+	v: DVec3,
+	vid: VertexId,
+	fa: FaceId,
+	fb: FaceId,
+	axis: DVec3,
+	circ: &[DVec3],
+	profile: &dyn Fn(usize, f64) -> DVec3,
+	sign: f64,
+) -> Result<EndCap, FilletError> {
+	let mut caps: Vec<FaceId> = vertex_faces(solid, vid).into_iter().filter(|&f| f != fa && f != fb).collect();
+	if caps.is_empty() || caps.len() > 2 {
+		return Err(FilletError::Unsupported);
+	}
+	let mut normals: Vec<DVec3> = Vec::with_capacity(caps.len());
+	for &f in &caps {
+		let Ok(n) = plane_normal(solid.face(f)) else {
+			// A curved cap (the edge runs into an earlier fillet's strip): only the
+			// single-cap case is handled, as before, with the profile left in the
+			// cross-section plane through the vertex.
+			if caps.len() == 1 {
+				return Ok(EndCap { pts: circ.to_vec(), caps, crease: None });
+			}
+			return Err(FilletError::Unsupported);
+		};
+		if n.dot(axis).abs() < 1e-6 {
+			return Err(FilletError::Unsupported); // a cap parallel to the edge cannot terminate it
+		}
+		normals.push(n);
+	}
+	// Slide parameter along `axis` from `q` to cap plane `k` (every cap passes through `v`).
+	let t_to = |q: DVec3, k: usize, normals: &[DVec3]| (v - q).dot(normals[k]) / axis.dot(normals[k]);
+	// The solid is the intersection of the caps' half-spaces, so a generator enters it
+	// at the LAST cap crossed in the material direction: max t at the start, min at the end.
+	let pick = |q: DVec3, normals: &[DVec3]| -> (usize, f64) {
+		let mut best = (0usize, t_to(q, 0, normals));
+		for k in 1..normals.len() {
+			let t = t_to(q, k, normals);
+			if (t - best.1) * sign > 0.0 {
+				best = (k, t);
+			}
+		}
+		best
+	};
+	let mut pts = Vec::with_capacity(circ.len());
+	let mut active = Vec::with_capacity(circ.len());
+	for &q in circ {
+		let (k, t) = pick(q, &normals);
+		let p = q + axis * t;
+		// A point slid onto an INCLINED cap must land ON that cap face, not
+		// merely on its plane: a radius wider than a neighbouring 0.5 chamfer
+		// slides past the bevel strip onto the top face, which this rebuild
+		// cannot terminate. A perpendicular cap is never slid and may legitimately
+		// be EXTENDED by the profile (the reflex-corner wall of an L-section —
+		// cubesat F2), so it is not tested.
+		if t.abs() > 1e-12 && !point_on_face(solid, caps[k], p) {
+			return Err(FilletError::CapRunout);
+		}
+		pts.push(p);
+		active.push(k);
+	}
+	if caps.len() == 1 {
+		return Ok(EndCap { pts, caps, crease: None });
+	}
+	// Two caps: the active one must switch exactly once along the profile.
+	let last = circ.len() - 1;
+	let switches: Vec<usize> = (0..last).filter(|&k| active[k] != active[k + 1]).collect();
+	if switches.len() != 1 || active[last] == active[0] {
+		return Err(FilletError::Unsupported);
+	}
+	let k = switches[0];
+	if active[0] == 1 {
+		caps.swap(0, 1);
+		normals.swap(0, 1);
+	}
+	// The crease is where both caps are reached at the same slide: bisect
+	// h(u) = sign·(t₀ − t₁) along the profile segment (h > 0 while cap 0 is active).
+	let h = |u: f64| {
+		let q = profile(k, u);
+		sign * (t_to(q, 0, &normals) - t_to(q, 1, &normals))
+	};
+	let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
+	if !(h(lo) > 0.0 && h(hi) < 0.0) {
+		return Err(FilletError::Unsupported);
+	}
+	for _ in 0..80 {
+		let mid = 0.5 * (lo + hi);
+		if h(mid) > 0.0 {
+			lo = mid;
+		} else {
+			hi = mid;
+		}
+	}
+	let u = 0.5 * (lo + hi);
+	let q = profile(k, u);
+	let crease = q + axis * (0.5 * (t_to(q, 0, &normals) + t_to(q, 1, &normals)));
+	Ok(EndCap { pts, caps, crease: Some((k, crease)) })
+}
+
+/// Whether `p` (assumed on the face's plane) lies inside face `f`'s outer loop or
+/// within a hair of its boundary — the containment test behind
+/// [`FilletError::CapRunout`]. Holes are ignored (a cap with a hole under the
+/// profile is not a case the corner rebuild meets).
+fn point_on_face(solid: &Solid, f: FaceId, p: DVec3) -> bool {
+	let poly = solid.face_polygon(f);
+	if poly.len() < 3 {
+		return false;
+	}
+	let n = newell(&poly);
+	let (u, v) = crate::geom::perp_basis(n);
+	let to2 = |q: DVec3| (q.dot(u), q.dot(v));
+	let (px, py) = to2(p);
+	let m = poly.len();
+	let mut inside = false;
+	for i in 0..m {
+		let (ax, ay) = to2(poly[i]);
+		let (bx, by) = to2(poly[(i + 1) % m]);
+		// near the segment ⇒ on the face
+		let (dx, dy) = (bx - ax, by - ay);
+		let len2 = dx * dx + dy * dy;
+		let t = if len2 > 1e-18 { ((px - ax) * dx + (py - ay) * dy) / len2 } else { 0.0 };
+		let t = t.clamp(0.0, 1.0);
+		let (cx, cy) = (ax + t * dx - px, ay + t * dy - py);
+		if cx * cx + cy * cy < 1e-14 {
+			return true;
+		}
+		if (ay > py) != (by > py) {
+			let x = ax + (py - ay) / (by - ay) * (bx - ax);
+			if px < x {
+				inside = !inside;
+			}
+		}
+	}
+	inside
+}
+
 /// Distance from `p` to edge `eid`'s line segment.
 fn edge_point_distance(solid: &Solid, eid: EdgeId, p: DVec3) -> f64 {
 	let he = *solid.half_edge(solid.edge(eid).half_edge);
@@ -130,16 +311,11 @@ fn round_edge_by_id(solid: &Solid, eid: EdgeId, radius: f64, segments: usize, ki
 	if !radius.is_finite() || radius <= 0.0 {
 		return Err(FilletError::BadRadius);
 	}
-	// The rebuild below re-emits EVERY face through `Solid::from_faces`, which
-	// carries one loop per face — so a face with inner (hole) loops anywhere in
-	// the solid would have its holes silently dropped, and the result comes back
-	// closed=false / non-manifold with a NEGATIVE material cut (measured on a
-	// plain `extrude_with_holes` plate: 22 faces, 2 holed, cut −73 mm³). Refuse
-	// loudly instead of handing back corrupt topology; a multi-loop-aware
-	// rebuild is the fix, and until it lands this is an honest `Unsupported`.
-	if solid.faces().any(|f| !solid.face(f).inner.is_empty()) {
-		return Err(FilletError::Unsupported);
-	}
+	// The rebuild below re-emits EVERY loop of every face through
+	// `Solid::from_faces_multiloop`, so a face with inner (hole) loops — an
+	// `extrude_with_holes` plate, or since 2026-09-05 any boolean result whose
+	// coplanar fragments coalesced into one holed face — keeps its holes. (A
+	// single-loop rebuild used to drop them and was refused up front.)
 	let segments = segments.max(1);
 
 	// The edge's two faces, their plane normals, and its endpoints.
@@ -182,15 +358,17 @@ fn round_edge_by_id(solid: &Solid, eid: EdgeId, radius: f64, segments: usize, ki
 		return Err(FilletError::Unsupported);
 	}
 
-	// 3b. The corner-replacement rebuild only handles TRIVALENT endpoints (a simple
-	//     3-face corner: the two edge faces plus one cap). A higher-valence endpoint —
-	//     e.g. where a boolean feature splits the edge — would have several faces
-	//     meeting the vertex, and replacing the corner in all of them corrupts the
-	//     topology. Reject cleanly rather than emit a broken solid; high-valence-endpoint
-	//     filleting is a separate (local-edit) capability.
+	// 3b. The corner-replacement rebuild handles a TRIVALENT endpoint (the two edge
+	//     faces plus one cap, perpendicular OR inclined) and the 4-valent MITRE corner
+	//     (two cap faces meeting at the end — the corner's other edges were chamfered or
+	//     filleted first; `cap_end` splits the profile between them at the crease). Any
+	//     other junction — a boolean feature splitting the edge, three caps — would need
+	//     the corner replaced in every incident face and is rejected cleanly rather than
+	//     emitted broken; general high-valence filleting is a separate (local-edit)
+	//     capability.
 	let vs_id = he1.origin;
 	let ve_id = solid.half_edge(he1.next).origin;
-	if vertex_valence(solid, vs_id) != 3 || vertex_valence(solid, ve_id) != 3 {
+	if !(3..=4).contains(&vertex_valence(solid, vs_id)) || !(3..=4).contains(&vertex_valence(solid, ve_id)) {
 		return Err(FilletError::Unsupported);
 	}
 
@@ -230,50 +408,112 @@ fn round_edge_by_id(solid: &Solid, eid: EdgeId, radius: f64, segments: usize, ki
 		return Err(FilletError::RadiusTooLarge);
 	}
 
-	let arc_e: Vec<DVec3> = arc_s.iter().map(|&p| p + along).collect();
+	// 4c. Cap both ends on the faces that really terminate the edge there (see `EndCap`).
+	let circ_e: Vec<DVec3> = arc_s.iter().map(|&p| p + along).collect();
+	let profile_s = |k: usize, u: f64| -> DVec3 {
+		match kind {
+			RoundKind::Chamfer => arc_s[k].lerp(arc_s[k + 1], u),
+			RoundKind::Fillet => {
+				let t = phi * (k as f64 + u) / segments as f64;
+				cs + (na * t.cos() + w * t.sin()) * radius
+			}
+		}
+	};
+	let profile_e = |k: usize, u: f64| profile_s(k, u) + along;
+	let end_s = cap_end(solid, vs, vs_id, fa, fb, axis, &arc_s, &profile_s, 1.0)?;
+	let end_e = cap_end(solid, ve, ve_id, fa, fb, axis, &circ_e, &profile_e, -1.0)?;
+	let arc_s = end_s.pts.clone();
+	let arc_e = end_e.pts.clone();
 
 	let mut positions: Vec<DVec3> = Vec::new();
-	let mut faces: Vec<FaceInput> = Vec::new();
+	let mut faces: Vec<FaceLoops> = Vec::new();
 	let mut provenance: Vec<FaceName> = Vec::new();
 
-	// 6. Rebuild every original face, replacing the filleted edge's corner(s):
-	//    face A/B recede to the tangent line; an end cap has its corner replaced by
-	//    the whole arc; all other faces are copied unchanged.
+	// Vertex membership of the two edge faces (every loop), for the end-cap arc
+	// orientation below.
+	let face_loops = |f: FaceId| -> Vec<crate::topo::LoopId> {
+		let face = solid.face(f);
+		std::iter::once(face.outer).chain(face.inner.iter().copied()).collect()
+	};
+	let face_has = |f: FaceId, p: DVec3| -> bool {
+		face_loops(f).into_iter().any(|lp| solid.loop_polygon(lp).iter().any(|q| (*q - p).length() < 1e-9))
+	};
+
+	// 6. Rebuild every loop of every original face, replacing the filleted edge's
+	//    corner(s): face A/B recede to the tangent line; an end cap has its corner
+	//    replaced by the whole arc; all other faces are copied unchanged.
 	for f in solid.faces() {
-		let poly = solid.face_polygon(f);
 		let name = solid.face_name(f).unwrap_or(FaceName { operand: FaceSource::Primitive, source_face: f.0 });
-		let n = poly.len();
-		let mut boundary: Vec<u32> = Vec::with_capacity(n + segments);
-		for i in 0..n {
-			let p = poly[i];
-			let on_s = (p - vs).length() < 1e-9;
-			let on_e = (p - ve).length() < 1e-9;
-			if !on_s && !on_e {
-				boundary.push(intern(&mut positions, p));
-				continue;
-			}
-			let arc = if on_s { &arc_s } else { &arc_e };
-			if f == fa {
-				boundary.push(intern(&mut positions, arc[0])); // tangent on face A
-			} else if f == fb {
-				boundary.push(intern(&mut positions, arc[segments])); // tangent on face B
-			} else {
-				// An end cap: replace the corner with the arc, ordered so its first
-				// point continues from the previous boundary vertex (keeps it simple).
-				let prev = poly[(i + n - 1) % n];
-				let forward = (prev - arc[0]).length() <= (prev - arc[segments]).length();
-				if forward {
-					for &q in arc.iter() {
-						boundary.push(intern(&mut positions, q));
-					}
+		let mut loops_out: Vec<Vec<u32>> = Vec::new();
+		for lp in face_loops(f) {
+			let poly = solid.loop_polygon(lp);
+			let n = poly.len();
+			let mut boundary: Vec<u32> = Vec::with_capacity(n + segments);
+			for i in 0..n {
+				let p = poly[i];
+				let on_s = (p - vs).length() < 1e-9;
+				let on_e = (p - ve).length() < 1e-9;
+				if !on_s && !on_e {
+					boundary.push(intern(&mut positions, p));
+					continue;
+				}
+				let end = if on_s { &end_s } else { &end_e };
+				let arc = &end.pts;
+				if f == fa {
+					boundary.push(intern(&mut positions, arc[0])); // tangent on face A
+				} else if f == fb {
+					boundary.push(intern(&mut positions, arc[segments])); // tangent on face B
 				} else {
-					for &q in arc.iter().rev() {
-						boundary.push(intern(&mut positions, q));
+					// An end cap: replace the corner with the profile (or, at a mitre
+					// corner, with THIS cap's share of it up to the crease). The cap's
+					// edge INTO the corner is shared with exactly one of the two edge
+					// faces (or with the other cap); after the fillet that edge ends at
+					// that face's tangent, so the profile starts there. Deciding by face
+					// membership is exact; the old nearest-endpoint heuristic picked the
+					// wrong direction at a REFLEX corner (an L-section's top edge ending
+					// at its inner corner — cubesat F2), inserted the arc backwards and
+					// produced a self-crossing cap that failed validate.
+					let sub: Vec<DVec3> = match (end.caps.iter().position(|&c| c == f), end.crease) {
+						(Some(0), Some((k, c))) => arc[..=k].iter().copied().chain(std::iter::once(c)).collect(),
+						(Some(1), Some((k, c))) => std::iter::once(c).chain(arc[k + 1..].iter().copied()).collect(),
+						(_, None) => arc.clone(),
+						_ => return Err(FilletError::Unsupported),
+					};
+					let prev = poly[(i + n - 1) % n];
+					let next = poly[(i + 1) % n];
+					let forward = if face_has(fa, prev) || face_has(fb, next) {
+						true
+					} else if face_has(fb, prev) || face_has(fa, next) {
+						false
+					} else {
+						(prev - sub[0]).length() <= (prev - sub[sub.len() - 1]).length()
+					};
+					if forward {
+						for &q in sub.iter() {
+							boundary.push(intern(&mut positions, q));
+						}
+					} else {
+						for &q in sub.iter().rev() {
+							boundary.push(intern(&mut positions, q));
+						}
 					}
 				}
 			}
+			// A profile point slid onto an inclined cap can land ON an existing loop
+			// vertex (two 0.5 chamfers meeting at a box corner: the second edge's
+			// tangent point IS the first chamfer's cap point — the mitre), so the
+			// corner collapses; drop the repeated vertex rather than emit a
+			// zero-length edge.
+			boundary.dedup();
+			while boundary.len() > 1 && boundary[0] == boundary[boundary.len() - 1] {
+				boundary.pop();
+			}
+			if boundary.len() < 3 {
+				return Err(FilletError::Unsupported);
+			}
+			loops_out.push(boundary);
 		}
-		faces.push(FaceInput { boundary, surface: solid.face(f).surface });
+		faces.push(FaceLoops { loops: loops_out, surface: solid.face(f).surface });
 		provenance.push(name);
 	}
 
@@ -286,15 +526,40 @@ fn round_edge_by_id(solid: &Solid, eid: EdgeId, radius: f64, segments: usize, ki
 	};
 	let fillet_name = FaceName { operand: FaceSource::Primitive, source_face: solid.face_count() as u32 };
 	for k in 0..segments {
-		let quad = [arc_s[k], arc_s[k + 1], arc_e[k + 1], arc_e[k]];
+		let mut ring = vec![arc_s[k]];
+		if let Some((ck, c)) = end_s.crease {
+			if ck == k {
+				ring.push(c);
+			}
+		}
+		ring.push(arc_s[k + 1]);
+		ring.push(arc_e[k + 1]);
+		if let Some((ck, c)) = end_e.crease {
+			if ck == k {
+				ring.push(c);
+			}
+		}
+		ring.push(arc_e[k]);
 		let mid = phi * (k as f64 + 0.5) / segments as f64;
 		let outward = na * mid.cos() + w * mid.sin();
-		let boundary = oriented(&quad, outward).iter().map(|&p| intern(&mut positions, p)).collect();
-		faces.push(FaceInput { boundary, surface: bridge_surface });
+		if newell(&ring).dot(outward) < 0.0 {
+			ring.reverse();
+		}
+		// A crease that falls exactly on a profile sample (the 45° sample of a
+		// symmetric mitre) repeats that point: drop it, as the loops above do.
+		let mut boundary: Vec<u32> = ring.iter().map(|&p| intern(&mut positions, p)).collect();
+		boundary.dedup();
+		while boundary.len() > 1 && boundary[0] == boundary[boundary.len() - 1] {
+			boundary.pop();
+		}
+		if boundary.len() < 3 {
+			return Err(FilletError::Unsupported);
+		}
+		faces.push(FaceLoops { loops: vec![boundary], surface: bridge_surface });
 		provenance.push(fillet_name);
 	}
 
-	let mut result = Solid::from_faces(positions, faces);
+	let mut result = Solid::from_faces_multiloop(positions, faces);
 	result.set_provenance(provenance);
 	Ok(result)
 }
@@ -2031,11 +2296,20 @@ mod tests {
 		// yet handle. The geometry returns a clean typed Unsupported — never a broken solid —
 		// AND it is no longer Ambiguous, proving the witness DID resolve to one fragment.
 		// Completing a split-fragment fillet needs high-valence-endpoint (local-edit) support.
-		assert_eq!(
-			fillet_edge_near(&u, edge, 0.3, DVec3::new(2.0, 2.0, 1.5)).err(),
-			Some(FilletError::Unsupported),
-			"resolved past ambiguity to one fragment; geometry honestly reports the high-valence limit"
-		);
+		match fillet_edge_near(&u, edge, 0.3, DVec3::new(2.0, 2.0, 1.5)) {
+			Err(e) => assert!(
+				matches!(e, FilletError::Unsupported | FilletError::CapRunout),
+				"resolved past ambiguity to one fragment; geometry honestly reports the corner limit, got {e:?}"
+			),
+			Ok(f) => {
+				// The 2026-09-05 corner rebuild caps an end on the faces that really
+				// terminate it (a mitre of two caps included); when it accepts the
+				// split-point junction the result must be a CLEAN solid.
+				let v = validate(&f);
+				assert!(v.is_valid(), "a fillet the rebuild accepts is valid: {v:?}");
+				assert!(tessellate_default(&f).is_watertight(), "and tessellates watertight");
+			}
+		}
 	}
 
 	#[test]

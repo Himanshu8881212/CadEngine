@@ -402,11 +402,20 @@ def run_check(job: dict) -> dict:
 
     # --- temperature ----------------------------------------------------------
     temp_pass = service_c <= limit_c
+    # The temperature row is NOT a stress margin: `SF` is null here and the
+    # ratio lives under its own name with its unit, so `min(rules, key=SF)`
+    # over the receipt can never pick a 0.0-MPa "allowable" as the governing
+    # rule (din_rail F2 — it did, on every part of that campaign).
     rules.append({
         "rule": "temp",
+        "kind": "temperature_limit",
+        "unit": "C",
         "allowable_c": limit_c,
         "demand_c": service_c,
-        "SF": round(limit_c / service_c, 4) if service_c > 0 else None,
+        "allowable_mpa": None,
+        "demand_mpa": None,
+        "SF": None,
+        "temp_ratio": round(limit_c / service_c, 4) if service_c > 0 else None,
         "pass": temp_pass,
         "detail": f"service {service_c:.1f} C vs {mat_name} limit "
                   f"{limit_c:.1f} C (HDT-class) -> "
@@ -414,11 +423,18 @@ def run_check(job: dict) -> dict:
                   f"applied to temperature — the limit IS the derated number)",
     })
 
+    stress_rules = [r for r in rules if isinstance(r.get("SF"), (int, float))]
+    governing = min(stress_rules, key=lambda r: r["SF"]) if stress_rules else None
     out = {
         "ok": all(r["pass"] for r in rules),
         "material": mat_name,
         "safety_factor_required": sf_req,
         "anisotropy_derate_applied": derate != 1.0,
+        # The governing STRESS rule (lowest SF among the rows whose SF is a
+        # stress margin); the temperature row is a condition check and is
+        # never a candidate.
+        "governing_rule": governing["rule"] if governing else None,
+        "governing_SF": governing["SF"] if governing else None,
         "rules": rules,
         "skipped": skipped,
         "notes": notes,

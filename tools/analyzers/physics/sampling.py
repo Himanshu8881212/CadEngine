@@ -78,12 +78,24 @@ def run_program(program: dict, out_dir: str | Path) -> dict:
     ) as f:
         json.dump(program, f)
         prog_path = f.name
-    proc = subprocess.run(
-        [kernel_path(), "run", prog_path, "--out-dir", str(out_dir)],
-        capture_output=True,
-        text=True,
-        timeout=600,
-    )
+    try:
+        proc = subprocess.run(
+            [kernel_path(), "run", prog_path, "--out-dir", str(out_dir)],
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+    finally:
+        # The substituted program is a genuine intermediate, but a randomly
+        # named copy left in out_dir on EVERY run grew campaign receipt
+        # directories without bound and broke their byte-identical document
+        # regeneration (ls45 F1). It is removed once the engine has read it;
+        # set LMCAD_KEEP_SAMPLE_PROGRAM=1 to keep it for a post-mortem.
+        if not os.environ.get("LMCAD_KEEP_SAMPLE_PROGRAM"):
+            try:
+                os.unlink(prog_path)
+            except OSError:
+                pass
     report = json.loads(proc.stdout) if proc.stdout.strip() else {}
     if proc.returncode != 0:
         raise RuntimeError(

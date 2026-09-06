@@ -29,16 +29,24 @@ fn measures(report: &Report, id: &str) -> Value {
 }
 
 /// A body whose exact tessellation is NOT manufacturing-ready although
-/// `mesh_components` calls it clean (watertight, 0 non-orientable edges) —
-/// the F3 shape of the problem: a Ø8.5 boss (48 segments) with a concentric
-/// blind Ø2.4 pin pocket (24 segments). Deterministic (the same construction
-/// demoted in the l12_mini_case campaign).
+/// `validate` calls it closed and manifold: a loft whose top hexagon is the
+/// bottom one turned 135°, so the lateral quads twist far enough to CROSS one
+/// another. Topologically fine, geometrically self-intersecting — the defect
+/// class only the crossing sweep sees (`validate.geometric_ok` is false on it
+/// too). (Earlier fixtures — a bossed pin pocket, then a half-turn square
+/// loft — stopped demoting once the constrained-Delaunay tessellator, the
+/// coalesced boolean caps and the loft re-skin landed on 2026-09-05, as they
+/// should.)
 fn demoting_body_ops() -> Vec<Value> {
-	vec![
-		json!({"id": "boss", "op": "cylinder", "base": [0,0,0], "axis": [0,0,1], "radius": 4.25, "height": 6, "segments": 48}),
-		json!({"id": "pin", "op": "cylinder", "base": [0,0,2], "axis": [0,0,1], "radius": 1.2, "height": 5, "segments": 24}),
-		json!({"id": "cut", "op": "difference", "a": "boss", "b": "pin"}),
-	]
+	let ring = |z: f64, turn_deg: f64| -> Vec<[f64; 3]> {
+		(0..6)
+			.map(|k| {
+				let a = (turn_deg + 60.0 * k as f64).to_radians();
+				[10.0 * a.cos(), 10.0 * a.sin(), z]
+			})
+			.collect()
+	};
+	vec![json!({"id": "cut", "op": "loft", "sections": [ring(0.0, 0.0), ring(10.0, 135.0)]})]
 }
 
 const REASONS: [&str; 7] = [
@@ -104,7 +112,7 @@ fn a_demoted_export_says_why_and_where() {
 	ops.push(json!({"id": "mf", "op": "export_3mf", "in": "cut", "file": "cut.3mf", "voxel": 0.6}));
 	let report = run_program(&serde_json::to_string(&json!({ "ops": ops })).expect("serialize"), &dir);
 	assert!(report.ok, "program must run: {report:#?}");
-	let bounds = (4.25, 4.25, 6.0);
+	let bounds = (10.0, 10.0, 10.0);
 	let stl = measures(&report, "stl");
 	let mf = measures(&report, "mf");
 	let reason = check_demotion(&stl, bounds);
@@ -125,21 +133,28 @@ fn a_demoted_export_says_why_and_where() {
 	// oracle reports, and the defect must be locatable either way.
 	let mc = measures(&report, "mc");
 	let non_orientable = mc["non_orientable_edges"].as_u64().unwrap_or(0);
+	let d = &stl["demotion"];
 	if non_orientable > 0 {
 		assert_eq!(reason, "non_orientable_edges", "the oracle sees {non_orientable} non-orientable edges, so that is the reason: {mc}");
+		assert_eq!(d["self_intersections"], Value::Null, "the crossing sweep never ran (topology demoted first): {d}");
 	} else {
 		assert_eq!(mc["watertight"], json!(true), "a clean oracle verdict must be watertight: {mc}");
-		assert_eq!(
-			reason, "degenerate_triangles",
-			"the oracle calls it clean, so the reason must be one it never checks: {}",
-			stl["demotion"]
+		assert!(
+			reason == "degenerate_triangles" || reason == "self_intersection",
+			"the oracle calls it clean, so the reason must be one it never checks: {d}"
 		);
+		if reason == "self_intersection" {
+			assert!(d["self_intersections"].as_u64().unwrap_or(0) >= 1, "a crossing reason carries its pair count: {d}");
+		} else {
+			assert_eq!(d["self_intersections"], Value::Null, "the crossing sweep never ran (topology demoted first): {d}");
+		}
 	}
-	let d = &stl["demotion"];
-	assert_eq!(d["self_intersections"], Value::Null, "the crossing sweep never ran (topology demoted first): {d}");
+	// The crossing lives on the twisted lateral skin, i.e. strictly inside the
+	// hexagon's circumcircle and between the two sections (check_demotion has
+	// already pinned it to the body's bounds).
 	let w = &d["witness"][0];
 	let r = (w[0].as_f64().unwrap().powi(2) + w[1].as_f64().unwrap().powi(2)).sqrt();
-	assert!((r - 1.2).abs() < 0.05, "the witness sits on the Ø2.4 pocket wall: {w}");
+	assert!(r < 10.0 + 1e-6, "the witness sits within the hexagon's circumcircle: {w}");
 	let _ = std::fs::remove_dir_all(&dir);
 }
 

@@ -7,6 +7,7 @@
 //! implicit/voxel half and the exact B-rep half build on these contracts.
 
 pub mod bvh;
+pub mod cdt;
 pub mod clearance;
 pub mod hull;
 pub mod manifold;
@@ -23,6 +24,7 @@ pub mod sdf;
 pub mod telemetry;
 
 pub use bvh::MeshBvh;
+pub use cdt::constrained_delaunay;
 pub use clearance::radial_wave_field;
 pub use hull::convex_hull;
 pub use manifold::make_manifold;

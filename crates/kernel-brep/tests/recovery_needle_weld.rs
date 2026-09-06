@@ -55,7 +55,7 @@ fn chained_union_difference_plate_meshes_watertight() {
 }
 
 #[test]
-fn notch_sliver_overlap_refuses_honestly() {
+fn notch_sliver_overlap_resolves_to_the_closed_form() {
 	// Socket-notched plate (opening 6, root 9, depth 2.5) lifted 1.0 over a
 	// centred bowtie key: the true overlap is two disjoint 0.4-wide parallelogram
 	// strips, 25 long — volume 2 × (0.4 × 1.35) × 25 = 27.
@@ -73,19 +73,20 @@ fn notch_sliver_overlap_refuses_honestly() {
 	// break the difference route too).
 	let key = extrude(&bowtie, 27.0).transformed(kernel_brep::math::DAffine3::from_translation(v(0.0, 0.0, -1.0)));
 
-	// On this ISOLATED plate the arrangement mis-stitches the two parallel-flank
-	// sliver strips in every op — and the honest contract is that the kernel
-	// KNOWS: plain results validate as broken, and every checked op refuses
-	// rather than hand back garbage. When the arrangement one day resolves this,
-	// these flip — then tighten this test to assert the exact 27 mm³ overlap
-	// (2 × 0.4 × 1.35 × 25) and close FRICTION #23.
-	let d_invalid = !validate(&difference(&key, &plate)).is_valid();
-	let refused_i = try_intersection(&plate, &key).is_err();
-	let refused_d = kernel_brep::try_difference(&key, &plate).is_err();
-	assert!(
-		d_invalid && refused_i && refused_d,
-		"notch-sliver overlap must fail HONESTLY while unfixed: plain difference invalid={d_invalid}, \
-		 try_intersection refused={refused_i}, try_difference refused={refused_d} \
-		 (all must be true — if an op now succeeds, verify overlap == 27 mm³ and close FRICTION #23)",
-	);
+	// This ISOLATED plate used to mis-stitch the two parallel-flank sliver strips
+	// in every op, and the honest contract was that every checked op REFUSED.
+	// Since the 2026-09-05 fix round (boolean-entry snap rounding, constrained-
+	// Delaunay triangulation, coalesced caps) the arrangement resolves it, so the
+	// test now pins the answer: the checked ops succeed, the results validate,
+	// and the overlap is the closed-form 27 mm³ (2 × 0.4 × 1.35 × 25) — FRICTION
+	// ENGINE #23 closed on this pin.
+	let d = kernel_brep::try_difference(&key, &plate).expect("the notch-sliver difference resolves");
+	let i = try_intersection(&plate, &key).expect("the notch-sliver intersection resolves");
+	assert!(validate(&d).is_valid(), "difference validates: {:?}", validate(&d));
+	assert!(validate(&i).is_valid(), "intersection validates: {:?}", validate(&i));
+	let overlap = kernel_brep::exact_volume(&i);
+	assert!((overlap - 27.0).abs() < 1e-6, "overlap is the closed-form 27 mm³, got {overlap}");
+	let key_vol = kernel_brep::exact_volume(&key);
+	let d_vol = kernel_brep::exact_volume(&d);
+	assert!(((key_vol - overlap) - d_vol).abs() < 1e-6, "key − overlap = difference: {key_vol} − {overlap} vs {d_vol}");
 }
