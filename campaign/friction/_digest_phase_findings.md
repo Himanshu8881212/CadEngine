@@ -122,7 +122,7 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
 ## F12 — README creep-margin discrepancy uncaught by audit
 - severity: minor
 - surface: tools/audit_docs.py
-- status: open — dispositioned: README prose vs receipt is a campaign self-check, not something audit_docs can know; `production_check` now reports the temperature row and the governing rule so the margin quoted in prose can be copied from the receipt
+- status: fixed — `tools/audit_docs.py` gained the `receipt` class and `--also DIR`: a prose line ending in `<!-- receipt: receipts/x.json dotted.key [tol=N%] -->` is checked against the receipt's number (any number on the line within tol passes; a missing file, non-numeric key or drifted value is an ERROR). Verified on a fixture: 124 quoted vs 138.2 in the receipt → error; 3.4 vs 3.41 at 5 % → pass; a missing receipt → error. DELIVERABLE_SPEC §3 states the anchor rule and §5 the self-check line
 - symptom: card_magazine README quotes 124× in one place, generated ANALYSIS
   computes ~138× (gated ≥50×). Doc-audit does not diff prose numbers against
   generated receipts.
@@ -254,3 +254,7 @@ Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-
 - **F10** — F10: the knife-edge is on the receipt — `near_threshold_area` names the area the threshold cannot resolve, so "support-free at 45°" is quoted with its ±1° check (kernel-core `SupportFreeReport::near_threshold_area`, measure.rs support_report).
 - **F12** — F12: stays open on the audit side (prose semantics are the campaign's); the checker now gives the exact number to quote.
 - **F13** — F13: usage messaging (kernel-api main.rs USAGE).
+
+### Second pass (2026-09-05, the 13 items left open or partial)
+
+- **F12** — F12: prose numbers can be anchored to receipts and audited (`audit_docs.py --also <campaign> --only receipt`).

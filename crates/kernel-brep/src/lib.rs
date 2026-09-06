@@ -80,7 +80,8 @@ pub use topo::{
 };
 pub use validate::{
 	area, draft_analysis, euler_characteristic, exact_volume, mass_properties, overhang_analysis, section_curves_with_fallback,
-	section_properties, self_intersects, validate, volume, wall_thickness, wall_thickness_with, SectionCurve, Validity,
+	section_properties, self_intersects, validate, validity_witnesses, volume, wall_thickness, wall_thickness_with, witness_edges,
+	SectionCurve, Validity,
 };
 
 // Convenience re-exports.

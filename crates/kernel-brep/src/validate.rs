@@ -43,6 +43,135 @@ pub fn euler_characteristic(s: &Solid) -> i64 {
 }
 
 /// Run all half-edge invariant checks and compute χ and genus.
+/// WHERE a solid fails [`validate`]: up to `max` edges that are open (a half-edge
+/// without a twin) or non-manifold (used by ≠ 2 half-edges), as
+/// `(start, end, half_edge_uses)` — the actionable half of a boolean refusal.
+/// A count says a union is broken; the witness says it is the pin's bottom
+/// edge lying exactly in the deck plane (folding_deck_cleat F4) or the pocket
+/// floor on a hole's end cap (ENGINE #29). Deterministic: edge-id order.
+pub fn validity_witnesses(s: &Solid, max: usize) -> Vec<(DVec3, DVec3, u32)> {
+	witness_edges(s, max).into_iter().map(|w| (w.0, w.1, w.2)).collect()
+}
+
+/// [`validity_witnesses`] with the defect named: `(start, end, half_edge_uses, kind)`
+/// where `kind` is `"open"` (a half-edge with no twin), `"uses=N"` (an edge used
+/// by N ≠ 2 half-edges) or `"next/prev"` (the loop pointers around the edge do
+/// not agree — the stitch produced a face whose loop does not close there).
+pub fn witness_edges(s: &Solid, max: usize) -> Vec<(DVec3, DVec3, u32, &'static str)> {
+	let n_edges = s.edge_count();
+	let mut edge_uses = vec![0u32; n_edges];
+	let mut open = vec![false; n_edges];
+	let mut broken = vec![false; n_edges];
+	for i in 0..s.half_edge_count() as u32 {
+		let id = HalfEdgeId(i);
+		let he = *s.half_edge(id);
+		let EdgeId(e) = he.edge;
+		if (e as usize) < n_edges {
+			edge_uses[e as usize] += 1;
+			if he.twin.is_none() {
+				open[e as usize] = true;
+			}
+			if s.half_edge(he.next).prev != id || s.half_edge(he.prev).next != id {
+				broken[e as usize] = true;
+			}
+		}
+	}
+	let mut out = Vec::new();
+	for e in s.edges() {
+		let EdgeId(k) = e;
+		let (uses, is_open, is_broken) = (edge_uses[k as usize], open[k as usize], broken[k as usize]);
+		let kind = if is_open {
+			"open"
+		} else if uses != 2 {
+			"uses"
+		} else if is_broken {
+			"next/prev"
+		} else {
+			continue;
+		};
+		let he = *s.half_edge(s.edge(e).half_edge);
+		let a = s.position(he.origin);
+		let b = s.position(s.half_edge(he.next).origin);
+		out.push((a, b, uses, kind));
+		if out.len() >= max {
+			return out;
+		}
+	}
+	// Loops that never return to their start (the third way `manifold` fails):
+	// witness the face's first edge.
+	let hec = s.half_edge_count();
+	for f in s.faces() {
+		let start = s.loop_(s.face(f).outer).first;
+		let mut he = s.half_edge(start).next;
+		let mut steps = 0;
+		let mut closes = true;
+		while he != start {
+			he = s.half_edge(he).next;
+			steps += 1;
+			if steps > hec {
+				closes = false;
+				break;
+			}
+		}
+		if !closes {
+			let h0 = *s.half_edge(start);
+			let a = s.position(h0.origin);
+			let b = s.position(s.half_edge(h0.next).origin);
+			out.push((a, b, 0, "loop does not close"));
+			if out.len() >= max {
+				return out;
+			}
+		}
+	}
+	// Pinched vertices (the fourth way): the outgoing half-edges do not form one
+	// rotation fan — two cones apex to apex, or two shells touching at a point /
+	// along a line (a pin's bottom generator lying in the deck plane, cleat F4).
+	// Reported as a zero-length "edge" at the vertex with its fan count.
+	let mut out_count = vec![0u32; s.vertex_count()];
+	for i in 0..hec as u32 {
+		out_count[s.half_edge(HalfEdgeId(i)).origin.0 as usize] += 1;
+	}
+	for v in 0..s.vertex_count() as u32 {
+		let total = out_count[v as usize];
+		if total == 0 {
+			continue;
+		}
+		let start = s.vertex(VertexId(v)).half_edge;
+		let mut he = start;
+		let mut len = 0u32;
+		let mut pinched = false;
+		loop {
+			len += 1;
+			let prev = s.half_edge(he).prev;
+			match s.half_edge(prev).twin {
+				Some(tw) => he = tw,
+				None => {
+					pinched = true;
+					break;
+				}
+			}
+			if he == start {
+				break;
+			}
+			if len > total {
+				pinched = true;
+				break;
+			}
+		}
+		if !pinched && len != total {
+			pinched = true;
+		}
+		if pinched {
+			let p = s.position(VertexId(v));
+			out.push((p, p, total, "pinched vertex"));
+			if out.len() >= max {
+				break;
+			}
+		}
+	}
+	out
+}
+
 pub fn validate(s: &Solid) -> Validity {
 	let hec = s.half_edge_count();
 

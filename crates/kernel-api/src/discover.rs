@@ -874,7 +874,8 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 	]),
 	("import_mesh", &[
 		ParamSpec { name: "file", ty: "string", required: true, doc: "", aliases: &[] },
-		ParamSpec { name: "heal", ty: "bool", required: false, doc: "Repair before the receipt: cap boundary loops (`fill_holes`) and split non-manifold junctions (`make_manifold`).", aliases: &[] },
+		ParamSpec { name: "heal", ty: "object", required: false, doc: "Repair before the receipt.", aliases: &[] },
+		ParamSpec { name: "voxel", ty: "number", required: false, doc: "Voxel size (mm) for `heal: \"remesh\"` (default 0.5).", aliases: &[] },
 		ParamSpec { name: "out", ty: "string", required: false, doc: "Optional re-write of the welded/healed mesh — the extension picks the format (`.stl` / `.3mf`).", aliases: &[] },
 	]),
 	("mesh_carve", &[

@@ -52,9 +52,12 @@ fn fragmented_planes_merge_islands_survive_and_clean_input_is_untouched() {
 		.count();
 	let v_ok = (volume(&merged).abs() - volume(&plate).abs()).abs() < 1e-6;
 
+	// Since 2026-09-05 `boolean()` coalesces its own result, so the plate is BORN
+	// with its 16 maximal faces and `coalesce_coplanar` is a no-op on it (it used
+	// to arrive as 65 fragments — that fragmentation is what the fix removed).
 	assert!(
 		tower_ok
-			&& before > 20
+			&& before == 16
 			&& merged.face_count() == 16
 			&& pad_tops == 2
 			&& v_ok && validate(&merged).is_valid()
@@ -68,9 +71,13 @@ fn fragmented_planes_merge_islands_survive_and_clean_input_is_untouched() {
 }
 
 /// The FRICTION #20 scenario's own geometry: two pads in the MIDDLE of a plate.
-/// The boolean leaves the plate's top plane as a field of fragments (measured:
-/// 58 edges whose two sides carry the SAME `FaceName` — pure fragmentation
-/// seams), and coalescing merges them back into one holed face.
+/// The stitch leaves the plate's top plane as a field of fragments (measured
+/// before 2026-09-05: 58 edges whose two sides carry the SAME `FaceName` —
+/// pure fragmentation seams). Since 2026-09-05 `boolean()` runs the coalesce
+/// rebuild on its own result, so the plate LEAVES the boolean with its top as
+/// one holed face — the rebuild this test measures now happens inside the
+/// boolean, and its evidence is the holed top face (the stitch only recovers
+/// simply-connected regions) carrying a name.
 fn fragmenting_pads_on_plate() -> Solid {
 	union(
 		&union(
@@ -162,9 +169,11 @@ fn provenance_survives_the_rebuild_so_witnesses_re_resolve_mid_chain() {
 	let (post_n, post_area) = area_of(&merged, wall);
 	let same_face = post_n <= pre_n && (post_area - pre_area).abs() < 1e-9 && post_n >= 1;
 
-	// (4) The fragmentation itself is gone: 58 seam edges whose two sides were
-	// pieces of ONE named plane (the state that makes a downstream feature say
-	// "not a straight edge between two whole planar faces") collapse to zero.
+	// (4) The fragmentation itself is gone: the 58 seam edges whose two sides
+	// were pieces of ONE named plane (the state that makes a downstream feature
+	// say "not a straight edge between two whole planar faces") are zero on the
+	// boolean's own output now (it coalesces at birth, 2026-09-05) and stay
+	// zero through an explicit coalesce.
 	let (seams_pre, seams_post) = (same_name_seams(&plate), same_name_seams(&merged));
 
 	// (5) Witness-addressed EDGES re-resolve through the rebuild: the plate's
@@ -194,21 +203,20 @@ fn provenance_survives_the_rebuild_so_witnesses_re_resolve_mid_chain() {
 	}
 	let all_same_edge = same_edge.iter().all(|&b| b);
 
-	// (6) The honest residual, pinned rather than hidden: this merged solid
-	// carries a face with HOLE loops (the plate top around the two pads), and
-	// the fillet's rebuild is single-loop only — so a witness-addressed fillet
-	// here REFUSES loudly. It used to return `Ok` with closed=false topology and
-	// a NEGATIVE cut; a refusal is the honest state until the rebuild is
-	// multi-loop aware. (The mid-chain feature capability itself is gated on
-	// hole-free geometry by `a_boolean_coalesce_feature_chain_rebuilds_bit_identically`.)
+	// (6) This merged solid carries a face with HOLE loops (the plate top around
+	// the two pads). The fillet's rebuild is multi-loop aware since 2026-09-05,
+	// so a witness-addressed fillet on a corner edge now SUCCEEDS with a valid
+	// solid that removed material (it used to be refused as `Unsupported`, and
+	// before that returned an invalid solid with a negative cut).
 	let holed_faces = merged.faces().filter(|&f| !merged.face(f).inner.is_empty()).count();
-	let refusal = fillet_edge_near(&merged, corner_name(2, 4), 1.0, DVec3::new(0.0, 0.0, 2.5));
-	let refused_honestly = refusal.as_ref().err() == Some(&kernel_brep::FilletError::Unsupported);
+	let filleted = fillet_edge_near(&merged, corner_name(2, 4), 1.0, DVec3::new(0.0, 0.0, 2.5));
+	let refused_honestly =
+		filleted.as_ref().map(|f| validate(f).is_valid() && volume(f).abs() < volume(&merged).abs() - 1e-6).unwrap_or(false);
 
 	assert!(
 		named_after == merged.face_count()
 			&& subset && same_face
-			&& seams_pre > 20
+			&& seams_pre == 0
 			&& seams_post == 0
 			&& all_same_edge
 			&& holed_faces == 1
@@ -218,11 +226,11 @@ fn provenance_survives_the_rebuild_so_witnesses_re_resolve_mid_chain() {
 		 ({} in → {} out);\n\
 		 survived face A2 (−Y wall) re-resolves: {pre_n} faces / {pre_area:.6} mm² → {post_n} faces / {post_area:.6} mm² \
 		 (same face) = {same_face};\n\
-		 same-name fragmentation seams {seams_pre} → {seams_post} (want a large number → 0);\n\
+		 same-name fragmentation seams {seams_pre} → {seams_post} (want 0 → 0: the boolean coalesces at birth);\n\
 		 the four corner edges re-resolve by name+witness to the SAME segment {same_edge:?} (want all true — \
 		 they resolved to NOTHING before provenance was carried);\n\
-		 residual: {holed_faces} merged face(s) carry hole loops, so the single-loop fillet rebuild refuses \
-		 honestly ({refusal:?}, want Unsupported — it used to hand back closed=false topology with a negative cut)",
+		 residual: {holed_faces} merged face(s) carry hole loops; the multi-loop fillet rebuild binds a valid, \
+		 material-removing solid on it = {refused_honestly} (want true — it used to refuse, and before that hand back closed=false topology)",
 		merged.face_count(),
 		names_in.len(),
 		names_out.len(),

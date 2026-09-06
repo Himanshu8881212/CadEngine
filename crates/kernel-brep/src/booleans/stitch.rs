@@ -21,7 +21,17 @@ use super::Tri;
 /// Merge coplanar adjacent kept triangles back into maximal planar faces and
 /// build a closed [`Solid`] via [`Solid::from_faces`]. Vertices are welded to
 /// [`WELD_EPS`] so twin half-edges pair up.
-pub(super) fn stitch(kept: &[Tri]) -> Solid {
+
+/// [`stitch`] with the operands' ORIGINAL vertex positions as `anchors`: when
+/// the duplicate-cluster merge below unites a cut-seam vertex with an operand
+/// corner, the corner's exact position wins. Without this the representative
+/// was the lowest id — often a split point minted 4e-7..7e-7 from the corner
+/// by a cut line grazing it — and the corner MOVED onto it; the neighbouring
+/// face's edge (its chain of split vertices computed from the true corner)
+/// then fell outside the T-junction healer's reach and the result had open
+/// edges (ENGINE #29: a hex pocket floor on a hole's cap, rounded profile
+/// coordinates). An anchor is bit-stable, so the fix is also deterministic.
+pub(super) fn stitch_with_anchors(kept: &[Tri], anchors: &[DVec3]) -> Solid {
 	if kept.is_empty() {
 		return Solid::default();
 	}
@@ -120,7 +130,43 @@ pub(super) fn stitch(kept: &[Tri]) -> Solid {
 				}
 			}
 		}
-		(0..verts.len() as u32).map(|i| find(&mut parent, i)).collect()
+		// Representative per cluster: an operand corner (anchor) when the cluster
+		// holds one — lowest such id — else the min-id root as before.
+		let anchor_of: Vec<bool> = if anchors.is_empty() {
+			vec![false; verts.len()]
+		} else {
+			let akey = |p: DVec3| ((p.x * inv).round() as i64, (p.y * inv).round() as i64, (p.z * inv).round() as i64);
+			let mut agrid: HashMap<(i64, i64, i64), Vec<DVec3>> = HashMap::new();
+			for &a in anchors {
+				agrid.entry(akey(a)).or_default().push(a);
+			}
+			verts
+				.iter()
+				.map(|&p| {
+					let k = akey(p);
+					(-1..=1_i64).any(|dz| {
+						(-1..=1_i64).any(|dy| {
+							(-1..=1_i64).any(|dx| {
+								agrid
+									.get(&(k.0 + dx, k.1 + dy, k.2 + dz))
+									.is_some_and(|pts| pts.iter().any(|a| (*a - p).length() <= WELD_EPS))
+							})
+						})
+					})
+				})
+				.collect()
+		};
+		let roots: Vec<u32> = (0..verts.len() as u32).map(|i| find(&mut parent, i)).collect();
+		// rep[root] starts as the root (min id); the first anchor member (ids
+		// ascending, so deterministic) takes over.
+		let mut rep: Vec<u32> = (0..verts.len() as u32).collect();
+		for i in 0..verts.len() as u32 {
+			let r = roots[i as usize] as usize;
+			if anchor_of[i as usize] && !anchor_of[rep[r] as usize] {
+				rep[r] = i;
+			}
+		}
+		roots.iter().map(|&r| rep[r as usize]).collect()
 	};
 
 	// Indexed triangles, dropping any that collapse on welding (or on the

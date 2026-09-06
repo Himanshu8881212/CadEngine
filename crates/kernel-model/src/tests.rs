@@ -2,7 +2,7 @@
 
 //! Unit tests for the crate root: the feature tree, evaluation and assemblies.
 
-use kernel_core::math::{Affine3A, DMat3, DVec3, Vec3};
+use kernel_core::math::{Affine3A, DMat3, DVec2, DVec3, Vec3};
 use kernel_core::mesh::Mesh;
 use kernel_core::mesher::Resolution;
 use kernel_implicit::ops::Node;
@@ -44,7 +44,7 @@ fn sketch_feature_re_extrudes_when_the_height_parameter_changes() {
 	let (sketch, _) = rectangle_sketch();
 	let mut doc = Document::new();
 	doc.set_param("h", 5.0);
-	let f = doc.add(Feature::ExtrudeSketch { sketch, height: Dim::param("h"), dims: vec![], draft: Dim::Literal(0.0) });
+	let f = doc.add(Feature::ExtrudeSketch { sketch, height: Dim::param("h"), dims: vec![], draft: Dim::Literal(0.0), draft_deg: None });
 	doc.set_root(f);
 
 	let vol5 = kernel_brep::volume(&doc.evaluate_brep().expect("sketch extrudes"));
@@ -69,6 +69,7 @@ fn sketch_feature_reshapes_when_a_width_dimension_parameter_changes() {
 		height: Dim::Literal(5.0),
 		dims: vec![(width, Dim::param("w"))],
 		draft: Dim::Literal(0.0),
+		draft_deg: None,
 	});
 	doc.set_root(f);
 
@@ -93,7 +94,7 @@ fn sketch_feature_drafts_the_walls_when_a_draft_parameter_is_set() {
 	let mut doc = Document::new();
 	doc.set_param("h", 5.0);
 	doc.set_param("a", 0.05);
-	let f = doc.add(Feature::ExtrudeSketch { sketch, height: Dim::param("h"), dims: vec![], draft: Dim::param("a") });
+	let f = doc.add(Feature::ExtrudeSketch { sketch, height: Dim::param("h"), dims: vec![], draft: Dim::param("a"), draft_deg: None });
 	doc.set_root(f);
 
 	let s = doc.evaluate_brep().expect("drafted sketch extrudes");
@@ -308,7 +309,8 @@ fn assembly_checks_see_brep_only_parts() {
 	// (d/2)·√(4r²−d²) ≈ 7.25 mm² × 20 mm ≈ 145 mm³ for the 32-gon facets).
 	let shaft = || {
 		let mut doc = Document::new();
-		let s = doc.add(Feature::CatalogPart { part: CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(20.0) } });
+		let s =
+			doc.add(Feature::CatalogPart { part: CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(20.0), keyway: None } });
 		doc.set_root(s);
 		doc
 	};
@@ -419,7 +421,8 @@ fn precise_mesh_is_exact_and_watertight_for_curved_solids() {
 	}
 	assert!(
 		mp.is_watertight()
-			&& mp.triangle_count() > 1000
+			// the CDT tessellator needs fewer cap triangles than the keyhole ear clip did
+			&& mp.triangle_count() > 400
 			&& mc.is_watertight()
 			&& mc.triangle_count() > 400
 			&& max_dev > 0.0
@@ -1346,4 +1349,70 @@ fn prebuilt_node_instance_meshes() {
 	let v = mesh.signed_volume();
 	let expect = 4.0 / 3.0 * std::f64::consts::PI * 6.0f64.powi(3);
 	assert!((v - expect).abs() / expect < 0.03, "prebuilt sphere vol {v} vs {expect}");
+}
+
+/// ENGINE #7 parity: the Document twins of the `shaft {keyway}`, `parallel_key`
+/// and `circlip_external` ops evaluate, and `ExtrudeSketch.draft_deg` (degrees)
+/// produces the same solid as `draft` (radians).
+#[test]
+fn document_side_shaft_keyway_key_circlip_and_degree_draft_evaluate() {
+	use crate::feature::{CatalogPart, ShaftKeywayFeat};
+	let mut doc = Document::new();
+	let s = doc.add(Feature::CatalogPart {
+		part: CatalogPart::Shaft {
+			d: Dim::Literal(10.0),
+			length: Dim::Literal(40.0),
+			keyway: Some(ShaftKeywayFeat { length: Dim::Literal(16.0), offset: Dim::Literal(12.0) }),
+		},
+	});
+	doc.set_root(s);
+	let shaft = doc.evaluate_brep().expect("keyed shaft evaluates");
+	let plain = crate::parts::shaft(10.0, 40.0, None);
+	assert!(kernel_brep::exact_volume(&shaft) < kernel_brep::exact_volume(&plain), "the keyway removes material");
+	assert!(kernel_brep::validate(&shaft).is_valid());
+
+	let mut doc = Document::new();
+	let k = doc.add(Feature::CatalogPart { part: CatalogPart::ParallelKey { d: Dim::Literal(10.0), l: Dim::Literal(16.0) } });
+	doc.set_root(k);
+	let key = doc.evaluate_brep().expect("DIN 6885 key for a Ø10 shaft evaluates");
+	assert!(kernel_brep::validate(&key).is_valid());
+
+	let mut doc = Document::new();
+	let c = doc.add(Feature::CatalogPart { part: CatalogPart::CirclipExternal { shaft_d: Dim::Literal(10.0) } });
+	doc.set_root(c);
+	let clip = doc.evaluate_brep().expect("DIN 471 Ø10 circlip evaluates");
+	assert!(kernel_brep::validate(&clip).is_valid());
+
+	// draft_deg 5 == draft 5° in radians, to the bit.
+	let mut sk = Sketch::new();
+	let p = [
+		sk.add_point(DVec2::new(0.0, 0.0)),
+		sk.add_point(DVec2::new(20.0, 0.0)),
+		sk.add_point(DVec2::new(20.0, 12.0)),
+		sk.add_point(DVec2::new(0.0, 12.0)),
+	];
+	for i in 0..4 {
+		sk.add_segment(p[i], p[(i + 1) % 4]);
+	}
+	let mut a = Document::new();
+	let fa = a.add(Feature::ExtrudeSketch {
+		sketch: sk.clone(),
+		height: Dim::Literal(8.0),
+		dims: vec![],
+		draft: Dim::Literal(5.0_f64.to_radians()),
+		draft_deg: None,
+	});
+	a.set_root(fa);
+	let mut b = Document::new();
+	let fb = b.add(Feature::ExtrudeSketch {
+		sketch: sk,
+		height: Dim::Literal(8.0),
+		dims: vec![],
+		draft: Dim::Literal(0.0),
+		draft_deg: Some(Dim::Literal(5.0)),
+	});
+	b.set_root(fb);
+	let (va, vb) = (a.evaluate_brep().expect("radians"), b.evaluate_brep().expect("degrees"));
+	assert!((kernel_brep::exact_volume(&va) - kernel_brep::exact_volume(&vb)).abs() < 1e-9, "degree and radian drafts agree");
+	assert_eq!(a.features().next().map(|f| f.kind), Some("ExtrudeSketch".to_string()));
 }

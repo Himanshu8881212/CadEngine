@@ -182,6 +182,10 @@ pub struct MeshSdf {
 	nodes: Vec<BvhNode>,
 	tri_order: Vec<u32>,
 	bounds: Aabb,
+	/// Inside = `|winding| > ½` instead of `winding > ½`: a soup whose shells
+	/// are wound inward (a vendor STL, negative signed volume) or mixed still
+	/// classifies its interior; see [`MeshSdf::with_unsigned_winding`].
+	unsigned_winding: bool,
 }
 
 impl MeshSdf {
@@ -194,10 +198,21 @@ impl MeshSdf {
 			nodes: Vec::new(),
 			tri_order: Vec::new(),
 			bounds: mesh.aabb(),
+			unsigned_winding: false,
 		};
 		s.refine_oversized();
 		s.build_bvh();
 		s
+	}
+
+	/// Classify inside by `|winding| > ½`, so a surface wound INWARD (an
+	/// exported soup with a negative signed volume — the l12 vendor board) or
+	/// with mixed shell orientations still has an interior. The default (signed)
+	/// test is the honest one for a consistently outward mesh, because it also
+	/// cancels overlapping shells' double coverage into ±1.
+	pub fn with_unsigned_winding(mut self) -> Self {
+		self.unsigned_winding = true;
+		self
 	}
 
 	/// Recursively bisect (longest edge, at its midpoint) every triangle whose
@@ -459,7 +474,12 @@ impl MeshSdf {
 		if aabb_dist2(p, self.bounds) > 0.0 {
 			return false;
 		}
-		self.winding_number(p) > 0.5
+		let w = self.winding_number(p);
+		if self.unsigned_winding {
+			w.abs() > 0.5
+		} else {
+			w > 0.5
+		}
 	}
 
 	/// Brute-force exact winding number (O(n) sum of solid angles), for comparison

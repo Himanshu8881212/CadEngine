@@ -209,7 +209,7 @@ Engine and tools source were NOT touched — every workaround lives inside
 ## F10 — ace_fea_tet (gmsh) refuses a watertight, exact-route STL that carries a `thread_ridge` union (2026-08-07)
 - severity: blocker
 - surface: kernel tessellation
-- status: partial — the tet mesher's refusal on a thread-ridge STL is now typed (`MeshRefusal`, exit 2, sliver witness, gmsh isolated so nothing aborts); gmsh still cannot mesh the helical slivers at the element sizes the part needs, so the body-fitted route for threaded bodies stays a refusal — analyze the un-threaded blank (thread minor diameter) as the campaign did
+- status: partial — the body-fitted route on THIS body is beyond gmsh: `mesh_ir.mesh_stl` now tries both gmsh surface modes (reparametrised skin, then the discrete STL skin) and the refusal names both (`Wrong topology of boundary mesh for parametrization` | `PLC Error: a segment and a facet intersect`); a 0.3 mm winding-number remesh of the STL was tried too and gmsh refused it in both modes. What is fixed: the refusal is exhaustive, typed and documented (cookbook Selectors); what is not: gmsh cannot mesh a helical thread band — analyse the un-threaded blank on this route or the threaded body on the voxel route
 - symptom: `{"ok": false, "error": "Exception: Invalid boundary mesh (overlapping facets) on
   surface 45 surface 116"}` from `tools/ace_fea_tet_runner.py` at `elem_size_mm: 0.9` on
   `parts/insert.stl`.
@@ -381,3 +381,7 @@ Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-
 - **F13** — F13: no silent downgrade.
 - **F14** — F14: route no longer flips.
 - **F15** — F15: creep mode.
+
+### Second pass (2026-09-05, the 13 items left open or partial)
+
+- **F10** — F10: partial — exhaustive typed refusal; gmsh has no path for the helical band.

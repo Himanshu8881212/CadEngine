@@ -666,7 +666,9 @@ fn wave3_face_seals_and_exact_gear_route() {
 	let expected_cord = 2.0 * (100.0_f64 + 60.0) - 64.0 + 16.0 * std::f64::consts::PI;
 	assert!(
 		report.ok
-			&& route.as_deref() == Some("voxel_healed")
+			// The gear wheel exports on the EXACT route since the 2026-09-05
+			// constrained-Delaunay tessellator (it demoted to the voxel heal before).
+			&& route.as_deref() == Some("exact")
 			&& xvol < vol
 			&& vol - xvol > 2.0 && vol - xvol < 4.0
 			&& genus("v_lid") == Some(0)

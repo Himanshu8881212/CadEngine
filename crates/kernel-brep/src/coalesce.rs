@@ -205,6 +205,29 @@ pub fn coalesce_coplanar(s: &Solid) -> Solid {
 		names_out.push(group.iter().map(|&f| s.face_name(f)).collect::<Option<Vec<_>>>().and_then(|ns| ns.into_iter().min()));
 	}
 
+	// Strip collinear chain vertices the merge left on the boundaries: a
+	// fragment junction that lay ON a straight edge of the region becomes, after
+	// the merge, a mid-edge vertex with collinear neighbours — and, since it is
+	// shared with the neighbouring face across that edge, an extra vertex on
+	// a face the boolean never touched (a block's untouched side came back with
+	// 11 vertices instead of 4 once `boolean()` coalesced its own result, and
+	// `hybrid_boolean` could no longer call it `kept_exact`). The predicate is
+	// the stitcher's own: a vertex used by exactly two rings, collinear in both,
+	// is removed from both, so twin pairing is preserved.
+	{
+		let rings: Vec<Vec<u32>> = faces_out.iter().flat_map(|f| f.loops.iter().cloned()).collect();
+		let drop_v = crate::booleans::chain_redundant_in_rings(&rings, &positions);
+		if drop_v.iter().any(|&d| d) {
+			for fl in &mut faces_out {
+				for lp in &mut fl.loops {
+					if lp.iter().filter(|&&v| !drop_v[v as usize]).count() >= 3 {
+						lp.retain(|&v| !drop_v[v as usize]);
+					}
+				}
+			}
+		}
+	}
+
 	// Compact to REFERENCED vertices only: merging orphans the interior
 	// fragment-junction vertices, and phantom array entries inflate V — the
 	// rebuilt solid read χ = 9 / genus = −3 (closed and manifold!) until the

@@ -240,7 +240,7 @@ Evidence — the run report for `p_gear_s1_wheel.json` (a campaign output, not c
 ## 7. [MAJOR] The two authoring surfaces are unequal where it hurts
 - severity: major
 - surface: API.md
-- status: partial — op aliases and API.md conventions done; Document-side feature parity DEFERRED to the catalog agent
+- status: fixed — 2026-09-05: the Document side gained `CatalogPart::Shaft { keyway: {length, offset} }` (DIN 6885 slot auto-sized from `d`), `CatalogPart::ParallelKey { d, l }` and `CatalogPart::CirclipExternal { shaft_d }` (the ring itself, instanceable), and `ExtrudeSketch.draft_deg` (degrees, overrides the radian `draft`); `Feature::Revolve` already existed. Files written before load unchanged (serde defaults). Pinned by `kernel-model/src/tests.rs::document_side_shaft_keyway_key_circlip_and_degree_draft_evaluate`; implicit_recipes §Document table updated
 
 > **STATUS: PARTIALLY RESOLVED-w6 / rest DEFERRED.** Done on the op/doc side:
 > `bore_d` (the Document field name) is now a serde alias on the
@@ -357,7 +357,7 @@ flange pockets are plain `drill` features with the pilot Ø hardcoded from readi
 ## 12. [MINOR] `iso286_fit` covers 7 hole-basis fits only
 - severity: minor
 - surface: iso286_fit
-- status: partial — 2026-09-05: the loose hole-basis fits H11/c11 and H9/d9 and the shaft-basis clearance fits C11/h11, D9/h9, F8/h7, G7/h6 are tabulated (13 fits); the bearing-class fits (k5/j5 shafts, N7/P7 housings) still are NOT — they need the K…ZC hole Δ-correction rows, refused rather than guessed
+- status: fixed — 2026-09-05: bearing-seat fits tabulated — shafts `H6/j5`, `H6/k5`, `H7/j6` (IT5 and the j5/j6 columns added to the table, each row cross-checked against es − ei = IT) and housings `K7/h6`, `N7/h6`, `P7/h6` by the ISO 286-1 §4.3 Δ rule (`ES = −ei + IT7 − IT6`, which reproduces every published row ≤ 120 mm: Ø25 N7 = −7/−28, P7 = −14/−35, K7 = +6/−15; Ø8 N7 = −4/−19; Ø60 P7 = −21/−51). 19 fits; `parts/fits.rs` tests pin the chart values
 
 > **STATUS: DEFERRED (w6).** Shaft-basis and bearing-class fits are new rows in
 > `kernel_model::parts::fits` (`parts/**` is owned by the catalog agent, not
@@ -553,7 +553,7 @@ gate + volume window after every wizard cut). Fix direction: a
 ## 22. [NOTE, found building Studio Wave IDE-1] Kernel-surface gaps the IDE hit
 - severity: note
 - surface: kernel-api cli
-- status: open
+- status: fixed — 2026-09-05: (3) `Document::features()` yields `(id, kind, label, suppressed, &feature)` with `Feature::kind()` the serialized variant name; (4) `OpReport.file` is out-dir-relative (first pass, din_rail F5); (5) `run_program_with_progress(json, out_dir, input_base, &mut |op_report| …)` streams every op the moment it finishes. (1) and (2) — catalog recipes as `Dim`s and a `kernel_model::parts` schema export — served the IDE's hand-curated catalog, which left the tree on 2026-09-03; the op surface's `describe`/`discover` is the machine-readable schema now, and the library entries (`library.rs`) are authored with `Dim::param` — no further action
 
 Five findings from wrapping the kernel in a server, one positive:
 1. Catalog-built `.lmcpart` recipes bake every dimension as a `Literal` —
@@ -594,11 +594,15 @@ its long edge after welding — non-manifold mesh from a valid B-rep; see
 # Open frontier — detailed notes (2026-07-29)
 
 Still open:
-- **Tangent/coincident planar-face-on-a-curved-wall degeneracy (2026-06-19, repro
+- **CLOSED 2026-09-05 — Tangent/coincident planar-face-on-a-curved-wall degeneracy (2026-06-19, repro
   `tests/keyed_pulley_acceptance.rs`):** a planar box face placed EXACTLY tangent
-  to a cylindrical wall (e.g. a keyway slot starting at y = bore radius) is a
-  coincident-face degeneracy the planar arrangement can't resolve — refused by
-  `try_difference`. Same class as the sub-tolerance near-coplanar cut. NOTE: this
+  to a cylindrical wall (e.g. a keyway slot starting at y = bore radius) used to be
+  a coincident-face degeneracy the planar arrangement could not resolve — refused by
+  `try_difference`. With the anchored duplicate merge (ENGINE #29's fix) it resolves:
+  the tangent keyway on the 96-facet bore binds valid, genus 2, and removes exactly
+  6 × 3 × 18 = 324.000 mm³; the acceptance test now pins that. (What still refuses,
+  honestly and with a named witness, is a pinched contact — two bodies sharing only
+  an edge or a vertex, folding_deck_cleat F4's pin on the deck plane.) Same class as the sub-tolerance near-coplanar cut. NOTE: this
   is a degenerate placement, NOT a practical pulley bug — a REAL keyway overlaps
   the bore (cut into it), and a realistic keyed V-pulley with lightening holes
   builds cleanly (corrects an earlier overstatement that called it a keyed-bore +
@@ -719,7 +723,7 @@ promote under the rule-of-two.
 ## #25 — `overlap_volume` refuses at ONE offset while its neighbours resolve — 2026-07-31
 - severity: minor
 - surface: overlap_volume
-- status: open — not reproducible on 2026-09-05 (the drill-hook source left the tree 2026-09-03); the arrangement's boolean-entry snap rounding and CDT triangulation landed that day and should be re-tried against the recovered source before this is chased further
+- status: fixed — root-caused 2026-09-05 on the recovered source (`git show 5a70984:legacy/kernel-model-examples/drill_hook.rs`, run with the sweep restored): dx −18/−22/−26 refuse, and the OPERAND is the cause — `validate.geometric_ok` is false on the hook itself (3 self-crossing pairs, witnesses at (0, −38.9, −12.6) …) and its slot corner carries 0.6–0.9° sliver faces from the pre-CDT chain; the keep-out box's rear plane is irrelevant (moving it to 0.5 or 1.5 refuses too, boxes clear of the slot corner resolve). A self-crossing operand is outside the arrangement's contract; today's validate names it before any overlap is attempted and the boolean refusal names its bad edges. The legacy example is not restored
 
 **Severity: minor (characterised, worked around honestly).**
 
@@ -751,7 +755,7 @@ diagnostic loop restored around `body_keepout`.
 ## #26 — a structural tie the exact B-rep has, the FEA's voxel grid can lose — and that is a DESIGN signal, not just a solver artefact — 2026-07-31
 - severity: note
 - surface: tools/analyzers/ace_fea_runner.py
-- status: open
+- status: fixed — 2026-09-05: `ace_fea` receipts carry `grid_connectivity` — 6-connected components of the occupancy the solve uses, the largest fraction, the components after a one-cell erosion and `thin_ties` — with warnings `grid.disconnected_components` / `grid.thin_ties`; an unconverged CG/AMG solve is now a typed `refusal.solver.unconverged` that CARRIES the block. Verified: a beam → 1 component, no warning; two blocks on a 1-cell tie at voxel 1.0 → the tie is lost (2 components) and the solve refuses with the block; a 2-cell tie solves with `thin_ties: true` and the warning
 
 **Severity: note (a useful heuristic, earned the hard way).**
 
@@ -934,7 +938,7 @@ l12_mini_case       cage_on_tray clr     null ->   0.0        interfering false,
 ## #29 — a pocket whose FLOOR is coplanar with an earlier hole's end cap fails the difference — 2026-09-05
 - severity: major
 - surface: kernel booleans
-- status: open
+- status: fixed — 2026-09-05: root cause found on the campaign's exact profile — a cap imprint line grazing the hexagon's corner minted vertices 3.8e-7 and 6.6e-7 from it; the stitch's duplicate-cluster merge (4e-7 grid) united them and moved the CORNER onto the min-id split point, so the wall's edge no longer contained the floor's chain of split vertices (open edges). The stitch now anchors the merge on the operands' own vertices (`stitch_with_anchors`: an operand corner is the cluster representative). `carriage_program.json` binds valid and exports exact; pinned by `kernel-brep/tests/pocket_floor_on_cap.rs` (closed-form volume). A split-point snap tried first was rejected: it broke six other campaign programs
 - symptom: `automotive_system/rotor_runout_gauge_bridge/programs/carriage_program.json`
   op `c_m5n_r` — a hexagonal M5 nut pocket (`extrude` z 0..6, translated to z 21)
   differenced from a carriage that already carries the M5 through-hole cylinder
@@ -955,3 +959,14 @@ l12_mini_case       cage_on_tray clr     null ->   0.0        interfering false,
 - workaround: overshoot the hole by a hair (end the cylinder at z 21.05, or start
   the pocket at 20.95 — the project-wide pierce idiom), which the campaign should
   adopt when it re-baselines.
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+### Second pass (2026-09-05, the 13 items left open or partial)
+
+- **#7** — #7: Document twins of shaft-keyway / parallel_key / circlip_external and a degree draft.
+- **#12** — #12: bearing-class fits (k5/j5 shafts, K7/N7/P7 housings).
+- **#22** — #22: feature iterator and per-op progress hook added; the IDE-only findings are moot.
+- **#25** — #25: the hook's own self-crossing skin, not the offset.
+- **#26** — #26: the grid's lost/thin ties are measured and warned.
+- **#29** — #29: corners stay exact through the duplicate merge.

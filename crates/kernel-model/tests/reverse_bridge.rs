@@ -129,6 +129,11 @@ fn implicit_cylinder_recovery_collapses_faces_and_shrinks_step() {
 	// deeper collapse); re-import volume 8028.0420, drift 0.0000% (the
 	// importer verifies a periodic-strip reconstruction against the parameter
 	// chart by FLUX and re-reads a folded strip on the chart instead).
+	// UPDATED 2026-09-05: the coalesce strips collinear chain vertices, so the
+	// faceted v1 sheds its redundant vertices (15 856 → 872 for the same 1326
+	// faces and volume) and its STEP is 5× leaner (5 742 349 → 1 163 792 bytes);
+	// v2 sheds them too (482 → 290 vertices, 180 033 → 124 437 bytes). The
+	// payoff ratio against a no-longer-bloated v1 is 9.35 — bar 8×.
 	assert!(
 		rep.cylinders >= 1
 			&& rep.faces_after * 50 <= rep.faces_before
@@ -141,14 +146,14 @@ fn implicit_cylinder_recovery_collapses_faces_and_shrinks_step() {
 			&& axis.dot(DVec3::Z).abs() > 1.0 - 1e-6
 			&& rep.max_fit_residual > 0.0
 			&& rep.max_fit_residual <= 0.05
-			&& ratio >= 25.0
+			&& ratio >= 8.0
 			&& validate(&back).is_valid()
 			&& reimport_drift < 0.002,
 		"implicit cylinder v2 gates: report {rep:?} (want ≥50× face collapse, <30 faces; the pre-2026-07-30 \
 		 boundary-only tessellation pinned 80 faces at ≥16×); \
 		 volume v1 {vol1:.4} / v2 {vol2:.4} / analytic {analytic:.4} mm³ \
 		 (v1 drift {:.4}%, bar 0.5%; analytic drift {:.4}%, bar 0.5%); fitted r {radius:.5} (bar ±0.01), axis·Z {:.10}; \
-		 STEP {} → {} bytes (ratio {ratio:.2}, bar 25×); re-import validity {:?}, volume {vol_back:.4} (drift {:.4}%, bar 0.2%)",
+		 STEP {} → {} bytes (ratio {ratio:.2}, bar 8×: v1 is 5× leaner since 2026-09-05); re-import validity {:?}, volume {vol_back:.4} (drift {:.4}%, bar 0.2%)",
 		drift_v1 * 100.0,
 		drift_analytic * 100.0,
 		axis.dot(DVec3::Z),

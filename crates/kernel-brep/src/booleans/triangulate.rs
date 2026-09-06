@@ -59,7 +59,7 @@ pub(super) fn chain_redundant_vertices(s: &Solid) -> Vec<bool> {
 /// loops) and [`stitch`]'s output cleanup (rings from the result's [`FaceInput`]
 /// boundaries), so a boolean result is born without the chain micro-subdivisions the
 /// next boolean would strip anyway.
-pub(super) fn chain_redundant_in_rings(rings: &[Vec<u32>], pos: &[DVec3]) -> Vec<bool> {
+pub(crate) fn chain_redundant_in_rings(rings: &[Vec<u32>], pos: &[DVec3]) -> Vec<bool> {
 	let nv = pos.len();
 	let mut removed = vec![false; nv];
 	loop {

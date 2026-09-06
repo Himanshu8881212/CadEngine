@@ -371,7 +371,9 @@ deterministic rebuild.
    (`{"Fixed": {"point": 0, "at": [0, 0]}}`, `{"Distance": {"a": 0, "b": 1,
    "distance": 50.0}}`) — unlike the op surface's bare pairs.
 2. The op surface is **degrees** everywhere; the Document's
-   `ExtrudeSketch.draft` and `CircularPattern.angle` are **RADIANS**.
+   `ExtrudeSketch.draft` and `CircularPattern.angle` are **RADIANS** —
+   `ExtrudeSketch.draft_deg` (degrees, overrides `draft`) exists since 2026-09-05
+   (ENGINE #7), so a document can be authored in degrees like the op surface.
 3. `Transform.xform` is 12 floats, **COLUMN-major** (x-axis, y-axis, z-axis
    columns, then translation): `[1,0,0, 0,1,0, 0,0,1, 20,0,0]` = translate
    +20 X. `.lmcasm` quaternions are `[x, y, z, w]`.
@@ -397,7 +399,7 @@ op surface.
 | `Hole` | B | wizard: `kind` Drill/Clearance/Counterbore/Countersink/Tap; `fit` only clearance-family, `depth` only drill/tap — wrong combos fail loudly |
 | `CircularRimFillet` | B | exact torus rim; `concave: true` = bore-exit lip (cap structure must be what a boolean bore cut emits — a Hole-wizard drill through a plain cylinder cap does NOT qualify yet, fails loudly) |
 | `LoftSolid`, `SweepSolid` | B | section stack / profile-along-path |
-| `CatalogPart` | B | any §10 standard part as a feature |
+| `CatalogPart` | B | any §10 standard part as a feature — incl. `Shaft {keyway}` (DIN 6885 slot, 2026-09-05), `ParallelKey {d, l}`, `CirclipExternal {shaft_d}` (the ring itself, instanceable in an `.lmcasm`), the Document twins of the `shaft`/`parallel_key`/`circlip_external` ops (ENGINE #7) |
 | `ORingGroove`, `CirclipGroove`, `HeatsetBoss` | B | catalog cut twins |
 | `GyroidLattice` | V | corner-form `region` [[min],[max]], `scale`, `thickness`, optional `grade` = LinearGrade `{axis, per_unit, offset, max_abs}` (field = offset + per_unit·(axis·p), clamped; keep slope a few %/mm) |
 | `BeamLatticeFill` | V | cubic/octet cell fill of a region |

@@ -15,7 +15,7 @@ use kernel_brep::StepError;
 use kernel_core::math::Vec3;
 #[cfg(feature = "catalog")]
 use kernel_core::Resolution;
-use kernel_core::{check_mesh, make_manifold, Aabb, Sdf};
+use kernel_core::{check_mesh, make_manifold, Aabb, Mesh, Sdf};
 #[cfg(feature = "catalog")]
 use kernel_implicit::manifold_dual_contour;
 use kernel_implicit::{mesh_boolean_implicit, BoolOp};
@@ -24,7 +24,7 @@ use serde_json::{json, Value};
 
 use crate::implicit;
 use crate::interp::{err, fetch_solid, EnvValue, Outcome};
-use crate::program::{BoolOpSpec, OpKind};
+use crate::program::{BoolOpSpec, HealMode, OpKind};
 use crate::report::{ErrorKind, OpError};
 
 use super::meshio::{
@@ -195,24 +195,111 @@ pub(crate) fn exec(
 			});
 			Ok(Outcome { measures: Some(measures), ..bind_solid(op_id, "import_step", solid)? })
 		}
-		OpKind::ImportMesh { file, heal, out } => {
+		OpKind::ImportMesh { file, heal, voxel, out } => {
 			// Mesh file → welded mesh → full check_mesh receipt. Binds NOTHING (the
 			// environment stays Solid|Sketch); `volume` is reported ONLY when the mesh
 			// is watertight — a leaky mesh has no defined enclosed volume.
 			let (mut mesh, mesh_format) = read_mesh_file(op_id, input_base, out_dir, &file)?;
-			if heal {
+			if let HealMode::Mode(m) = &heal {
+				if !heal.remesh() {
+					return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': heal must be true, false or \"remesh\", got {m:?}")));
+				}
+			}
+			let mut remesh_receipt: Option<Value> = None;
+			if heal.topological() {
 				// The kernel's deterministic import repair: cap boundary loops, then
 				// split non-manifold junctions (never worse than the input).
 				mesh.fill_holes();
 				mesh = make_manifold(&mesh);
+			} else if heal.remesh() {
+				// The VOXEL repair (l12 F2): a soup of overlapping shells has no
+				// topological fix, but its generalized winding number is still a
+				// robust inside/outside oracle — re-mesh that field watertight.
+				let before = check_mesh(&mesh);
+				let voxel = voxel.unwrap_or(0.5);
+				if !(voxel.is_finite() && voxel > 0.0) {
+					return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': voxel must be a positive size in mm, got {voxel}")));
+				}
+				// A soup's shells may be wound inward or mixed (the l12 board has a
+				// negative signed volume): classify by |winding| so orientation
+				// mistakes upstream do not empty the remesh.
+				let sdf = kernel_implicit::MeshSdf::new(&mesh).with_unsigned_winding();
+				let domain = sdf.bounds().pad(2.0 * voxel as f32);
+				let size = domain.size();
+				let cells = (f64::from(size.x) / voxel).ceil() * (f64::from(size.y) / voxel).ceil() * (f64::from(size.z) / voxel).ceil();
+				if !(cells.is_finite() && cells <= crate::interp::MAX_GRID_CELLS as f64) {
+					return Err(err(
+						ErrorKind::InvalidParam,
+						format!(
+							"op '{op_id}': remesh grid ≈{cells:.0} cells (bbox/voxel)³ exceeds the cap {} — use a coarser voxel",
+							crate::interp::MAX_GRID_CELLS
+						),
+					));
+				}
+				let node = kernel_implicit::Node::primitive(sdf);
+				// Manifold dual contouring first (sharp features); when it still
+				// pinches on a thin sheet even after the manifold heal, the
+				// surface-nets extractor (one vertex per cell, no saddle
+				// ambiguity) — the mesher used is on the receipt.
+				let mut mesher = "manifold_dual_contour";
+				let mut remeshed = manifold_dual_contour(&node, domain, Resolution::VoxelSize(voxel as f32));
+				let mut manifold_healed = false;
+				let clean = |m: &Mesh| m.is_watertight() && check_mesh(m).non_manifold_edges == 0;
+				if !clean(&remeshed) {
+					remeshed = make_manifold(&remeshed);
+					manifold_healed = true;
+				}
+				if !clean(&remeshed) {
+					let nets = kernel_core::surface_nets(&node, domain, Resolution::VoxelSize(voxel as f32));
+					let nets = if clean(&nets) { nets } else { make_manifold(&nets) };
+					if clean(&nets)
+						|| nets.triangle_count() > 0 && check_mesh(&nets).non_manifold_edges < check_mesh(&remeshed).non_manifold_edges
+					{
+						remeshed = nets;
+						mesher = "surface_nets";
+					}
+				}
+				// Last resort: a morphological OPENING of one voxel (erode, then
+				// dilate) drops sheets and spikes thinner than two cells — the
+				// pinches a soup's overlapping shells leave — before contouring.
+				// Honest and on the receipt: `remesh_opening_mm` names what was
+				// dropped.
+				let mut opening: Option<f64> = None;
+				if !clean(&remeshed) {
+					// The SDF tree owns its leaf, so the opened field gets its own copy.
+					let sdf2 = kernel_implicit::MeshSdf::new(&mesh).with_unsigned_winding();
+					let opened = kernel_implicit::Node::primitive(sdf2).offset(-(voxel as f32)).offset(voxel as f32);
+					let mut m2 = manifold_dual_contour(&opened, domain, Resolution::VoxelSize(voxel as f32));
+					if !clean(&m2) {
+						m2 = make_manifold(&m2);
+					}
+					if clean(&m2) {
+						remeshed = m2;
+						mesher = "manifold_dual_contour";
+						opening = Some(voxel);
+					}
+				}
+				remesh_receipt = Some(json!({
+					"remesh_voxel": voxel,
+					"remesh_mesher": mesher,
+					"remesh_opening_mm": opening,
+					"input_triangles": mesh.triangle_count(),
+					"input_boundary_edges": before.boundary_edges,
+					"input_non_manifold_edges": before.non_manifold_edges,
+					"input_self_intersections": before.self_intersections,
+					"manifold_heal_after_remesh": manifold_healed,
+					"provenance": "voxel_remesh_of_winding_number_field",
+				}));
+				mesh = remeshed;
 			}
 			let report = check_mesh(&mesh);
-			if heal && !report.watertight {
+			if (heal.topological() || heal.remesh()) && !report.watertight {
 				return Err(err(
 					ErrorKind::InvalidGeometry,
 					format!(
-						"op '{op_id}': '{file}' is still not watertight after healing (boundary_edges={}, non_manifold_edges={}, non_orientable_edges={}) — route it through the voxel half instead (e.g. `mesh_carve` re-meshes watertight) or repair it upstream",
-						report.boundary_edges, report.non_manifold_edges, report.non_orientable_edges
+						"op '{op_id}': '{file}' is still not watertight after healing (boundary_edges={}, non_manifold_edges={}, non_orientable_edges={}, non_manifold_vertices={}, degenerate_triangles={}) — {}",
+						report.boundary_edges, report.non_manifold_edges, report.non_orientable_edges, report.non_manifold_vertices, report.degenerate_triangles,
+						if heal.remesh() { "the voxel remesh still pinches at a vertex: try a finer or coarser `voxel`" } else { "use `heal: \"remesh\"` (voxel repair of the winding-number field) or repair it upstream" }
 					),
 				));
 			}
@@ -220,7 +307,12 @@ pub(crate) fn exec(
 			let mut m = serde_json::Map::new();
 			m.insert("format".into(), json!(mesh_format));
 			m.insert("triangles".into(), json!(mesh.triangle_count()));
-			m.insert("healed".into(), json!(heal));
+			m.insert("healed".into(), heal.receipt());
+			if let Some(Value::Object(extra)) = remesh_receipt {
+				for (k, v) in extra {
+					m.insert(k, v);
+				}
+			}
 			mesh_receipt(&mut m, &report);
 			m.insert("bbox_min".into(), json!([bb.min.x, bb.min.y, bb.min.z]));
 			m.insert("bbox_max".into(), json!([bb.max.x, bb.max.y, bb.max.z]));

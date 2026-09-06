@@ -164,7 +164,13 @@ fn circular_rim_fillet_feature_rounds_a_boss_and_a_bore_lip() {
 		oct.add_segment(pts[i], pts[(i + 1) % 8]);
 	}
 	let mut lip_doc = Document::new();
-	let boss8 = lip_doc.add(Feature::ExtrudeSketch { sketch: oct, height: Dim::Literal(8.0), dims: vec![], draft: Dim::Literal(0.0) });
+	let boss8 = lip_doc.add(Feature::ExtrudeSketch {
+		sketch: oct,
+		height: Dim::Literal(8.0),
+		dims: vec![],
+		draft: Dim::Literal(0.0),
+		draft_deg: None,
+	});
 	let bore = lip_doc.add(Feature::Cylinder { center: lit3(0.0, 0.0, 4.0), radius: Dim::Literal(5.0), height: Dim::Literal(12.0) });
 	let drilled = lip_doc.add(Feature::Boolean { op: BooleanOp::Difference, a: boss8, b: bore });
 	let lip =
@@ -285,7 +291,7 @@ fn catalog_part_features_hold_every_main_part_in_a_lmcpart() {
 				bore_d: Dim::Literal(12.0),
 			}),
 		),
-		("shaft", part_doc(CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(40.0) })),
+		("shaft", part_doc(CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(40.0), keyway: None })),
 		("o-ring", part_doc(CatalogPart::ORing { dash: 214 })),
 		("dowel pin", part_doc(CatalogPart::DowelPin { d: Dim::Literal(6.0), length: Dim::Literal(30.0) })),
 		(
@@ -429,7 +435,9 @@ fn export_mesh_routes_exact_when_the_exact_path_is_sound() {
 			&& report.watertight
 			&& mesh.is_watertight()
 			&& report.tris == mesh.triangle_count()
-			&& report.tris > 1000
+			// rich, finite: the CDT tessellator needs ~500 triangles here where the
+			// keyhole ear clip needed >1000 for the same 0.005 chord tolerance
+			&& report.tris > 300
 			&& report.why.contains("exact"),
 		"a sound curved part must route Exact: {report:?}"
 	);
