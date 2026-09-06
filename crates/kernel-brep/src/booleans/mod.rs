@@ -102,6 +102,7 @@ mod faces;
 mod par;
 mod snap;
 mod stitch;
+pub(crate) use triangulate::chain_redundant_in_rings;
 mod triangulate;
 
 use kernel_core::math::DVec3;
@@ -114,7 +115,7 @@ use crate::tol::EPS;
 use self::arrange::co_refine;
 use self::classify::classify_select;
 use self::par::brep_workers;
-use self::stitch::stitch;
+use self::stitch::stitch_with_anchors;
 use self::triangulate::triangulate_solid;
 
 pub use self::par::par_items_processed;
@@ -248,7 +249,12 @@ fn boolean(a: &Solid, b: &Solid, op: Op) -> Solid {
 	// original frame), so an uncut curved facet keeps its Surface::Cylinder/Sphere tag
 	// on the result without any name-keyed lookup.
 	translate_tris(&mut kept, center);
-	let mut solid = stitch(&kept);
+	// The operands' own vertices anchor the stitch's duplicate merge (see
+	// `stitch_with_anchors`): a corner grazed by a cut line keeps its position.
+	translate_tris(&mut tris_a, center);
+	translate_tris(&mut tris_b, center);
+	let anchors: Vec<DVec3> = tris_a.iter().chain(tris_b.iter()).flat_map(|t| t.v.iter().copied()).collect();
+	let mut solid = stitch_with_anchors(&kept, &anchors);
 	attach_seam_curves(&mut solid);
 	coalesce_result(solid)
 }

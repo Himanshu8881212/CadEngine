@@ -332,6 +332,24 @@ raises nothing. Follow every wizard cut with `wall_thickness` + a volume window.
 - Pattern hygiene: keep copies from sharing face planes with EACH OTHER;
   copies seated ON a base plane are the supported coplanar case.
 
+### 8b. When a boolean refuses — read the witnesses (2026-09-05)
+
+`union`/`difference`/`intersection failed validate()` now names WHERE: up to
+four `bad edges at [x,y,z]→[x,y,z] (open | N faces | next/prev | loop does not
+close)` or `[x,y,z] (pinched vertex, N edges meet)`. Two classes account for
+almost every refusal seen in the campaigns:
+
+- **Tangential contact.** An edge or vertex of one operand lying EXACTLY on a
+  face of the other (a Ø6.000 pin whose bottom generator sits in the deck plane
+  at z = 8.000 — folding_deck_cleat F4; two boxes sharing only an edge). The
+  union is a pinched, non-manifold body, which the B-rep refuses rather than
+  fakes. Separate the bodies by ≥ 1e-3 mm or overlap them; a "they are separate
+  bodies" proof is `clearance` (`contact: true, interfering: false`) or
+  `assert_disjoint`, not a union with `shells: 2`.
+- **Stale operand.** `validate.geometric_ok: false` on an operand (self-crossing
+  skin, sliver faces at 0.6–0.9°) makes every boolean through that region a
+  refusal at some offsets (ENGINE #25 root cause). Fix the operand.
+
 ## 9. Measures & assertions — the complete receipt vocabulary
 
 All measure ops bind nothing and need a bound solid (`wrong_type` on a sketch).
@@ -437,7 +455,7 @@ across two different `--out-dir`s.
 | `export_step` | `in`, `file` | — | STEP **AP203** with EXACT analytic surfaces (plane/cylinder/sphere/cone/torus, circular edges as CIRCLE) — not a mesh; no tessellation, no routing. Product name = file stem. Untagged faces export as planar patches |
 | `export_threaded` | `in`, `m` OR `major_d` + `pitch` (a custom/fine pitch such as M8×0.75 — graham F3), `length`, `z0?`, `internal?`, `voxel?=pitch/8`, `file` | `route`, `volume_delta_vs_body`, ... | the ONLY way to fuse/cut a real ISO thread (exact union would self-intersect). Thread axis is world +Z through origin. `voxel` > pitch/6 refused. Internal is a print-practical male-form+0.4mm-crest-clearance approximation, NOT ISO female form |
 | `import_step` | `file`, `mode?="strict"` | `shells`, `genus`, `faces`, `volume`, `freeform_faces`; tolerant adds `mode`, `uncertainty_mm`, `solids_total/imported/skipped`, `faces_skipped/repaired`, `solids[]`, `skipped[]`, `repaired[]` | BINDS an exact B-rep (tags kept). **strict**: first unreadable face fails the op; every brep in its LOCAL frame, one multi-shell solid. **`"mode":"tolerant"`** (vendor files): per-face failures are flat-repaired or skipped and REPORTED; EVERY solid instance of the file is listed in `solids[]` as `{name, path, entity, status: imported\|skipped, bbox_min, bbox_max, bbox_source: brep\|edges, faces, faces_repaired, faces_skipped, reason?}` with its PRODUCT name and assembly-PLACED envelope (from entity geometry even when the B-rep failed); `skipped[]`/`repaired[]` are `{entity, kind, solid, reason}`; the body is the compound of the imported instances; zero imported → `invalid_geometry` with the counts in the message. Trim vertices snap to their B-spline patch within the file's own uncertainty (10× in tolerant); holes on curved analytic faces and off-phase/partial sphere-torus regions import on the exact surface |
-| `import_mesh` | `file` (.stl/.obj/.3mf/.ply), `heal?`, `out?` | full check_mesh receipt; `volume` only iff watertight | binds a **mesh value** (not a solid): gateable by `validate`/`volume`/`bounding_box`/`mesh_components`/`support_report`/`clearance`/`assert*`, all stamping `source: "mesh"`. To make it a SOLID you must name `solid_from_mesh` (§10a) — nothing promotes it silently |
+| `import_mesh` | `file` (.stl/.obj/.3mf/.ply), `heal?` (`true` = topological repair; `"remesh"` = the VOXEL repair for a soup: the file's generalized winding number — orientation-agnostic — is re-meshed watertight at `voxel?` (default 0.5), manifold DC → surface nets → one-voxel opening, each on the receipt as `remesh_mesher` / `remesh_opening_mm`; l12 F2), `voxel?`, `out?` | full check_mesh receipt; `volume` only iff watertight | binds a **mesh value** (not a solid): gateable by `validate`/`volume`/`bounding_box`/`mesh_components`/`support_report`/`clearance`/`assert*`, all stamping `source: "mesh"`. To make it a SOLID you must name `solid_from_mesh` (§10a) — nothing promotes it silently |
 | `mesh_carve` | `in`, `file`, `bool`, `voxel?=0.3`, `out` | `route: "voxel_implicit"`, ... | boolean a solid vs a mesh FILE through the voxel half; writes `out` AND binds the result as a **mesh value** (chain `solid_from_mesh`, §10a, to get back to exact) |
 
 Program exports fail on leaky; **assembly instance exports do NOT** (receipt
@@ -699,7 +717,10 @@ bracket in §11b or an explicit `intersection` + `exact_volume`.
 
 ## 12. Design-math lookups (bind nothing; numbers in `measures`)
 
-`iso286_fit {d ≤ 120, fit: "H7/g6"|"H7/h6"|"H7/k6"|"H7/n6"|"H7/p6"|"H7/s6"|"H8/f7"|"H11/c11"|"H9/d9"|"C11/h11"|"D9/h9"|"F8/h7"|"G7/h6"}`
+`iso286_fit {d ≤ 120, fit: "H7/g6"|"H7/h6"|"H7/k6"|"H7/n6"|"H7/p6"|"H7/s6"|"H8/f7"|"H11/c11"|"H9/d9"|"C11/h11"|"D9/h9"|"F8/h7"|"G7/h6"|"H6/j5"|"H6/k5"|"H7/j6"|"K7/h6"|"N7/h6"|"P7/h6"}`
+(the bearing-seat rows landed 2026-09-05, ENGINE #12: shafts j5/k5/j6 against an H
+bore — use H6 as the proxy for the bearing's own ISO 492 bore band — and housings
+K7/N7/P7 by the ISO 286-1 §4.3 Δ rule; Ø25 N7 = −7/−28, P7 = −14/−35, k5 = +2/+11)
 (the loose running fits H11/c11, H9/d9 and the shaft-basis clearance fits
 landed 2026-09-05 — ratcheting F2; bearing-class k5/j5/N7/P7 still refused)
 → `hole`/`shaft`/`clearance` `[lower, upper]` mm (negative clearance =

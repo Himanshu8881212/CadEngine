@@ -43,7 +43,7 @@ fn write_fixture(dir: &Path) -> PathBuf {
 	});
 	plate.set_root(b);
 	let mut shaft = Document::new();
-	let s = shaft.add(Feature::CatalogPart { part: CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(20.0) } });
+	let s = shaft.add(Feature::CatalogPart { part: CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(20.0), keyway: None } });
 	shaft.set_root(s);
 	std::fs::write(dir.join("plate.lmcpart"), save_part(&plate, "plate")).expect("write plate");
 	std::fs::write(dir.join("shaft.lmcpart"), save_part(&shaft, "shaft")).expect("write shaft");
@@ -342,7 +342,7 @@ fn asm_pipeline_solves_real_mates_with_dof_and_per_mate_receipts() {
 	});
 	plate.set_root(b);
 	let mut shaft = Document::new();
-	let s = shaft.add(Feature::CatalogPart { part: CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(20.0) } });
+	let s = shaft.add(Feature::CatalogPart { part: CatalogPart::Shaft { d: Dim::Literal(8.0), length: Dim::Literal(20.0), keyway: None } });
 	shaft.set_root(s);
 	std::fs::write(dir.join("plate.lmcpart"), save_part(&plate, "plate")).expect("write plate");
 	std::fs::write(dir.join("shaft.lmcpart"), save_part(&shaft, "shaft")).expect("write shaft");

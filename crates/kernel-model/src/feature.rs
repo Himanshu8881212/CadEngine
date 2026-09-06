@@ -124,6 +124,14 @@ impl HoleFit {
 /// builds through the corresponding catalog function (see [`parts`]) and inherits
 /// its cited standard, conventions (mm, diameters, across-flats) and honest
 /// approximations.
+/// Keyway slot placement for [`CatalogPart::Shaft`]: DIN 6885 form-A, sized from the
+/// shaft diameter, `length` long, starting `offset` from the shaft base along +Z.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ShaftKeywayFeat {
+	pub length: Dim,
+	pub offset: Dim,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CatalogPart {
 	/// An involute spur gear ([`parts::spur_gear`]). With `keyway` the DIN 6885-1
@@ -204,13 +212,33 @@ pub enum CatalogPart {
 		/// Bore diameter.
 		bore_d: Dim,
 	},
-	/// A plain cylindrical shaft ([`parts::shaft`], no keyway; cut slots via the
-	/// function API or grooves via [`Feature::CirclipGroove`]).
+	/// A cylindrical shaft ([`parts::shaft`]), optionally with a DIN 6885 form-A
+	/// keyway slot whose width/depth auto-size from `d` (ENGINE #7 parity with the
+	/// `shaft` op); grooves via [`Feature::CirclipGroove`].
 	Shaft {
 		/// Shaft diameter.
 		d: Dim,
 		/// Shaft length.
 		length: Dim,
+		/// Optional keyway: slot length and its offset from the shaft base along +Z.
+		/// Absent = plain shaft (files written before 2026-09-05 load unchanged).
+		#[serde(default, skip_serializing_if = "Option::is_none")]
+		keyway: Option<ShaftKeywayFeat>,
+	},
+	/// A DIN 6885 form-A parallel key bar sized for shaft `d` ([`parts::parallel_key`]
+	/// with [`parts::din6885_key_size`]), `l` long, on z = 0 — the Document twin of
+	/// the `parallel_key` op (ENGINE #7).
+	ParallelKey {
+		/// The shaft diameter the key is sized for (DIN 6885-1 table, over 6 up to 75 mm).
+		d: Dim,
+		/// Key length.
+		l: Dim,
+	},
+	/// A DIN 471 external circlip for shaft `shaft_d` ([`parts::circlip_external`]) —
+	/// the ring itself, so it can be instanced in an assembly (ENGINE #7).
+	CirclipExternal {
+		/// Shaft diameter (Ø3–30 tabulated).
+		shaft_d: Dim,
 	},
 	/// An AS568 O-ring at its free nominal size ([`parts::o_ring`]); the dash
 	/// number is a designation, not a dimension, so it is fixed data.
@@ -276,7 +304,20 @@ impl CatalogPart {
 			CatalogPart::ChainSprocket { pitch, roller_d, teeth, bore_d } => {
 				Some(parts::chain_sprocket(r(pitch), r(roller_d), *teeth, r(bore_d)))
 			}
-			CatalogPart::Shaft { d, length } => Some(parts::shaft(r(d), r(length), None)),
+			CatalogPart::Shaft { d, length, keyway } => {
+				let kw = match keyway {
+					None => None,
+					Some(k) => {
+						Some(parts::ShaftKeyway { size: parts::din6885_key_size(r(d))?, length: r(&k.length), offset: r(&k.offset) })
+					}
+				};
+				Some(parts::shaft(r(d), r(length), kw))
+			}
+			CatalogPart::ParallelKey { d, l } => {
+				let size = parts::din6885_key_size(r(d))?;
+				Some(parts::parallel_key(size.b, size.h, r(l)))
+			}
+			CatalogPart::CirclipExternal { shaft_d } => parts::circlip_external(r(shaft_d)),
 			CatalogPart::ORing { dash } => parts::o_ring(*dash),
 			CatalogPart::DowelPin { d, length } => parts::dowel_pin(r(d), r(length)),
 			CatalogPart::GearRack { module, length, width, pressure_angle_deg } => {
@@ -285,6 +326,19 @@ impl CatalogPart {
 			CatalogPart::InternalGear { module, teeth, face_width, rim_od, pressure_angle_deg } => {
 				parts::internal_gear(r(module), *teeth, r(face_width), r(rim_od), r(pressure_angle_deg))
 			}
+		}
+	}
+}
+
+impl Feature {
+	/// The feature's kind as its serialized variant name (`"Box"`, `"ExtrudeSketch"`,
+	/// `"CatalogPart"`, …) — the label a feature-tree view or a tool prints, without
+	/// re-parsing the document JSON (ENGINE #22, finding 3).
+	pub fn kind(&self) -> String {
+		match serde_json::to_value(self) {
+			Ok(serde_json::Value::Object(map)) => map.keys().next().cloned().unwrap_or_default(),
+			Ok(serde_json::Value::String(s)) => s,
+			_ => String::new(),
 		}
 	}
 }
@@ -560,6 +614,12 @@ pub enum Feature {
 		/// plain prism. With a nonzero draft only the outer boundary is drafted (holes
 		/// are not yet drafted).
 		draft: Dim,
+		/// Draft angle in DEGREES — the op surface's unit (`extrude_tapered.draft_deg`).
+		/// When present it overrides `draft`, so a document can be authored in degrees
+		/// everywhere (ENGINE #7); absent = use `draft` (radians), as every file
+		/// written before 2026-09-05 does.
+		#[serde(default, skip_serializing_if = "Option::is_none")]
+		draft_deg: Option<Dim>,
 	},
 	/// A linear pattern: `count` copies of `input`, copy `k` offset by `k · step`,
 	/// fused with booleans. Keep `step` large enough that copies do not share a face

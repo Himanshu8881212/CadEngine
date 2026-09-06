@@ -367,7 +367,13 @@ fn tessellate_curved(mesh: &mut Mesh, boundary: &[DVec3], surface: Surface, segs
 		// inner wall of a Ø110/Ø70 tube difference carried 5–8-gon facets whose
 		// centroid fan emitted 34 collinear slivers and 48 flipped edges, and
 		// `export_stl` demoted the plainest annulus to the voxel heal.
-		if let Some(p2) = SurfaceChart::new(&surface, boundary).and_then(|c| c.uv_ring(boundary)) {
+		// Only on charts that are regular everywhere on the ring: a cylinder or
+		// torus. A cone's apex and a sphere's poles collapse a ring vertex to a
+		// point of ambiguous parameter, and a CDT of that uv ring wound the
+		// 240-facet cone's half-wrap chart wrongly — the recovery pass then fell
+		// back from 2 charts to 58 sectors (curved_faces test, 2026-09-05).
+		let regular_chart = matches!(surface, Surface::Cylinder { .. } | Surface::Torus { .. });
+		if let Some(p2) = regular_chart.then(|| SurfaceChart::new(&surface, boundary)).flatten().and_then(|c| c.uv_ring(boundary)) {
 			if crate::tessellate::cdt_ring_wound(mesh, boundary, &p2, &nrm, &wind) {
 				return;
 			}

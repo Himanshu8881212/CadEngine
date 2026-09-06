@@ -13,8 +13,8 @@
 
 use kernel_brep::math::{DAffine3, DVec2, DVec3};
 use kernel_brep::{
-	boolean_with_policy, cuboid, cylinder, difference, extrude, try_difference, try_union, validate, volume, BooleanPath, BooleanStats,
-	FaceInput, MeshBoolOp, Solid,
+	boolean_with_policy, cuboid, cylinder, difference, extrude, try_difference, try_union, union, validate, volume, BooleanPath,
+	BooleanStats, FaceInput, MeshBoolOp, Solid,
 };
 
 fn v(x: f64, y: f64, z: f64) -> DVec3 {
@@ -59,6 +59,7 @@ fn cracked(s: &Solid, lo: f64, hi: f64, seed: u64) -> Solid {
 /// The socket-notched plate + bowtie key whose true overlap is two thin
 /// parallel-flank sliver strips — the documented arrangement degeneracy that
 /// mis-stitches and is refused (recovery_needle_weld.rs / FRICTION #23).
+#[allow(dead_code)]
 fn notch_sliver_pair() -> (Solid, Solid) {
 	let plate_prof: Vec<DVec2> = [(-20.0, 1.0), (-3.0, 1.0), (-4.5, 3.5), (4.5, 3.5), (3.0, 1.0), (20.0, 1.0), (20.0, 7.0), (-20.0, 7.0)]
 		.iter()
@@ -142,28 +143,36 @@ fn cracked_operand_falls_back_via_the_heal_tier_and_only_the_heal_tier() {
 	);
 }
 
+/// Two boxes sharing exactly one edge (x = 10, z = 10): a tangential contact
+/// whose union is a pinched, non-manifold body — the degeneracy class the
+/// arrangement refuses honestly (folding_deck_cleat F4's pin-on-deck line is
+/// the same class). The notch-sliver pair this test used until 2026-09-05
+/// now RESOLVES (ENGINE #23, pinned in `recovery_needle_weld.rs`).
+fn edge_touching_pair() -> (Solid, Solid) {
+	(cuboid(DVec3::ZERO, DVec3::splat(10.0)), cuboid(v(10.0, 0.0, 10.0), v(20.0, 10.0, 20.0)))
+}
+
 #[test]
 fn coincident_face_degeneracy_is_refused_honestly_not_papered_over() {
-	// The notch-plate sliver overlap (FRICTION #23): the arrangement mis-stitches
-	// the two parallel-flank strips in every op. The policy must report REFUSED —
-	// with NO solid and NO error bound — even though a heal tolerance was offered,
-	// because the heal tier welds cracks, it does not resolve coincident-face
-	// arrangement degeneracies. The reported path must match ground truth: the
-	// strict try_difference refuses this exact pair.
-	let (plate, key) = notch_sliver_pair();
-	let out = boolean_with_policy(&key, &plate, MeshBoolOp::Difference, 1e-3);
-	let strict_refused = try_difference(&key, &plate).is_err();
-	let raw_invalid = !validate(&difference(&key, &plate)).is_valid();
+	// A tangential edge contact: the policy must report REFUSED — with NO solid
+	// and NO error bound — even though a heal tolerance was offered, because the
+	// heal tier welds cracks, it does not resolve arrangement degeneracies. The
+	// reported path must match ground truth: the strict try_union refuses this
+	// exact pair.
+	let (plate, key) = edge_touching_pair();
+	let out = boolean_with_policy(&key, &plate, MeshBoolOp::Union, 1e-3);
+	let strict_refused = try_union(&key, &plate).is_err();
+	let raw_invalid = !validate(&union(&key, &plate)).is_valid();
 	assert!(
 		out.refused()
 			&& out.path == BooleanPath::Refused
 			&& out.solid.is_none()
 			&& out.error_bound().is_none()
 			&& !out.validity.is_valid()
-			&& out.op == "difference"
+			&& out.op == "union"
 			&& strict_refused
 			&& raw_invalid,
-		"notch-sliver difference must report REFUSED (no solid, no bound) matching reality — heal must NOT paper it over: \
+		"tangential edge-contact union must report REFUSED (no solid, no bound) matching reality — heal must NOT paper it over: \
 		 path={:?} solid_some={} bound={:?} valid={} strict_refused={strict_refused} raw_invalid={raw_invalid}",
 		out.path,
 		out.solid.is_some(),
@@ -185,14 +194,14 @@ fn boolean_stats_aggregate_the_path_breakdown_over_a_mixed_batch() {
 	let box_a = cuboid(DVec3::ZERO, DVec3::splat(10.0));
 	let box_b = cuboid(v(5.0, 5.0, 5.0), v(15.0, 15.0, 15.0));
 	let cracked_a = cracked(&box_a, 2e-5, 1e-4, 0xbad5_eed5_0000_0042);
-	let (n_plate, n_key) = notch_sliver_pair();
+	let (t_plate, t_key) = edge_touching_pair();
 
 	let mut stats = BooleanStats::default();
 	for out in [
-		boolean_with_policy(&plate, &bore, MeshBoolOp::Difference, 1e-6),    // EXACT
-		boolean_with_policy(&box_a, &box_b, MeshBoolOp::Union, 1e-6),        // EXACT
-		boolean_with_policy(&cracked_a, &box_b, MeshBoolOp::Union, 1e-3),    // HEALED
-		boolean_with_policy(&n_key, &n_plate, MeshBoolOp::Difference, 1e-3), // REFUSED
+		boolean_with_policy(&plate, &bore, MeshBoolOp::Difference, 1e-6), // EXACT
+		boolean_with_policy(&box_a, &box_b, MeshBoolOp::Union, 1e-6),     // EXACT
+		boolean_with_policy(&cracked_a, &box_b, MeshBoolOp::Union, 1e-3), // HEALED
+		boolean_with_policy(&t_key, &t_plate, MeshBoolOp::Union, 1e-3),   // REFUSED (tangential contact)
 	] {
 		stats.record(&out);
 	}

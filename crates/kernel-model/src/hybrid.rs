@@ -659,7 +659,10 @@ mod tests {
 		// the caps overlapping the block footprint are genuinely trimmed; nothing is
 		// consumed (the gyroid adds material in a union); and the four buckets must
 		// partition the flange's faces. Measured on this platform: kept_exact = 41
-		// (36 outer wall + 5 uncrossed bore facets), retiled = 28, trimmed = 31.
+		// (36 outer wall + 5 uncrossed bore facets), retiled = 28, trimmed = 31 —
+		// and since 2026-09-05 kept_exact = 42, retiled = 0, trimmed = 32: the
+		// boolean-born flange carries its cap annuli as single holed faces with no
+		// seam vertices left to strip, so nothing re-tiles.
 		assert!(
 			out.route == HybridRoute::ExactStitch
 				&& out.mesh.is_watertight()
@@ -669,8 +672,11 @@ mod tests {
 				&& validity.is_valid()
 				&& validity.genus > 0 // the gyroid's handles fused onto the flange
 				&& r.kept_exact >= 36
-				&& r.kept_exact_curved == r.kept_exact
-				&& r.retiled >= 8
+				// the 36 outer-wall facets (curved) are verbatim; a planar cap piece the
+				// gyroid never reaches may now be verbatim too (2026-09-05: the coalesced
+				// boolean result strips collinear merge vertices, so untouched planar
+				// faces come back identical instead of re-tiled)
+				&& r.kept_exact_curved >= 36
 				&& r.trimmed >= 1
 				&& r.consumed == 0
 				&& r.kept_exact + r.retiled + r.trimmed + r.consumed == r.brep_faces,

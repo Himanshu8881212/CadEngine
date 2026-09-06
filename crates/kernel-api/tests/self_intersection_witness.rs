@@ -55,6 +55,22 @@ fn battery() -> Vec<(&'static str, Solid)> {
 	}
 	v.push(("offaxis_tube_polar_x3", acc));
 
+	// A skin that GENUINELY crosses itself: a loft whose top hexagon is turned
+	// 135°, so the lateral quads pass through one another (the 2026-09-05
+	// tessellator cleared every accidental crossing the battery used to carry,
+	// so this is the case that keeps the witness contract falsifiable).
+	let ring = |z: f64, turn_deg: f64| -> Vec<DVec3> {
+		(0..6)
+			.map(|k| {
+				let a = (turn_deg + 60.0 * k as f64).to_radians();
+				DVec3::new(10.0 * a.cos(), 10.0 * a.sin(), z)
+			})
+			.collect()
+	};
+	if let Some(twisted) = kernel_brep::loft_solid(&[ring(0.0, 0.0), ring(10.0, 135.0)]) {
+		v.push(("twisted_hex_loft", twisted));
+	}
+
 	// A revolved frustum (the new `cone` top_radius path) and a mirrored copy.
 	let profile = [
 		kernel_brep::math::DVec2::new(0.0, 0.0),

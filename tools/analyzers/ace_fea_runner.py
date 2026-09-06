@@ -86,6 +86,7 @@ import _layout  # noqa: E402
 _layout.add_import_paths()  # tools/, tools/analyzers, tools/publish — sibling-style imports keep working after the 2026-09-02 move
 from _ace import (  # noqa: E402  — importing runs the boot side effects (physics package on path, kernel-api env)
     PHYSICS_INSTALL_HINT,
+    Refusal,
     apply_warnings,
     build_region_kind,
     determinism_block,
@@ -94,6 +95,8 @@ from _ace import (  # noqa: E402  — importing runs the boot side effects (phys
     load_geometry,
     load_job,
     log,
+    grid_connectivity_receipt,
+    grid_connectivity_warning,
     mesh_resolution_receipt,
     mesh_resolution_warning,
     provenance_fields,
@@ -179,17 +182,29 @@ def main() -> None:
     catch = selector_catch_audit(job, occ, voxel, origin)
     refuse_empty_selectors(catch)
     mesh_res = mesh_resolution_receipt(occ, voxel)
+    grid_conn = grid_connectivity_receipt(occ, voxel)
     vrange = validated_range_check(job, "tools/manifests/ace_fea.manifest.json")
 
     t0 = time.monotonic()
-    res = reference_fea(
-        rho, kind, voxel, job["material"],
-        job.get("loads", []), job.get("fixtures", []),
-        simp_penalty=job.get("simp_penalty"),
-        density_floor=float(job.get("density_floor", 0.02)),
-        origin_mm=origin,
-        direct_solver_max_dof=int(job.get("direct_solver_max_dof", 0)),
-    )
+    try:
+        res = reference_fea(
+            rho, kind, voxel, job["material"],
+            job.get("loads", []), job.get("fixtures", []),
+            simp_penalty=job.get("simp_penalty"),
+            density_floor=float(job.get("density_floor", 0.02)),
+            origin_mm=origin,
+            direct_solver_max_dof=int(job.get("direct_solver_max_dof", 0)),
+        )
+    except RuntimeError as exc:
+        # The solver's own refusal (unconverged CG / AMG) becomes a typed
+        # refusal that CARRIES the grid diagnostics: a one-cell tie or a lost
+        # component is the usual reason a Krylov solve stalls, and the receipt
+        # should say so instead of leaving a bare "did not converge" (ENGINE #26).
+        text = str(exc)
+        if "did not converge" in text or "refusing" in text:
+            raise Refusal("solver.unconverged", text,
+                          grid_connectivity=grid_conn, mesh_resolution=mesh_res) from exc
+        raise
     fea_s = time.monotonic() - t0
 
     stress_npy = out_dir / "stress_field.npy"
@@ -218,6 +233,7 @@ def main() -> None:
         "selector_count_unit": "nodes",
         "selector_catch_audit": catch,
         "mesh_resolution": mesh_res,
+        "grid_connectivity": grid_conn,
         "validated_range": vrange,
         "notes": notes,
         "stress_field_npy": str(stress_npy),
@@ -228,6 +244,7 @@ def main() -> None:
         payload["compliance"] = res["compliance"]
     apply_warnings(payload, job, [
         mesh_resolution_warning(mesh_res),
+        grid_connectivity_warning(grid_conn),
         validated_range_warning(vrange),
     ])
     # Provenance envelope: geometry hash + structured convergence receipt +

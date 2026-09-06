@@ -456,7 +456,17 @@ interference claim (§2.11).
   version**: the receipt envelope (`analyzer_version`, the provenance schema)
   is inside the digested payload, so a toolchain upgrade changes every digest.
   Compare digests only between runs of the SAME tool version and re-baseline
-  the shipped receipts after an upgrade (slas F11). `tools/receipt_verify.py`
+  the shipped receipts after an upgrade (slas F11).
+
+  **Prose numbers carry receipt anchors.** A number a README or ANALYSIS.md
+  quotes from a receipt (a margin, a safety factor, a frequency) sits on a line
+  ending in `<!-- receipt: receipts/x.json dotted.key [tol=N%] -->`. The doc
+  audit (`python3 tools/audit_docs.py --also <campaign dir>`, wired into the
+  campaign's `run_all.sh`) reads the receipt and FAILS when the quoted number no
+  longer matches within `tol` (default 2 %) — the card_magazine drift (README
+  124× vs the regenerated ~138×, digest F12) is exactly what this catches. A
+  number without an anchor is unaudited prose; the self-check (§5) asks for an
+  anchor on every quoted receipt value. `tools/receipt_verify.py`
   checks the other half — that a receipt's `geometry_hash` still matches its
   job, and that sibling receipts share one geometry (iso9409 F11). Read
   `determinism.solver_reproducibility` and quote it verbatim in ANALYSIS.md;
@@ -578,3 +588,5 @@ Run through in order; any "no" means not done:
     touched before you write that. A defect rediscovered in silence is a
     defect nobody is counting — six independent reports of one broken
     behaviour is a specification, one report is a complaint.
+- **Receipt anchors.** Every number README.md / ANALYSIS.md quotes from a receipt carries a `<!-- receipt: path key -->` anchor and `python3 tools/audit_docs.py --also <campaign> --only receipt` exits 0 (§3; the run_all.sh receipt checker runs it).
+

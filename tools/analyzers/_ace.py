@@ -532,6 +532,72 @@ def refuse_tensile_load_case(check: dict) -> None:
         compression_check=check)
 
 
+def grid_connectivity_receipt(occ, voxel_mm: float) -> dict:
+    """Does the voxel grid still hold the part TOGETHER the way the exact
+    geometry does? (ENGINE #26.)
+
+    The drill hook's channel was tied by a 2.5 mm slab; on a 2.0 mm grid the
+    slab survived as a one-cell filament and the hook came out five times
+    softer, its deliberately UNDER-BUILT negative control stiffer than the
+    shipped part. Nothing measured it. Two counts from the occupancy the solve
+    uses: the 6-connected components of the grid (a body that is one piece in
+    the B-rep and several on the grid has LOST a tie), and the components after
+    a one-cell erosion (a tie that disappears under one erosion is <= 2 cells
+    thick — its stiffness is the grid's, not the design's). Deterministic,
+    cheap, and the number a campaign quotes when it says "resolved"."""
+    import numpy as np
+    try:
+        from scipy import ndimage
+    except Exception as exc:  # noqa: BLE001 — never sink a good solve
+        return {"available": False, "why": f"scipy.ndimage unavailable: {exc}"}
+    active = np.asarray(occ, dtype=bool)
+    n_active = int(active.sum())
+    if n_active == 0:
+        return {"available": False, "why": "no active elements"}
+    six = ndimage.generate_binary_structure(3, 1)
+    lab, n = ndimage.label(active, structure=six)
+    sizes = np.bincount(lab.ravel())[1:]
+    largest = float(sizes.max() / n_active) if n else 0.0
+    eroded = ndimage.binary_erosion(active, structure=six)
+    _lab_e, n_e = ndimage.label(eroded, structure=six)
+    thin_ties = bool(n_e > n) and bool(eroded.any())
+    return {
+        "available": True,
+        "voxel_mm": float(voxel_mm),
+        "components": int(n),
+        "largest_component_fraction": round(largest, 6),
+        "components_after_one_cell_erosion": int(n_e),
+        "thin_ties": thin_ties,
+        "rule": ("size every structural tie at >= 2-3 cells of the analysis grid; "
+                 "a tie the grid loses is a tie a slicer's perimeters can lose too"),
+    }
+
+
+def grid_connectivity_warning(conn: dict) -> dict | None:
+    if not conn.get("available"):
+        return None
+    if conn["components"] > 1:
+        return {
+            "kind": "grid.disconnected_components",
+            "message": (
+                f"the occupancy grid at voxel_mm {conn['voxel_mm']} holds {conn['components']} "
+                f"6-connected components (largest {conn['largest_component_fraction']:.1%} of the "
+                "active elements): either the part is several bodies or a structural tie thinner "
+                "than the cell was LOST by voxelisation — compare mesh_components on the exact body "
+                "and refine voxel_mm (ENGINE #26)"),
+        }
+    if conn.get("thin_ties"):
+        return {
+            "kind": "grid.thin_ties",
+            "message": (
+                f"one-cell erosion splits the grid into {conn['components_after_one_cell_erosion']} "
+                "components: at least one structural tie is <= 2 cells thick at voxel_mm "
+                f"{conn['voxel_mm']}, so its stiffness is the grid's, not the design's — refine "
+                "voxel_mm or thicken the tie (ENGINE #26)"),
+        }
+    return None
+
+
 def mesh_resolution_receipt(occ, voxel_mm: float) -> dict:
     """How many ELEMENTS sit across the thin features of this mesh.
 

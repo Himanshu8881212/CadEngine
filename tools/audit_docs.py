@@ -85,7 +85,7 @@ from pathlib import Path
 
 SEVERITY = {"info": 0, "warn": 1, "error": 2}
 CLASSES = ["op-count", "op-family", "op-doc", "path", "section", "symbol", "claim",
-	"friction"]
+	"friction", "receipt"]
 
 # the operator manual moved to campaign/ on 2026-09-03 (campaign/ = how the model
 # must work; docs/ = what the engine is). One constant, so the corpus list, the
@@ -846,6 +846,92 @@ def _check_one_symbol(repo, doc, lineno, krate, segs, text):
 
 
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# check 7b — receipt-backed numbers in prose (digest F12)
+# --------------------------------------------------------------------------- #
+
+RECEIPT_ANCHOR_RE = re.compile(
+	r"<!--\s*receipt:\s*(?P<path>[^\s]+)\s+(?P<key>[^\s]+)(?:\s+tol=(?P<tol>[0-9.]+)%)?\s*-->")
+NUMBER_RE = re.compile(r"(?<![\w.])[-+]?\d+(?:[.,]\d+)?(?:e[-+]?\d+)?(?![\w.])", re.I)
+
+
+def _dig(obj, key):
+	cur = obj
+	for part in key.split("."):
+		if isinstance(cur, list):
+			try:
+				cur = cur[int(part)]
+			except (ValueError, IndexError):
+				return None
+		elif isinstance(cur, dict):
+			if part not in cur:
+				return None
+			cur = cur[part]
+		else:
+			return None
+	return cur
+
+
+def check_receipts(repo, docs, stats):
+	"""A number a README quotes from a receipt must still BE that receipt's number.
+
+	Opt-in per line: `<!-- receipt: receipts/x.json some.dotted.key tol=2% -->`
+	placed on the prose line that quotes the value (or on the line before it).
+	The number checked is the last one on the anchored line before the anchor,
+	else the first number on the next line. Relative tolerance `tol` (default
+	2%). The receipt path resolves against the doc's own directory first, then
+	the repo root. Prose without an anchor is not checked — an anchored number
+	is a claim the audit can falsify, which is what the card_magazine drift
+	(README 124x vs the regenerated ~138x, digest F12) needed."""
+	out = []
+	stats["receipt"] = 0
+	for doc in docs:
+		lines = doc.lines
+		for lineno, text in doc.prose():
+			m = RECEIPT_ANCHOR_RE.search(text)
+			if not m:
+				continue
+			stats["receipt"] += 1
+			path, key = m.group("path"), m.group("key")
+			tol = float(m.group("tol")) / 100.0 if m.group("tol") else 0.02
+			cands = [doc.path.parent / path, repo.root / path]
+			rec_path = next((c for c in cands if c.is_file()), None)
+			if rec_path is None:
+				out.append(Finding("receipt", "error", doc.rel, lineno,
+					f"receipt anchor names a file that does not exist: `{path}`", text.strip()))
+				continue
+			try:
+				rec = json.loads(rec_path.read_text(encoding="utf-8"))
+			except (OSError, ValueError) as exc:
+				out.append(Finding("receipt", "error", doc.rel, lineno,
+					f"receipt `{path}` is not readable JSON: {exc}", text.strip()))
+				continue
+			val = _dig(rec, key)
+			if isinstance(val, bool) or not isinstance(val, (int, float)):
+				out.append(Finding("receipt", "error", doc.rel, lineno,
+					f"receipt `{path}` has no numeric value at `{key}` (got {type(val).__name__})", text.strip()))
+				continue
+			nums = NUMBER_RE.findall(text[:m.start()])
+			if not nums:
+				for nxt in range(lineno, min(lineno + 2, len(lines))):
+					nums = NUMBER_RE.findall(lines[nxt])
+					if nums:
+						break
+			if not nums:
+				out.append(Finding("receipt", "error", doc.rel, lineno,
+					f"receipt anchor for `{key}` but no number to check on this line or the next", text.strip()))
+				continue
+			# A prose line carries several numbers (a margin AND the temperature it holds
+			# at); the anchor is satisfied when ANY of them is the receipt's value.
+			scale = max(abs(float(val)), 1e-12)
+			hit = any(abs(float(q.replace(",", ".")) - float(val)) <= tol * scale for q in nums)
+			if not hit:
+				out.append(Finding("receipt", "error", doc.rel, lineno,
+					f"prose quotes {', '.join(nums)} but `{path}:{key}` is {float(val):g} (tolerance {tol:.0%}) — the receipt moved and the prose did not",
+					text.strip()))
+	return out
+
+
 # check 7 — claim freshness
 # --------------------------------------------------------------------------- #
 
@@ -996,7 +1082,7 @@ def check_friction(repo, stats):
 # driver
 # --------------------------------------------------------------------------- #
 
-def corpus(repo, all_docs=False):
+def corpus(repo, all_docs=False, also=()):
 	rels = []
 	for rel in CORE_DOCS:
 		if (repo.root / rel).is_file():
@@ -1011,12 +1097,25 @@ def corpus(repo, all_docs=False):
 		docsdir = repo.root / "docs"
 		if docsdir.is_dir():
 			rels += [p.relative_to(repo.root).as_posix() for p in sorted(docsdir.glob("*.md"))]
-	return [Doc(repo.root, r) for r in rels]
+	docs = [Doc(repo.root, r) for r in rels]
+	# --also DIR: markdown trees OUTSIDE the repo (a campaign's README / ANALYSIS
+	# under the Workspace) audited with the same classes; their receipt anchors
+	# resolve against each doc's own directory (digest F12).
+	for extra in also:
+		extra = Path(extra).resolve()
+		if not extra.is_dir():
+			continue
+		for pth in sorted(extra.rglob("*.md")):
+			parts = pth.relative_to(extra).parts
+			if any(part.startswith(".") or part in ("node_modules", "target") for part in parts):
+				continue
+			docs.append(Doc(extra, pth.relative_to(extra).as_posix()))
+	return docs
 
 
-def audit(root, all_docs=False, min_claim=40, verbose_skips=False, only=None):
+def audit(root, all_docs=False, min_claim=40, verbose_skips=False, only=None, also=()):
 	repo = Repo(root)
-	docs = corpus(repo, all_docs)
+	docs = corpus(repo, all_docs, also)
 	truth = op_truth(repo)
 	guide = next((d for d in docs if d.rel == GUIDE_REL), None)
 
@@ -1033,6 +1132,7 @@ def audit(root, all_docs=False, min_claim=40, verbose_skips=False, only=None):
 	findings += check_symbols(repo, docs, stats)
 	findings += check_claims(repo, docs, stats)
 	findings += check_friction(repo, stats)
+	findings += check_receipts(repo, docs, stats)
 
 	if only:
 		findings = [f for f in findings if f.cls in only]
@@ -1408,6 +1508,8 @@ def main(argv=None):
 	ap.add_argument("--fail-on", default="error", choices=list(SEVERITY),
 		help="exit 1 when any finding is at or above this severity (default: error)")
 	ap.add_argument("--all-docs", action="store_true", help="also audit docs/*.md")
+	ap.add_argument("--also", action="append", default=[], metavar="DIR",
+		help="also audit every *.md under DIR (a campaign folder outside the repo); receipt anchors resolve against each doc's directory")
 	ap.add_argument("--only", action="append", choices=CLASSES,
 		help="restrict to one or more check classes (repeatable)")
 	ap.add_argument("--min-op-claim", type=int, default=40,
@@ -1442,7 +1544,7 @@ def main(argv=None):
 
 	repo, truth, docs, findings, stats = audit(root, all_docs=args.all_docs,
 		min_claim=args.min_op_claim, verbose_skips=args.verbose,
-		only=set(args.only) if args.only else None)
+		only=set(args.only) if args.only else None, also=args.also)
 
 	gate = [f for f in findings if SEVERITY[f.severity] >= SEVERITY[args.fail_on]]
 	if args.json:

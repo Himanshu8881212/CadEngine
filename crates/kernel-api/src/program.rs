@@ -392,6 +392,35 @@ pub enum StepImportMode {
 	Tolerant,
 }
 
+/// `import_mesh.heal`: `false` / `true` (topological repair) or `"remesh"` (voxel repair).
+#[derive(Clone, Debug, PartialEq, Deserialize, Default)]
+#[serde(untagged)]
+pub enum HealMode {
+	#[default]
+	Off,
+	Flag(bool),
+	Mode(String),
+}
+
+impl HealMode {
+	/// Topological repair requested (`true`).
+	pub fn topological(&self) -> bool {
+		matches!(self, HealMode::Flag(true))
+	}
+	/// Voxel remesh requested (`"remesh"`).
+	pub fn remesh(&self) -> bool {
+		matches!(self, HealMode::Mode(m) if m.eq_ignore_ascii_case("remesh"))
+	}
+	/// The value as the receipt reports it.
+	pub fn receipt(&self) -> serde_json::Value {
+		match self {
+			HealMode::Off | HealMode::Flag(false) => serde_json::Value::Bool(false),
+			HealMode::Flag(true) => serde_json::Value::Bool(true),
+			HealMode::Mode(m) => serde_json::Value::String(m.clone()),
+		}
+	}
+}
+
 /// Every operation the binding executes, tagged by the JSON `op` field.
 ///
 /// Snake-case op names (`"op": "fillet_edge_near"`). The `in` JSON field maps to
@@ -1164,11 +1193,20 @@ pub enum OpKind {
 	/// defined enclosed volume — honest omission, not a guess).
 	ImportMesh {
 		file: String,
-		/// Repair before the receipt: cap boundary loops (`fill_holes`) and split
-		/// non-manifold junctions (`make_manifold`). If the mesh is STILL leaky
-		/// afterwards the op fails `invalid_geometry` (default false).
+		/// Repair before the receipt. `true`: the deterministic topological repair —
+		/// cap boundary loops (`fill_holes`) and split non-manifold junctions
+		/// (`make_manifold`); if the mesh is STILL leaky afterwards the op fails
+		/// `invalid_geometry`. `"remesh"`: the VOXEL repair for a soup the
+		/// topological one cannot fix (a vendor STL of overlapping shells, l12 F2):
+		/// the file is lifted to its generalized-winding-number SDF and re-meshed
+		/// watertight at `voxel` — an honest resampling (the receipt carries
+		/// `healed: "remesh"`, `remesh_voxel`, the input's defect counts and the
+		/// volume), never the original facets. Default false.
 		#[serde(default)]
-		heal: bool,
+		heal: HealMode,
+		/// Voxel size (mm) for `heal: "remesh"` (default 0.5).
+		#[serde(default)]
+		voxel: Option<f64>,
 		/// Optional re-write of the welded/healed mesh — the extension picks the
 		/// format (`.stl` / `.3mf`).
 		out: Option<String>,

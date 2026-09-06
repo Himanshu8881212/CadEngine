@@ -117,10 +117,35 @@ pub(crate) fn bind_solid(op_id: &str, what: &str, solid: Solid) -> Result<Outcom
 	}
 	let v = kernel_brep::validate(&solid);
 	if !v.is_valid() {
+		// Name WHERE it broke: the first bad edges (open or non-manifold), so a
+		// refusal points at the pin edge lying in the deck plane or the pocket
+		// floor on a cap, instead of leaving the author to bisect (cleat F4, ENGINE #29).
+		let witnesses = kernel_brep::witness_edges(&solid, 4);
+		let where_ = if witnesses.is_empty() {
+			String::new()
+		} else {
+			let items: Vec<String> = witnesses
+				.iter()
+				.map(|(a, b, uses, kind)| {
+					let what = match *kind {
+						"open" => "open".to_string(),
+						"uses" => format!("{uses} faces"),
+						"pinched vertex" => format!("pinched vertex, {uses} edges meet"),
+						other => other.to_string(),
+					};
+					if *kind == "pinched vertex" {
+						format!("[{:.4}, {:.4}, {:.4}] ({what})", a.x, a.y, a.z)
+					} else {
+						format!("[{:.4}, {:.4}, {:.4}]→[{:.4}, {:.4}, {:.4}] ({what})", a.x, a.y, a.z, b.x, b.y, b.z)
+					}
+				})
+				.collect();
+			format!("; bad edges at {}", items.join(", "))
+		};
 		return Err(err(
 			ErrorKind::InvalidGeometry,
 			format!(
-				"op '{op_id}': {what} failed validate(): closed={} manifold={} genus={} euler_characteristic={} shells={} — refusing to bind an invalid solid",
+				"op '{op_id}': {what} failed validate(): closed={} manifold={} genus={} euler_characteristic={} shells={} — refusing to bind an invalid solid{where_}. An edge used by 4 faces where the operands only TOUCH (an edge or vertex of one lying exactly on a face of the other) is a tangential contact: the boolean is pinched there — separate the bodies by ≥ 1e-3 mm or overlap them; a 'separate bodies' proof belongs to clearance / assert_disjoint",
 				v.closed, v.manifold, v.genus, v.euler_characteristic, v.shells
 			),
 		));

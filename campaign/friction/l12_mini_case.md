@@ -44,7 +44,7 @@ statement now is "163 of 168 solids reconstruct in ~16 min in release", not "unv
 ## F2 — `import_mesh {heal}` cannot heal the vendor STL
 - severity: major
 - surface: import_mesh
-- status: open — dispositioned: the vendor STL is a soup (thousands of boundary/non-manifold edges) beyond the heal's contract; `import_mesh {heal}` now REPORTS the before/after counts so the refusal is on the record, and the campaign's remodel from measurements is the supported path
+- status: partial — `import_mesh {heal: "remesh", voxel}` is the voxel repair the refusal pointed at: the file is lifted to its generalized-winding-number field (`|w| > ½`, so an inward-wound or mixed soup still has an interior) and re-meshed through manifold dual contouring → surface nets → a one-voxel opening, each on the receipt. The board (240 857 triangles, 864 non-manifold edges, 143 035 self-crossings, wound inward) still pinches at 55–219 non-manifold edges at every voxel 0.3–0.8: its overlapping component shells leave sheets thinner than a cell. The refusal names the counts and the tried ladder; the campaign's remodel-from-measurements stays the honest path for THIS file. The route is pinned on a two-shell inward soup (`kernel-api/tests/import_mesh_remesh.rs`)
 
 "still not watertight after healing (non_manifold_edges=1070)" on the OpenCascade mesh of
 the mainboard. Used for renders only (`assembly/scene/board_mesh.stl`, built by
@@ -144,3 +144,7 @@ Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-
 - **F6** — F6: obstacle engages.
 - **F7** — F7: creep cell.
 - **F8** — F8: render fit.
+
+### Second pass (2026-09-05, the 13 items left open or partial)
+
+- **F2** — F2: voxel remesh route added; see the status line for the board's own outcome.

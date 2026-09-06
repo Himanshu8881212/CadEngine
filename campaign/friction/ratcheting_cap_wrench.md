@@ -82,7 +82,7 @@
 ## F5 — paired small-cylinder unions across a segmented head corrupt the exact tessellation; heal can fail or not terminate in reasonable time (2026-08-14)
 - severity: major
 - surface: kernel booleans
-- status: partial — the constrained-Delaunay tessellator and coalesced caps removed the seam mis-stitches the small-cylinder unions hit (the ring and plate now export exact), but a union whose small cylinder lands EXACTLY tangent to a segmented head facet is still the tangent-face coincidence the arrangement refuses (ENGINE open frontier)
+- status: fixed — re-run 2026-09-05: head r62 seg360 + Ø11.2 bosses (seg 96) at az 240 alone, 240+300, 60+120 and all four: every `union_all` binds valid and exports `exact` (1676 / 1920 / 1956 / 2440 triangles) — the constrained-Delaunay tessellator + boolean-entry snap removed the seam corruption
 - symptom: frame head (r62, seg 360) + Ø11.2 boss cylinders (seg 96) at az 60/120/240/300: export refuses `mesh is not manufacturing-ready even after the voxel heal (voxel 0.3 mm): ... self_intersections=10` (exit 1), or demotes.
 - measured matrix (head + bosses only, union_all, export):
   single boss az60 -> exact; az120 -> exact; az240 alone -> exact (28788 tris); az240+az300 (south pair) -> self-intersections, heal FAILS; az60+az120 (north pair) -> voxel_healed 723856 tris; all four -> `serialized stl failed strict round-trip validation: boundary_edges=3`; boss pair phase-rotated 1.875 deg -> still fails; centers nudged 61.5->61.45 -> still fails; bosses as rounded-coordinate 96-gon prisms -> still fails. Circle-circle crossing angle is 82 deg (transversal) — not a tangency problem.
@@ -102,7 +102,7 @@
 ## F7 — 46+ short rack teeth across the ring's annular wall: voxel heal FAILS (F3/F4 family boundary) (2026-08-14)
 - severity: major
 - surface: export_stl
-- status: partial — the rack-tooth ring exports exact now (`ratchet_ring` re-run 2026-09-05), so the heal is no longer on the path; a rack that needs the voxel route at a finer pitch than the heal's voxel remains a refusal with the counters on the receipt
+- status: fixed — re-run 2026-09-05 with the campaign's own `geom_lib.ring_ops`: rack span [-16,50] pitch 1.0 (66 teeth), [-6,40] (46 teeth) and [-16,50] pitch 2.0 all bind valid (genus 3) and export `exact` (4052 / 3602 / 3278 triangles) — no heal on the path
 - symptom: after baking rack_pitch 1.0 over span [-16,50] (66 teeth), `export_stl` on the ring REFUSED: `mesh is not manufacturing-ready even after the voxel heal (voxel 0.3 mm): ... self_intersections=1` (exit 1). The same construction at 33 teeth (pitch 2.0) healed to route voxel_healed; at 46 teeth (span [-6,40]) it heals again.
 - minimal repro: ring_ops from programs/geom_lib.py with rack_pitch 1.0, rack_x0 -16, rack_x1 50 -> export refusal; rack_x0 -6, rack_x1 40 -> voxel_healed, watertight true, 589284 tris.
 - expected vs actual: F3 documented the demote-to-voxel_healed behaviour for features crossing the annular wall; expected the heal to keep absorbing it; actual: enough short prisms crossing the wall push the healer past what it can fix — the failure is count/extent dependent.
@@ -169,3 +169,8 @@ Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-
 - **F11** — F11: receipt path rule.
 
 RE-BASELINE: `part_ring.json` pins `route: voxel_healed` (now `exact` — change the pin); `part_frame.json`'s `thin_area ≤ 25` gate reads 25.75 mm² on the new tessellation — re-read the wall with `exclude_wedge_deg` or re-baseline the gate from the receipt. Shipped STL bytes change.
+
+### Second pass (2026-09-05, the 13 items left open or partial)
+
+- **F5** — F5: paired boss unions across the segmented head export exact.
+- **F7** — F7: 66 short rack teeth across the annular wall export exact.

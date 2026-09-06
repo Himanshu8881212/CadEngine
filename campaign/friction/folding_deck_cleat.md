@@ -75,7 +75,7 @@
 ## F4 — Gauge cylinder built in place along the bore axis refuses to union; the same cylinder POSED works (2026-08-07)
 - severity: major
 - surface: union
-- status: partial — the gauge cylinder built in place along the bore axis unions in the repro matrix that was re-run 2026-09-05 (`union_tangent`, `union_all_13`), but the exact tangent-on-a-curved-wall coincidence (ENGINE open frontier: planar face exactly tangent to a cylinder) is still refused honestly; build the gauge off-axis and pose it, as the campaign did
+- status: fixed — root-caused 2026-09-05: it was never facet phase. The Ø6.000 pin's bottom generator lies EXACTLY in the deck plane z = 8.000 (`clearance` reads `distance 0.0, contact true, interfering false`; r 2.9 clears by 0.1), so the union is a tangential contact — a pinched, non-manifold body, which the B-rep refuses. The refusal now names it (`bad edges at [-18, 11, 8] (pinched vertex, 4 edges meet) …` + the contact hint); lifting the pin 1e-3 unions with `shells 2`. The campaign's `g_pin6` proof belongs to `clearance`/`assert_disjoint` (ops_core §8b)
 - symptom: `{"op":"cylinder","base":[-18,-20,11],"axis":[0,1,0],"radius":3.0,...}` unioned with the
   base (Ø6.6 teardrop bores on the same axis, 0.284 mm clearance) fails
   `union failed validate(): closed=false manifold=false genus=17 euler_characteristic=-30 shells=2`.
@@ -240,3 +240,9 @@ Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-
 - **F7** — F7: no silent clobber.
 - **F8** — F8: timings excluded from the digest.
 - **F9** — F9: bounded, with a refusal instead of an hours-long run.
+
+### Second pass (2026-09-05, the 13 items left open or partial)
+
+- **F4** — F4: tangential contact at the deck plane, named in the refusal; re-baseline `nc_interference.json` (see below).
+
+RE-BASELINE: `programs/nc_interference.json` — the Ø6.000 pin touches the deck plane; keep `u_pin6`/`g_pin6` only after lifting the pin 1e-3 mm, or replace the shells gate with `clearance` (`contact: true, interfering: false`) / `assert_disjoint`.

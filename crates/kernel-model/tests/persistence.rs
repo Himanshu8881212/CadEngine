@@ -65,8 +65,13 @@ fn session_document() -> Document {
 	let drilled = doc.add(Feature::Boolean { op: BooleanOp::Difference, a: filleted, b: bore });
 	// Sketch-driven boss (profile width driven by "w", height by "h"), unioned on.
 	let (sketch, width) = rectangle_sketch();
-	let boss =
-		doc.add(Feature::ExtrudeSketch { sketch, height: Dim::param("h"), dims: vec![(width, Dim::param("w"))], draft: Dim::Literal(0.0) });
+	let boss = doc.add(Feature::ExtrudeSketch {
+		sketch,
+		height: Dim::param("h"),
+		dims: vec![(width, Dim::param("w"))],
+		draft: Dim::Literal(0.0),
+		draft_deg: None,
+	});
 	let part = doc.add(Feature::Boolean { op: BooleanOp::Union, a: drilled, b: boss });
 	// Three disjoint copies along +x.
 	let pattern =

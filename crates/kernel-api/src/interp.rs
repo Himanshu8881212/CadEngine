@@ -109,6 +109,15 @@ pub fn run_program(json_text: &str, out_dir: &Path) -> Report {
 /// ITSELF and stays relocatable (FRICTION #13); `.lmcasm` `path` sources
 /// resolve the same way. Output paths still resolve against `out_dir`.
 pub fn run_program_with_input_base(json_text: &str, out_dir: &Path, input_base: &Path) -> Report {
+	run_program_with_progress(json_text, out_dir, input_base, &mut |_| {})
+}
+
+/// [`run_program_with_input_base`] with a per-op progress hook: `on_op` is
+/// called with each [`OpReport`] the moment that op finishes (pass or fail),
+/// so a long program can stream its status instead of blocking a caller until
+/// the whole run completes (ENGINE #22, finding 5). The returned [`Report`] is
+/// unchanged; the hook sees exactly the reports it will contain, in order.
+pub fn run_program_with_progress(json_text: &str, out_dir: &Path, input_base: &Path, on_op: &mut dyn FnMut(&OpReport)) -> Report {
 	let parsed: Value = match serde_json::from_str(json_text) {
 		Ok(v) => v,
 		Err(e) => return Report::program_failure(ErrorKind::Parse, format!("program is not valid JSON: {e}")),
@@ -129,10 +138,14 @@ pub fn run_program_with_input_base(json_text: &str, out_dir: &Path, input_base: 
 				if let Some(value) = outcome.value {
 					env.insert(id.clone(), value);
 				}
-				reports.push(OpReport { id, ok: true, measures: outcome.measures, warnings, file: outcome.file, error: None });
+				let report = OpReport { id, ok: true, measures: outcome.measures, warnings, file: outcome.file, error: None };
+				on_op(&report);
+				reports.push(report);
 			}
 			Err(error) => {
-				reports.push(OpReport { id, ok: false, measures: None, warnings, file: None, error: Some(error) });
+				let report = OpReport { id, ok: false, measures: None, warnings, file: None, error: Some(error) };
+				on_op(&report);
+				reports.push(report);
 				return Report { ok: false, ops: reports };
 			}
 		}

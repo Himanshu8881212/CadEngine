@@ -7,6 +7,68 @@ Current-state summary and open frontier live in CLAUDE.md; the falsifiable
 scorecard in docs/BAR.md; deep friction write-ups in campaign/friction/ENGINE.md
 (moved there from docs/FRICTION.md on 2026-09-03).
 
+FRICTION FIX ROUND 2026-09-05, SECOND PASS (the 13 items left open or partial → 2 partial).
+The maintainer asked for the remainder. Re-run first, then fixed:
+
+1. **Three were already fixed by the first pass and only lacked a re-run** — ratcheting F5
+   (paired boss unions across a seg-360 head: all four configurations exact), ratcheting F7
+   (66 rack teeth across the annular wall: exact), slas F2 (teardrop arc pitch 5°–20°: clean
+   and 4 s instead of 87 s).
+2. **ENGINE #29 — a pocket floor coplanar with a hole's end cap** (the rotor carriage). Root
+   cause: a cap imprint line grazing the hexagon's corner minted vertices 4e-7..7e-7 from it,
+   the stitch's duplicate-cluster merge moved the corner onto the min-id split point, and the
+   wall's edge lost the floor's chain of split vertices. Fix: `stitch_with_anchors` — an
+   operand's own vertex is always the cluster representative. Pinned by
+   `kernel-brep/tests/pocket_floor_on_cap.rs`. (A split-point snap was tried first and
+   rejected: it broke six campaign programs.)
+3. **Boolean refusals name WHERE** (`kernel_brep::witness_edges`): open edges, edges used by
+   N ≠ 2 faces, loops that do not close and pinched vertices, with positions, plus the
+   tangential-contact rule in ops_core §8b. That closed folding_deck_cleat F4 by root cause:
+   the Ø6.000 pin's bottom generator lies exactly in the deck plane (a contact, not a facet
+   phase), and ENGINE #25 the same way (the hook's own self-crossing skin, on the recovered
+   legacy source).
+4. **`iso286_fit` bearing seats** (ENGINE #12): IT5 and the j5/j6 columns, fits H6/j5, H6/k5,
+   H7/j6, and K7/N7/P7 housings by the ISO 286-1 §4.3 Δ rule — every published row ≤ 120 mm
+   reproduced and pinned.
+5. **Document parity** (ENGINE #7): `CatalogPart::Shaft {keyway}`, `ParallelKey`,
+   `CirclipExternal`, `ExtrudeSketch.draft_deg`; `Document::features()` and
+   `run_program_with_progress` (ENGINE #22 findings 3 and 5; 1 and 2 are moot with the IDE).
+6. **`ace_fea` grid connectivity** (ENGINE #26): components, one-cell-erosion components and
+   `thin_ties` on every receipt, warnings `grid.disconnected_components` / `grid.thin_ties`,
+   and an unconverged solve refuses as `refusal.solver.unconverged` carrying the block.
+7. **`import_mesh {heal: "remesh", voxel}`** (l12 F2): a soup is re-meshed from its
+   generalized-winding-number field (`|w| > ½`, so inward-wound exports still have an
+   interior) through manifold DC → surface nets → a one-voxel opening, each on the receipt;
+   pinned on a two-shell inward soup. The l12 vendor board itself still pinches at every
+   voxel (its overlapping component shells leave sub-cell sheets) — partial, and the refusal
+   says so.
+8. **Tet mesher ladder** (prosthetic F10): reparametrised skin, then the discrete STL skin,
+   with both refusals in the receipt; the helical thread band defeats both — partial, the
+   supported analyses are named in the refusal and the cookbook.
+9. **Receipt anchors in prose** (digest F12): `audit_docs.py` class `receipt` + `--also DIR`;
+   `<!-- receipt: path key [tol=N%] -->` on a line is checked against the receipt.
+
+10. **Recovered cone charts tessellate again** (found by the `--no-fail-fast` run,
+    `kernel-brep/tests/curved_faces.rs`): `RefineChart::uv` refused the ring's own apex
+    sample when it sat a fit residual (4e-4 mm) along the axis from the fitted apex, so
+    every recovered cone chart fell back to an ear clip whose chords collided with the cap's
+    triangulation and recovery gave the cone back as 58 sectors. An on-axis sample now
+    develops to the origin; the cone recovers as 3 faces.
+
+Test-run note: `cargo test --workspace` stops at the first failing binary; the first pass's
+"all green" runs had stopped early. This pass ran with `--no-fail-fast` and re-pinned the
+tests the first pass had changed the answer of: the two `boolean_policy.rs` tests whose
+refused fixture (ENGINE #23) now resolves refuse a tangential edge contact instead; the
+keyed-pulley tangent keyway now SUCCEEDS (its hint test uses the same edge contact);
+`coalesce_coplanar.rs` measures the boolean's born-coalesced output (0 → 0 seams, the holed
+top face carrying its name is the rebuild's evidence) and the fillet on the holed face
+succeeds; the hybrid flange keeps ≥ 36 exact curved faces; `programs.rs` wave3 exports
+`exact`; `reverse_bridge.rs` pins the STEP payoff ratio at ≥ 8× (was 25×) because the faceted
+v1 solid itself shed its 15 000 redundant collinear vertices through the coalesce strip
+(15 856 → 872 vertices for the same 1326 faces and volume; its STEP 5.7 MB → 1.2 MB, the
+recovered v2's 180 KB → 124 KB). The three `kernel-model` meshing tests that only fail when
+the package is built alone (feature unification) are noted, not touched.
+
 FRICTION FIX ROUND 2026-09-05 (232 logged items re-triaged; 185 open/partial → 6 open/partial).
 The maintainer asked for every open `campaign/friction/*.md` item to be fixed. Each item was
 re-run against the live binary and tools first; ~55 were already fixed in-tree and only needed

@@ -33,7 +33,7 @@
 ## F2 — polygon arc pitch: FINER tessellation makes booleans WORSE, ~120x slower (2026-08-08)
 - severity: major
 - surface: kernel booleans
-- status: partial — the 120× slowdown at finer arc pitch is gone (constrained-Delaunay triangulation is O(n log n); `union_all_13` 54 s → 1.4 s), but a finer pitch still makes exact tangency between a facet and a curved wall MORE likely, which is the arrangement's open coincidence frontier
+- status: fixed — re-run 2026-09-05 through `parts_bridge.build()` with `_teardrop` at arc_deg 5 / 10 / 13 / 16 / 20: every beam binds `geometric_ok true`, `self_intersection pairs null`, exports exact; wall time 4.3 s at 5° (was 87 s), 0.3 s at 20°
 - symptom: with the polygon teardrop above, cutting 12 bores through the beam:
   `arc_deg 5.0` -> `geometric_ok false`, `self_intersection.pairs 6`, 87 s;
   `arc_deg 10.0` -> `geometric_ok false`, pairs 1;
@@ -338,3 +338,7 @@ Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-
 - **F7** — F7: name rows only.
 - **F8** — F8: title shrink.
 - **F11** — F11: envelope schema + per-version digest documented.
+
+### Second pass (2026-09-05, the 13 items left open or partial)
+
+- **F2** — F2: finer arc pitch no longer self-intersects nor slows the boolean.

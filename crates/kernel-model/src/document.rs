@@ -47,6 +47,17 @@ struct FeatureRecord {
 	notes: Option<String>,
 }
 
+/// One row of [`Document::features`].
+#[derive(Clone, Debug)]
+pub struct FeatureInfo<'a> {
+	pub id: FeatureId,
+	/// Serialized variant name (`"Box"`, `"CatalogPart"`, …).
+	pub kind: String,
+	pub label: Option<&'a str>,
+	pub suppressed: bool,
+	pub feature: &'a Feature,
+}
+
 /// A parametric, re-evaluable model: named parameters plus an ordered feature list.
 ///
 /// The last feature is the document's result unless a different root is set with
@@ -222,6 +233,19 @@ impl Document {
 	/// replaced by that input on the next [`Document::evaluate`] / [`evaluate_brep`].
 	/// Suppress is a no-op for **generative** features (primitives, booleans, smooth
 	/// booleans, sketches, lattices), which have no single input to fall back to.
+	/// Every feature in tree order as `(id, kind, label, suppressed)` — the
+	/// feature-tree view a tool or UI needs without re-parsing the document's
+	/// JSON (ENGINE #22, finding 3). `kind` is the serialized variant name.
+	pub fn features(&self) -> impl Iterator<Item = FeatureInfo<'_>> + '_ {
+		self.features.iter().enumerate().map(|(i, rec)| FeatureInfo {
+			id: FeatureId(i),
+			kind: rec.feature.kind(),
+			label: rec.label.as_deref(),
+			suppressed: self.suppressed.contains(&FeatureId(i)),
+			feature: &rec.feature,
+		})
+	}
+
 	pub fn set_suppressed(&mut self, id: FeatureId, suppressed: bool) {
 		if suppressed {
 			self.suppressed.insert(id);
@@ -674,13 +698,16 @@ impl Document {
 					None => kernel_brep::chamfer_edge(&s, *edge, r).ok(),
 				}
 			}
-			Feature::ExtrudeSketch { sketch, height, dims, draft } => {
+			Feature::ExtrudeSketch { sketch, height, dims, draft, draft_deg } => {
 				// Apply the parametric dimension overrides, then solve the constraints on
 				// every rebuild (cheap, idempotent) so the profile reflects the current
 				// parameters, and extrude by the parameter-resolved height with the
 				// parameter-resolved draft (0 ⇒ a plain prism, full hole support).
 				let h = height.resolve(params);
-				let a = draft.resolve(params);
+				let a = match draft_deg {
+					Some(deg) => deg.resolve(params).to_radians(),
+					None => draft.resolve(params),
+				};
 				let mut sk = sketch.clone();
 				for (index, dim) in dims {
 					sk.set_distance(*index, dim.resolve(params));

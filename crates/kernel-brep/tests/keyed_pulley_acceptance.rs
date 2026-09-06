@@ -62,9 +62,14 @@ fn keyway_face_exactly_tangent_to_a_cylindrical_wall_is_a_degenerate_coincident_
 		try_difference(&cylinder(DVec3::ZERO, DVec3::Z, 40.0, 18.0, 96), &cylinder(DVec3::new(0.0, 0.0, -1.0), DVec3::Z, 10.0, 20.0, 96))
 			.expect("hollow tube");
 	let tangent = cuboid(DVec3::new(-3.0, 10.0, -1.0), DVec3::new(3.0, 13.0, 19.0));
+	// Since 2026-09-05 (the anchored duplicate merge, ENGINE #29) this resolves:
+	// the keyway binds valid and removes exactly its 6 × 3 × 18 mm³ — it used to be
+	// a coincident-face degeneracy the arrangement refused.
+	let keyed = try_difference(&tube, &tangent).expect("a keyway face exactly tangent to the bore wall now cuts cleanly");
+	let removed = kernel_brep::exact_volume(&tube) - kernel_brep::exact_volume(&keyed);
 	assert!(
-		try_difference(&tube, &tangent).is_err(),
-		"a keyway face exactly tangent to the bore wall is a coincident-face degeneracy and must be refused (graceful, not an invalid solid)"
+		validate(&keyed).is_valid() && (removed - 324.0).abs() < 1e-6,
+		"the tangent keyway must remove its own 324 mm³ from a valid solid, removed {removed}"
 	);
 	// ...and a real keyway that OVERLAPS the same wall cuts cleanly.
 	assert!(
@@ -129,16 +134,21 @@ fn the_refusal_itself_now_carries_the_remedy_hint() {
 	// hazard most likely implicated. The machine-readable half is untouched
 	// (op + Validity), so existing callers keep matching on it; the hint is a
 	// documented Display suffix.
-	let tube = bored_tube();
-	let tangent = cuboid(DVec3::new(-3.0, 10.0, -1.0), DVec3::new(3.0, 13.0, 19.0));
-	let refusal = try_difference_diagnosed(&tube, &tangent).expect_err("the tangent keyway must still be refused");
+	// The tangent keyway resolves since 2026-09-05, so the refused pair is a
+	// pinched contact instead: two boxes sharing exactly one edge (a union that
+	// would be non-manifold along that edge). The linter's first implicated
+	// hazard on that pair is the coincident y-planes the two boxes share
+	// (measured: `CoincidentPlanes ×1 sep 0.0000 at (5, 10, 5)`).
+	let a = cuboid(DVec3::ZERO, DVec3::splat(10.0));
+	let b = cuboid(DVec3::new(10.0, 0.0, 10.0), DVec3::new(20.0, 10.0, 20.0));
+	let refusal = kernel_brep::try_union_diagnosed(&a, &b).expect_err("two boxes sharing only an edge must be refused");
 	let line = refusal.to_string();
+	eprintln!("refusal: {line}");
 	assert!(
-		refusal.error.op == "difference"
+		refusal.error.op == "union"
 			&& !refusal.error.validity.is_valid()
-			&& refusal.hazard.is_some_and(|h| h.kind == HazardKind::TangentPlaneOnCylinder)
+			&& refusal.hazard.is_some_and(|h| h.kind == HazardKind::CoincidentPlanes)
 			&& line.contains("pre-flight linter implicates")
-			&& line.contains("never kiss")
 			&& !line.contains('\n'),
 		"the enriched refusal must keep the machine-readable error AND name the remedy in one line: op={:?} valid={} \
 		 hazard={:?} line={line:?}",
@@ -149,6 +159,7 @@ fn the_refusal_itself_now_carries_the_remedy_hint() {
 
 	// The success path is untouched: a realistic embedded keyway returns the
 	// same solid the strict API returns, with no diagnosis run.
+	let tube = bored_tube();
 	let real = cuboid(DVec3::new(-3.0, 8.0, -1.0), DVec3::new(3.0, 13.0, 19.0));
 	let diagnosed = try_difference_diagnosed(&tube, &real).expect("the realistic keyway must still cut");
 	let strict = try_difference(&tube, &real).expect("the realistic keyway must still cut");

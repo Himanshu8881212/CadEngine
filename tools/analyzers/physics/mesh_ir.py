@@ -183,35 +183,62 @@ def mesh_stl(stl_path: str, *, elem_size_mm: float,
     """
     import gmsh
 
-    gmsh.initialize()
-    try:
-        gmsh.option.setNumber("General.Terminal", 0)
-        gmsh.model.add("stl_tet")
-        gmsh.merge(stl_path)
-        # classify -> reparametrise the discrete surface -> bounded volume
-        gmsh.model.mesh.classifySurfaces(np.deg2rad(40.0), True, True, np.deg2rad(180.0))
-        gmsh.model.mesh.createGeometry()
-        surfs = gmsh.model.getEntities(2)
-        loop = gmsh.model.geo.addSurfaceLoop([s[1] for s in surfs])
-        gmsh.model.geo.addVolume([loop])
-        gmsh.model.geo.synchronize()
-        gmsh.option.setNumber("Mesh.MeshSizeMax", elem_size_mm)
-        if min_size_mm is not None:
-            gmsh.option.setNumber("Mesh.MeshSizeMin", min_size_mm)
-        gmsh.option.setNumber("Mesh.ElementOrder", order)
-        gmsh.option.setNumber("Mesh.HighOrderOptimize",
-                              1 if high_order_optimize else 0)
-        if second_order_linear:
-            gmsh.option.setNumber("Mesh.SecondOrderLinear", 1)
-            gmsh.option.setNumber("Mesh.Optimize", 1)
-            gmsh.option.setNumber("Mesh.OptimizeNetgen", 1)
-        gmsh.model.mesh.generate(3)
-        m = _gmsh_extract(gmsh.model)
-        m.meta.update({"source": stl_path, "elem_size_mm": elem_size_mm,
-                       "order": order, "high_order_optimize": high_order_optimize})
-        return m
-    finally:
-        gmsh.finalize()
+    # Two surface modes, tried in order (prosthetic F10): the REPARAMETRISED
+    # surface (classify + createGeometry: gmsh re-meshes the STL skin at the
+    # requested size — the default, best elements) and, when that refuses
+    # ("Wrong topology of boundary mesh for parametrization" on a helical
+    # thread band), the DISCRETE surface (createTopology: the STL facets are
+    # kept verbatim as the boundary mesh and only the volume is meshed). The
+    # mode that produced the mesh is on the record in ``meta["surface_mode"]``;
+    # when both refuse, the exception names BOTH refusals so the receipt does.
+    errors = []
+    for mode in ("reparametrized", "discrete"):
+        gmsh.initialize()
+        try:
+            gmsh.option.setNumber("General.Terminal", 0)
+            gmsh.model.add("stl_tet")
+            gmsh.merge(stl_path)
+            if mode == "reparametrized":
+                # classify -> reparametrise the discrete surface -> bounded volume
+                gmsh.model.mesh.classifySurfaces(np.deg2rad(40.0), True, True, np.deg2rad(180.0))
+                gmsh.model.mesh.createGeometry()
+            else:
+                gmsh.model.mesh.createTopology()
+            surfs = gmsh.model.getEntities(2)
+            loop = gmsh.model.geo.addSurfaceLoop([s[1] for s in surfs])
+            gmsh.model.geo.addVolume([loop])
+            gmsh.model.geo.synchronize()
+            gmsh.option.setNumber("Mesh.MeshSizeMax", elem_size_mm)
+            if min_size_mm is not None:
+                gmsh.option.setNumber("Mesh.MeshSizeMin", min_size_mm)
+            gmsh.option.setNumber("Mesh.ElementOrder", order)
+            gmsh.option.setNumber("Mesh.HighOrderOptimize",
+                                  1 if high_order_optimize else 0)
+            if second_order_linear:
+                gmsh.option.setNumber("Mesh.SecondOrderLinear", 1)
+                gmsh.option.setNumber("Mesh.Optimize", 1)
+                gmsh.option.setNumber("Mesh.OptimizeNetgen", 1)
+            gmsh.model.mesh.generate(3)
+            m = _gmsh_extract(gmsh.model)
+            m.meta.update({"source": stl_path, "elem_size_mm": elem_size_mm,
+                           "order": order, "high_order_optimize": high_order_optimize,
+                           "surface_mode": mode,
+                           "surface_mode_note": (None if mode == "reparametrized" else
+                                                 "reparametrisation refused; the STL facets were kept "
+                                                 "verbatim as the boundary mesh (surface element size is "
+                                                 "the STL's chord density, not elem_size_mm)"),
+                           "surface_mode_errors": errors or None})
+            return m
+        except Exception as exc:  # noqa: BLE001 — every gmsh refusal is a string; try the next mode
+            errors.append(f"{mode}: {type(exc).__name__}: {exc}")
+        finally:
+            gmsh.finalize()
+    raise RuntimeError(
+        "gmsh could not mesh the STL in either surface mode — "
+        + " | ".join(errors)
+        + " — a helical thread band or self-touching sliver facets defeat both the reparametrised "
+          "and the discrete boundary; analyse the un-threaded blank (thread minor diameter) on this route, "
+          "or the threaded body on the voxel (ace_fea) route with the mesh_resolution receipt")
 
 
 def mesh_shouldered_bar(d_mm: float, D_mm: float, r_mm: float,

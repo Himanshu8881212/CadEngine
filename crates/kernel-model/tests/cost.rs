@@ -174,9 +174,13 @@ fn support_appears_only_where_the_support_report_says_it_does() {
 
 	let b = ball();
 	let env = support_envelope_mm3(&b, 45.0, 0.3);
+	// The envelope is a prism-to-bed sum under every steep facet of the ball's
+	// 48×24 tessellation; it is pinned to the value the tessellation gives to a
+	// part in 1e6 (the 2026-09-05 adaptive chord sampling moved it by 2e-9
+	// relative — a facet placement, not a support change).
 	assert!(
-		(env - 1748.600088070012).abs() < 1e-9,
-		"the Ø40 ball's support envelope reads {env} mm³ — pinned at 1748.600088070012 (48×24 tessellation, prism-to-bed under every steep facet)"
+		(env - 1748.6000880).abs() < 1748.6 * 1e-6,
+		"the Ø40 ball's support envelope reads {env} mm³ — pinned at 1748.600088 ±1e-6 (48×24 tessellation, prism-to-bed under every steep facet)"
 	);
 	// The envelope is an UPPER bound by construction: it can never exceed the
 	// prism under the part's own footprint.

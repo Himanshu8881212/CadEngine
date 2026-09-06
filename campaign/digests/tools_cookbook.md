@@ -125,6 +125,10 @@ Key shapes: `plane {axis, value_mm, side}` · `bbox {min_mm, max_mm}` · **`cyli
 center_mm: [x,y,z] (a 3-VECTOR — a point on the axis), radius_mm, length_mm?}`** (`length_mm` makes a
 finite extent centred on `center_mm`; omitted = infinite — prosthetic F5) · `sphere {center_mm, radius_mm}`.
 The tet runner supports `all` | `plane` | `box` (`{min_mm,max_mm}`) | `cylinder` (same keys; 2026-09-05).
+Its mesher tries TWO gmsh surface modes — the reparametrised STL skin (best elements), then the discrete
+skin (STL facets kept verbatim as the boundary) — and reports `mesh.surface_mode`; when both refuse (a helical
+`thread_ridge` band defeats both: prosthetic F10) the `MeshRefusal` names both errors and the supported
+analysis is the un-threaded blank on this route or the threaded body on the voxel route.
 Any load selector catching >30% of active elements gets a "suspiciously broad" note in the receipt
 (the smeared-load mistake behind an earlier 3x-wrong benchmark). A selector catching 0 nodes errors.
 
@@ -163,6 +167,7 @@ NOT force-per-volume; `pressure` = Pa**), `simp_penalty`? (null=binary occupancy
 
 Receipt: `{ok, max_von_mises_pa, max_displacement_m, tip_displacement_m, n_active_elements, n_dof,
 method, fixtures/loads node-count receipts, selector_count_unit:"nodes", notes, stress_field_npy,
+`grid_connectivity` (`components`, `largest_component_fraction`, `components_after_one_cell_erosion`, `thin_ties` — a tie the grid loses is a tie a slicer's perimeters can lose too, ENGINE #26; warnings `grid.disconnected_components` / `grid.thin_ties`; an unconverged solve refuses as `refusal.solver.unconverged` CARRYING this block),
 disp_field_npy, timings_s, compliance?, geometry_hash, residual_or_convergence, analysis_envelope}`.
 Fields: `stress_field.npy`/`disp_field.npy` are structured `(nx,ny,nz)` grids in out_dir.
 

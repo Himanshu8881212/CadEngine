@@ -1203,7 +1203,14 @@ impl RefineChart {
 				}
 				let (x, y) = (rel.dot(e1), rel.dot(e2));
 				if x * x + y * y < 1e-24 {
-					return None;
+					// ON the axis: the ring's apex sample, sitting a fit residual
+					// (4e-4 mm on a recovered 240-facet cone) along the axis from the
+					// FITTED apex. It has no azimuth, but it is the apex for the chart's
+					// purposes — refusing it made `refine_curved_ring` give up on every
+					// recovered cone chart, and the fallback ear clip drew chords
+					// through the cone that collided with the cap's triangulation
+					// (curved_faces test, 2026-09-05).
+					return Some(DVec2::ZERO);
 				}
 				let dev = half_angle.sin() * y.atan2(x);
 				DVec2::new(rho * dev.cos(), rho * dev.sin())
