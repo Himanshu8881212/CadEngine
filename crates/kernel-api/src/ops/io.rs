@@ -28,9 +28,10 @@ use crate::program::{BoolOpSpec, OpKind};
 use crate::report::{ErrorKind, OpError};
 
 use super::meshio::{
-	export_mesh, mesh_receipt, read_mesh_file, resolve_input_or_out, resolve_path, solid_mesh, write_mesh_auto, write_mesh_healed,
+	export_mesh, mesh_receipt, read_mesh_file, report_path, resolve_input_or_out, resolve_path, solid_mesh, write_mesh_auto,
+	write_mesh_healed,
 };
-use super::support::{bind_solid, grid_guard, polygon_centroid, v3a};
+use super::support::{bind_solid, grid_guard, nearest_face, v3a};
 
 /// `import_step` in `tolerant` mode: the kernel's tolerant importer, whose
 /// receipt — every solid of the file with its product name, status and placed
@@ -139,7 +140,7 @@ pub(crate) fn exec(
 			let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("part").to_string();
 			let step = kernel_brep::export_step(s, &name);
 			std::fs::write(&path, step).map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot write '{}': {e}", path.display())))?;
-			Ok(Outcome { value: None, measures: None, file: Some(path.display().to_string()) })
+			Ok(Outcome { value: None, measures: None, file: Some(report_path(out_dir, &path)) })
 		}
 
 		OpKind::LoadPart { file } => {
@@ -284,18 +285,10 @@ pub(crate) fn exec(
 			// nearest face-polygon centroid to the witness — deterministic and
 			// the same anchor `list_faces` reports.
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
-			let pick_face = |witness: [f64; 3]| -> (usize, kernel_brep::topo::FaceId, DVec3) {
-				let w = DVec3::new(witness[0], witness[1], witness[2]);
-				let mut best = None;
-				for (i, fid) in s.faces().enumerate() {
-					let c = polygon_centroid(&s.face_polygon(fid));
-					let d = (c - w).length();
-					if best.as_ref().map(|&(_, _, _, bd)| d < bd).unwrap_or(true) {
-						best = Some((i, fid, c, d));
-					}
-				}
-				let (i, fid, c, _) = best.expect("a bound solid has faces");
-				(i, fid, c)
+			// Witness → face by true surface distance (shared rule, `support::nearest_face`);
+			// the gap is published so a witness that floats off its face is visible.
+			let pick_face = |witness: [f64; 3]| -> (usize, kernel_brep::topo::FaceId, DVec3, f64) {
+				nearest_face(s, DVec3::new(witness[0], witness[1], witness[2]))
 			};
 			match kind.as_str() {
 				"point_point" => {
@@ -328,8 +321,8 @@ pub(crate) fn exec(
 							));
 						}
 					};
-					let (ia, fa, ca) = pick_face(wa);
-					let (ib, fb, cb) = pick_face(wb);
+					let (ia, fa, ca, ga) = pick_face(wa);
+					let (ib, fb, cb, gb) = pick_face(wb);
 					let plane = |fid| match s.face(fid).surface {
 						kernel_brep::Surface::Plane { origin, normal } => Some((origin, normal.normalize())),
 						_ => None,
@@ -345,7 +338,7 @@ pub(crate) fn exec(
 						return Err(err(
 							ErrorKind::InvalidParam,
 							format!(
-								"op '{op_id}': face_face needs two PLANAR faces; the witnesses selected {} (face {ia}) and {} (face {ib}) — move the witnesses or use 'diameter' for curved faces",
+								"op '{op_id}': face_face needs two PLANAR faces; the witnesses selected {} (face {ia}, {ga:.3} mm from witness a) and {} (face {ib}, {gb:.3} mm from witness b) — a witness picks the face whose surface is NEAREST it, so move each witness onto the plane you mean (a witness inside a bore/counterbore mouth picks that wall; list_faces shows anchors) or use 'diameter' for curved faces",
 								ty(fa),
 								ty(fb)
 							),
@@ -365,27 +358,27 @@ pub(crate) fn exec(
 						"kind": "face_face",
 						"value": (ob - oa).dot(na).abs(),
 						"provenance": "analytic",
-						"face_a": {"index": ia, "point": v3a(oa), "normal": v3a(na), "witness": v3a(ca)},
-						"face_b": {"index": ib, "point": v3a(ob), "normal": v3a(nb), "witness": v3a(cb)},
+						"face_a": {"index": ia, "point": v3a(oa), "normal": v3a(na), "witness": v3a(ca), "witness_gap": ga},
+						"face_b": {"index": ib, "point": v3a(ob), "normal": v3a(nb), "witness": v3a(cb), "witness_gap": gb},
 					})))
 				}
 				"diameter" => {
 					let Some(w) = near else {
 						return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': kind 'diameter' needs a 'near' witness point")));
 					};
-					let (i, fid, c) = pick_face(w);
+					let (i, fid, c, gap) = pick_face(w);
 					match s.face(fid).surface {
 						kernel_brep::Surface::Cylinder { origin, axis, radius } => Ok(Outcome::measures(json!({
 							"kind": "diameter",
 							"value": 2.0 * radius,
 							"provenance": "analytic",
-							"face": {"index": i, "type": "cylinder", "point": v3a(origin), "axis": v3a(axis.normalize()), "radius": radius, "witness": v3a(c)},
+							"face": {"index": i, "type": "cylinder", "point": v3a(origin), "axis": v3a(axis.normalize()), "radius": radius, "witness": v3a(c), "witness_gap": gap},
 						}))),
 						kernel_brep::Surface::Sphere { center, radius } => Ok(Outcome::measures(json!({
 							"kind": "diameter",
 							"value": 2.0 * radius,
 							"provenance": "analytic",
-							"face": {"index": i, "type": "sphere", "center": v3a(center), "radius": radius, "witness": v3a(c)},
+							"face": {"index": i, "type": "sphere", "center": v3a(center), "radius": radius, "witness": v3a(c), "witness_gap": gap},
 						}))),
 						kernel_brep::Surface::Cone { half_angle, .. } => Err(err(
 							ErrorKind::InvalidParam,

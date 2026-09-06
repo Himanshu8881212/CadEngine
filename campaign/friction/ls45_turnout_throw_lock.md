@@ -3,7 +3,7 @@
 ## F1 — ACE runners leak a `tmp*.json` scratch program into `out_dir`, one per run, forever (2026-08-08)
 - severity: major
 - surface: tools/analyzers/physics/sampling.py
-- status: open
+- status: fixed — `physics/sampling.py` unlinks its scratch program after use; no `tmp*.json` lands in `out_dir` (`fea_beam` repro lists only the receipt artefacts)
 
 - symptom: after each `rebuild.sh`, `receipts/fea/<job>/` gains one more
   unreferenced, mode-0600 file named `tmp<random>.json`. Eight had accumulated
@@ -61,7 +61,7 @@
 ## F2 — 2026-08-10 engine rebuild breaks exact-route STL export of multi-loop planar faces (2026-08-14)
 - severity: major
 - surface: export_stl
-- status: open
+- status: fixed — multi-loop planar faces tessellate through the constrained Delaunay path; `ls45_crank` exports exact
 - context: the campaign was green through Stage 4 on 2026-08-08 (2 consecutive
   byte-identical rebuilds). `target/release/kernel-api` was REBUILT 2026-08-10
   12:09 from a working tree with uncommitted crates/ modifications (git status
@@ -159,3 +159,10 @@
   re-gates per-instance watertight/route from the restored receipts, and
   gen_docs.py's guard now fires if the refusal ever returns. See the
   campaign BUILD_LOG 2026-08-24 entry.
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F1** — F1: no scratch leak.
+- **F2** — F2: multi-loop exact route.

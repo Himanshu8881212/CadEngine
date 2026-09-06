@@ -68,7 +68,7 @@ pub(crate) const REQUIRE_KEY: &str = "require";
 /// One-line description of `require`, advertised by `describe` for every op so
 /// the gate vocabulary is discoverable from the binary (never only from a doc).
 pub(crate) const REQUIRE_DOC: &str =
-	"Universal gate: {\"<measure key>\": expectation} checked against this op's own measures; the op FAILS (assert_failed) when an expectation is unmet. Expectation = scalar (equality), array (element-wise), or {equals|min|max|within|not_null}. Keys may be dotted paths.";
+	"Universal gate: {\"<measure key>\": expectation} checked against this op's own measures; the op FAILS (assert_failed) when an expectation is unmet. Expectation = scalar (equality), array (element-wise), or {equals|min|max|within|not_null} where within is [lo, hi] or {target, abs|percent}. Keys may be dotted paths.";
 
 /// Apply the `require` object of `raw` to the measures an op produced.
 ///
@@ -246,11 +246,35 @@ fn check_object(op_id: &str, path: &str, value: &Value, spec: &Map<String, Value
 		}
 	}
 	if let Some(w) = spec.get("within") {
+		// `[lo, hi]` — the natural reading of "within" as a range (uphill F1:
+		// the brief listed `within` with no shape and the array was refused).
+		// Equivalent to `{"target": (lo+hi)/2, "abs": (hi-lo)/2}`.
+		if let Some(arr) = w.as_array() {
+			if arr.len() != 2 {
+				return Err(err(
+					ErrorKind::InvalidParam,
+					format!("op '{op_id}': require '{path}': 'within' as an array must be [lo, hi], got {} element(s)", arr.len()),
+				));
+			}
+			let lo = number(op_id, path, "within[0]", &arr[0])?;
+			let hi = number(op_id, path, "within[1]", &arr[1])?;
+			if lo > hi {
+				return Err(err(
+					ErrorKind::InvalidParam,
+					format!("op '{op_id}': require '{path}': 'within' [lo, hi] needs lo <= hi, got [{lo}, {hi}]"),
+				));
+			}
+			let m = measured.unwrap_or(f64::NAN);
+			if !(m >= lo && m <= hi) {
+				failures.push(format!("{path}: measured {value}, expected within [{lo}, {hi}]"));
+			}
+			return Ok(());
+		}
 		let Some(w) = w.as_object() else {
 			return Err(err(
 				ErrorKind::InvalidParam,
 				format!(
-					"op '{op_id}': require '{path}': 'within' must be {{\"target\": t, \"abs\": a}} or {{\"target\": t, \"percent\": p}}"
+					"op '{op_id}': require '{path}': 'within' must be [lo, hi], {{\"target\": t, \"abs\": a}} or {{\"target\": t, \"percent\": p}}"
 				),
 			));
 		};

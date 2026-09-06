@@ -7,6 +7,69 @@ Current-state summary and open frontier live in CLAUDE.md; the falsifiable
 scorecard in docs/BAR.md; deep friction write-ups in campaign/friction/ENGINE.md
 (moved there from docs/FRICTION.md on 2026-09-03).
 
+FRICTION FIX ROUND 2026-09-05 (232 logged items re-triaged; 185 open/partial → 6 open/partial).
+The maintainer asked for every open `campaign/friction/*.md` item to be fixed. Each item was
+re-run against the live binary and tools first; ~55 were already fixed in-tree and only needed
+their receipt, the rest got engine/tool/doc changes. Every `status: fixed` line names its receipt
+(a repro in the fix-round scratch set, a re-run of the campaign's own program, or a unit test);
+`docs/FRICTION_INDEX.md` regenerated. What changed, by blast radius:
+
+1. **Exact route for boolean results (the largest family — 30+ items across 14 campaigns).**
+   Planar faces and odd-cornered curved facets are triangulated by a new constrained Delaunay
+   triangulator (`kernel-core/src/cdt.rs`: Bowyer–Watson + constraint insertion + parity
+   classification on exact predicates) instead of keyhole-bridged ear clipping; boolean operand
+   coordinates are snap-rounded to a 1e-12 grid at the arrangement's entry; coplanar fragments
+   coalesce into multi-loop faces inside `boolean()`; disjoint operands take an AABB fast path.
+   Receipts: tube/countersink/disc/lid/stack-ulp/rot-mirror repros exact; every campaign part
+   program that used to demote (graham anchor, jar housing/geneva, uphill, ls45, prosthetic,
+   ratchet ring/plate, cleat, ball, cubesat, slas, reservoir, `housing_base.lmcpart`) exports
+   `exact`; `union_all` of 13 disjoint cutters 54 s → 1.4 s; ENGINE #19 and #23 closed
+   (`recovery_needle_weld.rs` now pins the closed-form 27 mm³ overlap). **Shipped STL bytes
+   change** — campaigns re-baseline their `route` pins (`voxel_healed` → `exact`).
+2. **Fillet/chamfer corners** (`fillet.rs`): multi-loop rebuild, end caps oriented by face
+   membership (reflex corners), and — new this round — ends capped on the face(s) that really
+   terminate them: an inclined cap (a chamfer strip) has the profile slid onto its plane, two caps
+   meeting at the end (the mitre) split the profile at the crease. Chains of chamfers now export
+   exact and a fillet after end chamfers binds valid (cubesat F1); a radius wider than the
+   neighbouring feature is refused (`CapRunout`) with the fillet-first ordering as the way out.
+3. **Mesh-sourced assemblies** (`kernel-api asm`): mesh instances export VERBATIM
+   (`route: mesh_verbatim`) and `Mesh::min_distance` runs on a BVH pair descent seeded by vertex
+   sampling (pinned equal to the O(n·m) oracle on curved/rotated/engulfed/touching pairs,
+   `kernel-core/tests/bvh_min_distance.rs`). The jar singulator run that was stopped at 55 min
+   completes in 5.9 s (jar F13, slas F4).
+4. **Witness → face selection** (`measure_dimension` face_face/diameter, `asm_mate_face`): the
+   nearest face by TRUE surface distance over the face's own tessellation
+   (`kernel_brep::tessellate_faces`), ties by centroid; `witness_gap` is echoed; the refusal
+   names both gaps. (Coalesced faces exposed the old centroid rule — turgo's probe witnesses sit
+   inside bore mouths and now say so.)
+5. **Receipts and paths**: report `file` fields are echoed RELATIVE to `--out-dir`, so reports are
+   byte-identical across out-dir spellings (din_rail F5); `support_report` reports
+   `near_threshold_area` / `threshold_margin_deg` / witness / note for faces within 1° of the
+   limit (digest F10); `tools/receipt_verify.py` recomputes a job's `geometry_hash` against its
+   receipt and checks sibling receipts share one hash (iso9409 F11); `require` `within` takes
+   `[lo, hi]`; `describe` needs no `id`; `assert` publishes the measured value.
+6. **Ops and catalog**: `drill {flat}`, `export_threaded {major_d, pitch}` (M8×0.75),
+   `thread_spec {major_d, tpi}` (inch), `thread_ridge` `z_min/z_max/axial_overshoot/clip_to_span`,
+   `iso286_fit` + 6 loose/shaft-basis fits, bearing 623, DIN 471 circlips from Ø3,
+   `solid_from_implicit {mesher}` + `healed`, `offset_solid` work budget, `extrude` accepts CW,
+   descending `loft` re-skinned, `wall_thickness {exclude_wedge_deg}`.
+7. **Tools**: 0/1/2 exit contract with `error_kind`/`gate_failed` everywhere, `--out` atomic
+   writes, `.attempt` sidecar on SIGKILL, `determinism.core_digest` (12 sig figs, timings and
+   absolute paths stripped) on every runner; ACE tet runner isolates gmsh (typed `MeshRefusal`),
+   cost models + `dof_budget` on tet/modal, shift-invert/LOBPCG modal, contact bool-dof refusal
+   and row-0 labelling, buckling tensile refusal, production_check temperature row + governing
+   rule, derived_model foreign-job refusal, doc tools on one `doc_cli`, bom_audit generic.
+8. **Docs**: OPERATOR_BRIEF (§3 `within`, §5 registry tiers, §8 never edit a running script),
+   DELIVERABLE_SPEC (§2 thresholds are printer rules, §2.5 describe docs + near-threshold, §2.7
+   envelope vs plate-packing gate, §3 per-version `core_digest`), digests (ops_core rows for every
+   op above; cookbook selectors/quantization/tet cylinder), CONCEPTS.md errata.
+
+Still open after the round: ENGINE #22 (IDE-era surface gaps), #26 (design signal), #7/#12
+partials, new #29 (coplanar pocket floor on a hole's end cap — the rotor carriage program fails
+there on this build AND the previous one), digest F12, l12 F2 (vendor soup), cleat F4 /
+ratcheting F5+F7 / slas F2 (exact tangency on a curved wall), prosthetic F10 (gmsh on helical
+slivers). Campaign re-baseline notes are at the end of each friction file.
+
 OP + DIGEST 2026-09-04 (`solid_from_mesh` — op #162; and two "missing capabilities" that
 were only missing from the digest). Three friction items were re-opened; **only one needed
 an engine change.** The other two were digest holes — one capability had been fixed a wave

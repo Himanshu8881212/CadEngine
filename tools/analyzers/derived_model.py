@@ -214,9 +214,24 @@ class DerivedModel:
 			print(json.dumps({"ok": True, "manifest": model.write_manifest(out)}))
 			return 0
 		if argv[0] == "--selftest":
-			return selftest(model)
+			job = json.load(open(argv[1])) if len(argv) > 1 else None
+			return selftest(model, job)
 		try:
 			job = json.load(open(argv[0]))
+			# A job that NAMES a model must name this one. The scaffold used to
+			# run its own model on any job it was handed and fail on the
+			# foreign job's missing keys — a KeyError from the wrong model,
+			# whose self_check block read as the caller's gates (reservoir F4).
+			named = job.get("model") if isinstance(job, dict) else None
+			if named is not None and named != model.name:
+				out = {"ok": False,
+				       "error": f"invalid_param: the job names model {named!r} but this script "
+				                f"runs {model.name!r} — run the named model's own script "
+				                f"(tools/derived_model.py runs only the worked exemplar)",
+				       "error_kind": "refusal.wrong_model", "model": model.name,
+				       "requested_model": named}
+				print(json.dumps(out))
+				return 2
 			out = model.run(job)
 		except Exception as e:  # honest failure receipt — the JSON line is the contract
 			out = {"ok": False, "error": f"{type(e).__name__}: {e}"}
@@ -398,13 +413,37 @@ if __name__ == "__main__":
 '''
 
 
-def selftest(model: DerivedModel) -> int:
-	"""Hermetic proof the scaffold enforces its contract end to end."""
+def selftest(model: DerivedModel, job: dict | None = None) -> int:
+	"""Hermetic proof the scaffold enforces its contract end to end.
+
+	Generic over ANY subclass (turgo F4: it used to assert the exemplar's own
+	output keys, so `my_model.py --selftest` died with KeyError AFTER the
+	subclass's gates had passed): every model proves its gates pass, and —
+	given a job (`--selftest job.json`, or the class attribute `selftest_job`)
+	— that two identical runs are byte-deterministic and pass the synthesis
+	guardrail. The closed-form overshoot check below is the exemplar's own and
+	runs only for it."""
 	gates = model.checked_gates()
 	worst = max(g["rel_error"] for g in gates)
 	assert all(g["passed"] for g in gates), (
-		f"selftest: exemplar gates must pass, got "
+		f"selftest: gates must pass, got "
 		f"{[(g['name'], g['rel_error']) for g in gates if not g['passed']]}")
+	if not isinstance(model, DampedOscillator):
+		job = job if job is not None else getattr(model, "selftest_job", None)
+		if job is None:
+			print(f"{model.name} selftest PASS: {len(gates)} gates (worst rel {worst:.2e}); "
+			      f"no job given, so determinism/envelope were not exercised — pass "
+			      f"`--selftest job.json` or set `selftest_job` on the class")
+			return 0
+		out1, out2 = model.run(dict(job)), model.run(dict(job))
+		assert out1.get("ok"), f"selftest: run refused: {out1.get('error')}"
+		assert json.dumps(out1, sort_keys=True) == json.dumps(out2, sort_keys=True), (
+			"selftest: envelope is not deterministic across identical runs")
+		ok, problems = provenance.check_synthesized(out1)
+		assert ok, f"selftest: guardrail must accept the stamped envelope: {problems}"
+		print(f"{model.name} selftest PASS: {len(gates)} gates (worst rel {worst:.2e}), "
+		      f"envelope deterministic + guardrail-accepted")
+		return 0
 
 	job = {"zeta": 0.15, "omega_n_rad_s": 25.0}
 	out1, out2 = model.run(dict(job)), model.run(dict(job))

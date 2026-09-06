@@ -34,7 +34,7 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
 ## F4 — analyzer registry vs solver cards tension
 - severity: minor
 - surface: tools/analyzer_registry.py
-- status: partial — ace_contact / ace_fatigue / ace_thermal are now registered
+- status: fixed — OPERATOR_BRIEF §5 now quotes the registry tiers (ace_thermal / ace_contact **Demonstrated**, ace_fatigue **Cataloged**, from tools/analyzer_registry.py) instead of "NOT registered"; the registry is the single authority
   (Demonstrated / Cataloged / Demonstrated), and as of 2026-09-04 every one of
   the 18 registered analyzers has a card in `tools/solvers/` whose Status line
   states its registry tier verbatim, so "green suite" can no longer be read as
@@ -51,7 +51,7 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
 ## F5 — `bom_audit.py` is project-hardcoded, not generic
 - severity: minor
 - surface: tools/publish/bom_audit.py
-- status: open
+- status: fixed — bom_audit.py reads the part-name rows from the job (`_NAME_ROW`) and shares the doc_cli `--out`/receipt contract; nothing project-specific is hard-coded
 - symptom: hardcoded cyclo26/harmonic26/planetary26 STEP trees + fixed hardware
   table; unusable for any new campaign without editing source.
 - fix shape: job-file-driven generic tool (parts list + hardware table as
@@ -75,7 +75,7 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
 ## F7 — path resolution inconsistency across surfaces
 - severity: minor
 - surface: kernel-api cli
-- status: open
+- status: fixed — one path rule on every surface: OUT ops resolve against `--out-dir`, IN ops against the program directory first then `--out-dir` (a miss names both roots); verified with the export→import repros (`step_rt`, `import_mesh_path`)
 - symptom (verified): `load_part.file` resolves relative to the program JSON's
   dir; `library_*` `dir` resolves relative to `--out-dir`; `.lmcasm` sources
   resolve against each asm file's own dir.
@@ -85,7 +85,7 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
 ## F8 — assembly instance exports exit 0 when leaky (gate asymmetry)
 - severity: major
 - surface: export_stl
-- status: open
+- status: fixed — per-instance assembly exports take the strict manufacturing path (a leaky instance FAILS the op); the merged file is labelled a diagnostic SCENE and carries its quality counters; `kernel-api asm` instance rows report `route`/`watertight`
 - symptom: part-program `export_stl` fails the run if heal fails; assembly
   instance exports return exit 0 with `watertight:false` in the receipt.
 - fix shape: per-run flag or per-op param to promote leaky instance exports to
@@ -94,7 +94,7 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
 ## F9 — doc tools crash on `--help`
 - severity: papercut
 - surface: tools/publish/production_dossier.py
-- status: open
+- status: fixed — the document tools share `tools/_receipt.py::doc_cli`; `--help` prints usage and exits 0
 - symptom: `production_dossier.py` / `render_sheet.py` / `assembly_doc.py`
   treat `--help` as a job file path and crash with a stack trace.
 - fix shape: argparse-standard `--help` printing the docstring job schema.
@@ -102,7 +102,7 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
 ## F10 — `support_report` threshold knife-edge at modelled angles
 - severity: minor
 - surface: support_report
-- status: open
+- status: fixed — `support_report` reports `near_threshold_area` + `threshold_margin_deg` (1°), with `near_threshold_witness` and a note when > 0; verified: a 45° teardrop roof reads 40.0 mm² near-threshold at `overhang_deg` 45 and 0 at 48
 - symptom: f32 comparison at `overhang_deg` exactly equal to a modelled face
   angle flickers (45° teardrop roof at default 45).
 - fix shape: documented epsilon band on the threshold + a receipt note when
@@ -122,7 +122,7 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
 ## F12 — README creep-margin discrepancy uncaught by audit
 - severity: minor
 - surface: tools/audit_docs.py
-- status: open
+- status: open — dispositioned: README prose vs receipt is a campaign self-check, not something audit_docs can know; `production_check` now reports the temperature row and the governing rule so the margin quoted in prose can be copied from the receipt
 - symptom: card_magazine README quotes 124× in one place, generated ANALYSIS
   computes ~138× (gated ≥50×). Doc-audit does not diff prose numbers against
   generated receipts.
@@ -130,7 +130,7 @@ GENERAL issues — none block campaigns (workarounds are in OPERATOR_BRIEF.md).
 ## F13 — kernel-api CLI usage error messaging (minor)
 - severity: minor
 - surface: kernel-api cli
-- status: open
+- status: fixed — the CLI usage text names both subcommands and every flag, and a bad flag is reported with the usage instead of a bare error
 - symptom: bare `kernel-api prog.json` exits 1/2 without pointing at the `run`
   subcommand; three independent readers tripped on it.
 - fix shape: top-level usage error suggesting `run`/`asm` subcommands.
@@ -241,3 +241,16 @@ edges (long boolean seam edges could slice through vertex-clean ears);
 `tessellate_planar` un-bakes keyhole-bridged rings into the verified
 hole-aware path; `tessellate_planar_with_holes` gained a ranked-anchor retry
 ladder + 2D hole-coverage verification + a star-shaped annulus strip fallback.
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F4** — F4: the brief and the registry no longer disagree — §5's tier column is the registry's word for word.
+- **F5** — F5: `bom_audit.py` is generic (job-driven name rows, doc_cli receipt persistence).
+- **F7** — F7: path resolution is one documented rule (ops_core.md §path table) and the round-trip repros pass.
+- **F8** — F8: instance exports can no longer exit 0 on a leaky body (asmops export policy Strict per instance, Scene only for the merged diagnostic).
+- **F9** — F9: `--help` no longer crashes any doc tool (doc_cli).
+- **F10** — F10: the knife-edge is on the receipt — `near_threshold_area` names the area the threshold cannot resolve, so "support-free at 45°" is quoted with its ±1° check (kernel-core `SupportFreeReport::near_threshold_area`, measure.rs support_report).
+- **F12** — F12: stays open on the audit side (prose semantics are the campaign's); the checker now gives the exact number to quote.
+- **F13** — F13: usage messaging (kernel-api main.rs USAGE).

@@ -356,7 +356,47 @@ pub fn loft_solid(sections: &[Vec<DVec3>]) -> Option<Solid> {
 		faces.push(tri_face(&pos, top, idx(n - 1, i), idx(n - 1, i1)));
 	}
 
-	Some(Solid::from_faces(pos, faces))
+	let solid = Solid::from_faces(pos, faces);
+	// The windings above assume the sections ADVANCE along the direction in
+	// which their loops read CCW. Sections listed in the opposite order (a
+	// stack given top-down) bind an INSIDE-OUT solid: every face normal points
+	// into the material, `validate` still reads closed/manifold/genus 0, and
+	// only `exact_volume` — negative — tells (stacking_tray_lid F5). Rather than
+	// refuse a legal description, re-skin with the sections reversed, which is
+	// the same shape wound outward.
+	if crate::validate::exact_volume(&solid) < 0.0 {
+		let reversed: Vec<Vec<DVec3>> = sections.iter().rev().cloned().collect();
+		let mut pos2: Vec<DVec3> = Vec::with_capacity(n * m + 2);
+		for s in &reversed {
+			pos2.extend_from_slice(s);
+		}
+		let mut faces2: Vec<FaceInput> = Vec::new();
+		for j in 0..n - 1 {
+			for i in 0..m {
+				let i1 = (i + 1) % m;
+				let (a, b, c, d) = (idx(j, i), idx(j, i1), idx(j + 1, i1), idx(j + 1, i));
+				faces2.push(tri_face(&pos2, a, b, c));
+				faces2.push(tri_face(&pos2, a, c, d));
+			}
+		}
+		let bottom2 = pos2.len() as u32;
+		pos2.push(centroid(&reversed[0]));
+		for i in 0..m {
+			let i1 = (i + 1) % m;
+			faces2.push(tri_face(&pos2, bottom2, idx(0, i1), idx(0, i)));
+		}
+		let top2 = pos2.len() as u32;
+		pos2.push(centroid(&reversed[n - 1]));
+		for i in 0..m {
+			let i1 = (i + 1) % m;
+			faces2.push(tri_face(&pos2, top2, idx(n - 1, i), idx(n - 1, i1)));
+		}
+		let flipped = Solid::from_faces(pos2, faces2);
+		if crate::validate::exact_volume(&flipped) > 0.0 {
+			return Some(flipped);
+		}
+	}
+	Some(solid)
 }
 
 // ============================================================================

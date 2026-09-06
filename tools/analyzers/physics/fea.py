@@ -33,6 +33,8 @@ Dependencies: numpy + scipy only. No network, no ``agents.*`` imports.
 
 from __future__ import annotations
 
+import time
+import sys
 import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
@@ -520,8 +522,28 @@ def reference_fea(rho: np.ndarray,
                     "reference_fea: non-positive stiffness diagonal — cannot "
                     "precondition; check density floor / region encoding.")
             _M = sp.diags(1.0 / _diag)
+            # Heartbeat: a 3e5-DOF Jacobi-CG can run for an hour with no
+            # output, so "still converging" and "wedged" looked identical
+            # (cubesat F5). Every ~10 s of wall clock the iteration count and
+            # the current relative residual go to stderr; the final count is
+            # kept for the receipt's notes.
+            _hb = {"iters": 0, "last": time.monotonic(), "start": time.monotonic()}
+            _bnorm = float(np.linalg.norm(Ff)) or 1.0
+
+            def _cg_heartbeat(xk):
+                _hb["iters"] += 1
+                now = time.monotonic()
+                if now - _hb["last"] >= 10.0:
+                    _hb["last"] = now
+                    _r = float(np.linalg.norm(Kff @ xk - Ff)) / _bnorm
+                    print(f"cg: iter {_hb['iters']}  rel_residual {_r:.3e}  "
+                          f"({now - _hb['start']:.0f} s elapsed, rtol 1e-8, maxiter 20000)",
+                          file=sys.stderr, flush=True)
+
             uf, _info = spla.cg(Kff, Ff, M=_M, rtol=1e-8, atol=0.0,
-                                maxiter=20_000)
+                                maxiter=20_000, callback=_cg_heartbeat)
+            notes.append(f"Jacobi-CG: {_hb['iters']} iterations, "
+                         f"{time.monotonic() - _hb['start']:.1f} s")
             if _info != 0:
                 # High-contrast SIMP elasticity defeats one-level
                 # preconditioners (Jacobi stalled at 20k iters, ILU at 5k on a

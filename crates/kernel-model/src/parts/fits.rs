@@ -28,6 +28,13 @@ struct Iso286Row {
 	to: f64,
 	/// Standard tolerance grades IT6 / IT7 / IT8.
 	it: [f64; 3],
+	/// Standard tolerance grades IT9 / IT11 (the loose running / free fits).
+	it_loose: [f64; 2],
+	/// Upper deviation `es` of shaft c (loose running; the 30–50 and 50–80
+	/// steps are split at 40 and 65 in the standard — see `c_es_split`).
+	c_es: f64,
+	/// Upper deviation `es` of shaft d (free running).
+	d_es: f64,
 	/// Upper deviation `es` of shaft g (clearance side, negative).
 	g_es: f64,
 	/// Upper deviation `es` of shaft f.
@@ -49,41 +56,68 @@ struct Iso286Row {
 /// Fits").
 #[rustfmt::skip]
 const ISO286: [Iso286Row; 10] = [
-	Iso286Row { to: 3.0,   it: [6.0, 10.0, 14.0],  g_es: -2.0,  f_es: -6.0,  k_ei: 0.0, n_ei: 4.0,  p_ei: 6.0,  s_ei: 14.0 },
-	Iso286Row { to: 6.0,   it: [8.0, 12.0, 18.0],  g_es: -4.0,  f_es: -10.0, k_ei: 1.0, n_ei: 8.0,  p_ei: 12.0, s_ei: 19.0 },
-	Iso286Row { to: 10.0,  it: [9.0, 15.0, 22.0],  g_es: -5.0,  f_es: -13.0, k_ei: 1.0, n_ei: 10.0, p_ei: 15.0, s_ei: 23.0 },
-	Iso286Row { to: 18.0,  it: [11.0, 18.0, 27.0], g_es: -6.0,  f_es: -16.0, k_ei: 1.0, n_ei: 12.0, p_ei: 18.0, s_ei: 28.0 },
-	Iso286Row { to: 30.0,  it: [13.0, 21.0, 33.0], g_es: -7.0,  f_es: -20.0, k_ei: 2.0, n_ei: 15.0, p_ei: 22.0, s_ei: 35.0 },
-	Iso286Row { to: 50.0,  it: [16.0, 25.0, 39.0], g_es: -9.0,  f_es: -25.0, k_ei: 2.0, n_ei: 17.0, p_ei: 26.0, s_ei: 43.0 },
-	Iso286Row { to: 65.0,  it: [19.0, 30.0, 46.0], g_es: -10.0, f_es: -30.0, k_ei: 2.0, n_ei: 20.0, p_ei: 32.0, s_ei: 53.0 },
-	Iso286Row { to: 80.0,  it: [19.0, 30.0, 46.0], g_es: -10.0, f_es: -30.0, k_ei: 2.0, n_ei: 20.0, p_ei: 32.0, s_ei: 59.0 },
-	Iso286Row { to: 100.0, it: [22.0, 35.0, 54.0], g_es: -12.0, f_es: -36.0, k_ei: 3.0, n_ei: 23.0, p_ei: 37.0, s_ei: 71.0 },
-	Iso286Row { to: 120.0, it: [22.0, 35.0, 54.0], g_es: -12.0, f_es: -36.0, k_ei: 3.0, n_ei: 23.0, p_ei: 37.0, s_ei: 79.0 },
+	Iso286Row { to: 3.0,   it: [6.0, 10.0, 14.0],  it_loose: [25.0, 60.0],  c_es: -60.0,  d_es: -20.0,  g_es: -2.0,  f_es: -6.0,  k_ei: 0.0, n_ei: 4.0,  p_ei: 6.0,  s_ei: 14.0 },
+	Iso286Row { to: 6.0,   it: [8.0, 12.0, 18.0],  it_loose: [30.0, 75.0],  c_es: -70.0,  d_es: -30.0,  g_es: -4.0,  f_es: -10.0, k_ei: 1.0, n_ei: 8.0,  p_ei: 12.0, s_ei: 19.0 },
+	Iso286Row { to: 10.0,  it: [9.0, 15.0, 22.0],  it_loose: [36.0, 90.0],  c_es: -80.0,  d_es: -40.0,  g_es: -5.0,  f_es: -13.0, k_ei: 1.0, n_ei: 10.0, p_ei: 15.0, s_ei: 23.0 },
+	Iso286Row { to: 18.0,  it: [11.0, 18.0, 27.0], it_loose: [43.0, 110.0], c_es: -95.0,  d_es: -50.0,  g_es: -6.0,  f_es: -16.0, k_ei: 1.0, n_ei: 12.0, p_ei: 18.0, s_ei: 28.0 },
+	Iso286Row { to: 30.0,  it: [13.0, 21.0, 33.0], it_loose: [52.0, 130.0], c_es: -110.0, d_es: -65.0,  g_es: -7.0,  f_es: -20.0, k_ei: 2.0, n_ei: 15.0, p_ei: 22.0, s_ei: 35.0 },
+	Iso286Row { to: 50.0,  it: [16.0, 25.0, 39.0], it_loose: [62.0, 160.0], c_es: -120.0, d_es: -80.0,  g_es: -9.0,  f_es: -25.0, k_ei: 2.0, n_ei: 17.0, p_ei: 26.0, s_ei: 43.0 },
+	Iso286Row { to: 65.0,  it: [19.0, 30.0, 46.0], it_loose: [74.0, 190.0], c_es: -140.0, d_es: -100.0, g_es: -10.0, f_es: -30.0, k_ei: 2.0, n_ei: 20.0, p_ei: 32.0, s_ei: 53.0 },
+	Iso286Row { to: 80.0,  it: [19.0, 30.0, 46.0], it_loose: [74.0, 190.0], c_es: -150.0, d_es: -100.0, g_es: -10.0, f_es: -30.0, k_ei: 2.0, n_ei: 20.0, p_ei: 32.0, s_ei: 59.0 },
+	Iso286Row { to: 100.0, it: [22.0, 35.0, 54.0], it_loose: [87.0, 220.0], c_es: -170.0, d_es: -120.0, g_es: -12.0, f_es: -36.0, k_ei: 3.0, n_ei: 23.0, p_ei: 37.0, s_ei: 71.0 },
+	Iso286Row { to: 120.0, it: [22.0, 35.0, 54.0], it_loose: [87.0, 220.0], c_es: -180.0, d_es: -120.0, g_es: -12.0, f_es: -36.0, k_ei: 3.0, n_ei: 23.0, p_ei: 37.0, s_ei: 79.0 },
 ];
 
-/// Resolve a nominal diameter `d` (0 < d ≤ 120 mm) and one of the ISO 286 hole-basis
-/// **preferred fits** — `"H7/g6"` (sliding), `"H7/h6"` (locational clearance),
-/// `"H7/k6"` (transition), `"H7/n6"` (transition/light press), `"H7/p6"` (press),
-/// `"H7/s6"` (medium drive), `"H8/f7"` (close running) — into numeric [`FitLimits`].
-/// Case-insensitive. `None` for any other fit string (the looser preferred fits
-/// H9/d9, H11/c11 and the heavy H7/u6 are outside this table) or a diameter outside
-/// `(0, 120]`.
+/// The c-shaft upper deviation splits the 30–50 step at 40 mm (−120 / −130):
+/// the row above carries the 30–40 value; over 40 up to 50 it is −130 µm.
+fn c_es_split(d: f64, row_c_es: f64) -> f64 {
+	if d > 40.0 && d <= 50.0 {
+		-130.0
+	} else {
+		row_c_es
+	}
+}
+
+/// Resolve a nominal diameter `d` (0 < d ≤ 120 mm) and one of the ISO 286
+/// **preferred fits** into numeric [`FitLimits`]. Hole-basis: `"H11/c11"` (loose
+/// running), `"H9/d9"` (free running), `"H8/f7"` (close running), `"H7/g6"`
+/// (sliding), `"H7/h6"` (locational clearance), `"H7/k6"` (transition), `"H7/n6"`
+/// (transition/light press), `"H7/p6"` (press), `"H7/s6"` (medium drive).
+/// Shaft-basis clearance fits: `"C11/h11"`, `"D9/h9"`, `"F8/h7"`, `"G7/h6"` (the
+/// mirror-letter rule, exact for a–h). Case-insensitive. `None` for any other
+/// fit string (the heavy H7/u6 and the K/N/P/S-hole shaft-basis fits, which need
+/// the Δ correction, are outside this table — stated, not guessed) or a diameter
+/// outside `(0, 120]`.
 pub fn iso286_fit(d: f64, fit: &str) -> Option<FitLimits> {
 	if !(d > 0.0 && d <= 120.0) {
 		return None; // NaN-safe: the conjunction refuses NaN diameters too
 	}
 	let r = ISO286.iter().find(|row| d <= row.to)?;
 	let [it6, it7, it8] = r.it;
-	// Holes: H = zero fundamental deviation, band (0, +IT). Shafts: g/f hang their
-	// IT band below the upper deviation es; k/n/p/s stand it above the lower ei.
+	let [it9, it11] = r.it_loose;
+	let c_es = c_es_split(d, r.c_es);
+	// Holes: H = zero fundamental deviation, band (0, +IT). Shafts: c/d/g/f hang
+	// their IT band below the upper deviation es; k/n/p/s stand it above the
+	// lower ei. Shaft-basis: h = (−IT, 0); a hole letter C/D/F/G is the mirror of
+	// its shaft letter (EI = −es, band above), exact for the clearance letters
+	// a–h (ISO 286-1 §4.3 — the Δ correction applies only to K…ZC holes, which
+	// this table does not carry).
 	let (hole_um, shaft_um) = match fit.to_ascii_lowercase().as_str() {
+		// hole-basis preferred fits
+		"h11/c11" => ((0.0, it11), (c_es - it11, c_es)),
+		"h9/d9" => ((0.0, it9), (r.d_es - it9, r.d_es)),
+		"h8/f7" => ((0.0, it8), (r.f_es - it7, r.f_es)),
 		"h7/g6" => ((0.0, it7), (r.g_es - it6, r.g_es)),
 		"h7/h6" => ((0.0, it7), (-it6, 0.0)),
 		"h7/k6" => ((0.0, it7), (r.k_ei, r.k_ei + it6)),
 		"h7/n6" => ((0.0, it7), (r.n_ei, r.n_ei + it6)),
 		"h7/p6" => ((0.0, it7), (r.p_ei, r.p_ei + it6)),
 		"h7/s6" => ((0.0, it7), (r.s_ei, r.s_ei + it6)),
-		"h8/f7" => ((0.0, it8), (r.f_es - it7, r.f_es)),
+		// shaft-basis preferred clearance fits (mirror letters)
+		"c11/h11" => ((-c_es, -c_es + it11), (-it11, 0.0)),
+		"d9/h9" => ((-r.d_es, -r.d_es + it9), (-it9, 0.0)),
+		"f8/h7" => ((-r.f_es, -r.f_es + it8), (-it7, 0.0)),
+		"g7/h6" => ((-r.g_es, -r.g_es + it7), (-it6, 0.0)),
 		_ => return None,
 	};
 	let mm = |um: (f64, f64)| (um.0 * 1e-3, um.1 * 1e-3);
@@ -159,7 +193,9 @@ mod tests {
 		let mut violations: Vec<String> = Vec::new();
 		for row in &ISO286 {
 			let d = row.to; // probe at each range's upper bound
-			for fit in ["H7/g6", "H7/h6", "H7/k6", "H7/n6", "H7/p6", "H7/s6", "H8/f7"] {
+			for fit in
+				["H7/g6", "H7/h6", "H7/k6", "H7/n6", "H7/p6", "H7/s6", "H8/f7", "H9/d9", "H11/c11", "C11/h11", "D9/h9", "F8/h7", "G7/h6"]
+			{
 				let f = iso286_fit(d, fit).expect("in range");
 				let ordered = f.hole.0 <= f.hole.1 && f.shaft.0 <= f.shaft.1 && f.clearance.0 <= f.clearance.1 && f.hole.0 == 0.0;
 				let character = match fit {

@@ -186,6 +186,22 @@ pub fn intersection(a: &Solid, b: &Solid) -> Solid {
 // --- Driver ------------------------------------------------------------------
 
 fn boolean(a: &Solid, b: &Solid, op: Op) -> Solid {
+	// Operands whose bounding boxes are separated by more than the coincidence
+	// band cannot share a face or cross: the arrangement would co-refine every
+	// triangle pair to find nothing. `union_all` over N mutually-disjoint
+	// cutters folds N such unions — 13 cutters took 54 s through the full
+	// pipeline and 0.2 s as a chain of differences (jar_top_seed_singulator F4).
+	// A disjoint union is the two shells side by side; a disjoint difference
+	// is A; a disjoint intersection is empty. Faces are re-tagged exactly as
+	// the arrangement would tag untouched faces, so provenance and seam
+	// curves are unchanged for callers.
+	if aabbs_disjoint(a, b) {
+		return match op {
+			Op::Union => rebuild_operands(&[(a, FaceSource::OperandA), (b, FaceSource::OperandB)]),
+			Op::Difference => rebuild_operands(&[(a, FaceSource::OperandA)]),
+			Op::Intersection => Solid::default(),
+		};
+	}
 	// Worker budget for the pure-map stages, read ONCE per invocation (see the
 	// parallelism section above; `LMCAD_BREP_THREADS=1` is the exact legacy
 	// sequential schedule — same code, trivial iteration).
@@ -234,7 +250,97 @@ fn boolean(a: &Solid, b: &Solid, op: Op) -> Solid {
 	translate_tris(&mut kept, center);
 	let mut solid = stitch(&kept);
 	attach_seam_curves(&mut solid);
-	solid
+	coalesce_result(solid)
+}
+
+/// Merge the stitched result's coplanar face fragments into maximal
+/// multi-loop planar faces ([`crate::coalesce::coalesce_coplanar`]), keeping
+/// the un-merged solid whenever the merge would not validate to the same
+/// topology and exact volume.
+///
+/// Why here and not opt-in: the stitch recovers only SIMPLY-connected coplanar
+/// regions, so an annular cap (the plainest tube difference) comes back as
+/// several sector pieces separated by chord seams. Those seams can pass within
+/// a facet sagitta of the inner ring — measured 0.07 mm on a Ø110/Ø70 tube at
+/// 32 segments — and the adaptive tessellation's on-surface refinement of the
+/// ring then crosses the seam, folding the export mesh (16 non-orientable
+/// edges; `export_stl` demoted a plain annulus to the voxel heal). One face
+/// with an inner loop has no seam to cross, exports as one STEP face, and
+/// carries no T-junction vertices onto the neighbouring wall facets.
+fn coalesce_result(solid: Solid) -> Solid {
+	let merged = crate::coalesce::coalesce_coplanar(&solid);
+	if merged.face_count() == solid.face_count() {
+		return solid;
+	}
+	let (v0, v1) = (crate::validate::validate(&solid), crate::validate::validate(&merged));
+	if !(v1.is_valid() && v1.shells == v0.shells && v1.genus == v0.genus) {
+		return solid;
+	}
+	let (vol0, vol1) = (crate::validate::exact_volume(&solid), crate::validate::exact_volume(&merged));
+	if (vol1 - vol0).abs() > 1e-9 * vol0.abs().max(1.0) {
+		return solid;
+	}
+	merged
+}
+
+/// Whether the two solids' bounding boxes are separated by a clear gap on
+/// some axis — well above the arrangement's coincidence band, so no face of
+/// one can touch, cross or coincide with a face of the other.
+fn aabbs_disjoint(a: &Solid, b: &Solid) -> bool {
+	const GAP: f64 = 1e-6;
+	if a.face_count() == 0 || b.face_count() == 0 {
+		return false;
+	}
+	let (alo, ahi) = a.aabb();
+	let (blo, bhi) = b.aabb();
+	if !(alo.is_finite() && ahi.is_finite() && blo.is_finite() && bhi.is_finite()) {
+		return false;
+	}
+	(0..3).any(|k| ahi[k] + GAP < blo[k] || bhi[k] + GAP < alo[k])
+}
+
+/// Re-emit the given operands' faces verbatim into ONE solid, every face
+/// tagged the way the arrangement tags an untouched face (an existing boolean
+/// name is carried, a primitive's face is re-tagged by its operand), with the
+/// analytic seam curves re-attached. Used by the disjoint fast path only.
+fn rebuild_operands(operands: &[(&Solid, FaceSource)]) -> Solid {
+	use crate::topo::{FaceLoops, VertexId};
+	let mut positions: Vec<DVec3> = Vec::new();
+	let mut faces: Vec<FaceLoops> = Vec::new();
+	let mut names: Vec<Option<FaceName>> = Vec::new();
+	let mut curves: Vec<(u32, u32, Curve)> = Vec::new();
+	for &(s, operand) in operands {
+		let base = positions.len() as u32;
+		positions.extend((0..s.vertex_count() as u32).map(|i| s.position(VertexId(i))));
+		for f in s.faces() {
+			let face = s.face(f);
+			let loops: Vec<Vec<u32>> = std::iter::once(face.outer)
+				.chain(face.inner.iter().copied())
+				.map(|lp| s.loop_half_edges(lp).iter().map(|&he| s.half_edge(he).origin.0 + base).collect())
+				.collect();
+			faces.push(FaceLoops { loops, surface: face.surface });
+			names.push(Some(match s.face_name(f) {
+				Some(name) if name.operand != FaceSource::Primitive => name,
+				_ => FaceName { operand, source_face: f.0 },
+			}));
+		}
+		for e in s.edges() {
+			if let Some(c) = s.edge_curve(e) {
+				let he = s.half_edge(s.edge(e).half_edge);
+				curves.push((he.origin.0 + base, s.half_edge(he.next).origin.0 + base, c));
+			}
+		}
+	}
+	let mut out = Solid::from_faces_multiloop(positions, faces);
+	if let Some(names) = names.into_iter().collect::<Option<Vec<FaceName>>>() {
+		if names.len() == out.face_count() {
+			out.set_provenance(names);
+		}
+	}
+	for (x, y, c) in curves {
+		out.set_edge_curve(VertexId(x), VertexId(y), c);
+	}
+	out
 }
 
 /// Tag each edge that bounds a planar face and a curved face with the exact analytic

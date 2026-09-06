@@ -28,7 +28,7 @@ pub const SPLIT_GROOVE_DEPTH: f64 = 0.4;
 
 /// A **deep-groove ball bearing body** (e.g. `"608"`): the d × D × B annulus of the
 /// kernel's cited boundary-dimension table ([`kernel_brep::holes::bearing_specs`] —
-/// 603, 608, 625, 688, 6000, 6001, 6804), bore along +Z from z = 0, with the
+/// 603, 608, 623, 625, 688, 6000, 6001, 6804), bore along +Z from z = 0, with the
 /// ring-split witness groove on each face at the mid-wall radius. One revolved
 /// profile: closed, manifold, genus 1, watertight on both tessellation routes.
 /// Drop it into a [`kernel_brep::holes::bearing_seat`] pocket of the same

@@ -56,6 +56,10 @@ pub enum MeshRoute {
 	/// The voxel heal: tessellation → winding-number SDF → Manifold Dual
 	/// Contouring. Watertight by construction, accurate to the heal voxel size.
 	Healed,
+	/// A mesh-sourced instance's OWN triangles, rigidly posed and otherwise
+	/// untouched — no re-extraction at all. Its watertightness is the source
+	/// file's.
+	Verbatim,
 }
 
 /// The routing verdict of [`routed_mesh`] / [`Document::export_mesh`] — *which*

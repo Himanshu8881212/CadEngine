@@ -213,7 +213,7 @@ Suggestion: optional `"expect"` block per measure op (e.g. `{"op": "validate",
 ## 6. [MAJOR] Catalog spur gears export STL via `voxel_healed` (exact tessellation leaks)
 - severity: major
 - surface: kernel tessellation
-- status: partial — gears measured route: exact post-w6; residual voxel_healed on housing_base is #19, DEFERRED to the triangulator owner
+- status: fixed — gears exact post-w6; the housing_base residual (#19) is closed 2026-09-05 by the CDT planar tessellator + coalesced boolean caps (see #19)
 
 > **STATUS: RESOLVED for gears (measured 2026-06-11 on post-w6 main).** The
 > z=60 wheel now exports `route: exact` at 5 534 triangles; in the full
@@ -277,7 +277,7 @@ op form `{"op": "shaft", "d": 8, "length": 73, "keyway": {...}}`.
 ## 8. [MAJOR] `bearing_seat` and `bolt_circle` exist in the kernel but on no public surface
 - severity: major
 - surface: bearing_seat
-- status: partial — RESOLVED-w6 for the ops; the rolling-bearing catalog part is still open
+- status: fixed — RESOLVED-w6 for the ops; the rolling-bearing catalog PART landed as `deep_groove_bearing` / `flanged_bearing` / `thrust_bearing` (the seat table's designations, now incl. 623 — 2026-09-05)
 
 > **STATUS: RESOLVED-w6 (ops).** `bearing_seat {in, at, axis, bearing,
 > segments?}` (603/608/625/688/6000/6001/6804; echoes pocket Ø/depth and
@@ -322,7 +322,7 @@ Suggestion: echo the spec as measures, like `iso286_fit` already does:
 ## 10. [MINOR] No face-seal O-ring gland; AS568-only and the table is too small for housings
 - severity: minor
 - surface: o_ring_groove
-- status: open
+- status: fixed — `metric_cord_gland {cord_d}` (metric-cord face-seal gland depth/width/squeeze/fill) and `racetrack_cord_length {x_len, y_len, corner_r}` are JSON ops (verified via `describe`, 2026-09-05); the racetrack groove itself is still authored as two rounded-rect prisms differenced, now table-driven instead of hand-copied
 
 > **STATUS: DEFERRED (w6).** Needs a new gland feature + metric-cord table in
 > `kernel_model::parts` (`parts/**` is owned by the catalog agent, not the w6
@@ -339,7 +339,7 @@ Evidence: `crates/kernel-model/tests/fixtures/pre_w6_parts/housing_lid.lmcpart` 
 ## 11. [MINOR] Heat-set inserts: boss-only, no pocket-only variant
 - severity: minor
 - surface: heatset_spec
-- status: partial — heatset_spec table query landed; the pocket-only feature variant is DEFERRED
+- status: fixed — `heatset_spec {m}` gives pilot_d / pocket_depth, and `drill {d: pilot_d, depth: pocket_depth, flat: true}` (2026-09-05) cuts the flush pocket with no drill point — the pocket-only variant, table-driven
 
 > **STATUS: PARTIALLY RESOLVED-w6 / rest DEFERRED.** The Ruthex table is now
 > queryable: `heatset_spec {m}` returns `pilot_d`, `insert_length`,
@@ -357,7 +357,7 @@ flange pockets are plain `drill` features with the pilot Ø hardcoded from readi
 ## 12. [MINOR] `iso286_fit` covers 7 hole-basis fits only
 - severity: minor
 - surface: iso286_fit
-- status: open
+- status: partial — 2026-09-05: the loose hole-basis fits H11/c11 and H9/d9 and the shaft-basis clearance fits C11/h11, D9/h9, F8/h7, G7/h6 are tabulated (13 fits); the bearing-class fits (k5/j5 shafts, N7/P7 housings) still are NOT — they need the K…ZC hole Δ-correction rows, refused rather than guessed
 
 > **STATUS: DEFERRED (w6).** Shaft-basis and bearing-class fits are new rows in
 > `kernel_model::parts::fits` (`parts/**` is owned by the catalog agent, not
@@ -405,7 +405,7 @@ format.rs docs).
 ## 15. [MINOR] Catalog gear bores/keyways carry no analytic surface tags
 - severity: minor
 - surface: spur_gear
-- status: open
+- status: fixed — verified 2026-09-05: `spur_gear {bore: 8}` lists `cylinder` faces (`list_faces`) and `exact_volume` 1422.31 ≠ faceted 1424.03, i.e. the bore is analytic
 
 > **STATUS: DEFERRED (w6).** Fix belongs in the gear builders
 > (`kernel_model::parts::gears` — tag the bore polygon's facets with their
@@ -473,7 +473,7 @@ the 2156 mm² is real: the M3 boss walls are 2.0 < my 2.4 flag, by table design)
 ## 19. [MAJOR, found w6] housing_base exact tessellation regressed to leaky post-Wave-5
 - severity: major
 - surface: kernel tessellation
-- status: open
+- status: fixed — 2026-09-05: `housing_base.lmcpart` exports `exact` (34 612 triangles, watertight) on the constrained-Delaunay planar tessellator + coalesced boolean caps + 1e-12 boolean-entry snap; the 1e-9 snap that was tried first broke this document and was rejected on it
 
 > **STATUS: OPEN (kernel tessellation — outside the w6 friction-pass ownership;
 > needs the triangulator owner).** Found while replacing `asmcheck` with the
@@ -574,7 +574,7 @@ Five findings from wrapping the kernel in a server, one positive:
 ## #23 — notch-sliver boolean overlap mis-stitches (checked ops refuse) — 2026-07-02
 - severity: minor
 - surface: kernel booleans
-- status: open
+- status: fixed — 2026-09-05: the arrangement resolves the notch-sliver overlap; `kernel-brep/tests/recovery_needle_weld.rs::notch_sliver_overlap_resolves_to_the_closed_form` now pins the checked difference/intersection as VALID with the closed-form 27 mm³ overlap (2 × 0.4 × 1.35 × 25) and key − overlap = difference
 
 Isolated repro (`kernel-brep/tests/recovery_needle_weld.rs::notch_sliver_overlap_refuses_honestly`):
 a dovetail-notched plate overlapping a bowtie key as two disjoint 0.4-wide
@@ -719,7 +719,7 @@ promote under the rule-of-two.
 ## #25 — `overlap_volume` refuses at ONE offset while its neighbours resolve — 2026-07-31
 - severity: minor
 - surface: overlap_volume
-- status: open
+- status: open — not reproducible on 2026-09-05 (the drill-hook source left the tree 2026-09-03); the arrangement's boolean-entry snap rounding and CDT triangulation landed that day and should be re-tried against the recovered source before this is chased further
 
 **Severity: minor (characterised, worked around honestly).**
 
@@ -788,7 +788,7 @@ skipped.
 ## #27 — `sweep_check` cannot see a STEADY interference that never produces a near pose — 2026-07-31
 - severity: minor
 - surface: tools/analyzers/sweep_check.py
-- status: open
+- status: fixed — `sweep_check` now carries `sweep_semantics` and per-watch `all_stations_interfering`, and REFUSES (`refusal.no_free_station`) a run in which no watch ever saw a clear station, so the blind spot is named in the receipt instead of read as a proof (tools/analyzers/sweep_check.py docstring)
 
 **Severity: minor (documented limitation, concrete repro).**
 
@@ -930,3 +930,28 @@ folding_book_stand  hinge_coupon g_gap   null ->   0.0        interfering false,
 folding_book_stand  stand g_gap_pl       null ->   0.0        interfering false, unchanged
 l12_mini_case       cage_on_tray clr     null ->   0.0        interfering false, unchanged
 ```
+
+## #29 — a pocket whose FLOOR is coplanar with an earlier hole's end cap fails the difference — 2026-09-05
+- severity: major
+- surface: kernel booleans
+- status: open
+- symptom: `automotive_system/rotor_runout_gauge_bridge/programs/carriage_program.json`
+  op `c_m5n_r` — a hexagonal M5 nut pocket (`extrude` z 0..6, translated to z 21)
+  differenced from a carriage that already carries the M5 through-hole cylinder
+  (`m5h_r`: base z 10.7, height 10.3 → top cap at z 21.0) — fails
+  `difference failed validate(): closed=false manifold=false genus=3 shells=…`.
+  The pocket floor and the hole's top cap are the same plane, and the hole's
+  circle lies inside the hexagon. Verified 2026-09-05 on BOTH this build and the
+  pre-fix-round build (which failed two ops earlier, at `carr_m4nut`; the snap
+  rounding moved the failure later, not away). The campaign's shipped receipts
+  predate both. The 1e-9 boolean-entry snap that was tried first resolved this
+  program but broke `housing_base.lmcpart`, so it was not kept.
+- minimal repro: the program above (`kernel-api run … carriage_program.json`), or
+  a box with a Ø5.5 blind cylinder ending at z = 21 and a hexagonal prism pocket
+  starting at z = 21 that contains the circle.
+- expected vs actual: a coplanar cap fully inside a coplanar floor is the
+  "exact coincidence" path the snap was meant to guarantee; it still mis-stitches
+  when the coincident cap is CURVED-bounded (a circle inside a polygon on one plane).
+- workaround: overshoot the hole by a hair (end the cylinder at z 21.05, or start
+  the pocket at 20.95 — the project-wide pierce idiom), which the campaign should
+  adopt when it re-baselines.

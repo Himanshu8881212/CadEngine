@@ -101,8 +101,9 @@ The ACE physics runners do NOT self-persist their receipt (their field `.npy` fi
 **Refusals are first-class answers.** These tools refuse loudly instead of guessing: modal with no
 fixtures and no `free_free:true`; buckling with zero/no-compressive load; fatigue for any material
 whose printed S-N status is not `measured` (currently only **PLA** is `measured`) and for
-`load_orientation:"across_layer"` (always); thermal for a material with null conductivity; the tet
-FEA for cylinder/sphere selectors. Treat `{ok:false}` + a reasoned error as evidence, not a crash.
+`load_orientation:"across_layer"` (always); thermal for a material with null conductivity. (The tet
+FEA takes `cylinder` selectors since 2026-09-05; `sphere`/`shell` still refuse.) Treat `{ok:false}` +
+a reasoned error as evidence, not a crash.
 
 ## Materials — one source of truth
 
@@ -120,7 +121,10 @@ ASA/PA/PC/TPU95A=unknown → refused).
 `region_selector` types: `all` | `bbox` | `plane` | `cylinder` | `sphere` (`shell` deliberately
 raises NotImplementedError — unverifiable). **Plane side is `"+"` or `"-"`, NOT "above"/"below"**
 (VERIFIED refusal: `plane selector side must be '+'|'-', got 'above'`). Geometry keys in mm.
-The tet runner supports only `all` | `plane` (`{axis,value_mm,side}`) | `box` (`{min_mm,max_mm}`).
+Key shapes: `plane {axis, value_mm, side}` · `bbox {min_mm, max_mm}` · **`cylinder {axis: "x"|"y"|"z",
+center_mm: [x,y,z] (a 3-VECTOR — a point on the axis), radius_mm, length_mm?}`** (`length_mm` makes a
+finite extent centred on `center_mm`; omitted = infinite — prosthetic F5) · `sphere {center_mm, radius_mm}`.
+The tet runner supports `all` | `plane` | `box` (`{min_mm,max_mm}`) | `cylinder` (same keys; 2026-09-05).
 Any load selector catching >30% of active elements gets a "suspiciously broad" note in the receipt
 (the smeared-load mistake behind an earlier 3x-wrong benchmark). A selector catching 0 nodes errors.
 
@@ -344,6 +348,12 @@ bound clipping + constraint penalties; feasibility-first selection.
  "max_evals":12}
 ```
 VERIFIED → `{ok:true, best_params:{w:21.0}, best_objective:1260.0, constraint_ok:true, evals:12, ...}`.
+
+> **Quantization is reported, not hidden (rotor F8).** A coarse in-loop voxel, a mesh seed or a rounded
+> input makes the objective a STAIRCASE in a parameter: the optimizer then "converges" to a plateau edge
+> that is the grid's, not the design's. The receipt carries a `quantization` block per parameter (dead
+> steps observed, the plateau width) whenever the history shows one; treat a flagged parameter's optimum
+> as ± one plateau and re-run at a finer voxel before quoting it.
 
 Objectives/constraints are dotted expressions over op measures (`mp.volume`,
 `mp.inertia_diag[2]`). v2 additions (all optional): `evaluator {kind:"command", argv:[...,"$JOB"],

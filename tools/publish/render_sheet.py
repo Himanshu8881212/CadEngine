@@ -83,6 +83,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/: the shared contracts + the layout map
 import _layout  # noqa: E402
 _layout.add_import_paths()  # tools/, tools/analyzers, tools/publish — sibling-style imports keep working after the 2026-09-02 move
+import _receipt  # noqa: E402 — the shared `--out` / `receipt` / dry-run contract
 from _stl import load_stl  # noqa: E402 — the shared binary-STL loader
 
 matplotlib.use("Agg")
@@ -831,24 +832,15 @@ def render(job, job_dir=None):
 	return receipt
 
 
+def _build(job, job_dir):
+	if "out" not in job or ("stl" not in job and "stls" not in job):
+		raise ValueError("job needs 'out' and either 'stl' or 'stls'")
+	return render(job, job_dir=job_dir)
+
+
 def main():
-	if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
-		print(__doc__)
-		return 0
-	if len(sys.argv) != 2:
-		print(json.dumps({"ok": False, "error": "usage: render_sheet.py job.json"}))
-		return 1
-	try:
-		with open(sys.argv[1]) as f:
-			job = json.load(f)
-		if "out" not in job or ("stl" not in job and "stls" not in job):
-			raise ValueError("job needs 'out' and either 'stl' or 'stls'")
-		receipt = render(job, job_dir=os.path.dirname(os.path.abspath(sys.argv[1])))
-	except Exception as e:  # noqa: BLE001 — the receipt IS the error channel
-		print(json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"}))
-		return 1
-	print(json.dumps(receipt))
-	return 0
+	# `<job.json> [--out PATH]` — the shared runner shape (ratcheting F8).
+	return _receipt.doc_cli("render_sheet", _build, help_text=__doc__)
 
 
 if __name__ == "__main__":

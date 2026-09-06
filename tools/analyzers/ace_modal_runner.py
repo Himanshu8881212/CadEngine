@@ -67,6 +67,14 @@ Job JSON (all geometry in mm, physics in SI):
 								 WITHOUT free_free:true is REFUSED, never
 								 silently fallen back.
 	n_modes            optional  number of lowest ELASTIC modes, default 6
+	eigensolver        optional  "auto" (default) | "shift_invert" | "lobpcg" —
+								 auto takes the sparse-LU shift-invert path up to
+								 `dof_budget` free DOF and the factorisation-free
+								 Jacobi-LOBPCG path above it
+	dof_budget         optional  default 300 000 — a shift_invert request above
+								 it is REFUSED with the cost estimate; the receipt
+								 carries `cost_estimate` either way (memory ~31 B·n^1.5,
+								 time ~133 s·(n/54 891)^2.5, fitted to campaign runs)
 
 Output contract: the LAST non-empty stdout line is ONE JSON object; all
 logging goes to stderr. Success => {ok:true, frequencies_hz (elastic,
@@ -197,7 +205,30 @@ def stl_to_npy(job: dict, out_dir: Path) -> None:
 	job["npy"] = vox_job["out"]
 
 
-def _eigensolve(A, k: int, free_free: bool, sigma_neg: float, notes: list) -> tuple:
+class ModalRefusal(ValueError):
+	"""A request the runner will not attempt as posed (DOF budget) — exit 2."""
+
+
+# Cost model of the shift-invert path (a sparse LU of K_ff), calibrated on two
+# measured campaign points: 54 891 free DOF → 133 s; 209 601 free DOF → 3.0 GB
+# RSS and > 90 min (never finished at load); 360 k DOF → > 10 GB (killed).
+# memory ≈ 31 B · n^1.5 (3-D nested-dissection fill), time ≈ 133 s · (n/54891)^2.5.
+def cost_model(n_free: int) -> dict:
+	mem_gb = 31e-9 * float(n_free) ** 1.5
+	secs = 133.0 * (float(n_free) / 54891.0) ** 2.5
+	return {
+		"n_free_dof": int(n_free),
+		"shift_invert_est_memory_gb": round(mem_gb, 2),
+		"shift_invert_est_seconds": round(secs, 1),
+		"basis": ("sparse-LU shift-invert: memory ~31 B·n^1.5, time ~133 s·(n/54 891)^2.5 — fitted to "
+		          "measured 54.9 k DOF (133 s) and 210 k DOF (3 GB, >90 min); order-of-magnitude "
+		          "planning numbers (rotor F12 / turgo F5)"),
+		"lobpcg": "factorisation-free (Jacobi-preconditioned block CG), memory ~ K itself; slower "
+		          "convergence for close modes — `eigensolver: \"lobpcg\"` or auto above dof_budget",
+	}
+
+
+def _eigensolve(A, k: int, free_free: bool, sigma_neg: float, notes: list, mode: str = "shift_invert") -> tuple:
 	"""Lowest-k eigenpairs of the SPD/PSD standard-form operator A.
 
 	Returns (eigvals ascending, eigvecs matching, path_string). Fixed path:
@@ -213,6 +244,21 @@ def _eigensolve(A, k: int, free_free: bool, sigma_neg: float, notes: list) -> tu
 	if n <= 400:
 		w, v = np.linalg.eigh(A.toarray())
 		return w[:k], v[:, :k], "dense_eigh"
+	if mode == "lobpcg":
+		# Factorisation-free path for the DOF range where shift-invert's sparse
+		# LU no longer fits (turgo F5: 360 k DOF needed > 10 GB). Jacobi
+		# preconditioner on the SPD standard form; a fixed-seed start block so
+		# the run is deterministic.
+		import scipy.sparse as sp
+		if free_free:
+			raise ModalRefusal("eigensolver 'lobpcg' supports fixed systems only (a free-free A is singular); "
+			                   "use shift_invert for free-free modes")
+		rng = np.random.default_rng(12345)
+		x0 = rng.standard_normal((n, k))
+		minv = sp.diags(1.0 / np.maximum(A.diagonal(), 1e-300))
+		w, v = spla.lobpcg(A, x0, M=minv, largest=False, tol=1e-8, maxiter=5000)
+		order = np.argsort(w)
+		return w[order], v[:, order], "lobpcg_jacobi"
 	sigma = -abs(sigma_neg) if free_free else 0.0
 	try:
 		w, v = spla.eigsh(A, k=k, sigma=sigma, which="LM")
@@ -342,7 +388,26 @@ def run_modal_job(job: dict) -> dict:
 	sigma_neg = (2.0 * math.pi * 1e-3 * f_long) ** 2
 
 	k_req = n_modes + n_expected_rigid + 4  # over-request to survive filtering
-	lam, y, eig_path = _eigensolve(A, min(k_req, n_free - 1), free_free, sigma_neg, notes)
+	# Cost model + solver choice BEFORE the factorisation (rotor F12: the frame
+	# every other analysis used was unaffordable for modal with no number to
+	# plan around). `eigensolver`: "auto" (default; shift-invert up to
+	# `dof_budget`, lobpcg above it), "shift_invert", or "lobpcg".
+	cost = cost_model(n_free)
+	dof_budget = int(job.get("dof_budget", 300_000))
+	mode = str(job.get("eigensolver", "auto")).lower()
+	if mode not in ("auto", "shift_invert", "lobpcg"):
+		raise ModalRefusal(f"eigensolver must be auto | shift_invert | lobpcg, got {mode!r}")
+	if mode == "auto":
+		mode = "lobpcg" if (n_free > dof_budget and not free_free) else "shift_invert"
+	if mode == "shift_invert" and n_free > dof_budget:
+		raise ModalRefusal(
+			f"{n_free:,} free DOF exceeds dof_budget {dof_budget:,} for the shift-invert eigensolver "
+			f"(est. {cost['shift_invert_est_memory_gb']} GB, ~{cost['shift_invert_est_seconds']:.0f} s): "
+			f"use a coarser voxel, eigensolver: \"lobpcg\", or raise dof_budget knowingly")
+	cost["path"] = mode
+	cost["dof_budget"] = dof_budget
+	log(f"eigensolve: {mode} at {n_free:,} free DOF (est. shift-invert {cost['shift_invert_est_memory_gb']} GB / {cost['shift_invert_est_seconds']:.0f} s)")
+	lam, y, eig_path = _eigensolve(A, min(k_req, n_free - 1), free_free, sigma_neg, notes, mode)
 	eig_s = time.monotonic() - t0
 
 	# back-transform: phi = M^-1/2 y  => phi^T M phi = y^T y = 1 (mass-normalised)
@@ -435,6 +500,7 @@ def run_modal_job(job: dict) -> dict:
 		"n_active_elements": int(n_active),
 		"n_dof": int(n_dof),
 		"n_free_dof": n_free,
+		"cost_estimate": cost,
 		"method": METHOD,
 		"fixtures": fixtures_receipt,
 		"selector_count_unit": "nodes",
@@ -490,4 +556,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-	run_cli("ace_modal", main, install_hint=PHYSICS_INSTALL_HINT)
+	run_cli("ace_modal", main, install_hint=PHYSICS_INSTALL_HINT, refusal_types=(ModalRefusal,))

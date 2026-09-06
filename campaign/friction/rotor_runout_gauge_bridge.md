@@ -3,7 +3,7 @@
 ## F1 — OPERATOR_BRIEF describe example omits required `id` field (2026-08-06)
 - severity: minor
 - surface: campaign/OPERATOR_BRIEF.md
-- status: open
+- status: fixed — `describe` needs no `id` (`describe_noid` repro); the brief says so
 - symptom: running the brief's §9 pointer-table form `{"op":"describe","name":"iso286_fit"}` fails:
   `"kind": "invalid_param", "message": "op #0: missing required string field 'id'"` (exit report ok:false)
 - minimal repro: `{"ops":[{"op":"describe","name":"iso286_fit"}]}` →
@@ -14,7 +14,7 @@
 ## F2 — `union_all` of two cylinders + a tangent waist box never returns (2026-08-07)
 - severity: major
 - surface: union_all
-- status: open
+- status: fixed — `union_all` of the tangent waist box returns (`union_tangent` repro) and the disjoint fast path keeps large unions fast
 - symptom: no error, no report — the process ran past 110 s and was killed twice. The op was an
   obround stud-slot cutter: `union_all` of two Ø15.5 cylinders (segments 64) and an `extrude` of
   the rectangular waist whose two long edges are EXACTLY tangent to both cylinders. Every earlier
@@ -34,7 +34,7 @@
 ## F3 — `import_step` resolves against the PROGRAM directory, not `--out-dir` (2026-08-07)
 - severity: major
 - surface: import_step
-- status: open
+- status: fixed — `import_step` resolves against the program directory first, then `--out-dir`
 - symptom: `export_step {"file":"rotor_runout_gauge_bridge.step"}` writes to `<out-dir>/`, then
   `import_step {"file":"rotor_runout_gauge_bridge.step"}` in the SAME program fails:
   `{"kind":"io","message":"op 'step_back': cannot read 'programs/rotor_runout_gauge_bridge.step':
@@ -52,7 +52,7 @@
 ## F4 — `validate.geometric_ok` flips false on the second of two mirror-image cuts (2026-08-07)
 - severity: major
 - surface: validate
-- status: open
+- status: fixed — `geometric_ok` is stable on mirror-image cuts (`rot_mirror` repro: three poses, all exact and ok)
 - symptom: `receipts/carriage_gate_report.json` op `g_validate` reports
   `{"closed":true,"manifold":true,"valid":true,"shells":1,"genus":4,"geometric_ok":false}`.
   Bisecting every boolean: `c_m5h_r` (M5 clearance cylinder at x = +13.5) → `geometric_ok true`;
@@ -73,7 +73,7 @@
 ## F5 — `assert_disjoint` / `clearance` report `distance: 0.0` for a pin threading a hole (2026-08-07)
 - severity: major
 - surface: clearance
-- status: open
+- status: fixed — a pin threading a hole reads its radial gap (`clr_pin_hole`)
 - symptom: an M14 stud (Ø14 cylinder) posed through the Ø15.5 bridge stud slot — a true 0.75 mm
   radial clearance — measures `{"distance":0.0,"interfering":false,"overlap_volume":0.0}`, and
   `assert_disjoint {min_clearance:0.05}` therefore FAILS with
@@ -97,7 +97,7 @@
 ## F6 — ace_fea `slider` fixture silently degrades to "no fixture" when its selector catches only inactive voxels (2026-08-07)
 - severity: major
 - surface: tools/analyzers/ace_fea_runner.py
-- status: open
+- status: fixed — a fixture whose selector catches no nodes is refused/flagged instead of silently dropped (`fea_slider_air` repro)
 - symptom: a `{"kind":"slider","dof_constrained":["uz"],"region_selector":{"type":"bbox",...,"max_mm":[43,40,0.3]}}`
   returned `{"kind":"slider","nodes_or_elements":0}` and the note
   `fixture[2] (slider): selector matched no active nodes.` The run still exited
@@ -121,7 +121,7 @@
 ## F7 — `assert` op reports `exact_volume_within` results under `measures.exact_volume`, not under the assert key (2026-08-07)
 - severity: minor
 - surface: campaign/digests/ops_core.md
-- status: open
+- status: fixed — `assert` publishes the measured value (`measures.exact_volume`) beside the check echo; ops_core §assert says so
 - symptom: reading a candidate's volume back out of a report with
   `op.get("exact_volume")` returned `None`, and the optimizer evaluator crashed
   with `TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'`.
@@ -139,7 +139,7 @@
 ## F8 — a coarse in-loop voxel silently QUANTIZES an optimizer parameter, and nothing in the receipt says so (2026-08-07)
 - severity: major
 - surface: campaign/digests/tools_cookbook.md
-- status: open
+- status: fixed — param_optimize reports a `quantization` block per parameter when the history shows a plateau; cookbook explains how to read it
 - symptom: driving `param_optimize.py` through a command evaluator that
   voxelizes the candidate geometry, two candidates that differ in a real
   dimension returned a BIT-IDENTICAL objective:
@@ -167,7 +167,7 @@
 ## F9 — ace_fea_tet is unaffordable at the mesh size this part needs, and refuses at the size that is affordable (2026-08-07)
 - severity: blocker
 - surface: tools/analyzers/ace_fea_tet_runner.py
-- status: open
+- status: fixed — ace_fea_tet publishes `cost_estimate` and refuses above `dof_budget` before meshing, with the estimate in the refusal
 - symptom: at `elem_size_mm 3.5` on a thin-walled clamp (2.2 mm flexure arms,
   0.6 mm slit, 0.30 mm land) the runner returns
   `{"ok": false, "error": "AssertionError: body-fitted mesh has a non-positive corner Jacobian (min -2.718e-03 mm^3) — inverted/degenerate element; ref-mesh"}`.
@@ -195,7 +195,7 @@
 ## F10 — the mandatory `components:1` gate does NOT survive `import_step` (2026-08-07)
 - severity: major
 - surface: mesh_components
-- status: open
+- status: fixed — `components:1` survives `import_step` (weld before counting)
 - symptom: the carriage asserts `components 1` on the natively-built body
   (`receipts/carriage_gate_report.json` op `g_components_measure`:
   `{"components": 1, "is_one_body": true, "triangles": 8260, "tol": 0.05,
@@ -235,7 +235,7 @@
 ## F11 — tools/sweep_check.py cannot sweep any assembly whose bodies come from `import_step` (2026-08-08)
 - severity: major
 - surface: tools/analyzers/param_optimize.py
-- status: open
+- status: fixed — template-materialising tools (sweep_check, param_optimize) resolve `import_step` paths against the template's directory
 - symptom: `sweep_check.py` substitutes `"$t"` into a template and runs it through
   `param_optimize.call_engine`, which writes the program to a **tempfile**
   (`tools/param_optimize.py` ~line 83: `tempfile.NamedTemporaryFile(suffix=".json")`).
@@ -263,7 +263,7 @@
 ## F12 — `ace_modal` at the frame every other analysis uses is unaffordable, with no cost model to plan around (2026-08-08)
 - severity: major
 - surface: tools/analyzers/ace_modal_runner.py
-- status: open
+- status: fixed — ace_modal has a shift-invert / LOBPCG path with a `cost_model` and `dof_budget`; the 360 k-dof frame is either solved lean or refused with its estimate
 - symptom: `programs/jobs/modal_L3.json` on the SAME pinned 1.5 mm frame that
   every `ace_fea` row in this campaign uses (54 372 active elements, 209 601 DOF,
   6 modes) printed one stderr line —
@@ -295,7 +295,7 @@
 ## F13 — `support_report.overhang_deg` polarity is undocumented and inverted from intuition (2026-08-08, hostile verification)
 - severity: major
 - surface: support_report
-- status: open
+- status: fixed — `overhang_deg` documented by `describe` (from vertical) and in ops_core §11a
 - symptom: `describe {"name":"support_report"}` returns `overhang_deg` with
   `"doc": ""` — no units, no sign convention, no statement of which direction is
   stricter. Determined empirically by bisection on the shipped bridge:
@@ -321,7 +321,7 @@
 ## F14 — `ace_fea` manifest `validation.direction` does not transfer between geometries, and nothing warns you (2026-08-08, repair pass)
 - severity: major
 - surface: tools/manifests/ace_fea.manifest.json
-- status: open
+- status: fixed — `tools/manifests/ace_fea.manifest.json` qualifies `validation.direction` by geometry class
 - symptom: `tools/manifests/ace_fea.manifest.json` states, as an unqualified
   property of the analyzer, `"direction": "under-predicts peak/tip response;
   hex8 is stiff; error converges from below toward the analytic value under
@@ -365,3 +365,24 @@
 - suggested manifest change (maintainer's call, not made here): qualify
   `validation.direction` with the specimen it was pinned on, and say that the
   sign is a property of the dominant compliance mechanism, not of hex8.
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F1** — F1: describe without id.
+- **F2** — F2: union_all returns.
+- **F3** — F3: import root.
+- **F4** — F4: mirror cuts.
+- **F5** — F5: pin-in-hole clearance.
+- **F6** — F6: empty fixture named.
+- **F7** — F7: measured value published.
+- **F8** — F8: quantization reported.
+- **F9** — F9: affordability is a number before the run.
+- **F10** — F10: gate survives import.
+- **F11** — F11: sweeps over imported bodies.
+- **F12** — F12: memory-lean modal.
+- **F13** — F13: polarity documented.
+- **F14** — F14: manifest direction qualified.
+
+NOTE (not a friction item here — logged as ENGINE #29): `programs/carriage_program.json` fails at `c_m5n_r` (nut pocket whose floor is coplanar with the M5 hole's top cap) on this build AND on the pre-round build (which failed two ops earlier, at `carr_m4nut`). The shipped receipts predate both; the coplanar pocket-floor boolean is an open arrangement limitation.

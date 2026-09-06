@@ -35,17 +35,25 @@ pub struct Instance {
 	pub source: Source,
 	/// Local → world placement transform (rigid + uniform scale).
 	pub pose: Affine3A,
+	/// A mesh-sourced instance keeps its OWN triangles: exports, contact scans
+	/// and distance measurements use them verbatim (posed), never a
+	/// re-extraction of the winding-number field at the fallback voxel — which
+	/// inflated an 88 k-triangle STL to ~1.2 M triangles and made the assembly
+	/// contact scan intractable (jar_top_seed_singulator F13, slas F4). The
+	/// SDF wrap in `source` still serves the field queries (interference
+	/// volume, mass of a non-watertight file).
+	pub mesh_verbatim: Option<Mesh>,
 }
 
 impl Instance {
 	/// Place a parametric document at `pose`.
 	pub fn document(doc: Document, pose: Affine3A) -> Self {
-		Self { source: Source::Doc(doc), pose }
+		Self { source: Source::Doc(doc), pose, mesh_verbatim: None }
 	}
 
 	/// Place a prebuilt node at `pose`.
 	pub fn node(node: Node, pose: Affine3A) -> Self {
-		Self { source: Source::Built(node), pose }
+		Self { source: Source::Built(node), pose, mesh_verbatim: None }
 	}
 
 	/// Place an imported / scanned triangle mesh as an assembly component. The mesh is lifted
@@ -58,7 +66,19 @@ impl Instance {
 	/// [`interferences`]: Assembly::interferences
 	/// [`mass_properties`]: Assembly::mass_properties
 	pub fn from_mesh(mesh: &Mesh, pose: Affine3A) -> Self {
-		Self::node(Node::primitive(kernel_implicit::MeshSdf::new(mesh)), pose)
+		let mut inst = Self::node(Node::primitive(kernel_implicit::MeshSdf::new(mesh)), pose);
+		inst.mesh_verbatim = Some(mesh.clone());
+		inst
+	}
+
+	/// The source triangles of a mesh-sourced instance, rigidly posed — `None`
+	/// for documents and prebuilt CSG nodes.
+	fn posed_verbatim(&self) -> Option<Mesh> {
+		self.mesh_verbatim.as_ref().map(|m| {
+			let mut mesh = m.clone();
+			transform_mesh(&mut mesh, self.pose);
+			mesh
+		})
 	}
 
 	/// Local-space [`Sdf`] this instance draws from, if it produces geometry.
@@ -106,6 +126,9 @@ impl Instance {
 	/// non-`Clone` node never needs to be wrapped back into the CSG tree. Manifold
 	/// Dual Contouring keeps each placed part a watertight 2-manifold.
 	pub(crate) fn mesh(&self, resolution: Resolution) -> Mesh {
+		if let Some(mesh) = self.posed_verbatim() {
+			return mesh;
+		}
 		let part = self.with_local_sdf(|sdf| manifold_dual_contour(sdf, sdf.bounds(), resolution));
 		match part {
 			Some(mut mesh) => {
@@ -121,6 +144,9 @@ impl Instance {
 	/// so a placed precision part stays micron-sharp. Organic/implicit parts (no exact B-rep, or
 	/// a prebuilt CSG node) fall back to the voxel mesh at `fallback`.
 	fn mesh_exact(&self, tol: f64, fallback: Resolution) -> Mesh {
+		if let Some(mesh) = self.posed_verbatim() {
+			return mesh;
+		}
 		let local = match &self.source {
 			Source::Doc(doc) => doc.evaluate_brep().map(|solid| precise_mesh(&solid, tol)),
 			Source::Built(_) => None,
@@ -141,6 +167,9 @@ impl Instance {
 	/// like a bearing seat) is never taken. Organic/prebuilt parts voxel-mesh at
 	/// `fallback`, exactly as in [`Instance::mesh`].
 	fn measure_mesh(&self, tol: f64, fallback: Resolution) -> Mesh {
+		if let Some(mesh) = self.posed_verbatim() {
+			return mesh;
+		}
 		let local = match &self.source {
 			Source::Doc(doc) => doc.evaluate_brep().map(|solid| kernel_brep::tessellate_adaptive_tol(&solid, tol)),
 			Source::Built(_) => None,
@@ -162,6 +191,13 @@ impl Instance {
 		if let Source::Doc(doc) = &self.source {
 			if let Some(solid) = doc.evaluate_brep() {
 				return Some(kernel_brep::mass_properties(&solid));
+			}
+		}
+		// A watertight mesh source is its own exact volume integral; a leaky
+		// one keeps the voxel fallback (a soup has no defined enclosed volume).
+		if let Some(m) = &self.mesh_verbatim {
+			if m.is_watertight() {
+				return Some(m.mass_properties());
 			}
 		}
 		self.with_local_sdf(|sdf| manifold_dual_contour(sdf, sdf.bounds(), fallback).mass_properties())
@@ -358,6 +394,18 @@ impl Assembly {
 				transform_mesh(&mut mesh, instance.pose);
 				return Some((mesh, report));
 			}
+		}
+		if let Some(mesh) = instance.posed_verbatim() {
+			if mesh.triangle_count() == 0 {
+				return None;
+			}
+			let report = RouteReport {
+				route: MeshRoute::Verbatim,
+				why: "mesh instance: the source file's own triangles, rigidly posed — not re-extracted".to_string(),
+				tris: mesh.triangle_count(),
+				watertight: mesh.is_watertight(),
+			};
+			return Some((mesh, report));
 		}
 		let mesh = instance.mesh(fallback.into());
 		if mesh.triangle_count() == 0 {

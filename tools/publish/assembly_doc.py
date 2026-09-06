@@ -70,6 +70,7 @@ failures exit 1.
 from __future__ import annotations
 
 import csv
+import itertools
 import json
 import os
 import re
@@ -85,6 +86,7 @@ from matplotlib.lines import Line2D
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # tools/: the shared contracts + the layout map
 import _layout  # noqa: E402
 _layout.add_import_paths()  # tools/, tools/analyzers, tools/publish — sibling-style imports keep working after the 2026-09-02 move
+import _receipt  # noqa: E402 — the shared `--out` / `receipt` / dry-run contract
 from render_sheet import (  # noqa: E402
 	PALETTE, STYLE, caption_h, draw_balloon, fit_view, header_band, load_stl,
 	page_frame, panel, project_px, proj_pt, px_line, px_rect, px_text,
@@ -440,13 +442,24 @@ def title_block(fig, x, y, w, h, fields):
 	px_rect(fig, x, y, w, h, fill=STYLE["panel_fill"], z=-6)
 	px_rect(fig, x, y, w, h, edge=STYLE["border"], lw=STYLE["border_pt"], z=5)
 	cx = x
+	dpi = float(fig.dpi)
 	for i, (label, value, frac, vcol) in enumerate(cells):
 		cw = frac * w
 		if i > 0:
 			px_line(fig, cx, y, cx, y + h, color=STYLE["border"], lw=STYLE["border_pt"], z=6)
 		px_text(fig, cx + 6.0, y + h - 6.0, label, fs=STYLE["fs_tb_label"],
 			color=STYLE["ink2"], va="top")
-		px_text(fig, cx + cw / 2.0, y + h * 0.38, value, fs=STYLE["fs_tb_value"],
+		# A value wider than its cell shrinks (down to 6 pt) and is then
+		# ellipsised, instead of running under the page border: a 31-char
+		# campaign name in PROJECT clipped at the sheet edge (slas F8).
+		value = str(value)
+		fs = STYLE["fs_tb_value"]
+		avail = cw - 12.0
+		while fs > 6.0 and text_w_px(value, fs, dpi) > avail:
+			fs -= 0.5
+		while len(value) > 4 and text_w_px(value, fs, dpi) > avail:
+			value = value[:-2].rstrip() + "…"
+		px_text(fig, cx + cw / 2.0, y + h * 0.38, value, fs=fs,
 			color=vcol, ha="center", va="center")
 		cx += cw
 
@@ -602,9 +615,13 @@ def render(job):
 	# reserve a right rail zone (balloon + leader run) out of the fit rect
 	rail_zone = 2.0 * 9.0 + 30.0
 	fit_pts = np.concatenate([t.reshape(-1, 3) for t in exploded])
+	elo, ehi = fit_pts.min(axis=0), fit_pts.max(axis=0)
+	er = float((ehi - elo).max()) / 2.0
 	if len(fit_pts) > 30000:
-		fit_pts = fit_pts[:: int(np.ceil(len(fit_pts) / 30000.0))]
-	er = float((fit_pts.max(axis=0) - fit_pts.min(axis=0)).max()) / 2.0
+		# decimate for the fit, but keep the true bbox corners so nothing is
+		# drawn outside the axis limits (ratcheting F10)
+		fit_pts = np.concatenate([fit_pts[:: int(np.ceil(len(fit_pts) / 30000.0))],
+		                          np.array(list(itertools.product(*zip(elo, ehi))))])
 	fit_view(ax_e, fit_pts, elev, azim,
 		(inner[0], inner[1], inner[2] - rail_zone, inner[3]), fill=0.88)
 	explode_guides(ax_e, axis, exploded, offsets, er)
@@ -617,12 +634,19 @@ def render(job):
 	shaded_view(ax_a, tris, colors, elev, azim, np.zeros(3), 1.0)
 	foot_h = 44.0  # scale bar + dims line zone, inside the panel
 	fit_pts_a = np.concatenate([t.reshape(-1, 3) for t in tris])
-	if len(fit_pts_a) > 30000:
-		fit_pts_a = fit_pts_a[:: int(np.ceil(len(fit_pts_a) / 30000.0))]
-	px_per_mm = fit_view(ax_a, fit_pts_a, elev, azim,
-		(inner_a[0], inner_a[1] + foot_h, inner_a[2], inner_a[3] - foot_h), fill=0.85)
+	# The printed overall dimension is an engineering callout: it is taken from
+	# EVERY vertex. The stride below is a rendering economy only — reading the
+	# extents off the decimated cloud missed a 145 mm lever whose extreme is a
+	# handful of vertices and under-reported an assembly by 48 % (ratcheting
+	# F10). The view fit rectangle is also taken from the full extents so the
+	# lever is inside the axis limits.
 	alo, ahi = fit_pts_a.min(axis=0), fit_pts_a.max(axis=0)
 	ext = ahi - alo
+	if len(fit_pts_a) > 30000:
+		fit_pts_a = np.concatenate([fit_pts_a[:: int(np.ceil(len(fit_pts_a) / 30000.0))],
+		                            np.array(list(itertools.product(*zip(alo, ahi))))])
+	px_per_mm = fit_view(ax_a, fit_pts_a, elev, azim,
+		(inner_a[0], inner_a[1] + foot_h, inner_a[2], inner_a[3] - foot_h), fill=0.85)
 	body_y = inner_a[1] - pad  # the panel's bottom border
 	cx = inner_a[0] + inner_a[2] / 2.0
 	px_text(fig, cx, body_y + 8.0, f"overall {ext[0]:.0f} × {ext[1]:.0f} × {ext[2]:.0f} mm (W × D × H)",
@@ -664,26 +688,18 @@ def render(job):
 		"page_h_in": round(float(fig_h), 3), "page_grew": bool(grew), "steps_fs": float(steps_fs)}
 
 
+def _build(job, _job_dir):
+	for key in ("parts", "explode", "out_prefix"):
+		if key not in job:
+			raise ValueError(f"job needs '{key}'")
+	if "steps" not in job and not job.get("auto_steps"):
+		raise ValueError("job needs 'steps' (or auto_steps: true for a structure-derived draft)")
+	return render(job)
+
+
 def main():
-	if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
-		print(__doc__)
-		return 0
-	if len(sys.argv) != 2:
-		print(json.dumps({"ok": False, "error": "usage: assembly_doc.py job.json"}))
-		return 1
-	try:
-		job = json.load(open(sys.argv[1]))
-		for key in ("parts", "explode", "out_prefix"):
-			if key not in job:
-				raise ValueError(f"job needs '{key}'")
-		if "steps" not in job and not job.get("auto_steps"):
-			raise ValueError("job needs 'steps' (or auto_steps: true for a structure-derived draft)")
-		receipt = render(job)
-	except Exception as e:  # noqa: BLE001 — the receipt IS the error channel
-		print(json.dumps({"ok": False, "error": f"{type(e).__name__}: {e}"}))
-		return 1
-	print(json.dumps(receipt))
-	return 0
+	# `<job.json> [--out PATH]` — the shared runner shape (ratcheting F8).
+	return _receipt.doc_cli("assembly_doc", _build, help_text=__doc__)
 
 
 if __name__ == "__main__":

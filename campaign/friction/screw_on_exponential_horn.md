@@ -3,7 +3,7 @@
 ## F1 — Frozen concept card names a nonexistent thread standard (2026-08-06)
 - severity: major
 - surface: campaign/history/CONCEPTS.md
-- status: open
+- status: fixed — CONCEPTS.md ERRATA names the non-existent thread standard and the ops that exist
 - symptom: CONCEPTS.md §10 (acoustics card, frozen 2026-08-06) specifies the
   throat interface as "1-3/8"-27 TPI screw-on compression-driver thread" and
   builds its negative controls around a "1-3/8"-18 gauge" as the WRONG-pitch
@@ -32,7 +32,7 @@
 ## F2 — `thread_spec` op is metric-only; card implies it covers the inch-thread engagement arithmetic (2026-08-06)
 - severity: minor
 - surface: thread_spec
-- status: open
+- status: fixed — `thread_spec {major_d, tpi}` covers inch UN threads (`cat_thread_inch*` repros)
 - symptom: `{"op":"describe","name":"thread_spec"}` → params: `m` (number,
   required) only. `{"op":"thread_spec","m":4}` returns metric data (pitch 0.7,
   minor_d 3.242 …). No form accepts diameter+TPI or any inch designation, so
@@ -54,7 +54,7 @@
 ## F3 — custom inch threads ARE expressible via `thread_ridge`, but no exact boolean can use the result (2026-08-07)
 - severity: blocker
 - surface: thread_ridge
-- status: open
+- status: fixed — the supported path for a custom/inch thread is `export_threaded {major_d, pitch, internal?}` (voxel route; `ridge_internal` repro binds a watertight 1.4111-pitch internal thread); an EXACT boolean against a `thread_ridge` remains a refusal (`ridge_diff` repro fails validate honestly — the helix's sliver facets are outside the arrangement's contract), which is what the item found
 - symptom: `{"op":"thread_ridge","major_d":35.225,"pitch":1.4111,"z0":-0.5,"length":13}`
   succeeds and binds a solid whose own `validate` is clean
   (`closed=true manifold=true genus=0 shells=1`, measures `minor_d 33.69743944089973,
@@ -84,7 +84,7 @@
 ## F4 — `export_step` writes under `--out-dir` but `import_step` resolves against the PROGRAM's directory and refuses `..` (2026-08-07)
 - severity: major
 - surface: import_step
-- status: open
+- status: fixed — one path rule for export_step/import_step
 - symptom: a program that exports `cad/horn_body.step` and then imports
   `horn_body.step` fails
   `io: op 'rt': cannot read 'horn_body.step': No such file or directory`;
@@ -108,7 +108,7 @@
 ## F5 — `implicit` binds no solid, so no in-program `assert` can gate a voxel-route part (2026-08-07)
 - severity: major
 - surface: implicit
-- status: open
+- status: fixed — `solid_from_implicit` binds a solid every `assert`/`require` can gate; `implicit` alone binds a field
 - symptom: `implicit` returns `volume`, `triangles`, `watertight`, `healed` in
   `measures`, but binds nothing, so `{"op":"assert","in":"<implicit id>"}` is a
   loud `missing_ref`. Every shipped threaded piece and every thread negative
@@ -128,7 +128,7 @@
 ## F6 — `clearance` returns `overlap_volume: null` on helical meshes (2026-08-07)
 - severity: major
 - surface: clearance
-- status: open
+- status: fixed — `clearance` on helical meshes reports `overlap_volume` (`clr_thread_pair` repro)
 - symptom: `{"op":"clearance","a":"<thread_ridge>","b":"<thread_ridge>"}` returns
   `{"coincident_fit_hazard": true, "distance": 0.0, "interfering": true,
   "overlap_volume": null, "provenance": "faceted"}`. The digest's own example
@@ -150,7 +150,7 @@
 ## F7 — `clearance` and `assert_disjoint` both report surface distance 0 for a NESTED coaxial pair that has a real 0.30 mm gap (2026-08-07)
 - severity: major
 - surface: clearance
-- status: open
+- status: fixed — nested clearance reads the gap (ENGINE #28 / §11b)
 - symptom: horn body (Ø34.200 counterbore) and collar (Ø33.600 spigot) posed
   with the spigot inside the counterbore and the faces 1.0 mm apart:
   `clearance` -> `{"distance": 0.0, "interfering": false, "overlap_volume": 0.0}`
@@ -175,7 +175,7 @@
 ## F8 — air_topology_audit.py silently seals a wide-open bore when a slice centre lands on a vertex ring (2026-08-07)
 - severity: major
 - surface: tools/analyzers/air_topology_audit.py
-- status: open
+- status: fixed — air_topology_audit keeps a wide-open bore open (slice seeding fixed)
 - symptom: `air_topology_audit.py` on the SHIPPED, gated, watertight
   `parts/horn_body.stl` at the documented `voxel_mm: 1.0` returns
   `{"ok": false, "components": 13, "seed_labels": {"throat": 0, "mouth": 2},
@@ -239,7 +239,7 @@
 ## F9 — ace_fea converges cleanly on an inclined thin wall that is a kinematic hinge chain (2026-08-08)
 - severity: blocker
 - surface: tools/analyzers/ace_fea_runner.py
-- status: open
+- status: fixed — ace_fea flags a one-element-thick / kinematically weak wall with a warning in the receipt (`fea_thin_wall` repro)
 - symptom: `ace_fea_runner.py` on the shipped, gated, watertight P1 horn body
   (306 271 mm^3, wall 2.503-3.358 mm) at `voxel_mm 2.0` returned
   `{"ok": true, "max_displacement_m": 0.09635232542257907,
@@ -283,7 +283,7 @@
 ## F10 — `mesh_components` shatters on an `import_step` body: components 24 on a solid that is shells 1 / genus 5 (2026-08-08)
 - severity: major
 - surface: mesh_components
-- status: open
+- status: fixed — `mesh_components` on `import_step` bodies welds first (24 → 1)
 - symptom: `{"op":"assert","in":<imported>,"components":1}` on a STEP that this
   campaign itself exported fails with
   `assert_failed: op 'g_horn': assert failed: components: measured 24, expected 1`.
@@ -335,7 +335,7 @@
 ## F11 — `assembly_doc.py` `view` is a DICT, not a list, and a list crashes with an unrelated AttributeError (2026-08-08)
 - severity: minor
 - surface: tools/publish/assembly_doc.py
-- status: open
+- status: fixed — assembly_doc accepts `view` as a dict or a list of dicts
 - symptom: `{"ok": false, "error": "AttributeError: 'list' object has no attribute 'get'"}`
   — the whole sheet fails and the message names neither the field nor the job.
 - minimal repro: any valid assembly_doc job with `"view": [22, -60]`
@@ -358,7 +358,7 @@
 ## F12 — self-inflicted, recorded because it cost a run: editing a running `sh` script corrupts its parse (2026-08-08)
 - severity: minor
 - surface: campaign/OPERATOR_BRIEF.md
-- status: open
+- status: fixed — OPERATOR_BRIEF §8 opens with "never edit a shell script while it runs"
 - symptom: `programs/run_physics.sh: line 37: _check.json: command not found`,
   emitted after the air-topology block had already produced correct receipts.
   `_check.json` is a FRAGMENT of `programs/job_prodcheck_$t.json` — a token
@@ -380,7 +380,7 @@
 ## F13 — `air_topology_audit` receipt: `seed_labels` and `sizes_cm3` cannot be joined, and the wrong join hides on passing parts (2026-08-08)
 - severity: major
 - surface: tools/analyzers/air_topology_audit.py
-- status: open
+- status: fixed — air_topology_audit receipt joins `seed_labels` and `sizes_cm3` by label
 - symptom: the obvious reading of the receipt — "the seed's component volume is
   `sizes_cm3[seed_label - 1]`" — is wrong, and it silently returns a plausible
   number. On the SHIPPED horn the seeds sit in label 2 and `sizes_cm3[1]` is
@@ -414,7 +414,7 @@
 ## F14 — `ace_modal_runner.py` is not bit-reproducible: eigenvalues move in the last ~10 digits between identical runs (2026-08-08, found by independent verification)
 - severity: minor
 - surface: tools/analyzers/ace_modal_runner.py
-- status: open
+- status: fixed — modal reproducibility is claimed on `core_digest`, which reproduces
 - symptom: re-running `sh programs/run_physics.sh` with no source change
   reproduces every `ace_fea`, `ace_thermal`, `tolerance_stack`, `joint_check`,
   `air_topology_audit`, `production_check` and `param_optimize` receipt
@@ -441,7 +441,7 @@
 ## F15 — `assert` accepts only topology/volume, so `support_report` / `wall_thickness` / `bounding_box` / `mass_properties` cannot be gated in-program (2026-08-08)
 - severity: major
 - surface: assert
-- status: open
+- status: fixed — `require` gates every measure op (steep_area, thin_area, fits_within, route …)
 - symptom: `crates/kernel-api/src/interp.rs` `OpKind::Assert` takes exactly
   `volume_within / exact_volume_within / genus / shells / components / closed /
   manifold / valid`, and `discover.rs` lists no others. Adding
@@ -475,7 +475,7 @@
 ## F16 — `creep_allowable_mpa` is a two-row step lookup with no cell between 23 °C and 55 °C, and nothing in the gate surface makes the temperature visible (2026-08-08)
 - severity: major
 - surface: tools/analyzers/production_check.py
-- status: open
+- status: fixed — production_check interpolates the creep cell between the tabulated temperatures and names the governing rule
 - symptom: `crates/kernel-model/src/lib.rs` `creep_allowable_mpa(temp_c, hours)`
   computes `row = if temp_c <= CREEP_TEMPS_C[0] { 0 } else { 1 }` over
   `CREEP_TEMPS_C = [23.0, 55.0]`. `creep_allowable_mpa(23.0, 8760)` = **2.5**;
@@ -502,3 +502,24 @@
   emit `{temp_c_requested, row_used_c, hours_requested, col_used, sigma_mpa}`
   so the temperature a margin was read at is a gateable number rather than a
   sentence in a README.
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F1** — F1: errata.
+- **F2** — F2: inch thread_spec.
+- **F3** — F3: custom threads ship through export_threaded; exact ridge booleans stay refused.
+- **F4** — F4: roots.
+- **F5** — F5: gateable implicit solids.
+- **F6** — F6: helical overlap.
+- **F7** — F7: nested clearance.
+- **F8** — F8: bore not sealed.
+- **F9** — F9: thin-wall warning.
+- **F10** — F10: components on imports.
+- **F11** — F11: view forms.
+- **F12** — F12: brief warns.
+- **F13** — F13: joinable receipt.
+- **F14** — F14: digest.
+- **F15** — F15: universal gate.
+- **F16** — F16: creep cell.

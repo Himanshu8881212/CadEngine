@@ -73,7 +73,14 @@ pub struct CirclipSpec {
 
 /// DIN 471 external (shaft) retaining-ring table: `(d1, s, d2, m, a, b, d5)`.
 /// Source: DIN 471 dimension table as published at fasteners.eu/standards/din/471 (mm).
-const DIN471: [CirclipSpec; 7] = [
+/// Ø3–Ø7 rows added 2026-09-05 (graham_deadbeat_escapement F2: the table started
+/// at Ø8 while DIN 471 itself runs from Ø3); values from the same published table.
+const DIN471: [CirclipSpec; 12] = [
+	CirclipSpec { d1: 3.0, s: 0.4, d2: 2.8, m: 0.5, a: 1.9, b: 0.8, d5: 1.0 },
+	CirclipSpec { d1: 4.0, s: 0.4, d2: 3.8, m: 0.5, a: 2.2, b: 0.9, d5: 1.0 },
+	CirclipSpec { d1: 5.0, s: 0.6, d2: 4.8, m: 0.7, a: 2.5, b: 1.1, d5: 1.0 },
+	CirclipSpec { d1: 6.0, s: 0.7, d2: 5.7, m: 0.8, a: 2.7, b: 1.3, d5: 1.2 },
+	CirclipSpec { d1: 7.0, s: 0.8, d2: 6.7, m: 0.9, a: 3.1, b: 1.4, d5: 1.2 },
 	CirclipSpec { d1: 8.0, s: 0.8, d2: 7.6, m: 0.9, a: 3.2, b: 1.5, d5: 1.2 },
 	CirclipSpec { d1: 10.0, s: 1.0, d2: 9.6, m: 1.1, a: 3.3, b: 1.8, d5: 1.5 },
 	CirclipSpec { d1: 12.0, s: 1.0, d2: 11.5, m: 1.1, a: 3.3, b: 1.8, d5: 1.7 },
@@ -96,7 +103,7 @@ const DIN472: [CirclipSpec; 8] = [
 	CirclipSpec { d1: 47.0, s: 1.75, d2: 49.5, m: 1.85, a: 6.4, b: 4.4, d5: 2.5 },
 ];
 
-/// The DIN 471 row for a nominal shaft Ø `d` (8, 10, 12, 15, 20, 25, 30), or `None`.
+/// The DIN 471 row for a nominal shaft Ø `d` (3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 25, 30), or `None`.
 pub fn din471_spec(d: f64) -> Option<CirclipSpec> {
 	DIN471.iter().find(|r| (r.d1 - d).abs() < 1e-9).copied()
 }

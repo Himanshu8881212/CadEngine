@@ -253,10 +253,22 @@ pub fn extrude(profile: &[DVec2], height: f64) -> Solid {
 	if !height.is_finite() || height == 0.0 {
 		return Solid::default();
 	}
-	let profile = match sanitize_profile(profile) {
+	let mut profile = match sanitize_profile(profile) {
 		Some(p) => p,
 		None => return Solid::default(),
 	};
+	// Re-wind a clockwise profile: the side-face outward normals below assume
+	// CCW travel, so a CW loop used to build an inside-out prism and fail the
+	// bind gate with a topology message ("closed=false … shells=3") that read
+	// like a self-intersecting profile (prosthetic F4). `extrude_with_holes`
+	// and `extrude_tapered` already re-wind; this is the same convention.
+	{
+		let n = profile.len();
+		let area2: f64 = (0..n).map(|i| profile[i].perp_dot(profile[(i + 1) % n])).sum();
+		if area2 < 0.0 {
+			profile.reverse();
+		}
+	}
 	let n = profile.len();
 	let mut pos = Vec::with_capacity(2 * n);
 	for p in &profile {

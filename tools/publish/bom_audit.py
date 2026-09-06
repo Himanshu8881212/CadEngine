@@ -104,6 +104,15 @@ def resolve(path, job_dir, base_dir):
 	                        + ", ".join(k for k, r in roots if r) + ")")
 
 
+# STEP entity types whose quoted strings can carry an instance / product name.
+# `_CONTEXT` / `_CATEGORY` / `_RELATIONSHIP` rows are deliberately excluded: they
+# carry the AP203 keywords, never a part name.
+_NAME_ROW = re.compile(
+	r"^(NEXT_ASSEMBLY_USAGE_OCCURRENCE|PRODUCT|PRODUCT_DEFINITION|PRODUCT_DEFINITION_FORMATION"
+	r"(_WITH_SPECIFIED_SOURCE)?|PRODUCT_DEFINITION_SHAPE|SHAPE_DEFINITION_REPRESENTATION"
+	r"|(ADVANCED_BREP_)?SHAPE_REPRESENTATION|MANIFOLD_SOLID_BREP|CLOSED_SHELL)$")
+
+
 def count_names(step_text, pattern, calibrate_with, overhead):
 	"""Instance counts per hardware name in one STEP tree.
 
@@ -111,7 +120,16 @@ def count_names(step_text, pattern, calibrate_with, overhead):
 	NEXT_ASSEMBLY_USAGE_OCCURRENCE, so the raw quoted-name count carries a fixed
 	per-name overhead. It is CALIBRATED against a name known to occur exactly
 	once, rather than assumed."""
-	names = re.findall(rf"'({pattern})'", step_text)
+	# Count ONLY inside the product / assembly-usage / shape entity records —
+	# never over the whole file. A natural pattern such as `[a-z][a-z0-9_]+`
+	# used to sweep up the AP203 vocabulary ('axis', 'refdir', 'design',
+	# 'mechanical', 'config_control_design', 'placement', ...) from
+	# AXIS2_PLACEMENT_3D / *_CONTEXT / *_CATEGORY / measure rows and report them
+	# as undeclared hardware (slas F7).
+	names = []
+	for rec in re.finditer(r"#\d+\s*=\s*([A-Z0-9_]+)\s*\((.*?)\)\s*;", step_text, re.S):
+		if _NAME_ROW.match(rec.group(1)):
+			names.extend(re.findall(rf"'({pattern})'", rec.group(2)))
 	c = collections.Counter(names)
 	if calibrate_with is not None:
 		if calibrate_with not in c:
@@ -172,26 +190,16 @@ def audit(job, job_dir=None):
 	        "findings": findings}
 
 
+def _example():
+	print(json.dumps(EXAMPLE_JOB, indent=1))
+	return 0
+
+
 def main(argv):
-	if len(argv) < 2 or argv[1] in ("-h", "--help"):
-		print(__doc__)
-		return 0
-	if argv[1] == "--example":
-		print(json.dumps(EXAMPLE_JOB, indent=1))
-		return 0
-	if len(argv) != 2:
-		print(json.dumps({"ok": False, "error": "usage: bom_audit.py job.json | --example | --help"}))
-		return 1
-	job = {}
-	try:
-		with open(argv[1]) as f:
-			job = json.load(f)
-		rec = audit(job, job_dir=os.path.dirname(os.path.abspath(argv[1])))
-	except Exception as e:  # noqa: BLE001 — the receipt IS the error channel
-		_receipt.emit({"ok": False, "error": f"{type(e).__name__}: {e}"}, job, "bom_audit")
-		return 1
-	_receipt.emit(rec, job, "bom_audit")
-	return 0 if rec["ok"] else 1
+	# `<job.json> [--out PATH] | --example | --help` — the shared runner shape
+	# (ratcheting F11: this was the fourth tool without `--out`).
+	return _receipt.doc_cli("bom_audit", lambda job, job_dir: audit(job, job_dir=job_dir),
+	                        help_text=__doc__, argv=argv[1:], extra_flags={"--example": _example})
 
 
 if __name__ == "__main__":

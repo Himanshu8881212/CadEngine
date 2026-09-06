@@ -737,8 +737,8 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 	]),
 	("support_report", &[
 		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "", aliases: &[] },
-		ParamSpec { name: "build_dir", ty: "[x,y,z]", required: false, doc: "", aliases: &[] },
-		ParamSpec { name: "overhang_deg", ty: "number", required: false, doc: "", aliases: &[] },
+		ParamSpec { name: "build_dir", ty: "[x,y,z]", required: false, doc: "The PRINT-UP (layer-growth) direction, pointing AWAY from the bed (default [0,0,1]): the bed sits at the part's minimum extent along it, so `[0,0,-1]` audits the part printed upside down.", aliases: &[] },
+		ParamSpec { name: "overhang_deg", ty: "number", required: false, doc: "Overhang limit in degrees FROM VERTICAL (a wall is 0°, a flat ceiling 90°; default 45).", aliases: &[] },
 	]),
 	("clearance", &[
 		ParamSpec { name: "a", ty: "id-ref", required: true, doc: "", aliases: &[] },
@@ -1070,7 +1070,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 	#[cfg(feature = "catalog")]
 	("mgn12_carriage", &[]),
 	("deep_groove_bearing", &[
-		ParamSpec { name: "designation", ty: "string", required: true, doc: "Seat-table designation: \"603\", \"608\", \"625\", \"688\", \"6000\", \"6001\", \"6804\".", aliases: &[] },
+		ParamSpec { name: "designation", ty: "string", required: true, doc: "Seat-table designation: \"603\", \"608\", \"623\", \"625\", \"688\", \"6000\", \"6001\", \"6804\".", aliases: &[] },
 	]),
 	("flanged_bearing", &[
 		ParamSpec { name: "designation", ty: "string", required: true, doc: "\"F608\" (8 × 22 × 7, flange Ø25 × 1.5) or \"F623\" (3 × 10 × 4, Ø11.5 × 0.6).", aliases: &[] },
@@ -1340,6 +1340,7 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "d", ty: "number", required: true, doc: "Hole **diameter** (mm).", aliases: &[] },
 		ParamSpec { name: "depth", ty: "number", required: false, doc: "Full-diameter depth of a blind hole (exclusive with `through`).", aliases: &[] },
 		ParamSpec { name: "through", ty: "number", required: false, doc: "Material span of a through hole (exclusive with `depth`).", aliases: &[] },
+		ParamSpec { name: "flat", ty: "bool", required: false, doc: "Blind holes only: `true` cuts a FLAT-bottomed pocket (an end mill / a printed recess) exactly `depth` deep, with no drill point.", aliases: &[] },
 		ParamSpec { name: "segments", ty: "int", required: false, doc: "Tool facet count (default 32).", aliases: &[] },
 	]),
 	("clearance_hole", &[
@@ -1389,11 +1390,13 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "at", ty: "[x,y,z]", required: true, doc: "", aliases: &[] },
 		ParamSpec { name: "axis", ty: "[x,y,z]", required: true, doc: "", aliases: &[] },
-		ParamSpec { name: "bearing", ty: "string", required: true, doc: "Bearing designation: 603, 608, 625, 688, 6000, 6001 or 6804.", aliases: &[] },
+		ParamSpec { name: "bearing", ty: "string", required: true, doc: "Bearing designation: 603, 608, 623, 625, 688, 6000, 6001 or 6804.", aliases: &[] },
 		ParamSpec { name: "segments", ty: "int", required: false, doc: "", aliases: &[] },
 	]),
 	("thread_spec", &[
-		ParamSpec { name: "m", ty: "number", required: true, doc: "", aliases: &[] },
+		ParamSpec { name: "m", ty: "number", required: false, doc: "Nominal ISO metric size (M3–M16, coarse); exclusive with the inch form.", aliases: &[] },
+		ParamSpec { name: "major_d", ty: "number", required: false, doc: "Inch-series form: crest **diameter** in mm together with `tpi` — the same 60° ISO 68-1 / UN triangle arithmetic (1-3/8\"-18 UNEF = 34.925 mm, 18 tpi).", aliases: &[] },
+		ParamSpec { name: "tpi", ty: "number", required: false, doc: "Threads per inch for the inch form (pitch = 25.4 / tpi).", aliases: &[] },
 	]),
 	("thread_ridge", &[
 		ParamSpec { name: "m", ty: "number", required: false, doc: "Nominal ISO size (M3–M16 coarse); exclusive with `major_d`+`pitch`.", aliases: &[] },
@@ -1401,10 +1404,13 @@ pub static OP_PARAMS: &[(&str, &[ParamSpec])] = &[
 		ParamSpec { name: "pitch", ty: "number", required: false, doc: "Explicit thread pitch (mm); requires `major_d`.", aliases: &[] },
 		ParamSpec { name: "z0", ty: "number", required: false, doc: "Axial start of the ridge (default 0).", aliases: &[] },
 		ParamSpec { name: "length", ty: "number", required: true, doc: "Axial span of the ridge (`length/pitch` turns, capped at 200).", aliases: &[] },
+		ParamSpec { name: "clip_to_span", ty: "bool", required: false, doc: "The ISO section is 0.75 P wide at its buried base, so the produced solid overshoots `[z0, z0+length]` by 0.375 P at EACH end (reported as `z_min` / `z_max`).", aliases: &[] },
 	]),
 	("export_threaded", &[
 		ParamSpec { name: "in", ty: "id-ref", required: true, doc: "", aliases: &[] },
-		ParamSpec { name: "m", ty: "number", required: true, doc: "Nominal ISO size (M3–M16, coarse pitch).", aliases: &[] },
+		ParamSpec { name: "m", ty: "number", required: false, doc: "Nominal ISO size (M3–M16, coarse pitch); exclusive with `major_d`+`pitch`.", aliases: &[] },
+		ParamSpec { name: "major_d", ty: "number", required: false, doc: "Explicit crest **diameter** (mm) for a custom / fine thread (e.g. M8×0.75, a 1-3/8\"-18 UNEF); requires `pitch`.", aliases: &[] },
+		ParamSpec { name: "pitch", ty: "number", required: false, doc: "Explicit thread pitch (mm); requires `major_d`.", aliases: &[] },
 		ParamSpec { name: "z0", ty: "number", required: false, doc: "Axial start of the threaded span (default 0).", aliases: &[] },
 		ParamSpec { name: "length", ty: "number", required: true, doc: "Axial span of the thread (`length/pitch` turns, capped at 200).", aliases: &[] },
 		ParamSpec { name: "internal", ty: "bool", required: false, doc: "Cut a female thread into a bore instead of fusing a male one (default false).", aliases: &[] },

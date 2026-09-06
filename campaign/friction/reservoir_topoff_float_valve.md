@@ -1,7 +1,7 @@
 ## F1 — export route silently demotes to voxel_healed for any cutter ending inside an existing void, and for intersection operands sharing coincident end planes (2026-08-14)
 - severity: major
 - surface: export_stl
-- status: open
+- status: fixed — a cutter ending inside an existing bore exports exact (`reservoir_float_cage` re-run 2026-09-05)
 - symptom: `export_stl` receipts flip from `route: "exact"` to `route: "voxel_healed"` (exit stays 0) after a `difference` whose cutter's end face lies inside an already-cut void, e.g. a guide-bore cutter overshooting into a chamber cavity. Bisect receipt: `hydroponics_system/reservoir_topoff_float_valve/receipts/defects/vb_gcut_heal_demotion_bisect.json` — `x_b1` exact, `x_b2` voxel_healed with no other change. The 0.3 mm heal then manufactured self-intersections out of legitimate 0.1 mm embeds (which are the documented boolean-hygiene idiom), failing exports that the exact route would have passed.
 - minimal repro: box minus cylinder A (a cavity), then minus cylinder B whose end face lies inside cavity A; `export_stl` the result. Compare route against cutting B before A (stays exact). Program shape as in the bisect receipt above; run `"target/release/kernel-api" run prog.json --out-dir out/`.
 - expected vs actual: OPERATOR_BRIEF §8 prescribes "overshoot cutters past faces; embed >=0.1 mm" — following exactly that idiom silently forfeits the exact route when the overshoot lands in a prior void, and 0.1 embeds are sub-voxel for the 0.3 heal that then takes over. No doc names void-piercing cutters as an exact-route hazard.
@@ -10,7 +10,7 @@
 ## F2 — tolerance_stack labels a ran-and-failed analysis error_kind "internal" while exiting 2 (2026-08-14)
 - severity: minor
 - surface: tools/analyzers/tolerance_stack.py
-- status: open
+- status: fixed — a ran-and-failed gate is `error_kind: gate_failed` (exit 1); `internal` is reserved for crashes
 - symptom: a FIT job with designed interference (bore 3.90/shaft 4.008 m6) exits 2 with `exit_contract.code: 2, meaning "ok:false — tool ran and REFUSED, or the analysis failed"` but the receipt's top-level `error_kind` is `"internal"`. Receipt: `hydroponics_system/reservoir_topoff_float_valve/receipts/tol_pin_boss.json` (also tol_key.json, tol_gland_openloop.json).
 - minimal repro: `{"fit":{"bore":{"nominal":3.9,"tol":0.15},"shaft":{"nominal":4.008,"tol":0.004}}}` -> `python3 tools/tolerance_stack.py job.json` -> exit 2, error_kind "internal".
 - expected vs actual: OPERATOR_BRIEF §3.1 / tools_cookbook exit table map exit 2 to `error_kind: refusal.*|timeout|killed.*` and exit 1 to `usage|internal`. Here exit code and `ok` behave per contract but the kind string contradicts the documented family, so branch-on-error_kind automation would misclassify a legitimate analysis failure as a tool bug.
@@ -19,7 +19,7 @@
 ## F3 — ace_fea_tet aborts the process (SIGABRT 134, no stdout, no receipt) on a kernel-signed watertight STL; wall_budget_s cannot catch it (2026-08-14)
 - severity: major
 - surface: tools/analyzers/ace_fea_tet_runner.py
-- status: open
+- status: fixed — gmsh runs in an isolated child; a SIGABRT there becomes a `MeshRefusal` receipt from the parent
 - symptom: `python3 tools/ace_fea_tet_runner.py tet_lever_a.json` on the stage-3 baked lever STL (watertight, route exact, components 1) terminates with exit 134 and stderr `libc++abi: terminating due to uncaught exception of type std::runtime_error: Failed to reach critical value in pass 0 for measure(s): ScaledJac`. No last-line JSON receipt is emitted, breaking the wire contract; the in-runner wall budget never engages because the abort is in native code. The PRE-bake lever (same builder, arm_s 10) instead refused cleanly with `Exception: Invalid boundary mesh (overlapping facets) on surface 68 surface 70` (exit 1) at both elem sizes 1.6/2.2.
 - minimal repro: `hydroponics_system/reservoir_topoff_float_valve/programs/tet_lever_a.json` (elem 1.6, wall_budget_s 900) against `parts/lever_arm.stl`.
 - expected vs actual: OPERATOR_BRIEF §5.1 documents this abort class; _receipt.py synthesizes honest receipts for SIGTERM/SIGINT/timeout but a native SIGABRT still yields nothing. Expected per the exit contract: some receipt, any receipt.
@@ -28,7 +28,7 @@
 ## F4 — tools/derived_model.py accepts a foreign job and silently runs its OWN exemplar instead of refusing (2026-08-23)
 - severity: major
 - surface: tools/analyzers/derived_model.py
-- status: open
+- status: fixed — derived_model.py refuses a foreign job (`wrong_model` refusal) instead of running its own example
 - symptom: `python3 tools/derived_model.py hydroponics_system/reservoir_topoff_float_valve/programs/orifice_model_job.json` (job = `{"model":"orifice_flow","out":"…/receipts/orifice_model.json"}`) prints `{"ok": false, "error": "KeyError: 'zeta'", "self_check": {…"gate": "overshoot_vs_closed_form"…}}` and exits 1. The `"model"` key is never read: the tool ran its worked exemplar `DampedOscillator` against our job and failed on the exemplar's own parameter. The self_check block in the failure receipt reports the EXEMPLAR's gates ("overshoot_vs_closed_form"), which reads like our model's gates passed.
 - minimal repro: `echo '{"model":"orifice_flow"}' > /tmp/j.json && python3 tools/derived_model.py /tmp/j.json` -> exit 1, `KeyError: 'zeta'`.
 - expected vs actual: OPERATOR_BRIEF §1.10 is that unknown/misspelled params FAIL rather than silently select a default; the kernel enforces this. This tool does the opposite — an unrecognised `"model"` key selects the exemplar. Expected: `invalid_param`-class refusal naming the unknown key (or a registry lookup), not a KeyError from a different model. The docstring does say `job.json  # run the worked exemplar`, so this is doc-consistent but contract-inconsistent, and the emitted error names the wrong model.
@@ -37,7 +37,7 @@
 ## F5 — posed-instance strict export refuses a solid whose part program exports exact/clean (found re-verifying D-AS2 under engine round 4) (2026-08-24)
 - severity: major
 - surface: asm_export
-- status: open
+- status: fixed — posed-instance strict export accepts the solid whose part program exports exact (`reservoir_asm` re-run: ok)
 - symptom: in-program `asm_export` of the MAIN assembly still exits 1 under
   the round-4 kernel with verbatim `op '<id>': refusing manufacturing
   output: boundary_edges=0, non_manifold_edges=0, non_orientable_edges=0,
@@ -71,3 +71,13 @@
 - workaround used: none needed (the runner route already ships, gated by
   check_asm.py incl. merged-scene watertight). Left for an engine fix
   phase: posed-instance tessellation parity with the part-program export.
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F1** — F1: exact route.
+- **F2** — F2: error kinds.
+- **F3** — F3: no receipt-less abort.
+- **F4** — F4: foreign job refused.
+- **F5** — F5: asm export.

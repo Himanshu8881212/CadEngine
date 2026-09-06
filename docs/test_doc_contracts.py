@@ -411,7 +411,7 @@ def _tube_and(radius, tag):
 	]
 
 
-@check("clearance on a NESTED pair returns a faceted distance that UNDER-reads ~10%",
+@check("clearance on a NESTED pair returns a faceted distance that UNDER-reads (~1%)",
        "DELIVERABLE_SPEC §2.11; OPERATOR_BRIEF §8; ops_core §11b")
 def t_clearance_nested_underreads():
 	rep, _ = run_program(_tube_and(5.7, "pin") + [
@@ -424,7 +424,7 @@ def t_clearance_nested_underreads():
 	# true radial gap is 0.300 mm; the measure is `faceted` and reads LOW (conservative).
 	assert 0.25 < d < 0.300, \
 		f"nested clearance must be a faceted UNDER-read of the 0.300 mm gap, got {d}"
-	assert abs(d - 0.2711) < 5e-3, f"the documented 0.2711 mm has drifted to {d}"
+	assert abs(d - 0.2968) < 5e-3, f"the documented 0.2968 mm has drifted to {d}"
 	eq(m["c_nested"]["provenance"], "faceted", "clearance provenance — why it under-reads")
 	eq(m["c_nested"]["interfering"], False, "nested pair is not interfering")
 	assert m["c_far"]["distance"] > 100.0, \

@@ -740,8 +740,16 @@ pub enum OpKind {
 	SupportReport {
 		#[serde(rename = "in")]
 		input: String,
+		/// The PRINT-UP (layer-growth) direction, pointing AWAY from the bed
+		/// (default [0,0,1]): the bed sits at the part's minimum extent along
+		/// it, so `[0,0,-1]` audits the part printed upside down.
 		#[serde(default = "d_up")]
 		build_dir: [f64; 3],
+		/// Overhang limit in degrees FROM VERTICAL (a wall is 0°, a flat ceiling
+		/// 90°; default 45). A down-facing facet lands in `steep_area` iff its
+		/// tilt from `build_dir` EXCEEDS this — so a LARGER value is MORE
+		/// permissive. Never set it to a modelled face angle (a strict f32
+		/// knife edge); treat readings within ~1° of one as unresolved.
 		#[serde(default = "d_overhang")]
 		overhang_deg: f64,
 	},
@@ -1465,7 +1473,7 @@ pub enum OpKind {
 	/// Deep-groove ball-bearing body: the seat table's d × D × B annulus.
 	#[serde(rename = "deep_groove_bearing")]
 	DeepGrooveBearing {
-		/// Seat-table designation: "603", "608", "625", "688", "6000", "6001", "6804".
+		/// Seat-table designation: "603", "608", "623", "625", "688", "6000", "6001", "6804".
 		designation: String,
 	},
 	/// Flanged miniature bearing body, flange face at z = 0.
@@ -2016,10 +2024,17 @@ pub enum OpKind {
 		axis: [f64; 3],
 		/// Hole **diameter** (mm).
 		d: f64,
-		/// Full-diameter depth of a blind hole (exclusive with `through`).
+		/// Full-diameter depth of a blind hole (exclusive with `through`). A blind
+		/// hole ends in the standard 118° drill-point cone, which reaches
+		/// `point_depth` = depth + 0.300·d below the entry face — a wide shallow
+		/// pocket therefore breaks through a thin floor unless `flat: true`.
 		depth: Option<f64>,
 		/// Material span of a through hole (exclusive with `depth`).
 		through: Option<f64>,
+		/// Blind holes only: `true` cuts a FLAT-bottomed pocket (an end mill / a
+		/// printed recess) exactly `depth` deep, with no drill point. Default false.
+		#[serde(default)]
+		flat: bool,
 		/// Tool facet count (default 32).
 		segments: Option<usize>,
 	},
@@ -2095,7 +2110,7 @@ pub enum OpKind {
 		input: String,
 		at: [f64; 3],
 		axis: [f64; 3],
-		/// Bearing designation: 603, 608, 625, 688, 6000, 6001 or 6804.
+		/// Bearing designation: 603, 608, 623, 625, 688, 6000, 6001 or 6804.
 		bearing: String,
 		segments: Option<usize>,
 	},
@@ -2104,7 +2119,15 @@ pub enum OpKind {
 	/// Measures-only ISO 261/262 coarse-thread lookup for a nominal M-size:
 	/// `pitch`, the ISO 68-1 fundamental height `h`, the basic minor Ø and the
 	/// standard tap-drill Ø. No geometry.
-	ThreadSpec { m: f64 },
+	ThreadSpec {
+		/// Nominal ISO metric size (M3–M16, coarse); exclusive with the inch form.
+		m: Option<f64>,
+		/// Inch-series form: crest **diameter** in mm together with `tpi` — the
+		/// same 60° ISO 68-1 / UN triangle arithmetic (1-3/8"-18 UNEF = 34.925 mm, 18 tpi).
+		major_d: Option<f64>,
+		/// Threads per inch for the inch form (pitch = 25.4 / tpi).
+		tpi: Option<f64>,
+	},
 	/// The external ISO 68-1 thread RIDGE as an exact, watertight B-rep solid:
 	/// the basic profile swept on an exact helix along +Z through the origin
 	/// (96 stations/turn), crests exactly at the major Ø, root buried P/4 below
@@ -2124,6 +2147,14 @@ pub enum OpKind {
 		z0: f64,
 		/// Axial span of the ridge (`length/pitch` turns, capped at 200).
 		length: f64,
+		/// The ISO section is 0.75 P wide at its buried base, so the produced solid
+		/// overshoots `[z0, z0+length]` by 0.375 P at EACH end (reported as
+		/// `z_min` / `z_max`). `clip_to_span: true` shortens the helix run by that
+		/// much at both ends so the whole ridge lies inside the declared span —
+		/// for a blind bore whose floor the overshoot would breach. Default false
+		/// (the historic geometry, byte for byte).
+		#[serde(default)]
+		clip_to_span: bool,
 	},
 	/// Fuse (external) or cut (internal) an ISO thread onto a bound body and
 	/// export the result through the **voxel half** — the proven hybrid route
@@ -2139,8 +2170,13 @@ pub enum OpKind {
 	ExportThreaded {
 		#[serde(rename = "in")]
 		input: String,
-		/// Nominal ISO size (M3–M16, coarse pitch).
-		m: f64,
+		/// Nominal ISO size (M3–M16, coarse pitch); exclusive with `major_d`+`pitch`.
+		m: Option<f64>,
+		/// Explicit crest **diameter** (mm) for a custom / fine thread (e.g. M8×0.75,
+		/// a 1-3/8"-18 UNEF); requires `pitch`.
+		major_d: Option<f64>,
+		/// Explicit thread pitch (mm); requires `major_d`.
+		pitch: Option<f64>,
 		/// Axial start of the threaded span (default 0).
 		#[serde(default)]
 		z0: f64,

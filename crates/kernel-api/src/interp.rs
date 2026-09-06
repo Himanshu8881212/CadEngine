@@ -160,14 +160,21 @@ fn run_one(
 			Err(err(ErrorKind::InvalidParam, format!("op {fallback_id}: each entry of 'ops' must be a JSON object"))),
 		);
 	};
-	let Some(id) = obj.get("id").and_then(Value::as_str) else {
-		return (
-			fallback_id.clone(),
-			Vec::new(),
-			Err(err(ErrorKind::InvalidParam, format!("op {fallback_id}: missing required string field 'id'"))),
-		);
+	let id = match obj.get("id").and_then(Value::as_str) {
+		Some(id) => id.to_string(),
+		// `describe` binds nothing and is never referenced, so it needs no
+		// id: the brief's `{"op":"describe","name":"…"}` form is legal
+		// (rotor F1 — every reader typed it and every reader was refused).
+		// Any other op still needs the id it is addressed by.
+		None if obj.get("op").and_then(Value::as_str) == Some("describe") => format!("describe{fallback_id}"),
+		None => {
+			return (
+				fallback_id.clone(),
+				Vec::new(),
+				Err(err(ErrorKind::InvalidParam, format!("op {fallback_id}: missing required string field 'id'"))),
+			);
+		}
 	};
-	let id = id.to_string();
 	if !all_ids.insert(id.clone()) {
 		return (
 			id.clone(),

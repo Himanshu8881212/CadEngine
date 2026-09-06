@@ -323,6 +323,7 @@ NON_ANALYSIS = {
     "materials.py": "material-data module (parallel-owned; not an analyzer)",
     "_ace.py": "shared ACE runner harness",
     "_stl.py": "shared binary-STL loader",
+    "receipt_verify.py": "geometry_hash verifier: receipt vs job, and sibling receipts vs each other (checker of receipts, emits no physics number)",
     # validation/ pins and tests/ suites (evidence, not surface) — listed by
     # basename because the forwarding shims at the old flat paths share them.
     "ace_fea_validation.py": "validation pin (evidence, not a surface)",

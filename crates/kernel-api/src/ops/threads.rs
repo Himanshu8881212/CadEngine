@@ -66,22 +66,53 @@ pub(crate) fn exec(
 	kind: OpKind,
 ) -> Result<Outcome, OpError> {
 	match kind {
-		OpKind::ThreadSpec { m } => {
+		OpKind::ThreadSpec { m, major_d, tpi } => {
 			// Measures-only table lookup (the `pipe_thread_g` pattern): the ISO 261
 			// coarse pitch plus the ISO 68-1 derived dimensions a designer needs.
-			let pitch = iso_pitch(op_id, "thread_spec", m)?;
-			let h = 3.0_f64.sqrt() * 0.5 * pitch; // ISO 68-1 fundamental triangle height
-			Ok(Outcome::measures(json!({
-				"m": m,
+			// The inch form (`major_d` + `tpi`) runs the SAME 60° triangle
+			// arithmetic — UN and ISO share the basic profile — so an inch-series
+			// thread (1-3/8"-18 UNEF: major_d 34.925, tpi 18) gets its pitch, minor
+			// Ø and tap drill from the identical formulas (screw_on_exponential_horn
+			// F2: the op was metric-only).
+			let (major, pitch, form) = match (m, major_d, tpi) {
+				(Some(m), None, None) => (m, iso_pitch(op_id, "thread_spec", m)?, "iso_metric_coarse"),
+				(None, Some(d), Some(t)) => {
+					if !(d.is_finite() && d > 0.0 && t.is_finite() && t > 0.0) {
+						return Err(err(
+							ErrorKind::InvalidParam,
+							format!("op '{op_id}': thread_spec: major_d and tpi must be positive finite"),
+						));
+					}
+					(d, 25.4 / t, "unified_inch")
+				}
+				_ => {
+					return Err(err(
+						ErrorKind::InvalidParam,
+						format!("op '{op_id}': thread_spec: give either 'm' (ISO coarse, {FASTENER_SIZES}) or BOTH 'major_d' (mm) and 'tpi' — not a mixture"),
+					));
+				}
+			};
+			let h = 3.0_f64.sqrt() * 0.5 * pitch; // ISO 68-1 / UN fundamental triangle height
+			let mut measures = json!({
+				"form": form,
+				"major_d": major,
 				"pitch": pitch,
 				"h": h,
 				// basic minor Ø: crests − 2 × (5/8)H, the kernel ridge's root-flat Ø
-				"minor_d": m - 1.25 * h,
-				// the standard tap-drill rule Ø = m − pitch
-				"tap_drill_d": m - pitch,
-			})))
+				"minor_d": major - 1.25 * h,
+				// the standard tap-drill rule Ø = major − pitch
+				"tap_drill_d": major - pitch,
+			});
+			if let Some(m) = m {
+				measures["m"] = json!(m);
+			}
+			if let Some(t) = tpi {
+				measures["tpi"] = json!(t);
+				measures["major_d_in"] = json!(major / 25.4);
+			}
+			Ok(Outcome::measures(measures))
 		}
-		OpKind::ThreadRidge { m, major_d, pitch, z0, length } => {
+		OpKind::ThreadRidge { m, major_d, pitch, z0, length, clip_to_span } => {
 			// The exact ISO 68-1 ridge solid, bound to the environment (it validates —
 			// closed, manifold, genus 0). Its exact union with a shank SELF-INTERSECTS
 			// by design (the root is buried P/4 into the shank): fuse via
@@ -100,7 +131,25 @@ pub(crate) fn exec(
 			if !z0.is_finite() {
 				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': thread_ridge: z0 must be finite")));
 			}
-			let solid = parts::iso_thread_solid(d, p, z0, length).ok_or_else(|| {
+			// The buried base of the ISO section is ±0.375 P wide, so the solid
+			// runs 0.375 P past each end of the helix (prosthetic F3: the overshoot
+			// punched a blind bore's floor). Report it; clip on request.
+			let overshoot = 0.375 * p;
+			let (build_z0, build_len) = if clip_to_span {
+				if length <= 2.0 * overshoot + p * 2.0 / 96.0 {
+					return Err(err(
+						ErrorKind::InvalidParam,
+						format!(
+							"op '{op_id}': thread_ridge: clip_to_span needs length > 0.75·pitch ({:.4} mm) — nothing would remain",
+							2.0 * overshoot
+						),
+					));
+				}
+				(z0 + overshoot, length - 2.0 * overshoot)
+			} else {
+				(z0, length)
+			};
+			let solid = parts::iso_thread_solid(d, p, build_z0, build_len).ok_or_else(|| {
 				err(
 					ErrorKind::InvalidParam,
 					format!(
@@ -109,17 +158,23 @@ pub(crate) fn exec(
 				)
 			})?;
 			let h = 3.0_f64.sqrt() * 0.5 * p;
+			let (z_min, z_max) = if clip_to_span { (z0, z0 + length) } else { (z0 - overshoot, z0 + length + overshoot) };
 			let measures = json!({
 				"major_d": d,
 				"pitch": p,
 				"minor_d": d - 1.25 * h,
 				"z0": z0,
 				"length": length,
-				"turns": length / p,
+				"turns": build_len / p,
+				"clip_to_span": clip_to_span,
+				// the solid's true axial extent (the section is 0.75 P wide at its base)
+				"z_min": z_min,
+				"z_max": z_max,
+				"axial_overshoot": if clip_to_span { 0.0 } else { overshoot },
 			});
 			Ok(Outcome { measures: Some(measures), ..bind_solid(op_id, "thread_ridge", solid)? })
 		}
-		OpKind::ExportThreaded { input, m, z0, length, internal, voxel, file } => {
+		OpKind::ExportThreaded { input, m, major_d, pitch: pitch_in, z0, length, internal, voxel, file } => {
 			// Thread a bound body through the VOXEL half — the proven hybrid route,
 			// because the exact union(body, ridge) self-intersects and no planar
 			// arrangement can stitch it. External: merge the tessellation soups and
@@ -129,7 +184,28 @@ pub(crate) fn exec(
 			// NOT the ISO D1/D4 form (documented in API.md). The thread axis is world
 			// +Z through the origin: place the body's shank/bore there first.
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
-			let pitch = iso_pitch(op_id, "export_threaded", m)?;
+			// `m` = ISO coarse from the table; `major_d` + `pitch` = any custom or
+			// fine thread (M8×0.75, a 1-3/8"-18 UNEF) — graham F3 / screw_on F3:
+			// the op was coarse-metric-only, so a fine or inch thread had NO
+			// sanctioned fuse/cut route at all.
+			let (m, pitch) = match (m, major_d, pitch_in) {
+				(Some(m), None, None) => (m, iso_pitch(op_id, "export_threaded", m)?),
+				(None, Some(d), Some(p)) => {
+					if !(d.is_finite() && d > 0.0 && p.is_finite() && p > 0.0) {
+						return Err(err(
+							ErrorKind::InvalidParam,
+							format!("op '{op_id}': export_threaded: major_d and pitch must be positive finite"),
+						));
+					}
+					(d, p)
+				}
+				_ => {
+					return Err(err(
+						ErrorKind::InvalidParam,
+						format!("op '{op_id}': export_threaded: give either 'm' (ISO coarse, {FASTENER_SIZES}) or BOTH 'major_d' and 'pitch' — not a mixture"),
+					));
+				}
+			};
 			thread_turns_guard(op_id, "export_threaded", length, pitch)?;
 			if !z0.is_finite() {
 				return Err(err(ErrorKind::InvalidParam, format!("op '{op_id}': z0 must be finite")));

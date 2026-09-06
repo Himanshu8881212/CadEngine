@@ -15,6 +15,29 @@ use serde_json::{json, Value};
 
 use crate::interp::{err, EnvValue, Outcome};
 use crate::report::{ErrorKind, OpError};
+/// How a written file is ECHOED in a report: relative to the sandbox (`out_dir`)
+/// when it lies inside it, so two runs of one program with different spellings
+/// of the same `--out-dir` (`.` vs an absolute path) produce byte-identical
+/// reports — DELIVERABLE_SPEC §3 asks for exactly that and the din_rail campaign
+/// measured the reports differing ONLY in this field
+/// (`campaign/friction/din_rail_pi4_enclosure.md` #F5). A path outside the
+/// sandbox (not produced by `resolve_path`) is echoed as written.
+pub(crate) fn report_path(out_dir: &Path, path: &Path) -> String {
+	let base = if out_dir.as_os_str().is_empty() { Path::new(".") } else { out_dir };
+	if let Ok(rel) = path.strip_prefix(base) {
+		if !rel.as_os_str().is_empty() {
+			return rel.display().to_string();
+		}
+	}
+	if let (Ok(b), Ok(p)) = (base.canonicalize(), path.canonicalize()) {
+		if let Ok(rel) = p.strip_prefix(&b) {
+			if !rel.as_os_str().is_empty() {
+				return rel.display().to_string();
+			}
+		}
+	}
+	path.display().to_string()
+}
 
 /// Confine an agent-supplied path to the sandbox `base`: reject absolute paths and any
 /// `..` / root / drive-prefix component so a work-order can only reach files UNDER the
@@ -402,7 +425,7 @@ pub(crate) fn export_mesh(
 	if let Some(demotion) = demotion {
 		measures["demotion"] = demotion;
 	}
-	Ok(Outcome { value: Some(EnvValue::Mesh(round_trip.clone())), measures: Some(measures), file: Some(path.display().to_string()) })
+	Ok(Outcome { value: Some(EnvValue::Mesh(round_trip.clone())), measures: Some(measures), file: Some(report_path(out_dir, &path)) })
 }
 
 /// Resolve `file` under `out_dir`, enforce the manufacturing mesh contract,
@@ -520,7 +543,7 @@ pub(crate) fn write_mesh_policy(op_id: &str, out_dir: &Path, file: &str, mesh: &
 			),
 		));
 	}
-	Ok(path.display().to_string())
+	Ok(report_path(out_dir, &path))
 }
 
 /// Read a mesh interchange file — `.stl` / `.obj` / `.3mf` / `.ply`, sniffed by

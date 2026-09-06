@@ -48,10 +48,17 @@ def render(path, out, views, clip=None):
 		col.set_facecolor(plt.cm.viridis(0.5 * np.ones(len(tri)))[:, :3] * shade[:, None])
 		ax.add_collection3d(col)
 		lo, hi = tri.min(axis=(0, 1)), tri.max(axis=(0, 1))
-		c, r = (lo + hi) / 2, (hi - lo).max() / 2
-		ax.set_xlim(c[0] - r, c[0] + r)
-		ax.set_ylim(c[1] - r, c[1] + r)
-		ax.set_zlim(c[2] - r, c[2] + r)
+		ext = np.maximum(hi - lo, 1e-9)
+		# Fit the panel to the part's OWN extents: a cubic limit box sized by
+		# the longest edge left a 288 x 128 x 24 mm assembly at ~15 % of its
+		# panel (l12 F8). Limits hug the bbox (4 % margin) and the box aspect
+		# follows the extents, so a flat wide part fills the view instead of
+		# floating in a cube of empty space.
+		c, m = (lo + hi) / 2, ext * 0.52
+		ax.set_xlim(c[0] - m[0], c[0] + m[0])
+		ax.set_ylim(c[1] - m[1], c[1] + m[1])
+		ax.set_zlim(c[2] - m[2], c[2] + m[2])
+		ax.set_box_aspect(tuple(ext / ext.max()), zoom=1.25)
 		ax.view_init(elev=el, azim=az)
 		ax.set_title(title)
 		ax.set_axis_off()
@@ -61,6 +68,7 @@ def render(path, out, views, clip=None):
 	print(f"{out}: {len(tri)} tris")
 	return {"ok": True, "out": os.path.abspath(out), "views": len(views),
 	        "triangles": int(len(tri)), "clipped": clip is not None,
+	        "fit": "bbox-tight (limits hug the extents, box aspect = extents)",
 	        "bytes": os.path.getsize(out)}
 
 

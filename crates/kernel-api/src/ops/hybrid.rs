@@ -22,7 +22,7 @@ use crate::interp::{err, fetch_solid, EnvValue, Outcome, MAX_GRID_CELLS};
 use crate::program::{MesherSpec, OpKind};
 use crate::report::{ErrorKind, OpError};
 
-use super::meshio::{resolve_input_or_out, resolve_path};
+use super::meshio::{report_path, resolve_input_or_out, resolve_path};
 use super::support::{bind_solid, dv3, grid_guard};
 
 /// Validate an op's optional explicit `domain` box (`{min, max}`), or `None`
@@ -137,7 +137,7 @@ pub(crate) fn exec(
 				"watertight": true,
 				"healed": healed,
 			});
-			Ok(Outcome { value: Some(EnvValue::Mesh(mesh.clone())), measures: Some(measures), file: Some(path.display().to_string()) })
+			Ok(Outcome { value: Some(EnvValue::Mesh(mesh.clone())), measures: Some(measures), file: Some(report_path(out_dir, &path)) })
 		}
 
 		OpKind::SampleDensityGrid { input, expr, origin, voxel, shape, supersample, file } => {
@@ -183,7 +183,7 @@ pub(crate) fn exec(
 					"solid_fraction_mean": mean,
 					"bytes": bytes.len(),
 				})),
-				file: Some(path.display().to_string()),
+				file: Some(report_path(out_dir, &path)),
 			})
 		}
 		OpKind::MeshDensityGrid { npy, origin, voxel, iso, file } => {
@@ -240,7 +240,7 @@ pub(crate) fn exec(
 					"watertight": true,
 					"healed": healed,
 				})),
-				file: Some(path.display().to_string()),
+				file: Some(report_path(out_dir, &path)),
 			})
 		}
 		OpKind::Implicit { expr, voxel, mesher, domain, file } => {
@@ -324,7 +324,7 @@ pub(crate) fn exec(
 						}
 					};
 					write_result.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot write '{}': {e}", path.display())))?;
-					Some(path.display().to_string())
+					Some(report_path(out_dir, &path))
 				}
 				None => None,
 			};
@@ -415,7 +415,7 @@ pub(crate) fn exec(
 						}
 					};
 					write_result.map_err(|e| err(ErrorKind::Io, format!("op '{op_id}': cannot write '{}': {e}", path.display())))?;
-					Some(path.display().to_string())
+					Some(report_path(out_dir, &path))
 				}
 				None => None,
 			};
@@ -455,6 +455,29 @@ pub(crate) fn exec(
 				Aabb::new(Vec3::new(smin.x as f32, smin.y as f32, smin.z as f32), Vec3::new(smax.x as f32, smax.y as f32, smax.z as f32))
 					.pad(delta.abs() as f32 + 3.0 * voxel as f32);
 			grid_guard(op_id, "offset_solid", domain, voxel)?;
+			// COST MODEL, stated before the work starts: the offset lifts the
+			// solid into a winding-number SDF and evaluates it at every lattice
+			// cell — cost ∝ cells × input triangles (measured ~1e7 cell·tri/s).
+			// A 30 mm part at voxel 0.15 (1.6 M cells × 1.1 k triangles) ran past
+			// 120 s with no output and no refusal (cleat F9). Above the budget
+			// the op REFUSES with the cell count and the coarsest voxel that
+			// would fit, instead of grinding silently.
+			const OFFSET_WORK_BUDGET: f64 = 2.0e9;
+			let size = domain.size();
+			let cells = (f64::from(size.x) / voxel).ceil() * (f64::from(size.y) / voxel).ceil() * (f64::from(size.z) / voxel).ceil();
+			let tris = kernel_brep::tessellate_default(s).triangle_count() as f64;
+			let work = cells * tris;
+			if work > OFFSET_WORK_BUDGET {
+				let voxel_fit = voxel * (work / OFFSET_WORK_BUDGET).cbrt();
+				return Err(err(
+					ErrorKind::InvalidParam,
+					format!(
+						"op '{op_id}': offset_solid at voxel {voxel} needs ≈{cells:.0} lattice cells × {tris:.0} input triangles = {work:.2e} cell·triangle evaluations (~{:.0} s at ~1e7/s), above the {OFFSET_WORK_BUDGET:.0e} budget — use voxel ≥ {:.3} mm (cost ∝ 1/voxel³), or shrink the part",
+						work / 1e7,
+						(voxel_fit * 1000.0).ceil() / 1000.0
+					),
+				));
+			}
 			let out = kernel_model::shell::offset_to_solid(s, delta, voxel as f32);
 			if out.face_count() == 0 {
 				return Err(err(
@@ -466,6 +489,8 @@ pub(crate) fn exec(
 			}
 			let mut measures = voxel_solid_measures(&out, voxel);
 			measures["delta"] = json!(delta);
+			measures["lattice_cells"] = json!(cells);
+			measures["work_cell_triangles"] = json!(work);
 			let outcome = bind_solid(op_id, "offset_solid", out)?;
 			Ok(Outcome { measures: Some(measures), ..outcome })
 		}
@@ -530,7 +555,7 @@ pub(crate) fn exec(
 			implicit::probe_fields(op_id, &parsed.fields, bounds)?;
 			// implicit_to_solid meshes over bounds padded by 2 voxels — cap that grid.
 			grid_guard(op_id, "solid_from_implicit", bounds.pad(2.0 * voxel as f32), voxel)?;
-			let solid = kernel_model::reverse::implicit_to_solid(&parsed.node, bounds, voxel as f32).map_err(|e| {
+			let (solid, healed) = kernel_model::reverse::implicit_to_solid_reported(&parsed.node, bounds, voxel as f32).map_err(|e| {
 				// "nothing to bridge" = no surface inside the bounds (a degenerate
 				// question → invalid_param); every other bridge refusal (weld,
 				// validation, volume-conservation) is a geometry-integrity failure.
@@ -542,6 +567,10 @@ pub(crate) fn exec(
 			// REFUSED any drift, so success here is the proof it passed.
 			measures["volume_conserved"] = json!(true);
 			measures["approximate_offset"] = json!(approximate_offset);
+			// `healed: true` = the dual-contoured surface needed make_manifold
+			// (capped loops / split junctions) before it would wrap — the same
+			// repair the `implicit` op reports under the same key.
+			measures["healed"] = json!(healed);
 			let outcome = bind_solid(op_id, "solid_from_implicit", solid)?;
 			Ok(Outcome { measures: Some(measures), ..outcome })
 		}

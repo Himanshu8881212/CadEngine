@@ -80,13 +80,28 @@ pub(crate) fn exec(
 	kind: OpKind,
 ) -> Result<Outcome, OpError> {
 	match kind {
-		OpKind::Drill { input, at, axis, d, depth, through, segments } => {
+		OpKind::Drill { input, at, axis, d, depth, through, flat, segments } => {
 			let s = fetch_solid(env, all_ids, op_id, "in", &input)?;
 			let dep = hole_depth(op_id, depth, through)?;
-			let solid = holes::drill(s, dv3(at), dv3(axis), d, dep, segments).map_err(|e| map_hole_error(op_id, "drill", e))?;
+			if flat && !matches!(dep, holes::HoleDepth::Blind(_)) {
+				return Err(err(
+					ErrorKind::InvalidParam,
+					format!("op '{op_id}': drill: 'flat' applies to a blind hole ('depth'), not a through hole"),
+				));
+			}
+			let solid = if flat {
+				holes::drill_flat(s, dv3(at), dv3(axis), d, dep, segments).map_err(|e| map_hole_error(op_id, "drill", e))?
+			} else {
+				holes::drill(s, dv3(at), dv3(axis), d, dep, segments).map_err(|e| map_hole_error(op_id, "drill", e))?
+			};
 			let mut measures = serde_json::Map::new();
 			measures.insert("d".into(), json!(d));
 			depth_measures(&mut measures, d, dep);
+			if flat {
+				measures.insert("flat".into(), json!(true));
+				// a flat pocket reaches exactly its depth — no drill point
+				measures.insert("point_depth".into(), json!(depth.unwrap_or(0.0)));
+			}
 			Ok(Outcome { measures: Some(Value::Object(measures)), ..bind_solid(op_id, "drill", solid)? })
 		}
 		OpKind::ClearanceHole { input, at, axis, m, fit, segments } => {

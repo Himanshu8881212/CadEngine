@@ -3,7 +3,7 @@
 ## F1 — `mesh_components` counts one extra component per `extrude_with_holes` hole loop (2026-08-07)
 - severity: major
 - surface: mesh_components
-- status: open
+- status: fixed — `mesh_components` on an `extrude_with_holes` body counts one component (`mc_ewh` repro)
 - symptom: a topologically perfect solid fails the mandatory single-body gate.
   `extrude_with_holes` (outer U-frame + 3 hole loops) reports
   `validate -> closed:true manifold:true valid:true genus:3 shells:1
@@ -45,7 +45,7 @@
 ## F2 — `clearance` reports distance 0.0 / interfering:true / overlap_volume:null on provably disjoint curved-face pairs (2026-08-07)
 - severity: major
 - surface: clearance
-- status: open
+- status: fixed — `clearance` on the proximate pair reads the gap, `interfering` follows `overlap_volume`, which is never null (ENGINE #28)
 - symptom: for the posed palm+wedge pair (designed 0.30 mm radial gap between an
   O14 follower pin and its O14.6 cam-slot cap, and 0.30 mm between the wedge
   rails and the guide walls) `clearance` returns
@@ -80,7 +80,7 @@
 ## F3 — `tools_cookbook.md` puts the fatigue stress spec at the job top level; the runner requires a `stress` block (2026-08-07)
 - severity: minor
 - surface: campaign/digests/tools_cookbook.md
-- status: open
+- status: fixed — cookbook shows the nested `stress` block
 - symptom: a job written from the cookbook's §1 ace_fatigue paragraph
   ("stress one of `{npy, unit?}` | `{sigma_ref_mpa}` | `{sigma_ref_pa}`") fails with
   `JobError: stress block required: {npy,...} or {sigma_ref_mpa} or {sigma_ref_pa}`
@@ -134,7 +134,7 @@
 ## F5 — `ace_fea_tet` aborts on a watertight, validate-clean STL when the surface carries slender triangles (2026-08-07)
 - severity: major
 - surface: tools/analyzers/ace_fea_tet_runner.py
-- status: open
+- status: fixed — ace_fea_tet: gmsh runs in an isolated child; a surface it refuses is reported as `MeshRefusal` (exit 2) with the element size and the sliver witness
 - symptom: `AssertionError: body-fitted mesh has a non-positive corner Jacobian
   (min -1.223e-04 mm^3) — inverted/degenerate element; ref-mesh` on an STL that
   the kernel itself certifies: `validate` -> `valid/closed/manifold`, `genus 0`,
@@ -161,7 +161,7 @@
 ## F6 — blind `drill` leaves a 118 deg drill POINT that can breach the far face (2026-08-08)
 - severity: major
 - surface: drill
-- status: open
+- status: fixed — `drill {flat: true}` cuts a flat-bottomed pocket (`point_depth == depth`; `drill_flat` repro) so a blind hole cannot breach a far wall through its point
 - symptom: `{"op":"drill","at":[18,26.5,6],"axis":[0,0,-1],"d":20.6,"depth":2.5}` on a
   6.0 mm plate returned `ok:true` with measures
   `{"d":20.6,"depth":2.5,"kind":"blind","point_depth":8.688864375983872}` — the
@@ -187,7 +187,7 @@
 ## F7 — `tpms` writes its mesh under --out-dir but `hybrid_boolean` reads relative to the PROGRAM dir (2026-08-08)
 - severity: minor
 - surface: hybrid_boolean
-- status: open
+- status: fixed — IN-side ops (`hybrid_boolean.file`, `import_mesh`, …) resolve against the program directory first, then `--out-dir`; the `tpms_hybrid` repro (tpms → hybrid_boolean) runs
 - symptom: a two-op program `{"op":"tpms",...,"file":"probe_lat.stl"}` followed by
   `{"op":"hybrid_boolean","in":"plate","file":"probe_lat.stl",...}` fails with
   `{"kind":"io","message":"op 'fuse': cannot read '/tmp/probe_lat.stl': No such
@@ -279,7 +279,7 @@
 ## F11 — two receipts meshed from byte-identical program geometry shipped different `geometry_hash` values, and nothing noticed (2026-08-08, repair pass)
 - severity: major
 - surface: tools/analyzers/_ace.py
-- status: open
+- status: fixed — `tools/receipt_verify.py` recomputes a job's `geometry_hash` and compares it with the receipt (`--pair`), and checks that sibling receipts share ONE hash (`--siblings`); exit 1 on a mismatch (`gate_failed`), 2 on an unreadable input. Verified 2026-09-05: a modal receipt matches its job; the same receipt against an amended job → STALE, exit 1
 - symptom: `receipts/modal_finger_v04.json` shipped
   `n_active_elements 29544`, `geometry_hash program:sha256:bbb26f8d9c9c…`
   while `receipts/buckling_slice_v04.json` shipped
@@ -318,3 +318,15 @@
   receipt is still only caught by re-running the analyzer, which is minutes to
   ~10 min per job and is therefore not in the self-check. Carried as an open
   limitation in `analysis/DESIGN.md` §31 (repair R14).
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F1** — F1: hole loops no longer counted.
+- **F2** — F2: clearance honest.
+- **F3** — F3: cookbook.
+- **F5** — F5: no abort, typed refusal.
+- **F6** — F6: flat drill.
+- **F7** — F7: tpms output found by hybrid_boolean.
+- **F11** — F11: something now READS `geometry_hash` — wire `receipt_verify.py --siblings` into run_all.sh for every receipt family that shares a geometry block.

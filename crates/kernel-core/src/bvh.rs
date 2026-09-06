@@ -221,29 +221,32 @@ impl MeshBvh {
 	/// Minimum separation between this surface and `other`, found by a simultaneous
 	/// descent of the two hierarchies with bounding-box pruning (scales far better
 	/// than the brute-force pair sweep for large assemblies). `0.0` on touch or
-	/// interference.
-	///
-	/// NOTE — currently UNUSED, and NOT a verified drop-in for
-	/// [`Mesh::min_distance`]. The two agree on simple convex cases (parallel /
-	/// crossed cylinders, to f32 precision) but DIVERGED on the 37-part gearbox
-	/// acceptance: routing assembly clearance through this under-reported some
-	/// shaft↔housing pairs toward 0, flipping a must-clear gap to "touching"
-	/// (see the reverted commit "BVH-accelerate assembly clearance (O2)"). Root
-	/// cause not yet isolated. Before any caller adopts it, validate it against
-	/// `Mesh::min_distance` on representative assembly meshes and pin the
-	/// equivalence with a curved-mesh / engulfed-part test — a flat-grid
-	/// equivalence test is NOT sufficient.
+	/// interference. Identical to [`Mesh::min_distance_brute`] (the O(n·m)
+	/// reference) — `tests/bvh_min_distance.rs` pins the two on curved, rotated,
+	/// engulfed and touching pairs; [`Mesh::min_distance`] routes through here.
 	pub fn min_distance(&self, other: &MeshBvh) -> f64 {
+		self.min_distance_bounded(other, f64::INFINITY)
+	}
+
+	/// [`min_distance`](Self::min_distance) with a caller-supplied UPPER bound
+	/// `upper` on the answer (e.g. from sampling vertices of one mesh against the
+	/// other's hierarchy): the descent starts pruned at `upper`, so a tight seed
+	/// makes a large pair cheap. The result is exact whenever `upper` really is an
+	/// upper bound; it is never smaller than the true separation.
+	pub fn min_distance_bounded(&self, other: &MeshBvh, upper: f64) -> f64 {
 		if self.nodes.is_empty() || other.nodes.is_empty() {
 			return f64::INFINITY;
 		}
 		// Seed a bound from one vertex of each mesh against the other.
-		let mut best = f64::INFINITY;
+		let mut best = upper;
 		if let Some(cp) = other.closest_point(self.tris[0][0]) {
 			best = best.min(cp.distance as f64);
 		}
 		if let Some(cp) = self.closest_point(other.tris[0][0]) {
 			best = best.min(cp.distance as f64);
+		}
+		if best <= 0.0 {
+			return 0.0;
 		}
 		// Descend the pair of trees, always splitting the larger node.
 		let mut stack = vec![(0u32, 0u32)];

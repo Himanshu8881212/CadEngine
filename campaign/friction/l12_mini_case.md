@@ -44,7 +44,7 @@ statement now is "163 of 168 solids reconstruct in ~16 min in release", not "unv
 ## F2 — `import_mesh {heal}` cannot heal the vendor STL
 - severity: major
 - surface: import_mesh
-- status: open
+- status: open — dispositioned: the vendor STL is a soup (thousands of boundary/non-manifold edges) beyond the heal's contract; `import_mesh {heal}` now REPORTS the before/after counts so the refusal is on the record, and the campaign's remodel from measurements is the supported path
 
 "still not watertight after healing (non_manifold_edges=1070)" on the OpenCascade mesh of
 the mainboard. Used for renders only (`assembly/scene/board_mesh.stl`, built by
@@ -53,7 +53,7 @@ the mainboard. Used for renders only (`assembly/scene/board_mesh.stl`, built by
 ## F3 — exact-route export is facet-luck sensitive (again), now with two clean bisections  — DIAGNOSIS FIXED 2026-09-03
 - severity: major
 - surface: export_stl
-- status: partial — the `demotion` receipt field landed 2026-09-03; the facet-luck demotions themselves remain
+- status: fixed — the exact route is no longer facet-luck sensitive (snap rounding + CDT + coalesced caps); `rot_mirror` repro exports exact at three poses and the `demotion` receipt names any residual defect
 
 - Tray: the catch **ridges** on the long walls at crest bottom z ≥ 3.0 demote the export to
   `voxel_healed` *only when the plug windows in the end walls also exist* — 43 mm apart,
@@ -100,7 +100,7 @@ deleted.
 ## F5 — `clearance` on complex bodies: `overlap_volume` null
 - severity: major
 - surface: clearance
-- status: open
+- status: fixed — `overlap_volume` is never null (ENGINE #28)
 
 Same as CONEJURE: require `interfering` only, then an exact `intersection` + `exact_volume`
 for the must-interfere controls.
@@ -108,7 +108,7 @@ for the must-interfere controls.
 ## F6 — `ace_contact_runner` plane obstacle never engaged
 - severity: major
 - surface: tools/analyzers/ace_contact_runner.py
-- status: open
+- status: fixed — ace_contact plane obstacle engages (`contact_plane` repro: contact nodes > 0, normal force reported)
 
 A plane at the beam tip with `normal [0,-1]` and `motion [0,1]` reported penalty force
 400 N and zero tip motion/stress (the beam sat 0.02 inside the solid side and the plane
@@ -120,7 +120,7 @@ receipt's peak stress (Roark 8.1) in `programs/contact_eval.py`. A receipt field
 ## F7 — `production_check` creep buckets 30 °C to the 55 °C cell
 - severity: minor
 - surface: tools/materials/pla.json
-- status: open
+- status: fixed — production_check reports the temperature row with its governing rule and interpolates the creep cell instead of bucketing 30 °C to 55 °C
 
 `creep_lookup('PLA', 30, 8760)` → 0.5 MPa (bucket 55C). Conservative by design, but a
 23 → 55 °C jump with nothing in between turns a 30 °C wall mount into a fail. A 35 or 40 °C
@@ -129,7 +129,18 @@ cell in `tools/materials/pla.json` would help every enclosure campaign.
 ## F8 — `render_views` on the assembled scene is tiny
 - severity: papercut
 - surface: tools/publish/render_views.py
-- status: open
+- status: fixed — render_views fits the scene to the frame
 
 Four views of a 288 × 128 × 24 mm assembly render the model at ~15 % of the panel; a
 `zoom`/`fit` option or auto-fit to the largest view would make the hero usable directly.
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F2** — F2: stays open — vendor soup is outside the heal contract; the receipt says so.
+- **F3** — F3: facet-luck sensitivity removed; demotion receipt kept.
+- **F5** — F5: overlap on complex bodies.
+- **F6** — F6: obstacle engages.
+- **F7** — F7: creep cell.
+- **F8** — F8: render fit.

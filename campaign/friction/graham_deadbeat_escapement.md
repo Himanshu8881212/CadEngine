@@ -3,7 +3,7 @@
 ## F1 — deep_groove_bearing catalog has no 623 (2026-08-14)
 - severity: major
 - surface: deep_groove_bearing
-- status: open
+- status: fixed — `deep_groove_bearing` / `bearing_seat` carry 623 (Ø3×Ø10×4)
 - symptom: `{"op":"deep_groove_bearing","designation":"623"}` fails, verbatim:
   `op 'b623': deep_groove_bearing: '623' is not in the seat table (603, 608, 625, 688, 6000, 6001, 6804)`
 - minimal repro: `programs/catalog_refusals/refusal_bearing_623.json` →
@@ -20,7 +20,7 @@
 ## F2 — circlip_external / circlip_groove_external have no Ø3 (2026-08-14)
 - severity: major
 - surface: circlip_external
-- status: open
+- status: fixed — DIN 471 circlips and grooves tabulated from Ø3 (Ø3–Ø30)
 - symptom: verbatim: `op 'clip': circlip_external: Ø3 is not in the DIN 471 table
   (supported: Ø8, 10, 12, 15, 20, 25, 30)` and
   `op 'grv': circlip_groove_external: Ø3 must be a DIN 471 size (Ø8, 10, 12, 15, 20, 25, 30) and the axis non-zero`
@@ -39,7 +39,7 @@
 ## F3 — export_threaded is coarse-pitch-only; M8×0.75 cannot go through it (2026-08-14)
 - severity: major
 - surface: export_threaded
-- status: open
+- status: fixed — `export_threaded` takes `major_d` + `pitch` (M8×0.75 verified, pitch echoed 0.75)
 - symptom: `export_threaded` takes `m` only (no `pitch` param); with `m: 8` it
   SUCCEEDS but produces pitch 1.25 (receipt `receipts/refusal_export_threaded_m8_fine.json`:
   `"pitch": 1.25`, `"m": 8.0`) — the wrong thread for the M8×0.75 rating pair.
@@ -57,7 +57,7 @@
 ## F4 — anchor export refuses: one self-intersection survives the voxel heal (2026-08-23)
 - severity: major
 - surface: export_stl
-- status: open
+- status: fixed — the anchor exports `exact` (no heal, no residual crossing); the campaign's `require route: "voxel_healed"` pin now FAILS because the route improved — re-baseline the pin to `exact`
 - symptom: verbatim, `op 'g_stl': mesh is not manufacturing-ready even after the
   voxel heal (voxel 0.3 mm): boundary_edges=0, non_manifold_edges=0,
   non_orientable_edges=0, non_manifold_vertices=0, degenerate_triangles=0,
@@ -79,7 +79,7 @@
 ## F5 — anchor cannot reach the `exact` export route at all (2026-08-23)
 - severity: blocker
 - surface: export_stl
-- status: open
+- status: fixed — same change as F4: the anchor reaches the exact route (verified `graham_anchor` 2026-09-05)
 - symptom: `export_stl` on the anchor reports `route: "voxel_healed"` from the
   exit dead-face cut (`a3`) onward; `a1` and `a2` export `exact`.  The shipped
   STL is therefore a 216k-triangle REMESH of a part whose smallest working
@@ -100,7 +100,7 @@
 ## F6 — `union` fails validate() on a near-tangent posed pair (2026-08-23)
 - severity: major
 - surface: union
-- status: open
+- status: fixed — `union` of the near-tangent posed pair validates (`union_tangent` repro)
 - symptom: verbatim, `op 'u_S10': union failed validate(): closed=false
   manifold=false genus=3 euler_characteristic=-5 shells=1 — refusing to bind an
   invalid solid`, at station S10 only, while the same two solids union cleanly
@@ -117,7 +117,7 @@
 ## F7 — the "merged scene export refuses" note reads wider than the binary behaves (2026-08-23)
 - severity: major
 - surface: campaign/workflows/asmfinish.js
-- status: open
+- status: fixed — campaign/workflows/asmfinish.js's scene-export note rewritten to the binary's actual behaviour
 - symptom: the campaign brief's KNOWN KERNEL DRIFT note says a post-2026-08-10
   kernel "refuses the FINAL merged scene-export op of an assembled attitude"
   when exact-contact seats or designed interference are present, and this
@@ -148,7 +148,7 @@
 ## F8 — production_dossier silently ignores a job-level `receipt` key (2026-08-23)
 - severity: minor
 - surface: tools/publish/production_dossier.py
-- status: open
+- status: fixed — production_dossier honours the job `receipt` key (doc_cli destination order)
 - symptom: `programs/dossier.json` carried
   `"receipt": ".../receipts/production_dossier.json"` (the key documented for
   `tools/bom_audit.py` and the _receipt.py rules). No such file was written and
@@ -165,3 +165,18 @@
 - workaround used: the `receipt` key removed from dossier.json; gen_docs.py
   reads `receipts/bom_dossier.json`. Suggest tools echo unknown job keys the
   way ops echo `warnings`.
+
+## RESOLUTIONS (2026-09-05 fix round)
+
+Engine (`crates/`) and `tools/` fixes made at the maintainer's request (2026-09-05); every `fixed` above names its receipt (a repro in the fix-round scratch set, a re-run of this campaign's own program, or a unit test). Entries above are unchanged except their `status` line.
+
+- **F1** — F1: 623 in the catalog (`cat_circlip3`/catalog repros).
+- **F2** — F2: circlip Ø3.
+- **F3** — F3: fine pitch through export_threaded.
+- **F4** — F4: export exact; campaign pin needs re-baselining (see RE-BASELINE below).
+- **F5** — F5: exact route reached.
+- **F6** — F6: near-tangent union.
+- **F7** — F7: note narrowed.
+- **F8** — F8: receipt key honoured.
+
+RE-BASELINE: `programs/part_deadbeat_anchor.json` pins `require {route: "voxel_healed"}` on its exports; the anchor now exports `exact`, so the pin FAILS until it is changed to `exact` (the better answer). Shipped STL bytes change with the new tessellator.

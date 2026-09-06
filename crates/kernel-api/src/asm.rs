@@ -18,6 +18,7 @@ use kernel_model::format::{load_assembly, LoadedAssembly};
 use kernel_model::MeshRoute;
 use serde_json::{json, Value};
 
+use crate::ops::meshio::report_path;
 use crate::report::{ErrorKind, OpError, OpReport, Report};
 
 /// Mate residual above which the `mates` step fails: a loaded assembly whose
@@ -98,6 +99,7 @@ fn route_name(route: MeshRoute) -> &'static str {
 	match route {
 		MeshRoute::Exact => "exact",
 		MeshRoute::Healed => "voxel_healed",
+		MeshRoute::Verbatim => "mesh_verbatim",
 	}
 }
 
@@ -268,8 +270,8 @@ fn run_assembly_inner(asm_path: &Path, out_dir: &Path, opts: &AsmOptions) -> Rep
 	match (json_write, csv_write) {
 		(Ok(json_path), Ok(csv_path)) => {
 			let mut measures = bom_value;
-			measures["csv"] = json!(csv_path.display().to_string());
-			ops.push(pass("bom", measures, Some(json_path.display().to_string())));
+			measures["csv"] = json!(report_path(out_dir, &csv_path));
+			ops.push(pass("bom", measures, Some(report_path(out_dir, &json_path))));
 		}
 		(json_write, csv_write) => {
 			all_ok = false;
@@ -310,7 +312,7 @@ fn run_assembly_inner(asm_path: &Path, out_dir: &Path, opts: &AsmOptions) -> Rep
 						"watertight": mesh.is_watertight(),
 						"route": route_name(route.route),
 					}),
-					Some(path.display().to_string()),
+					Some(report_path(out_dir, &path)),
 				));
 			}
 			Err(e) => {
@@ -338,7 +340,7 @@ fn run_assembly_inner(asm_path: &Path, out_dir: &Path, opts: &AsmOptions) -> Rep
 					"triangles": merged.triangle_count(),
 					"watertight": merged.is_watertight(),
 				}),
-				Some(path.display().to_string()),
+				Some(report_path(out_dir, &path)),
 			)),
 			Err(e) => {
 				all_ok = false;
@@ -394,7 +396,7 @@ fn run_assembly_inner(asm_path: &Path, out_dir: &Path, opts: &AsmOptions) -> Rep
 						Ok(path) => ops.push(pass(
 							"export:assembly_step",
 							json!({ "parts": step_parts.len(), "skipped": skipped, "bytes": step_text.len() }),
-							Some(path.display().to_string()),
+							Some(report_path(out_dir, &path)),
 						)),
 						Err(e) => {
 							all_ok = false;
@@ -464,7 +466,7 @@ fn run_assembly_inner(asm_path: &Path, out_dir: &Path, opts: &AsmOptions) -> Rep
 					"watertight": mesh.is_watertight(),
 					"suppressed": state.suppressed.len(),
 				}),
-				Some(path.display().to_string()),
+				Some(report_path(out_dir, &path)),
 			)),
 			Err(e) => {
 				all_ok = false;
