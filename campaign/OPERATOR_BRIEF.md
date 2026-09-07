@@ -368,6 +368,24 @@ Stock reality: 0.4 mm nozzle, **256 mm bed** (gate `bounding_box` with
 - **Strength**: static allowable 55 MPa yield (XY, datasheet-class); fatigue
   UTS 40.9 MPa; margin FEA demand by its ~20% under-read. Run
   `production_check.py` on every FEA result.
+- **Design revisions (mandatory since 2026-09-07, DELIVERABLE_SPEC §2.15).**
+  Before the first edit that changes an existing design, snapshot it:
+  `python3 tools/publish/design_revisions.py snapshot <campaign> --rev <name> --note "..."`
+  (the generators, documents, parts, receipts and plates, with an md5 manifest
+  and the headline numbers, under `revisions/<name>/`); the end of every green
+  `run_all.sh` runs `snapshot --rev auto --if-changed`; `list`, `diff A B` and
+  `restore <rev>` (which snapshots the current state first) bring any shipped
+  design back. Revisions are never overwritten.
+- **Build plates (mandatory since 2026-09-07, DELIVERABLE_SPEC §2.14).** A
+  part is not "ready" until its print file sits on a plate in `plates/`:
+  parts that print with the same slicer settings share a plate, ONE profile
+  per plate, packed by `tools/publish/build_plates.py` on the real footprints
+  (Z rotation only — the print pose stays; 8 mm gap on the Bambu bed) into
+  `<profile>_plate_<n>.stl` + `.3mf`, `plates_layout.png`, `PRINT_PLATES.md`
+  and a receipt whose `checks.every_instance_placed_once` and per-plate
+  `gap_ok` are gated in `run_all.sh`. The user selects the profile, imports
+  the plate, slices — nothing to arrange. Set `"emit_plates": false` in the
+  dossier job so only one arrangement ships.
 - Voxel choice for implicit/heal routes: 0.3–0.4 mm FDM production;
   ≥3 voxels across every wall/strut; fine threads 0.06–0.12.
 
@@ -454,6 +472,8 @@ Stock reality: 0.4 mm nozzle, **256 mm bed** (gate `bounding_box` with
 | every tool's job schema + verified examples | `campaign/digests/tools_cookbook.md`; docstring at top of each `tools/*.py` |
 | finished-campaign layouts, gate taxonomy, negative controls, process lessons | `campaign/digests/exemplars.md`; showcase/squatchee_spin/; camera_system/card_magazine/; campaign/friction/ENGINE.md |
 | what each campaign must ship | `campaign/DELIVERABLE_SPEC.md` (the contract) |
+| the build plates the user slices (one profile per plate; job shape, outputs, gate) | `DELIVERABLE_SPEC` §2.14; `digests/tools_cookbook.md` "build_plates.py"; `aerospace_system/flying_wing_1m/plates/` |
+| going back to an earlier design (snapshot before a change, list, diff, restore) | `DELIVERABLE_SPEC` §2.15; `digests/tools_cookbook.md` "design_revisions.py"; `aerospace_system/flying_wing_1m/revisions/REVISIONS.md` |
 | how the August 2026 rounds went (slate, verdicts, fix report, re-baseline runbook) — records, NOT binding | `campaign/history/` (README indexes each document) |
 | the engine-wide friction record: every known papercut, its status, the open frontier | `campaign/friction/ENGINE.md` (per-campaign logs are the other files in that folder) |
 | "has anyone hit this before?" — every logged item rolled up by surface, worst severity first, with the repeat count | `docs/FRICTION_INDEX.md`; `python3 tools/friction_index.py --surface <op>` |

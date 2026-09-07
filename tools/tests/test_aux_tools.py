@@ -597,12 +597,144 @@ def test_bom_audit_example_job_is_wellformed(tmp):
 	assert job["bom"]["hw_dowel_2x20"]["only"] == ["cyclo26"]
 
 
+# ------------------------------------------------- build_plates (2026-09-07) --
+def _plates_job(tmp, **over):
+	box_stl(os.path.join(tmp, "a.stl"), (0, 0, 0), (60, 20, 30))
+	box_stl(os.path.join(tmp, "b.stl"), (5, 5, 0), (35, 45, 12))
+	box_stl(os.path.join(tmp, "c.stl"), (0, 0, 0), (20, 20, 8))
+	job = {"out_dir": os.path.join(tmp, "plates"), "bed": {"x": 120, "y": 100, "z": 100}, "spacing_mm": 6,
+	       "date": "2026-09-07", "title": "t", "groups": [
+	           {"name": "A", "profile": {"perimeters": 2, "infill": "15 %"},
+	            "parts": [{"name": "a", "stl": os.path.join(tmp, "a.stl")}, {"name": "c", "stl": os.path.join(tmp, "c.stl"), "qty": 3}]},
+	           {"name": "B", "profile": {"perimeters": 1}, "parts": [{"name": "b", "stl": os.path.join(tmp, "b.stl")}]}]}
+	job.update(over)
+	jp = os.path.join(tmp, "plates_job.json")
+	json.dump(job, open(jp, "w"))
+	return jp
+
+
+@test
+def test_build_plates_packs_one_profile_per_plate(tmp):
+	"""DELIVERABLE_SPEC 2.14: every instance placed once, gaps >= spacing on the real
+	footprint, one profile per plate, the 3MF names every instance, byte-identical rerun."""
+	jp = _plates_job(tmp)
+	code, rec, _, err = run_tool("build_plates.py", jp, "--out", os.path.join(tmp, "r.json"))
+	assert code == 0 and rec and rec["ok"], err[-400:]
+	assert rec["summary"] == {"n_groups": 2, "n_plates": 2, "n_instances": 5}
+	assert rec["by_group"]["A"]["n_plates"] == 1 and rec["by_group"]["B"]["n_plates"] == 1
+	A = next(p for p in rec["plates"] if p["group"] == "A")
+	assert A["n_instances"] == 4 and A["gap_ok"] and A["min_gap_cells"] >= 6
+	assert sorted((q["name"], q["instance"]) for q in A["parts"]) == [("a", 1), ("c", 1), ("c", 2), ("c", 3)]
+	tris = load_stl(A["file"])
+	assert len(tris) == 4 * 12
+	lo, hi = tris.reshape(-1, 3).min(0), tris.reshape(-1, 3).max(0)
+	assert abs(lo[2]) < 1e-6 and lo[0] >= 6 - 1e-6 and lo[1] >= 6 - 1e-6 and hi[0] <= 114 + 1e-6 and hi[1] <= 94 + 1e-6
+	P = [q["position_mm"] for q in A["parts"]]  # axis-aligned boxes: the bbox gap IS the gap
+	for i in range(len(P)):
+		for j in range(i + 1, len(P)):
+			gx = max(P[i][0] - P[j][2], P[j][0] - P[i][2])
+			gy = max(P[i][1] - P[j][3], P[j][1] - P[i][3])
+			assert max(gx, gy) >= 6 - 1e-6, (P[i], P[j])
+	import xml.etree.ElementTree as ET
+	import zipfile
+	z = zipfile.ZipFile(A["file_3mf"])
+	root = ET.fromstring(z.read("3D/3dmodel.model"))
+	ns = {"m": "http://schemas.microsoft.com/3dmanufacturing/core/2015/02"}
+	objs = root.findall("m:resources/m:object", ns)
+	items = root.findall("m:build/m:item", ns)
+	assert len(objs) == 2 and len(items) == 4
+	assert sorted(i.get("partnumber") for i in items) == ["a", "c#1", "c#2", "c#3"]
+	sheet = open(os.path.join(tmp, "plates", "PRINT_PLATES.md")).read()
+	assert "A_plate_1.stl" in sheet and "| perimeters | 2 |" in sheet and "B_plate_1.stl" in sheet
+	names = ("A_plate_1.stl", "A_plate_1.3mf", "B_plate_1.stl", "plates_layout.png", "PRINT_PLATES.md")
+	before = {f: open(os.path.join(tmp, "plates", f), "rb").read() for f in names}
+	code2, rec2, _, _ = run_tool("build_plates.py", jp)
+	assert code2 == 0 and rec2["ok"]
+	for f, b in before.items():
+		assert open(os.path.join(tmp, "plates", f), "rb").read() == b, f"{f} not byte-identical on rerun"
+
+
+@test
+def test_build_plates_spills_and_refuses(tmp):
+	"""A group that cannot fit one plate opens plate 2 (a stale plate_3 from an older
+	run is removed); too tall / too wide / a part in two groups refuse (ok:false, exit 1)."""
+	jp = _plates_job(tmp, bed={"x": 80, "y": 80, "z": 100})
+	stale = os.path.join(tmp, "plates", "A_plate_3.stl")
+	os.makedirs(os.path.dirname(stale), exist_ok=True)
+	open(stale, "wb").write(b"x")
+	code, rec, _, err = run_tool("build_plates.py", jp)
+	assert code == 0 and rec and rec["ok"], err[-400:]
+	assert rec["by_group"]["A"]["n_plates"] >= 2, rec["by_group"]
+	assert not os.path.exists(stale) and os.path.abspath(stale) in rec["stale_files_removed"]
+	two_groups = [{"name": "A", "profile": {"k": 1}, "parts": [{"name": "a", "stl": os.path.join(tmp, "a.stl")}]},
+	              {"name": "B", "profile": {"k": 1}, "parts": [{"name": "a", "stl": os.path.join(tmp, "a.stl")}]}]
+	for over, needle in ((dict(bed={"x": 120, "y": 100, "z": 20}), "tall"),
+	                     (dict(bed={"x": 50, "y": 50, "z": 100}), "fits no candidate rotation"),
+	                     (dict(groups=two_groups), "exactly one profile")):
+		code, rec, _, _ = run_tool("build_plates.py", _plates_job(tmp, **over))
+		assert code == 1 and rec and rec["ok"] is False and needle in rec["error"], (needle, rec)
+
+
+# ---------------------------------------------- design_revisions (2026-09-07) --
+def _fake_campaign(tmp):
+	camp = os.path.join(tmp, "camp")
+	for d in ("programs", "parts", "receipts", "analysis"):
+		os.makedirs(os.path.join(camp, d))
+	open(os.path.join(camp, "programs", "gen_x.py"), "w").write("DEFAULTS = {'w': 10}\n")
+	json.dump({"tip_chord_mm": 153.0, "sweep_le_deg": 22.0, "twist_tip_deg": -1.0, "twist_exponent": 1.0, "cruise_airspeed_m_s": 13.3},
+	          open(os.path.join(camp, "programs", "design_freeze.json"), "w"))
+	json.dump({"printed_total_g": 500.0, "buy_total_g": 380.0, "cg_pct_mac": 19.3}, open(os.path.join(camp, "receipts", "mass_budget.json"), "w"))
+	open(os.path.join(camp, "parts", "a.stl"), "wb").write(b"solid a\nendsolid a\n")
+	open(os.path.join(camp, "analysis", "DESIGN.md"), "w").write("# design v1\n")
+	open(os.path.join(camp, "README.md"), "w").write("readme\n")
+	return camp
+
+
+@test
+def test_design_revisions_snapshot_diff_restore(tmp):
+	"""snapshot records the design; --if-changed skips an identical design; a change is diffed; restore brings it back
+	after snapshotting the current state; a revision name is never overwritten."""
+	camp = _fake_campaign(tmp)
+	code, rec, _, err = run_tool("design_revisions.py", "snapshot", camp, "--rev", "r1", "--note", "first")
+	assert code == 0 and rec and rec["ok"] and not rec["skipped"], err
+	assert os.path.isfile(os.path.join(camp, "revisions", "r1", "programs", "gen_x.py"))
+	assert os.path.isfile(os.path.join(camp, "revisions", "REVISIONS.md"))
+	assert rec["headline"]["mass_budget"]["all_up_g"] == 880.0
+	# identical design -> --if-changed skips (receipts may churn; the design inputs decide)
+	open(os.path.join(camp, "receipts", "mass_budget.json"), "a").write("\n")
+	code, rec, _, _ = run_tool("design_revisions.py", "snapshot", camp, "--rev", "auto", "--if-changed")
+	assert code == 0 and rec["ok"] and rec["skipped"] and rec["latest"] == "r1"
+	# duplicate name refused
+	code, rec, _, _ = run_tool("design_revisions.py", "snapshot", camp, "--rev", "r1")
+	assert code == 1 and not rec["ok"] and "never overwritten" in rec["error"]
+	# a design change -> a second revision, diff names the changed files and the freeze delta
+	open(os.path.join(camp, "programs", "gen_x.py"), "w").write("DEFAULTS = {'w': 12}\n")
+	fz = json.load(open(os.path.join(camp, "programs", "design_freeze.json"))); fz["twist_exponent"] = 1.05
+	json.dump(fz, open(os.path.join(camp, "programs", "design_freeze.json"), "w"))
+	code, rec, _, _ = run_tool("design_revisions.py", "snapshot", camp, "--rev", "r2", "--if-changed")
+	assert code == 0 and rec["ok"] and not rec["skipped"] and rec["changed_since_latest"]
+	code, rec, _, _ = run_tool("design_revisions.py", "diff", camp, "r1", "r2")
+	assert code == 0 and rec["design_inputs_differ"]
+	assert "programs/gen_x.py" in rec["changed"] and "programs/design_freeze.json" in rec["changed"]
+	assert rec["freeze_deltas"]["twist_exponent"] == [1.0, 1.05]
+	code, rec, _, _ = run_tool("design_revisions.py", "list", camp)
+	assert code == 0 and rec["n_revisions"] == 2 and [r["rev"] for r in rec["revisions"]] == ["r1", "r2"]
+	# restore r1: the generator comes back, and the pre-restore state was snapshotted first
+	code, rec, _, _ = run_tool("design_revisions.py", "restore", camp, "r1")
+	assert code == 0 and rec["ok"] and rec["backup_rev"].startswith("pre_restore_")
+	assert open(os.path.join(camp, "programs", "gen_x.py")).read() == "DEFAULTS = {'w': 10}\n"
+	assert os.path.isdir(os.path.join(camp, "revisions", rec["backup_rev"]))
+	code, rec, _, _ = run_tool("design_revisions.py", "restore", camp, "nope")
+	assert code == 1 and "unknown revision" in rec["error"]
+
+
 # --------------------------------------------------------------- --help (F9) --
 @test
 def test_help_never_crashes():
 	"""digest F9: the doc tools treated `--help` as a job file and stack-traced."""
 	for tool in ("render_sheet.py", "analysis_sheet.py", "assembly_doc.py",
 	             "production_dossier.py", "motion_gif.py", "document_bundle.py",
+	             "build_plates.py", "design_revisions.py",
 	             "air_topology_audit.py", "voxelize_stl.py", "bom_audit.py",
 	             "render_views.py", "stress_to_density.py"):
 		p = subprocess.run([PY, str(_layout.find_tool(tool)), "--help"],

@@ -171,7 +171,7 @@ pipeline exists to move.
 
 Renderers, codegen, and geometry bridges (`render_sheet`, `analysis_sheet`,
 `assembly_doc`, `motion_gif`, `voxelize_stl`, `gen_discover`, `bom_audit`,
-`make_all_plate`) are **not** analysis surface and are excluded from the
+`make_all_plate`, `build_plates`) are **not** analysis surface and are excluded from the
 denominator with a documented reason (see `NON_ANALYSIS` in the registry).
 
 ---

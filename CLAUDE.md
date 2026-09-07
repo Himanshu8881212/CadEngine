@@ -39,6 +39,21 @@ Repo root contains a space: always quote
   `scene/*.stl` when the part has distinguishable bodies. Wire the
   generation into the campaign's `<campaign>/run_all.sh`. See DELIVERABLE_SPEC §1 and
   the `school_system/*` exemplars.
+- **Every campaign ships a `plates/` folder — the build plates the user
+  slices** (2026-09-07). The moment a part is ready, its print file also lands
+  on a build plate: parts that print with the same slicer settings share a
+  plate, every plate carries exactly ONE profile, and
+  `tools/publish/build_plates.py` packs them on their real footprints with a
+  checked gap, so the user only selects the profile, imports the plate and
+  clicks slice. Ships `<profile>_plate_<n>.stl` + `.3mf`, `plates_layout.png`,
+  `PRINT_PLATES.md`, `plates_receipt.json`; gated in `run_all.sh`
+  (DELIVERABLE_SPEC §2.14; `aerospace_system/flying_wing_1m/` is the exemplar).
+- **Never overwrite a design — `revisions/`** (2026-09-07). A change request
+  is applied to the generators in place, so BEFORE the first edit that changes
+  an existing design run `tools/publish/design_revisions.py snapshot <campaign>
+  --rev <name>`; every green `run_all.sh` ends with `--rev auto --if-changed`;
+  `restore <rev>` brings a design back (after snapshotting the current one).
+  `revisions/REVISIONS.md` is the index (DELIVERABLE_SPEC §2.15).
 - Engine (`crates/`) and `tools/` source are read-only during campaigns:
   log issues to `campaign/friction/<part>.md` instead (shape in
   `campaign/friction/README.md`). Engine fixes happen only when the maintainer
@@ -54,5 +69,7 @@ Repo root contains a space: always quote
 "./target/release/kernel-api" run <program.json> --out-dir <dir>
 "./target/release/kernel-api" asm <assembly.lmcasm> --out-dir <dir>
 python3 tools/<tool>.py job.json [--out receipt.json]   # forwards to tools/{analyzers,publish}/<tool>.py (2026-09-02 layout; map in tools/_layout.py)
+python3 tools/publish/build_plates.py <campaign>/programs/plates_job.json --out <campaign>/plates/plates_receipt.json   # the build plates (no shim: real path)
+python3 tools/publish/design_revisions.py snapshot <campaign> --rev <name> --note "..."   # BEFORE changing a design; `list`, `diff A B`, `restore <rev>`
 sh <campaign>/run_all.sh          # from repo root; NCs must exit 1
 ```

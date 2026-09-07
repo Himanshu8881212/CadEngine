@@ -18,7 +18,7 @@ source and the marked (VERIFIED) examples were actually executed on 2026-08-06.
   `production_check` / `joint_check` / `sweep_check` / `balance_check` / `air_topology_audit`,
   `derived_model.py`, `materials.py`, `_ace.py`, `voxelize_stl.py`, `stress_to_density.py`),
   `tools/publish/` (`render_sheet`, `render_views`, `analysis_sheet`, `assembly_doc`,
-  `motion_gif`, `production_dossier`, `document_bundle`, `make_all_plate`, `bom_audit`),
+  `motion_gif`, `production_dossier`, `document_bundle`, `build_plates`, `design_revisions`, `make_all_plate`, `bom_audit`),
   `tools/validation/` (the `*_validation.py` pins), `tools/tests/` (the gate suites), and
   at the top level the shared contracts (`_receipt.py`, `_stl.py`, `provenance.py`,
   `analyzer_registry.py`, `check_ci_security.py`) plus data (`manifests/`, `materials/`,
@@ -502,6 +502,46 @@ line_width:0.45, layer_h:0.2, top_bottom_layers:4, infill:0.20}`, `filament_pric
 Emits `bom_dossier.json` + `.csv`. Printed-mass model (the 4.6 kg lesson): printed_g = shell +
 infill×core, ±30% band; time heuristic printed_g/12 h ±50% — planning figures, slicer is truth.
 Thick-section warning when solid_g > 2×printed_g. Parts that can't fit the bed refuse the job.
+
+## design_revisions.py — never lose a design (stdlib)  [non-analysis: campaign bookkeeping]
+
+`python3 tools/publish/design_revisions.py snapshot <campaign> --rev <name> [--note TEXT] [--if-changed] [--light] [--out receipt.json]`,
+`list <campaign>`, `diff <campaign> <revA> <revB>`, `restore <campaign> <rev> [--no-backup]` — subcommand CLI, JSON
+receipt on the last stdout line, exit 0/1. **Mandatory** (DELIVERABLE_SPEC §2.15): snapshot BEFORE the first edit
+that changes an existing design; `run_all.sh` ends with `snapshot <campaign> --rev auto --if-changed` (skips when
+`programs/*.py`, `design_freeze.json` and `parts/*.stl` are byte-identical to the latest revision). A snapshot copies
+`programs/**`, `analysis/*.md`, `README.md`, `assembly/*.{md,csv,json}`, `publish/*.md`, `parts/*.stl`,
+`receipts/*.json`, `plates/*`, `renders/*.png`, `cad/*.step` into `revisions/<rev>/` with `manifest.json` (md5 +
+bytes per file, the freeze's numbers, the mass-budget headline) and rewrites `revisions/REVISIONS.md`. Names are
+never reused (refuses). `diff` lists added/removed/changed files and the freeze / mass-budget deltas. `restore`
+snapshots the current state as `pre_restore_<stamp>` first, copies the revision back and prints the rebuild
+command — rerun the pipeline before quoting a number. Verified: `tools/tests/test_aux_tools.py`
+`test_design_revisions_snapshot_diff_restore`; exemplar `aerospace_system/flying_wing_1m/revisions/`.
+
+## build_plates.py — the BUILD PLATES a user slices (numpy + matplotlib)  [non-analysis: a publish deliverable]
+
+`python3 tools/publish/build_plates.py job.json [--out receipt.json]` — 0/1 exit contract (doc-tool
+shape, `_receipt.doc_cli`). **Mandatory for every campaign** (DELIVERABLE_SPEC §2.14): every print
+file lands on a plate, parts that share a slicer profile share a plate, ONE profile per plate, and the
+user's whole job is "select the profile, import the plate, slice".
+Job: `out_dir`* (the campaign's `plates/`), `bed`* `{x,y,z}` (no default — a printer fact),
+`groups`* `[{name, profile:{setting: value, …}, parts:[{name, stl, qty?}]}]` (a part name in exactly
+ONE group), `spacing_mm`? (5), `edge_mm`? (= spacing), `cell_mm`? (1.0), `rotations_deg`?
+(`[0,90,180,270]`; Z only — the print pose is never touched), `exclusion_zones`? `[[x0,y0,x1,y1]]`,
+`emit_3mf`? (true), `date`? (string, never the clock), `title`?.
+Emits per group and plate `<group>_plate_<n>.stl` (merged, bed at z = 0, arrangement centred) and
+`<group>_plate_<n>.3mf` (same arrangement, one NAMED object per instance, positions kept by the
+slicer), plus `plates_layout.png` and `PRINT_PLATES.md` (plate → profile table → parts). Nesting is on
+the REAL footprint (a conservative 1 mm raster of the XY projection), first-fit-decreasing, candidate
+positions by FFT cross-correlation with the blocked mask, gap guaranteed by construction and
+re-measured (`plates[].min_gap_cells`, `gap_ok`). Receipt keys a doc can anchor (scalars, no list
+indices): `summary.n_plates`, `by_group.<name>.n_plates`, `by_plate.<name>_<n>.utilization_pct` /
+`.min_gap_mm_at_least` / `.max_height_mm` / `.n_instances`. Refuses a part taller than the bed, a
+footprint that fits no rotation, a part in two groups, an ASCII STL. Verified 2026-09-07 on
+flying_wing_1m (15 instances, 2 profiles → 2 plates, 1.9 s; byte-identical on rerun).
+`production_dossier.py` still packs its own `plate_N.stl` for the BOM's time model — that packing is a
+planning by-product on bounding boxes; set `"emit_plates": false` in the dossier job so a campaign
+ships ONE arrangement, the one in `plates/`.
 
 ## bom_audit.py — HARDCODED project script, not generic
 

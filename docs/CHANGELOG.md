@@ -7,6 +7,36 @@ Current-state summary and open frontier live in CLAUDE.md; the falsifiable
 scorecard in docs/BAR.md; deep friction write-ups in campaign/friction/ENGINE.md
 (moved there from docs/FRICTION.md on 2026-09-03).
 
+DESIGN REVISIONS 2026-09-07 (maintainer directive: "when I ask for changes it kills the old design and it
+is very difficult to go back; we need versioning"). New publish tool `tools/publish/design_revisions.py`
+(stdlib, subcommand CLI): `snapshot <campaign> --rev <name>` copies the design's SOURCE (`programs/**`), its
+documents, print files, top-level receipts, plates, renders and STEP files into `<campaign>/revisions/<name>/`
+with an md5 manifest, the freeze's numbers and the mass-budget headline, and rewrites `revisions/REVISIONS.md`;
+`--if-changed` skips a design whose inputs (generators, freeze, STLs) are byte-identical to the latest revision
+(the `run_all.sh` hook: `--rev auto --if-changed` at the end of every green run); `list`, `diff A B` (files +
+freeze/mass deltas), `restore <rev>` (snapshots the current state as `pre_restore_<stamp>` first). Names are never
+reused. Rule: DELIVERABLE_SPEC §1 (`revisions/` in the layout) + §2.15 + self-check 13; CLAUDE.md non-negotiable;
+OPERATOR_BRIEF §7/§9; tools_cookbook section; analyzer_registry NON_ANALYSIS; test
+`test_design_revisions_snapshot_diff_restore`. First use: `aerospace_system/flying_wing_1m/revisions/` (rev C —
+parts + freeze only, reconstructed from the session's archive because the rule came after the change — and rev C.1
+complete).
+
+BUILD PLATES 2026-09-07 (maintainer directive: "whatever part is ready, also make the build plate").
+New publish tool `tools/publish/build_plates.py` (no forwarding shim — real path only): packs every
+print file of a campaign onto as few plates as it allows, ONE slicer profile per plate, on the parts'
+real footprints (a conservative 1 mm raster of the XY projection, FFT cross-correlation for the
+candidate positions, first-fit-decreasing, Z rotation only so the verified print pose is kept), with a
+gap guaranteed by construction and re-measured; emits `<profile>_plate_<n>.stl` (merged, centred) and
+`.3mf` (named, positioned instances), `plates_layout.png`, `PRINT_PLATES.md` and a receipt with
+anchorable `by_group` / `by_plate` scalars; removes stale plate files from a run that needed more
+plates. Registered as non-analysis; two gate tests in `tools/tests/test_aux_tools.py`. The rule is
+binding: DELIVERABLE_SPEC §1 layout (`plates/`) and the new §2.14, CLAUDE.md non-negotiables,
+OPERATOR_BRIEF §7, PRINTABLES_LISTING_SPEC (upload the plates, image 7), the cookbook entry.
+`production_dossier.py` now deletes `plate_N.stl` files beyond the current packing (a 2-plate run
+followed by a 1-plate run used to leave a stale `plate_2.stl` beside the fresh one — seen in
+flying_wing_1m) and reports them as `stale_plate_files_removed`. First campaign on the rule:
+`Workspace/aerospace_system/flying_wing_1m/plates/` (profiles W and S, 15 instances, 2 plates).
+
 FRICTION FIX ROUND 2026-09-05, SECOND PASS (the 13 items left open or partial → 2 partial).
 The maintainer asked for the remainder. Re-run first, then fixed:
 
