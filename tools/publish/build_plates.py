@@ -24,6 +24,10 @@ Job JSON (argv[1]) — all lengths mm:
                                 the slicer profile)
                       parts    [{name*, stl*, qty (default 1)}] — a part name
                                 belongs to exactly ONE group
+                      one_part_per_plate  (default false) every instance on its OWN
+                                plate: spiral/vase slicer modes take one object per
+                                plate (Bambu Studio, PrusaSlicer); the packing still
+                                centres and checks each part against the bed
     spacing_mm      gap between parts (default 5)
     edge_mm         margin to the bed edge (default = spacing_mm)
     cell_mm         raster cell of the footprint masks (default 1.0). The
@@ -79,6 +83,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import sys
 import zipfile
 
@@ -540,7 +545,8 @@ def build_plates(job: dict) -> dict:
 					"footprint_mm": [float(hi[0] - lo[0]), float(hi[1] - lo[1])],
 				})
 			n_inst += qty
-		groups.append({"name": name, "profile": profile, "n_parts": len(parts), "n_instances": n_inst, "n_plates": 0})
+		groups.append({"name": name, "profile": profile, "n_parts": len(parts), "n_instances": n_inst, "n_plates": 0,
+		               "one_part_per_plate": bool(g.get("one_part_per_plate", False))})
 
 	# ---- pack, group by group ---------------------------------------------------
 	plates_out, obj_meshes = [], {}
@@ -549,9 +555,10 @@ def build_plates(job: dict) -> dict:
 		insts = [i for i in all_instances if i["group"] == g["name"]]
 		insts.sort(key=lambda i: (-i["area_cells"], i["name"], i["instance"]))  # first-fit-decreasing, stable
 		plates = []
+		one_per = bool(g.get("one_part_per_plate", False))   # spiral/vase profiles: the slicer spirals one object per plate
 		for inst in insts:
 			placed = False
-			for pl in plates:
+			for pl in ([] if one_per else plates):
 				r = pl.try_place(inst)
 				if r is not None:
 					pl.commit(inst, *r)
@@ -687,6 +694,14 @@ def build_plates(job: dict) -> dict:
 			if not found:
 				break
 			k += 1
+	# plate files of a group that no longer exists (a profile renamed or retired) would survive too
+	names = {g["name"] for g in groups}
+	for fn in sorted(os.listdir(out_dir)):
+		m = re.match(r"^(.+)_plate_(\d+)\.(stl|3mf)$", fn)
+		if m and m.group(1) not in names:
+			f = os.path.join(out_dir, fn)
+			os.remove(f)
+			stale.append(os.path.abspath(f))
 	for p in plates_out:
 		for k in ("_labels", "_cell", "_n_in_group", "_profile_line"):
 			p.pop(k, None)

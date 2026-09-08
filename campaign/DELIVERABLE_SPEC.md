@@ -466,6 +466,15 @@ the folder the user opens. The rules:
 
 ### 2.15 Design revisions — never overwrite a design (mandatory, 2026-09-07)
 
+0. **A snapshot is history, never a live claim.** `revisions/` is in the doc
+   auditor's `SKIP_DIRS` (2026-09-08): its documents describe the moment the
+   snapshot was taken, so auditing them against today's receipts asks
+   yesterday's document to agree with today's number. A snapshot taken
+   deliberately mid-change — parts already rebuilt, documents not yet
+   regenerated — can never satisfy that, and even a finished revision does not
+   self-audit. Do not weaken a live gate to work around it; campaign friction
+   `flying_wing_1m.md` F15 is the worked case.
+
 1. **Snapshot before you change.** The first edit that alters an existing
    design's geometry, parameters or layout is preceded by
    `python3 "$ENGINE"/tools/publish/design_revisions.py snapshot <campaign> --rev <name> --note "<what ships>"`

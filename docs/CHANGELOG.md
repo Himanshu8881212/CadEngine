@@ -7,6 +7,17 @@ Current-state summary and open frontier live in CLAUDE.md; the falsifiable
 scorecard in docs/BAR.md; deep friction write-ups in campaign/friction/ENGINE.md
 (moved there from docs/FRICTION.md on 2026-09-03).
 
+AUDIT vs FROZEN SNAPSHOTS 2026-09-08 (maintainer approved). `tools/audit_docs.py`: `revisions` joins
+`SKIP_DIRS`, and the `--also` walk now honours `SKIP_DIRS` — it had filtered only a hardcoded `node_modules`/
+`target` pair, so an `--also` directory was audited into places the `--root` walk would never enter. A
+`revisions/` snapshot (§2.15) is a frozen record of a moment: auditing its documents against today's receipts
+asks yesterday's document to agree with today's number, and a snapshot taken deliberately mid-change — parts
+rebuilt, documents not yet regenerated — can never satisfy it. `flying_wing_1m` hit this at 43 receipt findings,
+every one inside `revisions/`, while its live documents were clean (0 over 113 references); 7 of them came from
+a properly finished revision, so a snapshot does not self-audit even when nothing is wrong. Rule: DELIVERABLE_SPEC
+§2.15 item 0; campaign friction `flying_wing_1m.md` F15. Known and untouched: `audit_docs.py --self-test` crashes
+on `inj/AGENTS.md`, verified pre-existing on the unmodified tool.
+
 DESIGN REVISIONS 2026-09-07 (maintainer directive: "when I ask for changes it kills the old design and it
 is very difficult to go back; we need versioning"). New publish tool `tools/publish/design_revisions.py`
 (stdlib, subcommand CLI): `snapshot <campaign> --rev <name>` copies the design's SOURCE (`programs/**`), its
