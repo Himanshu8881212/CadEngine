@@ -24,7 +24,7 @@ tools/ used to be one flat directory of ~70 files. It is now:
     ├── publish/      renderers and document emitters: render_sheet,
     │                 render_views, analysis_sheet, assembly_doc, motion_gif,
     │                 production_dossier, document_bundle, make_all_plate,
-    │                 bom_audit
+    │                 build_plates, design_revisions, bom_audit
     ├── validation/   the *_validation.py ground-truth pins
     ├── tests/        the gate suites (test_*.py, *_test.py)
     ├── manifests/    lmcad.manifest.v1 files (DATA — unchanged location, every

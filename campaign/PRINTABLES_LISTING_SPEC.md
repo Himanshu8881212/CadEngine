@@ -15,7 +15,7 @@ jZ993ZD). Re-verify limits when the form changes: the lint carries them as const
 
 | field | rule on the site | our rule |
 |---|---|---|
-| Files (drag-drop) | model in .3MF or .STL required; STEP/others allowed; supported: 3mf stl step stp obj amf ply scad f3d fcstd blend dxf svg pdf txt csv zip gcode bgcode png jpg webp… | upload every print STL **and** the STEPs and a `.3mf` print project when we have one; never g-code alone; a zip of "sources" is fine |
+| Files (drag-drop) | model in .3MF or .STL required; STEP/others allowed; supported: 3mf stl step stp obj amf ply scad f3d fcstd blend dxf svg pdf txt csv zip gcode bgcode png jpg webp… | upload every print STL **and** the STEPs **and** the build plates from `plates/` (`<profile>_plate_<n>.stl` + `.3mf`, DELIVERABLE_SPEC §2.14 — the files a user actually slices; the `.3mf` keeps names and positions); never g-code alone; a zip of "sources" is fine |
 | Model name (required) | placeholder "Descriptive names are better"; no hard limit | ≤ 70 characters (cards truncate); pattern `<What it is> for <who/what> — <the hook>`; the object noun first, the searchable product name (e.g. "Framework Laptop 12 Mainboard") verbatim |
 | Summary (required) | **120 characters hard limit**, textarea, shows `n/120` | one sentence, ≤ 120 chars, no trailing period needed; it is the search-card subtitle: promise + differentiator, no jargon |
 | Main category (required) | single pick from the site tree | pick the narrowest category that a searcher would browse; note the path in the listing header |
@@ -61,7 +61,9 @@ surprising fact (a number, a "no hardware", a "prints in one plate").
 ## Print it
 Material, layer height, perimeters, infill, supports (none), bed size needed, plates and
 time from the dossier, orientation note per part ("exported in print orientation, do not
-rotate"). Files listed with one line each.
+rotate"). One line per BUILD PLATE first — "`W_plate_1.stl`: profile W (…), 8 parts,
+select the profile, import, slice" — from `plates/PRINT_PLATES.md` (the plate count is
+`plates_receipt.json by_group.<name>.n_plates`); then the part files, one line each.
 
 ## Assemble it
 Numbered steps mirroring assembly/ASSEMBLY_instructions.md; link the exploded sheet.
@@ -94,7 +96,7 @@ Rules of tone: verbs, short sentences, no adjectives that a receipt cannot back
 4. A detail that shows craft (snap, latch, flexure).
 5. Optional configuration (mount, stand).
 6. Exploded view / assembly sheet.
-7. Plate layout or print orientation.
+7. Plate layout: `plates/plates_layout.png` (the real-footprint arrangement, one profile per plate), or a print-orientation sheet.
 Photos of a real print replace 1–4 the day they exist; until then renders, captioned "render".
 
 ## 5. Discoverability and the first 30 days
@@ -119,7 +121,7 @@ Photos of a real print replace 1–4 the day they exist; until then renders, cap
 - [ ] every number in the text matched to a receipt by check_listing.py
 - [ ] "Not verified" section present and truthful; renders labelled
 - [ ] contest T&C re-read on the day; AI clause surfaced to the user
-- [ ] files list matches `parts/` and `cad/`
+- [ ] files list matches `parts/`, `cad/` and `plates/` (every plate file named; the plate count matches `plates_receipt.json`)
 
 ## 7. Header block (machine-checked)
 

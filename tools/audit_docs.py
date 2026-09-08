@@ -103,7 +103,11 @@ SOURCE_EXTS = {".rs", ".py", ".sh", ".toml", ".md", ".lock", ".ts"}
 # record ("2026-06-10: 44-op JSON API"), so op-count findings are reported at
 # info severity and flagged for human judgement rather than gated on.
 HISTORICAL_DOCS = {"docs/BAR.md", "docs/CHANGELOG.md", "campaign/friction/ENGINE.md"}
-SKIP_DIRS = {".git", "target", "__pycache__", "node_modules", ".venv"}
+# `revisions/` holds FROZEN campaign snapshots (DELIVERABLE_SPEC §2.15). A snapshot's documents describe the
+# moment it was taken, so auditing them asks yesterday's document to agree with today's receipt — and a
+# snapshot taken deliberately mid-change (parts already rebuilt, documents not yet regenerated) can never
+# satisfy that. They are historical artefacts, never live claims: the auditor does not walk into them.
+SKIP_DIRS = {".git", "target", "__pycache__", "node_modules", ".venv", "revisions"}
 
 
 # --------------------------------------------------------------------------- #
@@ -1107,7 +1111,9 @@ def corpus(repo, all_docs=False, also=()):
 			continue
 		for pth in sorted(extra.rglob("*.md")):
 			parts = pth.relative_to(extra).parts
-			if any(part.startswith(".") or part in ("node_modules", "target") for part in parts):
+			# honour SKIP_DIRS here as the --root walk does at the os.walk above: this path used to filter a
+			# hardcoded pair, so an --also directory was audited into places --root would never have entered
+			if any(part.startswith(".") or part in SKIP_DIRS for part in parts):
 				continue
 			docs.append(Doc(extra, pth.relative_to(extra).as_posix()))
 	return docs

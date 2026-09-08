@@ -39,3 +39,9 @@ here to know what to do; go there to know what a number means.
 - Engine (`crates/`) and `tools/` source are read-only during a campaign — log
   the issue to `campaign/friction/<part>.md` instead of patching around it.
 - Every campaign ships an `assembly/` folder, single-part campaigns included.
+- Every campaign ships a `plates/` folder: the build plates the user slices, one
+  slicer profile per plate, packed by `tools/publish/build_plates.py` and gated
+- Every changed design keeps its predecessor: `tools/publish/design_revisions.py` snapshots a
+  campaign's design (generators, docs, parts, receipts, plates) into `revisions/` before a change and
+  after every green run; `restore` brings one back (DELIVERABLE_SPEC §2.15).
+  in `run_all.sh` (DELIVERABLE_SPEC §2.14, since 2026-09-07).

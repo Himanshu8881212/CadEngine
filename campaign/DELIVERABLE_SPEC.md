@@ -59,6 +59,14 @@ Required layout (card_magazine convention):
 │                        #   diagram), ASSEMBLY_instructions.md,
 │                        #   bom_dossier.{csv,json}; scene/ STLs where the
 │                        #   part has distinguishable bodies
+├── plates/              # MANDATORY, single-part campaigns included: the build
+│                        #   plates the user slices — <profile>_plate_<n>.stl
+│                        #   (+ .3mf), one slicer profile per plate, every print
+│                        #   file placed once; plates_layout.png, PRINT_PLATES.md,
+│                        #   plates_receipt.json (tools/publish/build_plates.py)
+├── revisions/           # MANDATORY once a design has been changed: every shipped
+│                        #   revision snapshotted (programs/, docs, parts, receipts,
+│                        #   plates) + REVISIONS.md (tools/publish/design_revisions.py)
 └── README.md "Reproducing" section: exact command lines to rebuild everything
 ```
 
@@ -74,6 +82,27 @@ is documentation, not an assembly task. Follow
 `school_system/rated_desk_hook/` (single part) and
 `school_system/folding_book_stand/` (print-in-place) as exemplars, and
 `showcase/squatchee_spin/` / card_magazine for true multi-part.
+
+**Every campaign ships `plates/` — the build plates a user actually slices**
+(maintainer directive, 2026-09-07). The moment a part is ready its print file
+also lands on a build plate: parts that print with the SAME slicer settings
+share a plate, every plate carries exactly ONE profile, and the layout is packed
+by `tools/publish/build_plates.py` on the parts' real footprints with a checked
+gap, so the user's whole job is *select the profile, import the plate, slice*.
+The contract is §2.14; wire the tool and its gate into `run_all.sh` right after
+the dossier. `aerospace_system/flying_wing_1m/` is the exemplar (two profiles,
+two plates, 15 instances).
+
+**Every changed design keeps its predecessor — `revisions/`** (maintainer
+directive, 2026-09-07: "when I ask for changes it kills the old design and it is
+very difficult to go back; we need versioning"). A change request is applied to
+the generators in place, so the old design is gone the moment the pipeline
+reruns unless it was snapshotted. Before the first edit that changes an existing
+design, and at the end of every green run, `tools/publish/design_revisions.py`
+records the design under `revisions/<rev>/` (its SOURCE in `programs/`, the
+documents, print files, top-level receipts and plates, with an md5 manifest and
+the headline numbers) and rewrites `revisions/REVISIONS.md`; `restore <rev>`
+brings a design back after snapshotting the current one. The contract is §2.15.
 
 Embed the design record IN the programs: top-level `"part"`, `"notes"`,
 `"receipts"` keys are ignored by the engine — use them for rationale,
@@ -392,6 +421,87 @@ Other oracles that must have a twin if you rely on them: the volume window
 `support_report` at the orientation you rejected), and any must-NOT-fit
 interference claim (§2.11).
 
+### 2.14 Build plates — the print deliverable (mandatory, 2026-09-07)
+
+A campaign is not printable until its parts sit on plates. `parts/` holds the
+verified print files one by one; `plates/` holds them **arranged**, and it is
+the folder the user opens. The rules:
+
+1. **One slicer profile per plate, and every part on a plate.** Declare the
+   print-setting groups (material, nozzle, layer height, perimeters, infill,
+   top/bottom layers, supports, anything the slicer needs) and put every made
+   part, `qty` included, in exactly one group. A part in two groups, a part in
+   none, or a plate mixing two profiles is a spec violation.
+2. **The tool packs, not the agent and not the slicer.** Run
+   `python3 "$ENGINE"/tools/publish/build_plates.py programs/plates_job.json --out plates/plates_receipt.json`
+   (the real path; there is no forwarding shim for tools added after the
+   2026-09-02 move). It nests on the real footprint (a conservative raster of
+   the XY projection, not the bounding box), rotates about Z only — the print
+   pose from §2.5 is never touched — keeps a guaranteed gap (default 5 mm; use
+   the printer's real purge/ooze distance, 8 mm on the Bambu 256 bed) and a
+   bed-edge margin, and re-measures the gap on the finished plate. Give it the
+   printer's `bed` explicitly; there is no default because a bed is a printer
+   fact, not a design dimension (§2 preamble).
+3. **What ships in `plates/`**: `<profile>_plate_<n>.stl` (merged, one body per
+   instance, bed at z = 0, arrangement centred), `<profile>_plate_<n>.3mf` (the
+   same arrangement with every instance NAMED and positioned — the file to hand
+   a Bambu/Orca/Prusa user, since an imported STL is re-centred and unnamed),
+   `plates_layout.png`, `PRINT_PLATES.md` (plate → profile table → parts, and
+   the three-step routine) and `plates_receipt.json`.
+4. **The gate.** `run_all.sh` fails unless the receipt is `ok`, every part in
+   the campaign's parts list appears on the plates exactly `qty` times
+   (`checks.every_instance_placed_once`), every plate is `gap_ok`, and the
+   number of plates per group is what README/listing quote
+   (`by_group.<name>.n_plates` — anchor it). Plate files regenerate
+   **byte-identical** (`cmp`), like every other STL.
+5. **One arrangement, not two.** `production_dossier.py` still packs its own
+   bounding-box `plate_N.stl` for the BOM's time model; set
+   `"emit_plates": false` in the dossier job so the campaign ships only the
+   `plates/` layout. Quote print time from the dossier and the plate COUNT and
+   utilization from the plates receipt.
+6. **README and listing.** README's print-settings table names the plate file
+   per profile and points at `plates/PRINT_PLATES.md`; the Printables listing
+   uploads the plate files beside the part STLs and uses `plates_layout.png`
+   as its plate-layout image (PRINTABLES_LISTING_SPEC §1, §4).
+
+### 2.15 Design revisions — never overwrite a design (mandatory, 2026-09-07)
+
+0. **A snapshot is history, never a live claim.** `revisions/` is in the doc
+   auditor's `SKIP_DIRS` (2026-09-08): its documents describe the moment the
+   snapshot was taken, so auditing them against today's receipts asks
+   yesterday's document to agree with today's number. A snapshot taken
+   deliberately mid-change — parts already rebuilt, documents not yet
+   regenerated — can never satisfy that, and even a finished revision does not
+   self-audit. Do not weaken a live gate to work around it; campaign friction
+   `flying_wing_1m.md` F15 is the worked case.
+
+1. **Snapshot before you change.** The first edit that alters an existing
+   design's geometry, parameters or layout is preceded by
+   `python3 "$ENGINE"/tools/publish/design_revisions.py snapshot <campaign> --rev <name> --note "<what ships>"`
+   — name it after the design (`B`, `C`, `C.1`), not the date. The snapshot
+   holds `programs/**` (the generators and the kernel programs: the design's
+   source), `analysis/*.md`, `README.md`, `assembly/*.{md,csv,json}`,
+   `publish/*.md`, `parts/*.stl`, `receipts/*.json`, `plates/*`, `renders/*.png`,
+   `cad/*.step`, plus `manifest.json` (md5 + size per file, the freeze's numbers,
+   the mass-budget headline). `--light` drops plates/renders/cad.
+2. **Every green run records itself.** The last line of `run_all.sh` is
+   `design_revisions.py snapshot <campaign> --rev auto --if-changed`: a
+   design whose inputs (`programs/*.py`, `design_freeze.json`, `parts/*.stl`)
+   are byte-identical to the latest revision is NOT recorded twice; anything
+   else is, as `green_<date>_<time>`.
+3. **Never overwritten.** Snapshotting an existing name refuses; revisions are
+   deleted only by the user, by hand. `revisions/REVISIONS.md` (regenerated
+   by every snapshot) is the index a reader opens: one row per revision with
+   its note, headline numbers and restore command.
+4. **Restore is reversible.** `restore <campaign> <rev>` snapshots the current
+   state as `pre_restore_<stamp>` first, copies the revision's files back,
+   and prints the rebuild command: rerun `run_all.sh` before claiming any
+   number for the restored design (the copied receipts are that revision's
+   record, not this run's).
+5. **Docs name the revision.** DESIGN.md's revision sections and BUILD_LOG
+   entries carry the revision name used in `revisions/`; a change request's
+   BUILD_LOG entry says which revision it started from.
+
 ## 3. Honesty rules
 
 - **No claim without a receipt.** Every number in README/ANALYSIS/listings is
@@ -570,12 +680,18 @@ Run through in order; any "no" means not done:
 8. Optimization receipt exists and the selected optimum passed the full gate
    suite afterward.
 9. Print pack: bed fit (256), wall gate, support report with declared build
-   orientation, `route`/`watertight` receipts green (or noted).
+   orientation, `route`/`watertight` receipts green (or noted); **`plates/`
+   present** — every print file on a plate, one profile per plate,
+   `plates_receipt.json` ok with `every_instance_placed_once` and every
+   plate `gap_ok`, plate files byte-identical on rebuild (§2.14).
 10. "What has NOT been done" section present and honest; publish copy (if
     any) written FROM receipts with both control numbers included.
 11. Friction entries appended for every issue hit, each carrying `severity`,
     `surface` and `status` per §4; engine/tools source untouched
     (`git status` on `crates/` and `tools/` is clean).
+13. `revisions/` holds every shipped revision of a changed design with a
+    `REVISIONS.md` index; the current design was snapshotted before it was
+    changed and the green run's `--if-changed` snapshot ran (§2.15).
 12. Directory matches §1 layout; no orphan scratch files; programs contain
     the embedded design record.
 13. **Recurrence stated.** The self-check names, BY ID, every pre-existing

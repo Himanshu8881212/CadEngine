@@ -306,6 +306,8 @@ NON_ANALYSIS = {
     "assembly_doc.py": "assembly-documentation renderer",
     "motion_gif.py": "motion-study GIF renderer",
     "make_all_plate.py": "multi-part bed-plate packer (utility)",
+    "build_plates.py": "build-plate nester: every print file on as few plates as it allows, one slicer profile per plate (the print deliverable; emits no physics number)",
+    "design_revisions.py": "campaign design snapshots: snapshot / list / diff / restore under <campaign>/revisions/ (bookkeeping, no physics number)",
     "bom_audit.py": "STEP-assembly hardware tally (bookkeeping)",
     "gen_discover.py": "codegen: regenerates discover.rs from program.rs",
     "voxelize_stl.py": "STL -> voxel occupancy bridge (preprocessor)",

@@ -73,8 +73,10 @@ human-readable per-part table goes to stderr. Failure exits 1.
 from __future__ import annotations
 
 import csv
+import glob
 import json
 import os
+import re
 import sys
 
 import numpy as np
@@ -348,6 +350,19 @@ def build_dossier(job):
 	# Combined plate STLs + a bed-layout sheet (audit 2026-07-16: the packing
 	# existed only as coordinates; now it is a sliceable artifact + a picture).
 	plate_files = []
+	# plate files from an EARLIER packing that needed more plates (or from before `emit_plates: false`)
+	# would otherwise survive beside the fresh ones as a stale, wrong arrangement (flying_wing_1m,
+	# 2026-09-07: a plate_2.stl from a two-plate run sat next to a one-plate run's plate_1.stl)
+	keep_n = len(plates) if (plates and job.get("emit_plates", True)) else 0
+	stale_plates = []
+	for f in sorted(glob.glob(os.path.join(out_dir, "plate_*.stl"))):
+		m_ = re.match(r"plate_(\d+)\.stl$", os.path.basename(f))
+		if m_ and int(m_.group(1)) > keep_n:
+			os.remove(f)
+			stale_plates.append(os.path.abspath(f))
+	if keep_n == 0 and os.path.exists(os.path.join(out_dir, "plate_layout.png")):
+		os.remove(os.path.join(out_dir, "plate_layout.png"))
+		stale_plates.append(os.path.abspath(os.path.join(out_dir, "plate_layout.png")))
 	if plates and job.get("emit_plates", True):
 		from _stl import write_stl
 
@@ -408,7 +423,8 @@ def build_dossier(job):
 	}
 	receipt = {
 		"ok": True, "parts": lines, "totals": totals, "plates": plate_receipts,
-		"warnings": warnings,
+		"warnings": warnings, "stale_plate_files_removed": stale_plates,
+		"emit_plates": bool(plates and job.get("emit_plates", True)),
 		"bed": bed, "spacing_mm": spacing, "filament_price_per_kg": price_kg,
 		"material_db_used": db_present,
 		"mass_model": ("printed_g = rho x [V_shell + infill x max(0, V_solid - V_shell)], "

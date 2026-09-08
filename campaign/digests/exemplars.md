@@ -33,6 +33,7 @@ python3 tools/analyzers/sweep_check.py        <job.json>   # insertion/motion sw
 python3 tools/analyzers/tolerance_stack.py    <job.json>   # 1-D stacks + fit checks (pure arithmetic)
 python3 tools/analyzers/balance_check.py      <job.json>   # rotating balance via mass_properties
 python3 tools/publish/production_dossier.py <job.json>   # BOM cost + plate packing → bom_dossier.{json,csv}
+python3 tools/publish/build_plates.py <job.json> --out <campaign>/plates/plates_receipt.json   # MANDATORY: the build plates, one slicer profile per plate → plates/ (DELIVERABLE_SPEC §2.14; no shim, real path)
 python3 tools/publish/render_sheet.py       <job.json>   # 12-view contact sheet PNG
 python3 tools/publish/assembly_doc.py       <job.json>   # exploded assembly sheet PNG + instructions.md
 ```
